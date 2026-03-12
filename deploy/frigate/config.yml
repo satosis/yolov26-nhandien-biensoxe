@@ -1,12 +1,13 @@
 go2rtc:
   streams:
     # Stream gốc (cho detect + record, không có filter)
-    imou_2k:
+    imou_2k_source:
       - "rtsp://admin:L2D47B99@10.115.215.241:554/cam/realmonitor?channel=1&subtype=0"
     # Stream đã "in" vạch đỏ (dùng cho live view trên HA/Frigate UI)
-    imou_2k_overlay:
+    # Rename thành imou_2k để Frigate tự động map vào camera cùng tên
+    imou_2k:
       # drawbox theo % chiều cao: y=ih*0.62, dày 6px, màu đỏ 85% đục
-      - "ffmpeg:imou_2k#video=h264#hardware#drawbox=x=0:y=ih*0.62:w=iw:h=6:color=red@0.85:t=fill"
+      - "ffmpeg:imou_2k_source#video=h264#hardware#drawbox=x=0:y=ih*0.62:w=iw:h=6:color=red@0.85:t=fill"
 
 mqtt:
   host: mosquitto
@@ -15,22 +16,24 @@ mqtt:
 
 record:
   enabled: true
-  retain:
-    days: 0
 
 cameras:
   imou_2k:
+    record:
+      enabled: true
+      alerts:
+        retain:
+          days: 0
+      detections:
+        retain:
+          days: 0
     ffmpeg:
       inputs:
-        # Input 1: stream gốc cho detect + record (không có drawbox để AI không bị ảnh hưởng)
-        - path: rtsp://127.0.0.1:8554/imou_2k
+        # Input: dùng stream source (không có vạch đỏ) để AI/Record hoạt động chuẩn
+        - path: rtsp://127.0.0.1:8554/imou_2k_source
           roles:
             - record
             - detect
-        # Input 2: stream đã "in" vạch đỏ - chỉ dùng cho live view
-        - path: rtsp://127.0.0.1:8554/imou_2k_overlay
-          roles:
-            - live
     detect:
       width: 1280
       height: 720

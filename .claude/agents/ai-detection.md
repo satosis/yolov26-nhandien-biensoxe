@@ -25,7 +25,6 @@ Bạn là chuyên gia AI inference pipeline cho hệ thống camera giám sát b
 - Model chính: `models/bien_so_xe.pt` — dùng cho cả general detection (người/xe) và plate detection
 - `GENERAL_DETECT_IMGSZ=640`, `GENERAL_DETECT_CONF=0.35`
 - `PLATE_DETECT_EVERY_N_FRAMES=3` — chỉ chạy OCR mỗi 3 frame để giảm tải
-- `PROCESS_WIDTH=960` — resize frame trước AI
 - Class IDs: tự resolve từ model names (không hardcode), fallback COCO IDs
 
 ### Vạch ảo (TripwireTracker)

@@ -8,14 +8,40 @@ from core.config import TOKEN, CHAT_IMPORTANT, CHAT_REGULAR, FACES_DIR, normaliz
 
 
 def notify_telegram(message, important=False):
-    """Gửi thông báo qua Telegram."""
-    chat_id = CHAT_IMPORTANT if important else CHAT_REGULAR
+    """Gửi thông báo qua Telegram cho TẤT CẢ các bot trong DB, fallback về config mặc định."""
     prefix = "🚨 [QUAN TRỌNG] " if important else "ℹ️ [THÔNG BÁO] "
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    sent_via_db = False
+    
     try:
-        requests.post(url, json={"chat_id": chat_id, "text": prefix + message})
-    except Exception as e:
-        print(f"Lỗi gửi Telegram: {e}")
+        from core.database import DatabaseManager
+        db = DatabaseManager()
+        bots = db.get_telegram_bots()
+        
+        if bots:
+            for bot in bots:
+                chat_id = bot.get('chat_id_important') if important else bot.get('chat_id_normal')
+                if not chat_id:
+                    continue
+                url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
+                try:
+                    requests.post(url, json={"chat_id": chat_id, "text": prefix + message}, timeout=5)
+                    sent_via_db = True
+                except Exception as e:
+                    print(f"Lỗi gửi Telegram (Bot {bot['bot_name']}): {e}")
+    except Exception as db_err:
+        print(f"Lỗi truy cập Telegram DB: {db_err}")
+
+    # Fallback to single static config from core.config if DB had no bots or failed
+    if not sent_via_db:
+        chat_id = CHAT_IMPORTANT if important else CHAT_REGULAR
+        if not chat_id or not TOKEN:
+            return
+            
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        try:
+            requests.post(url, json={"chat_id": chat_id, "text": prefix + message}, timeout=5)
+        except Exception as e:
+            print(f"Lỗi gửi Telegram fallback: {e}")
 
 
 def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn, mqtt_manager):

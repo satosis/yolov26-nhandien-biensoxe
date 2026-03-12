@@ -1,10 +1,3 @@
--- deploy/postgres/init.sql
--- Khởi tạo schema PostgreSQL cho hệ thống Camera AI
--- Chạy tự động khi container postgres khởi động lần đầu
-
--- ============================================================
--- Bảng 1: plate_events — Sự kiện nhận diện biển số
--- ============================================================
 CREATE TABLE IF NOT EXISTS plate_events (
     id              BIGSERIAL PRIMARY KEY,
     camera_id       VARCHAR(50) NOT NULL,
@@ -132,6 +125,53 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ============================================================
+-- Bảng 8: roles — Các vai trò hệ thống
+-- ============================================================
+CREATE TABLE IF NOT EXISTS roles (
+    id          SERIAL PRIMARY KEY,
+    role_name   VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    allowed_menus TEXT DEFAULT 'detection',
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO roles (role_name, description, allowed_menus) VALUES
+    ('Admin', 'Quyền quản trị toàn hệ thống', '*'),
+    ('Manager', 'Quản lý vận hành và dữ liệu', 'detection,dori,asset,sla'),
+    ('Security', 'Giám sát an ninh và báo động', 'detection,health'),
+    ('Auditor', 'Kiểm toán và báo cáo SLA', 'sla'),
+    ('Technician', 'Kỹ thuật viên bảo trì hệ thống', 'health,asset,config'),
+    ('Operator', 'Người trực vận hành camera', 'detection'),
+    ('Analyst', 'Phân tích dữ liệu nhận diện', 'detection,sla'),
+    ('Guest', 'Chỉ xem dữ liệu cơ bản', 'detection'),
+    ('Maintenance', 'Vệ sinh và bảo dưỡng phần cứng', 'health'),
+    ('Supervisor', 'Giám sát đội ngũ nhân sự', 'detection,sla,users')
+ON CONFLICT (role_name) DO NOTHING;
+
+-- ============================================================
+-- Bảng 9: users — Quản trị viên và người dùng hệ thống (RBAC)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS users (
+    id              SERIAL PRIMARY KEY,
+    username        VARCHAR(50) NOT NULL UNIQUE,
+    hashed_password TEXT NOT NULL,
+    role_id         INTEGER REFERENCES roles(id),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Seed data mẫu cho 10 Role
+INSERT INTO users (username, hashed_password, role_id)
+SELECT 
+    LOWER(role_name) || '_user', 
+    '$2b$12$jCR5nwcHwvk0ww4xdDOpL.XBgBopgAKdC.AarkafM5YZMPt5RrwYW', 
+    id 
+FROM roles
+ON CONFLICT (username) DO NOTHING;
+
+-- Đảm bảo có tài khoản admin chuẩn
+UPDATE users SET username = 'admin' WHERE username = 'admin_user';
+
 INSERT INTO app_settings (key, value) VALUES
     ('TELEGRAM_TOKEN', ''),
     ('TELEGRAM_CHAT_IMPORTANT', ''),
@@ -151,9 +191,229 @@ INSERT INTO app_settings (key, value) VALUES
     ('IMOU_OPEN_DEVICE_ID', '')
 ON CONFLICT (key) DO NOTHING;
 
--- Whitelist biển số mẫu (chỉ insert nếu chưa có)
-INSERT INTO plate_whitelist (plate_number, list_type, owner_name, note, added_by)
-VALUES
-    ('29A12345', 'white', 'Chủ xe', 'Xe chủ nhà kho', 'admin'),
-    ('51G99999', 'white', 'Nhân viên bảo vệ', 'Ca sáng', 'admin')
-ON CONFLICT (plate_number) DO NOTHING;
+-- ============================================================
+-- Bảng 9: pending_plates — Biển số chờ duyệt
+-- ============================================================
+CREATE TABLE IF NOT EXISTS pending_plates (
+    pending_id       VARCHAR(50) PRIMARY KEY,
+    event_id         BIGINT,
+    plate_raw        VARCHAR(20),
+    plate_norm       VARCHAR(20),
+    first_seen_utc   TIMESTAMPTZ DEFAULT NOW(),
+    status           VARCHAR(20) DEFAULT 'pending',
+    confirmed_at_utc TIMESTAMPTZ,
+    confirmed_by     VARCHAR(50)
+);
+
+-- ============================================================
+-- Bảng 10: legal_hold — Hồ sơ lưu giữ pháp lý
+-- ============================================================
+CREATE TABLE IF NOT EXISTS legal_hold (
+    id          SERIAL PRIMARY KEY,
+    file_path   TEXT NOT NULL UNIQUE,
+    reason      TEXT,
+    held_by     VARCHAR(50),
+    held_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    released_at TIMESTAMPTZ
+);
+-- ============================================================
+-- Bảng 11: telegram_bots — Cấu hình đa Bot Telegram
+-- ============================================================
+CREATE TABLE IF NOT EXISTS telegram_bots (
+    id                  SERIAL PRIMARY KEY,
+    bot_name            VARCHAR(100) UNIQUE NOT NULL,
+    token               TEXT NOT NULL,
+    chat_id_important   VARCHAR(50),
+    chat_id_normal      VARCHAR(50),
+    created_at          TIMESTAMPTZ DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- Bảng 12: camera_zones — Khu vực camera
+-- ============================================================
+CREATE TABLE IF NOT EXISTS camera_zones (
+    id          SERIAL PRIMARY KEY,
+    zone_name   VARCHAR(100) UNIQUE NOT NULL,
+    description TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO camera_zones (zone_name, description) VALUES
+    ('Cổng chính', 'Khu vực cổng chính ra vào'),
+    ('Sân sau', 'Khu vực phía sau tòa nhà'),
+    ('Kho hàng', 'Khu vực nhà kho'),
+    ('Bãi đỗ xe', 'Khu vực bãi đỗ xe'),
+    ('Hành lang', 'Khu vực hành lang nội bộ')
+ON CONFLICT (zone_name) DO NOTHING;
+
+-- ============================================================
+-- Bảng 13: cameras — Quản lý camera
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cameras (
+    id              SERIAL PRIMARY KEY,
+    camera_name     VARCHAR(100) NOT NULL,
+    camera_type     VARCHAR(50) DEFAULT 'imou',
+    imou_device_id  VARCHAR(100),
+    imou_channel_id VARCHAR(50) DEFAULT '0',
+    rtsp_url        TEXT,
+    is_active       BOOLEAN DEFAULT TRUE,
+    zone_id         INTEGER REFERENCES camera_zones(id),
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- APP.PY STATE TABLES (Migrated from SQLite)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS counters_state (
+    id INTEGER PRIMARY KEY,
+    people_count INTEGER NOT NULL DEFAULT 0,
+    vehicle_count INTEGER NOT NULL DEFAULT 0,
+    updated_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO counters_state (id, people_count, vehicle_count, updated_at_utc) 
+VALUES (1, 0, 0, NOW()) ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS object_tracks (
+    track_key VARCHAR(100) PRIMARY KEY,
+    label VARCHAR(50),
+    last_seen_utc TIMESTAMPTZ,
+    last_side VARCHAR(50),
+    counted_in INTEGER NOT NULL DEFAULT 0,
+    counted_out INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS counter_events (
+    id BIGSERIAL PRIMARY KEY,
+    ts_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    label VARCHAR(50),
+    direction VARCHAR(20),
+    delta INTEGER,
+    new_count INTEGER,
+    track_key VARCHAR(100),
+    source VARCHAR(50),
+    note TEXT
+);
+
+CREATE TABLE IF NOT EXISTS vehicle_exit_sessions (
+    session_id VARCHAR(100) PRIMARY KEY,
+    started_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    camera VARCHAR(100),
+    vehicle_track_key VARCHAR(100),
+    active INTEGER NOT NULL DEFAULT 1,
+    left_person_decrements INTEGER NOT NULL DEFAULT 0,
+    max_left_person_decrements INTEGER NOT NULL DEFAULT 4
+);
+
+CREATE TABLE IF NOT EXISTS gate_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    gate_closed INTEGER NOT NULL DEFAULT 0,
+    updated_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by VARCHAR(50)
+);
+
+INSERT INTO gate_state (id, gate_closed, updated_at_utc, updated_by) 
+VALUES (1, 0, NOW(), 'system') ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS ptz_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    mode VARCHAR(50) NOT NULL DEFAULT 'gate',
+    ocr_enabled INTEGER NOT NULL DEFAULT 1,
+    last_view_utc TIMESTAMPTZ,
+    updated_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by VARCHAR(50)
+);
+
+INSERT INTO ptz_state (id, mode, ocr_enabled, last_view_utc, updated_at_utc, updated_by) 
+VALUES (1, 'gate', 1, NULL, NOW(), 'system') ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS ptz_events (
+    id BIGSERIAL PRIMARY KEY,
+    ts_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    action VARCHAR(50) NOT NULL,
+    reason TEXT,
+    prev_mode VARCHAR(50),
+    new_mode VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS ptz_test_calls (
+    id BIGSERIAL PRIMARY KEY,
+    ts_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    preset VARCHAR(100) NOT NULL,
+    success INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    alert_key VARCHAR(100) PRIMARY KEY,
+    last_sent_utc TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS person_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    person_key VARCHAR(100),
+    camera VARCHAR(100),
+    entered_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    exited_at_utc TIMESTAMPTZ,
+    source VARCHAR(50),
+    confidence REAL
+);
+
+CREATE TABLE IF NOT EXISTS vehicle_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    vehicle_key VARCHAR(100),
+    plate_norm VARCHAR(20),
+    vehicle_type VARCHAR(50),
+    camera VARCHAR(100),
+    entered_at_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    exited_at_utc TIMESTAMPTZ,
+    time_outside_seconds INTEGER,
+    source VARCHAR(50)
+);
+
+CREATE TABLE IF NOT EXISTS driver_attribution (
+    id BIGSERIAL PRIMARY KEY,
+    ts_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    direction VARCHAR(20) NOT NULL,
+    person_identity VARCHAR(100),
+    vehicle_identity VARCHAR(100),
+    vehicle_session_id BIGINT,
+    person_session_id BIGINT,
+    evidence_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS gate_alert_events (
+    id BIGSERIAL PRIMARY KEY,
+    ts_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    gate_closed INTEGER NOT NULL,
+    people_count INTEGER NOT NULL,
+    note TEXT,
+    snapshot_path TEXT
+);
+
+CREATE TABLE IF NOT EXISTS daily_aggregates (
+    day_utc DATE NOT NULL,
+    person_identity VARCHAR(100) NOT NULL,
+    vehicle_identity VARCHAR(100) NOT NULL,
+    direction VARCHAR(20) NOT NULL,
+    trips_count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY(day_utc, person_identity, vehicle_identity, direction)
+);
+
+CREATE TABLE IF NOT EXISTS people_whitelist (
+    person_identity VARCHAR(100) PRIMARY KEY,
+    note TEXT,
+    added_at_utc TIMESTAMPTZ DEFAULT NOW(),
+    added_by VARCHAR(50)
+);
+
+CREATE INDEX IF NOT EXISTS idx_counter_events_ts_utc ON counter_events (ts_utc);
+CREATE INDEX IF NOT EXISTS idx_vehicle_exit_sessions_active ON vehicle_exit_sessions (active);
+CREATE INDEX IF NOT EXISTS idx_person_sessions_entered ON person_sessions (entered_at_utc);
+CREATE INDEX IF NOT EXISTS idx_vehicle_sessions_entered ON vehicle_sessions (entered_at_utc);
+CREATE INDEX IF NOT EXISTS idx_driver_attribution_ts_utc ON driver_attribution (ts_utc);
+CREATE INDEX IF NOT EXISTS idx_driver_attribution_person ON driver_attribution (person_identity);
+CREATE INDEX IF NOT EXISTS idx_driver_attribution_vehicle ON driver_attribution (vehicle_identity);
+CREATE INDEX IF NOT EXISTS idx_gate_alert_events_ts_utc ON gate_alert_events (ts_utc);

@@ -60,7 +60,7 @@ INFER_QUEUE_MAXSIZE  = 4   # frames waiting for inference
 RESULT_QUEUE_MAXSIZE = 32  # inference results waiting for UI
 
 # ── Storage ───────────────────────────────────────────────────────────────────
-SNAPSHOT_DIR = os.getenv("SNAPSHOT_DIR", "/mnt/storage/snapshots")
+SNAPSHOT_DIR = "./data/snapshots"
 DB_PATH      = os.getenv("DB_PATH", os.path.join(BASE_DIR, "db", "door_events.db"))
 
 # ── Web UI ────────────────────────────────────────────────────────────────────

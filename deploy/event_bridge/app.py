@@ -3,7 +3,7 @@ import hashlib
 import logging
 import os
 import re
-import sqlite3
+import psycopg2
 import threading
 import time     
 import uuid
@@ -53,7 +53,7 @@ PTZ_AUTO_RETURN_SECONDS = 300
 COUNT_PERSON_ONLY_IN = True
 OCR_MOTION_TRIGGER_LABELS = {"person", "car", "truck", "motorcycle", "bicycle"}
 
-import os
+import psycopg2
 from urllib.parse import urlparse
 
 RTSP_URL = "rtsp://admin:L2D47B99@192.168.1.55:554/cam/realmonitor?channel=1&subtype=0"
@@ -75,10 +75,8 @@ PTZ_MOVE_DURATION = 0.35
 PTZ_STEP_SIZE = 0.12
 PTZ_INVERT_PAN = False
 PTZ_INVERT_TILT = False
+
 IMOU_OPEN_API_BASE = "https://openapi-sg.easy4ip.com/openapi"
-IMOU_OPEN_APP_ID = "lc9f9e2d2dcc094a61"
-IMOU_OPEN_APP_SECRET = "8676588d325b496c9e3171ba32744f"
-IMOU_OPEN_DEVICE_ID = "5552ABJPSFFB063"
 IMOU_OPEN_CHANNEL_ID = "0"
 IMOU_OPEN_TIMEOUT = 20.0
 IMOU_OPEN_PANORAMA_OPERATION = ""
@@ -95,6 +93,34 @@ IMOU_PTZ_ALIAS_TO_OPERATION = {
 }
 EVENT_BRIDGE_TEST_MODE = False
 ONVIF_SIMULATE_FAIL = False
+
+# Postgres configuration for fetching dynamic settings
+POSTGRES_DSN = "postgresql://camera_user:password@localhost:5432/camera_ai"
+
+def get_imou_app_credentials() -> tuple[str, str]:
+    app_id, app_secret = "", ""
+    try:
+        with psycopg2.connect(POSTGRES_DSN) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_OPEN_APP_ID', 'IMOU_OPEN_APP_SECRET')")
+                for k, v in cursor.fetchall():
+                    if k == 'IMOU_OPEN_APP_ID': app_id = v
+                    if k == 'IMOU_OPEN_APP_SECRET': app_secret = v
+    except Exception as e:
+        logger.error(f"Postgres get IMOU keys error: {e}")
+    return app_id, app_secret
+
+def get_imou_device_id(camera_name="cam_cong_chinh") -> str:
+    try:
+        with psycopg2.connect(POSTGRES_DSN) as conn:
+            with conn.cursor() as cursor:
+                # We fetch the first active imou camera if camera_name isn't strictly matched
+                cursor.execute("SELECT imou_device_id FROM cameras WHERE camera_type='imou' AND is_active=TRUE LIMIT 1")
+                row = cursor.fetchone()
+                return row[0] if row else ""
+    except Exception as e:
+        logger.error(f"Postgres get IMOU device error: {e}")
+    return ""
 
 # Relay control for garage door
 # Relay control for garage door
@@ -174,320 +200,7 @@ def utc_now() -> str:
     return datetime.utcnow().isoformat()
 
 
-def init_db() -> None:
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            camera TEXT,
-            event_type TEXT,
-            label TEXT,
-            sub_label TEXT,
-            score REAL,
-            zone TEXT,
-            payload_json TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vehicle_whitelist (
-            plate_norm TEXT PRIMARY KEY,
-            label TEXT,
-            added_at_utc TEXT,
-            added_by TEXT,
-            note TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS pending_plates (
-            pending_id TEXT PRIMARY KEY,
-            event_id INTEGER,
-            plate_raw TEXT,
-            plate_norm TEXT,
-            first_seen_utc TEXT,
-            status TEXT,
-            confirmed_at_utc TEXT,
-            confirmed_by TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS counters_state (
-            id INTEGER PRIMARY KEY,
-            people_count INTEGER NOT NULL,
-            vehicle_count INTEGER NOT NULL,
-            updated_at_utc TEXT NOT NULL
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS object_tracks (
-            track_key TEXT PRIMARY KEY,
-            label TEXT,
-            last_seen_utc TEXT,
-            last_side TEXT,
-            counted_in INTEGER NOT NULL,
-            counted_out INTEGER NOT NULL
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS counter_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            label TEXT,
-            direction TEXT,
-            delta INTEGER,
-            new_count INTEGER,
-            track_key TEXT,
-            source TEXT,
-            note TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vehicle_exit_sessions (
-            session_id TEXT PRIMARY KEY,
-            started_at_utc TEXT NOT NULL,
-            camera TEXT,
-            vehicle_track_key TEXT,
-            active INTEGER NOT NULL,
-            left_person_decrements INTEGER NOT NULL,
-            max_left_person_decrements INTEGER NOT NULL
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gate_state (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            gate_closed INTEGER NOT NULL,
-            updated_at_utc TEXT NOT NULL,
-            updated_by TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS ptz_state (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            mode TEXT NOT NULL,
-            ocr_enabled INTEGER NOT NULL,
-            last_view_utc TEXT,
-            updated_at_utc TEXT NOT NULL,
-            updated_by TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS ptz_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            action TEXT NOT NULL,
-            reason TEXT,
-            prev_mode TEXT,
-            new_mode TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS ptz_test_calls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            preset TEXT NOT NULL,
-            success INTEGER NOT NULL
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS alerts (
-            alert_key TEXT PRIMARY KEY,
-            last_sent_utc TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS person_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            person_key TEXT,
-            camera TEXT,
-            entered_at_utc TEXT NOT NULL,
-            exited_at_utc TEXT,
-            source TEXT,
-            confidence REAL
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS vehicle_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vehicle_key TEXT,
-            plate_norm TEXT,
-            vehicle_type TEXT,
-            camera TEXT,
-            entered_at_utc TEXT NOT NULL,
-            exited_at_utc TEXT,
-            time_outside_seconds INTEGER,
-            source TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS driver_attribution (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            direction TEXT NOT NULL,
-            person_identity TEXT,
-            vehicle_identity TEXT,
-            vehicle_session_id INTEGER,
-            person_session_id INTEGER,
-            evidence_json TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS gate_alert_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts_utc TEXT NOT NULL,
-            gate_closed INTEGER NOT NULL,
-            people_count INTEGER NOT NULL,
-            note TEXT,
-            snapshot_path TEXT
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS daily_aggregates (
-            day_utc TEXT NOT NULL,
-            person_identity TEXT NOT NULL,
-            vehicle_identity TEXT NOT NULL,
-            direction TEXT NOT NULL,
-            trips_count INTEGER NOT NULL,
-            PRIMARY KEY(day_utc, person_identity, vehicle_identity, direction)
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS people_whitelist (
-            person_identity TEXT PRIMARY KEY,
-            note TEXT,
-            added_at_utc TEXT,
-            added_by TEXT
-        )
-        """
-    )
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_ts_utc ON events (ts_utc)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_events_label ON events (label)")
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vehicle_whitelist_plate_norm ON vehicle_whitelist (plate_norm)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_pending_plates_plate_norm ON pending_plates (plate_norm)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_pending_plates_status ON pending_plates (status)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_counter_events_ts_utc ON counter_events (ts_utc)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vehicle_exit_sessions_active ON vehicle_exit_sessions (active)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_person_sessions_entered ON person_sessions (entered_at_utc)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_vehicle_sessions_entered ON vehicle_sessions (entered_at_utc)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_driver_attribution_ts_utc ON driver_attribution (ts_utc)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_driver_attribution_person ON driver_attribution (person_identity)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_driver_attribution_vehicle ON driver_attribution (vehicle_identity)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_gate_alert_events_ts_utc ON gate_alert_events (ts_utc)"
-    )
-    conn.commit()
-    conn.close()
-
-    ensure_counters_state()
-    ensure_gate_state()
-    ensure_ptz_state()
-
-
-def ensure_counters_state() -> None:
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM counters_state WHERE id = 1")
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute(
-                "INSERT INTO counters_state (id, people_count, vehicle_count, updated_at_utc) VALUES (1, 0, 0, ?)",
-                (utc_now(),),
-            )
-        conn.commit()
-        conn.close()
-    except sqlite3.Error as exc:
-        logger.warning("Counters state init failed: %s", exc)
-
-
-def ensure_gate_state() -> None:
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM gate_state WHERE id = 1")
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute(
-                "INSERT INTO gate_state (id, gate_closed, updated_at_utc, updated_by) VALUES (1, 0, ?, ?)",
-                (utc_now(), "system"),
-            )
-        conn.commit()
-        conn.close()
-    except sqlite3.Error as exc:
-        logger.warning("Gate state init failed: %s", exc)
-
-
-def ensure_ptz_state() -> None:
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM ptz_state WHERE id = 1")
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute(
-                "INSERT INTO ptz_state (id, mode, ocr_enabled, last_view_utc, updated_at_utc, updated_by) VALUES (1, ?, 1, NULL, ?, ?)",
-                ("gate", utc_now(), "system"),
-            )
-        conn.commit()
-        conn.close()
-    except sqlite3.Error as exc:
-        logger.warning("PTZ state init failed: %s", exc)
+# Removed init_db and ensure_state helpers as they are now handled by Postgres init.sql
 
 
 def mqtt_publish(topic: str, payload: str, retain: bool = True) -> None:
@@ -671,7 +384,7 @@ def get_ptz_state() -> dict:
     with ptz_state_lock:
         cached = ptz_state_cache.copy()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT mode, ocr_enabled, last_view_utc, updated_at_utc, updated_by FROM ptz_state WHERE id = 1"
@@ -689,17 +402,17 @@ def get_ptz_state() -> dict:
             with ptz_state_lock:
                 ptz_state_cache.update(state)
             return state
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("PTZ state read failed: %s", exc)
     return cached
 
 
 def set_ptz_state(mode: str, ocr_enabled: int, updated_by: str, last_view_utc: str | None = None) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE ptz_state SET mode = ?, ocr_enabled = ?, last_view_utc = ?, updated_at_utc = ?, updated_by = ? WHERE id = 1",
+            "UPDATE ptz_state SET mode = %s, ocr_enabled = %s, last_view_utc = %s, updated_at_utc = %s, updated_by = %s WHERE id = 1",
             (mode, ocr_enabled, last_view_utc, utc_now(), updated_by),
         )
         conn.commit()
@@ -714,25 +427,25 @@ def set_ptz_state(mode: str, ocr_enabled: int, updated_by: str, last_view_utc: s
                     "updated_by": updated_by,
                 }
             )
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("PTZ state update failed: %s", exc)
     publish_state()
 
 
 def insert_ptz_event(action: str, reason: str, prev_mode: str | None, new_mode: str | None) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO ptz_events (ts_utc, action, reason, prev_mode, new_mode)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (utc_now(), action, reason, prev_mode, new_mode),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("PTZ event insert failed: %s", exc)
 
 
@@ -742,17 +455,17 @@ def update_ptz_last_view(updated_by: str) -> None:
         return
     last_view = utc_now()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE ptz_state SET last_view_utc = ?, updated_at_utc = ?, updated_by = ? WHERE id = 1",
+            "UPDATE ptz_state SET last_view_utc = %s, updated_at_utc = %s, updated_by = %s WHERE id = 1",
             (last_view, utc_now(), updated_by),
         )
         conn.commit()
         conn.close()
         with ptz_state_lock:
             ptz_state_cache.update({"last_view_utc": last_view, "updated_at_utc": utc_now(), "updated_by": updated_by})
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("PTZ last_view update failed: %s", exc)
     publish_state()
 
@@ -763,18 +476,18 @@ def is_ocr_enabled() -> bool:
 
 def record_ptz_test_call(action: str, success: int) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO ptz_test_calls (ts_utc, preset, success)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
             """,
             (utc_now(), action, success),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("PTZ test call insert failed: %s", exc)
 
 
@@ -842,24 +555,28 @@ def find_directional_preset_token(direction: str) -> str:
 
 
 def imou_open_enabled() -> bool:
-    return bool(IMOU_OPEN_API_BASE and IMOU_OPEN_APP_ID and IMOU_OPEN_APP_SECRET and IMOU_OPEN_DEVICE_ID)
+    app_id, app_secret = get_imou_app_credentials()
+    device_id = get_imou_device_id()
+    return bool(IMOU_OPEN_API_BASE and app_id and app_secret and device_id)
 
 
 def imou_open_sign(ts: int, nonce: str) -> str:
-    raw = f"time:{ts},nonce:{nonce},appSecret:{IMOU_OPEN_APP_SECRET}"
+    _, app_secret = get_imou_app_credentials()
+    raw = f"time:{ts},nonce:{nonce},appSecret:{app_secret}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
 def imou_open_call(method: str, params: dict) -> dict | None:
     if not imou_open_enabled():
         return None
+    app_id, _ = get_imou_app_credentials()
     ts = int(time.time())
     nonce = str(uuid.uuid4())
     payload = {
         "id": str(uuid.uuid4()),
         "system": {
             "ver": "1.0",
-            "appId": IMOU_OPEN_APP_ID,
+            "appId": app_id,
             "time": ts,
             "nonce": nonce,
             "sign": imou_open_sign(ts, nonce),
@@ -906,11 +623,12 @@ def imou_open_get_token() -> str | None:
 
 def imou_open_control_move_ptz(operation: str, duration_ms: int) -> bool:
     token = imou_open_get_token()
-    if not token:
+    device_id = get_imou_device_id()
+    if not token or not device_id:
         return False
     params = {
         "token": token,
-        "deviceId": IMOU_OPEN_DEVICE_ID,
+        "deviceId": device_id,
         "channelId": IMOU_OPEN_CHANNEL_ID,
         "operation": str(operation),
         "duration": int(duration_ms),
@@ -1080,87 +798,87 @@ def auto_return_loop() -> None:
 
 def get_counters() -> tuple[int, int]:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute("SELECT people_count, vehicle_count FROM counters_state WHERE id = 1")
         row = cursor.fetchone()
         conn.close()
         if row:
             return int(row[0]), int(row[1])
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Counters read failed: %s", exc)
     return 0, 0
 
 
 def update_counters(people_count: int, vehicle_count: int) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE counters_state SET people_count = ?, vehicle_count = ?, updated_at_utc = ? WHERE id = 1",
+            "UPDATE counters_state SET people_count = %s, vehicle_count = %s, updated_at_utc = %s WHERE id = 1",
             (people_count, vehicle_count, utc_now()),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Counters update failed: %s", exc)
     publish_state()
 
 
 def get_gate_state() -> tuple[int, str | None, str | None]:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute("SELECT gate_closed, updated_at_utc, updated_by FROM gate_state WHERE id = 1")
         row = cursor.fetchone()
         conn.close()
         if row:
             return int(row[0]), row[1], row[2]
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Gate state read failed: %s", exc)
     return 0, None, None
 
 
 def set_gate_state(gate_closed: int, updated_by: str) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE gate_state SET gate_closed = ?, updated_at_utc = ?, updated_by = ? WHERE id = 1",
+            "UPDATE gate_state SET gate_closed = %s, updated_at_utc = %s, updated_by = %s WHERE id = 1",
             (gate_closed, utc_now(), updated_by),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Gate state update failed: %s", exc)
     publish_state()
 
 
 def get_alert_last(alert_key: str) -> str | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
-        cursor.execute("SELECT last_sent_utc FROM alerts WHERE alert_key = ?", (alert_key,))
+        cursor.execute("SELECT last_sent_utc FROM alerts WHERE alert_key = %s", (alert_key,))
         row = cursor.fetchone()
         conn.close()
         if row:
             return row[0]
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Alert read failed: %s", exc)
     return None
 
 
 def update_alert_last(alert_key: str, timestamp: str) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO alerts (alert_key, last_sent_utc) VALUES (?, ?) ON CONFLICT(alert_key) DO UPDATE SET last_sent_utc = excluded.last_sent_utc",
+            "INSERT INTO alerts (alert_key, last_sent_utc) VALUES (%s, %s) ON CONFLICT(alert_key) DO UPDATE SET last_sent_utc = excluded.last_sent_utc",
             (alert_key, timestamp),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Alert update failed: %s", exc)
 
 
@@ -1168,27 +886,27 @@ def log_counter_event(
     label: str, direction: str, delta: int, new_count: int, track_key: str, source: str, note: str
 ) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO counter_events (ts_utc, label, direction, delta, new_count, track_key, source, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (utc_now(), label, direction, delta, new_count, track_key, source, note),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Counter event log failed: %s", exc)
 
 
 def get_track(track_key: str) -> dict | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT track_key, label, last_seen_utc, last_side, counted_in, counted_out FROM object_tracks WHERE track_key = ?",
+            "SELECT track_key, label, last_seen_utc, last_side, counted_in, counted_out FROM object_tracks WHERE track_key = %s",
             (track_key,),
         )
         row = cursor.fetchone()
@@ -1202,19 +920,19 @@ def get_track(track_key: str) -> dict | None:
                 "counted_in": int(row[4]),
                 "counted_out": int(row[5]),
             }
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Track read failed: %s", exc)
     return None
 
 
 def upsert_track(track_key: str, label: str, last_side: str | None) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO object_tracks (track_key, label, last_seen_utc, last_side, counted_in, counted_out)
-            VALUES (?, ?, ?, ?, 0, 0)
+            VALUES (%s, %s, %s, %s, 0, 0)
             ON CONFLICT(track_key) DO UPDATE SET
                 label=excluded.label,
                 last_seen_utc=excluded.last_seen_utc,
@@ -1224,21 +942,21 @@ def upsert_track(track_key: str, label: str, last_side: str | None) -> None:
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Track upsert failed: %s", exc)
 
 
 def update_track_side(track_key: str, last_side: str | None) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE object_tracks SET last_seen_utc = ?, last_side = ? WHERE track_key = ?",
+            "UPDATE object_tracks SET last_seen_utc = %s, last_side = %s WHERE track_key = %s",
             (utc_now(), last_side, track_key),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Track side update failed: %s", exc)
 
 
@@ -1247,48 +965,48 @@ def mark_track_counted(track_key: str, direction: str) -> None:
         return
     field = "counted_in" if direction == "in" else "counted_out"
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            f"UPDATE object_tracks SET {field} = 1, last_seen_utc = ? WHERE track_key = ?",
+            f"UPDATE object_tracks SET {field} = 1, last_seen_utc = %s WHERE track_key = %s",
             (utc_now(), track_key),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Track mark counted failed: %s", exc)
 
 
 def cleanup_tracks() -> None:
     cutoff = datetime.utcnow() - timedelta(seconds=TRACK_TTL_SECONDS)
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM object_tracks WHERE last_seen_utc < ?", (cutoff.isoformat(),))
+        cursor.execute("DELETE FROM object_tracks WHERE last_seen_utc < %s", (cutoff.isoformat(),))
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Track cleanup failed: %s", exc)
 
 
 def close_expired_sessions() -> None:
     cutoff = datetime.utcnow() - timedelta(seconds=LEFT_EXIT_WINDOW_SECONDS)
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE vehicle_exit_sessions SET active = 0 WHERE active = 1 AND started_at_utc < ?",
+            "UPDATE vehicle_exit_sessions SET active = 0 WHERE active = 1 AND started_at_utc < %s",
             (cutoff.isoformat(),),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Close expired sessions failed: %s", exc)
 
 
 def enforce_session_limit() -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             "SELECT session_id FROM vehicle_exit_sessions WHERE active = 1 ORDER BY started_at_utc ASC"
@@ -1298,37 +1016,37 @@ def enforce_session_limit() -> None:
             to_close = rows[: len(rows) - MAX_ACTIVE_VEHICLE_EXIT_SESSIONS]
             for row in to_close:
                 cursor.execute(
-                    "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = ?",
+                    "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = %s",
                     (row[0],),
                 )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Session limit enforcement failed: %s", exc)
 
 
 def create_vehicle_exit_session(camera: str, track_key: str) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO vehicle_exit_sessions (
                 session_id, started_at_utc, camera, vehicle_track_key, active,
                 left_person_decrements, max_left_person_decrements
-            ) VALUES (?, ?, ?, ?, 1, 0, ?)
+            ) VALUES (%s, %s, %s, %s, 1, 0, %s)
             """,
             (str(uuid.uuid4()), utc_now(), camera, track_key, LEFT_EXIT_MAX_EXTRA_PEOPLE),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Create vehicle exit session failed: %s", exc)
 
 
 def apply_left_exit_decrement() -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -1346,7 +1064,7 @@ def apply_left_exit_decrement() -> bool:
         started_dt = datetime.fromisoformat(started_at)
         if datetime.utcnow() - started_dt > timedelta(seconds=LEFT_EXIT_WINDOW_SECONDS):
             cursor.execute(
-                "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = ?",
+                "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = %s",
                 (session_id,),
             )
             conn.commit()
@@ -1354,33 +1072,33 @@ def apply_left_exit_decrement() -> bool:
             return False
         if left_dec >= max_dec:
             cursor.execute(
-                "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = ?",
+                "UPDATE vehicle_exit_sessions SET active = 0 WHERE session_id = %s",
                 (session_id,),
             )
             conn.commit()
             conn.close()
             return False
         cursor.execute(
-            "UPDATE vehicle_exit_sessions SET left_person_decrements = left_person_decrements + 1 WHERE session_id = ?",
+            "UPDATE vehicle_exit_sessions SET left_person_decrements = left_person_decrements + 1 WHERE session_id = %s",
             (session_id,),
         )
         conn.commit()
         conn.close()
         return True
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Apply left exit decrement failed: %s", exc)
         return False
 
 
 def active_session_count() -> int:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM vehicle_exit_sessions WHERE active = 1")
         count = cursor.fetchone()[0]
         conn.close()
         return int(count)
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Active session count failed: %s", exc)
         return 0
 
@@ -1445,28 +1163,28 @@ def telegram_help_text() -> str:
 
 def is_plate_whitelisted(plate_norm: str) -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT 1 FROM vehicle_whitelist WHERE plate_norm = ? LIMIT 1",
+            "SELECT 1 FROM vehicle_whitelist WHERE plate_norm = %s LIMIT 1",
             (plate_norm,),
         )
         row = cursor.fetchone()
         conn.close()
         return row is not None
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Whitelist lookup failed: %s", exc)
         return False
 
 
 def upsert_vehicle_whitelist(plate_norm: str, label: str, added_by: str) -> bool:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO vehicle_whitelist (plate_norm, label, added_at_utc, added_by, note)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT(plate_norm) DO UPDATE SET
                 label=excluded.label,
                 added_at_utc=excluded.added_at_utc,
@@ -1478,38 +1196,39 @@ def upsert_vehicle_whitelist(plate_norm: str, label: str, added_by: str) -> bool
         conn.commit()
         conn.close()
         return True
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Whitelist upsert failed: %s", exc)
         return False
 
 
 def update_pending_status(plate_norm: str, status: str, confirmed_by: str) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             UPDATE pending_plates
-            SET status = ?, confirmed_at_utc = ?, confirmed_by = ?
-            WHERE plate_norm = ? AND status = 'pending'
+            SET status = %s, confirmed_at_utc = %s, confirmed_by = %s
+            WHERE plate_norm = %s AND status = 'pending'
             """,
             (status, utc_now(), confirmed_by, plate_norm),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Pending status update failed: %s", exc)
 
 
 def insert_pending_plate(event_id: int, plate_raw: str, plate_norm: str) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
-            INSERT OR IGNORE INTO pending_plates (
+            INSERT INTO pending_plates (
                 pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status
-            ) VALUES (?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (pending_id) DO NOTHING
             """,
             (
                 str(uuid.uuid4()),
@@ -1522,7 +1241,7 @@ def insert_pending_plate(event_id: int, plate_raw: str, plate_norm: str) -> None
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Insert pending plate failed: %s", exc)
 
 
@@ -1546,20 +1265,22 @@ def insert_event(payload: dict) -> int:
     payload_json = json.dumps(payload, ensure_ascii=False)
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO events (ts_utc, camera, event_type, label, sub_label, score, zone, payload_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
             """,
             (ts_utc, camera, event_type, label, sub_label, score, zone, payload_json),
         )
-        event_id = cursor.lastrowid
+        row = cursor.fetchone()
+        event_id = row[0] if row else 0
         conn.commit()
         conn.close()
         return event_id
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Insert event failed: %s", exc)
         return 0
 
@@ -1715,12 +1436,12 @@ def resolve_vehicle_identity(plate_norm: str | None, session_id: int | None) -> 
 
 def open_person_session(person_key: str | None, camera: str | None, source: str) -> int | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO person_sessions (person_key, camera, entered_at_utc, source)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
             """,
             (person_key, camera, utc_now(), source),
         )
@@ -1728,20 +1449,20 @@ def open_person_session(person_key: str | None, camera: str | None, source: str)
         conn.commit()
         conn.close()
         return session_id
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Open person session failed: %s", exc)
         return None
 
 
 def close_person_session(person_key: str | None) -> int | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         if person_key:
             cursor.execute(
                 """
                 SELECT id FROM person_sessions
-                WHERE person_key = ? AND exited_at_utc IS NULL
+                WHERE person_key = %s AND exited_at_utc IS NULL
                 ORDER BY entered_at_utc DESC LIMIT 1
                 """,
                 (person_key,),
@@ -1760,20 +1481,20 @@ def close_person_session(person_key: str | None) -> int | None:
             return None
         session_id = row[0]
         cursor.execute(
-            "UPDATE person_sessions SET exited_at_utc = ? WHERE id = ?",
+            "UPDATE person_sessions SET exited_at_utc = %s WHERE id = %s",
             (utc_now(), session_id),
         )
         conn.commit()
         conn.close()
         return session_id
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Close person session failed: %s", exc)
         return None
 
 
 def find_recent_person_session(direction: str, event_time: datetime) -> int | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         if direction == "out":
             cursor.execute(
@@ -1800,7 +1521,7 @@ def find_recent_person_session(direction: str, event_time: datetime) -> int | No
         ts_dt = datetime.fromisoformat(ts)
         if abs((event_time - ts_dt).total_seconds()) <= DRIVER_LINK_WINDOW_SECONDS:
             return row[0]
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Find recent person session failed: %s", exc)
     return None
 
@@ -1813,12 +1534,12 @@ def open_vehicle_session(
     source: str,
 ) -> int | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO vehicle_sessions (vehicle_key, plate_norm, vehicle_type, camera, entered_at_utc, source)
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (vehicle_key, plate_norm, vehicle_type, camera, utc_now(), source),
         )
@@ -1826,20 +1547,20 @@ def open_vehicle_session(
         conn.commit()
         conn.close()
         return session_id
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Open vehicle session failed: %s", exc)
         return None
 
 
 def close_vehicle_session(vehicle_key: str | None, plate_norm: str | None, vehicle_type: str) -> int | None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         if plate_norm:
             cursor.execute(
                 """
                 SELECT id FROM vehicle_sessions
-                WHERE plate_norm = ? AND exited_at_utc IS NULL
+                WHERE plate_norm = %s AND exited_at_utc IS NULL
                 ORDER BY entered_at_utc DESC LIMIT 1
                 """,
                 (plate_norm,),
@@ -1848,7 +1569,7 @@ def close_vehicle_session(vehicle_key: str | None, plate_norm: str | None, vehic
             cursor.execute(
                 """
                 SELECT id FROM vehicle_sessions
-                WHERE vehicle_key = ? AND exited_at_utc IS NULL
+                WHERE vehicle_key = %s AND exited_at_utc IS NULL
                 ORDER BY entered_at_utc DESC LIMIT 1
                 """,
                 (vehicle_key,),
@@ -1857,7 +1578,7 @@ def close_vehicle_session(vehicle_key: str | None, plate_norm: str | None, vehic
             cursor.execute(
                 """
                 SELECT id FROM vehicle_sessions
-                WHERE vehicle_type = ? AND exited_at_utc IS NULL
+                WHERE vehicle_type = %s AND exited_at_utc IS NULL
                 ORDER BY entered_at_utc DESC LIMIT 1
                 """,
                 (vehicle_type,),
@@ -1868,13 +1589,13 @@ def close_vehicle_session(vehicle_key: str | None, plate_norm: str | None, vehic
             return None
         session_id = row[0]
         cursor.execute(
-            "UPDATE vehicle_sessions SET exited_at_utc = ? WHERE id = ?",
+            "UPDATE vehicle_sessions SET exited_at_utc = %s WHERE id = %s",
             (utc_now(), session_id),
         )
         conn.commit()
         conn.close()
         return session_id
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Close vehicle session failed: %s", exc)
         return None
 
@@ -1883,14 +1604,14 @@ def update_time_outside(
     plate_norm: str | None, vehicle_key: str | None, vehicle_type: str, entered_at: str
 ) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cutoff = datetime.utcnow() - timedelta(seconds=MATCH_VEHICLE_REENTRY_SECONDS)
         if plate_norm:
             cursor.execute(
                 """
                 SELECT id, exited_at_utc FROM vehicle_sessions
-                WHERE plate_norm = ? AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
+                WHERE plate_norm = %s AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
                 ORDER BY exited_at_utc DESC LIMIT 1
                 """,
                 (plate_norm,),
@@ -1899,7 +1620,7 @@ def update_time_outside(
             cursor.execute(
                 """
                 SELECT id, exited_at_utc FROM vehicle_sessions
-                WHERE vehicle_key = ? AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
+                WHERE vehicle_key = %s AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
                 ORDER BY exited_at_utc DESC LIMIT 1
                 """,
                 (vehicle_key,),
@@ -1908,7 +1629,7 @@ def update_time_outside(
             cursor.execute(
                 """
                 SELECT id, exited_at_utc FROM vehicle_sessions
-                WHERE vehicle_type = ? AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
+                WHERE vehicle_type = %s AND exited_at_utc IS NOT NULL AND time_outside_seconds IS NULL
                 ORDER BY exited_at_utc DESC LIMIT 1
                 """,
                 (vehicle_type,),
@@ -1928,12 +1649,12 @@ def update_time_outside(
             conn.close()
             return
         cursor.execute(
-            "UPDATE vehicle_sessions SET time_outside_seconds = ? WHERE id = ?",
+            "UPDATE vehicle_sessions SET time_outside_seconds = %s WHERE id = %s",
             (delta, session_id),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Update time outside failed: %s", exc)
 
 
@@ -1946,13 +1667,13 @@ def insert_driver_attribution(
     evidence: dict,
 ) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cutoff = datetime.utcnow() - timedelta(seconds=DEDUPE_SECONDS)
         cursor.execute(
             """
             SELECT id FROM driver_attribution
-            WHERE person_identity = ? AND vehicle_identity = ? AND direction = ? AND ts_utc >= ?
+            WHERE person_identity = %s AND vehicle_identity = %s AND direction = %s AND ts_utc >= %s
             ORDER BY ts_utc DESC LIMIT 1
             """,
             (person_identity, vehicle_identity, direction, cutoff.isoformat()),
@@ -1963,7 +1684,7 @@ def insert_driver_attribution(
         cursor.execute(
             """
             INSERT INTO driver_attribution (ts_utc, direction, person_identity, vehicle_identity, vehicle_session_id, person_session_id, evidence_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 utc_now(),
@@ -1977,7 +1698,7 @@ def insert_driver_attribution(
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Insert driver attribution failed: %s", exc)
 
 
@@ -2003,18 +1724,18 @@ def insert_gate_alert_event(
     gate_closed: int, people_count: int, note: str, snapshot_path: str | None
 ) -> None:
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = psycopg2.connect(POSTGRES_DSN)
         cursor = conn.cursor()
         cursor.execute(
             """
             INSERT INTO gate_alert_events (ts_utc, gate_closed, people_count, note, snapshot_path)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (utc_now(), gate_closed, people_count, note, snapshot_path),
         )
         conn.commit()
         conn.close()
-    except sqlite3.Error as exc:
+    except Exception as exc:
         logger.warning("Gate alert event insert failed: %s", exc)
 
 
@@ -2442,23 +2163,23 @@ async def telegram_webhook(
             send_telegram_message(chat_id, "Thiếu tên. Ví dụ: /person_add nhanvien_A")
             return {"ok": True}
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = psycopg2.connect(POSTGRES_DSN)
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO people_whitelist (person_identity, note, added_at_utc, added_by) VALUES (?, ?, ?, ?) ON CONFLICT(person_identity) DO UPDATE SET note=excluded.note, added_at_utc=excluded.added_at_utc, added_by=excluded.added_by",
+                "INSERT INTO people_whitelist (person_identity, note, added_at_utc, added_by) VALUES (%s, %s, %s, %s) ON CONFLICT(person_identity) DO UPDATE SET note=excluded.note, added_at_utc=excluded.added_at_utc, added_by=excluded.added_by",
                 (plate_raw, "", utc_now(), user_label),
             )
             conn.commit()
             conn.close()
             send_telegram_message(chat_id, f"✅ Đã thêm person_identity: {plate_raw}")
-        except sqlite3.Error as exc:
+        except Exception as exc:
             logger.warning("Person add failed: %s", exc)
             send_telegram_message(chat_id, "⚠️ Không thể thêm person_identity.")
         return {"ok": True}
 
     if cmd == "/person_list":
         try:
-            conn = sqlite3.connect(DB_PATH)
+            conn = psycopg2.connect(POSTGRES_DSN)
             cursor = conn.cursor()
             cursor.execute("SELECT person_identity FROM people_whitelist ORDER BY person_identity ASC")
             rows = cursor.fetchall()
@@ -2468,7 +2189,7 @@ async def telegram_webhook(
                 send_telegram_message(chat_id, f"Danh sách person_identity:\n{names}")
             else:
                 send_telegram_message(chat_id, "Chưa có person_identity.")
-        except sqlite3.Error as exc:
+        except Exception as exc:
             logger.warning("Person list failed: %s", exc)
             send_telegram_message(chat_id, "⚠️ Không thể lấy danh sách.")
         return {"ok": True}
@@ -2526,7 +2247,6 @@ async def health():
 
 
 def main() -> None:
-    init_db()
     configure_telegram_commands()
     mqtt_thread = threading.Thread(target=start_mqtt_loop, daemon=True)
     mqtt_thread.start()

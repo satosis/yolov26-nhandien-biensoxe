@@ -8,13 +8,18 @@ python-dotenv
 requests
 face_recognition
 cmake
-dlib
+# dlib (Build errors on ARM)
+# dlib
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 paho-mqtt==2.1.0
 onvif-zeep==0.2.12
-OPi.GPIO
+# OPi.GPIO (Build errors on ARM)
+# OPi.GPIO
 tinytuya
 onnx==1.17.0
 onnxscript>=0.1.0
 psycopg2-binary>=2.9.0
+streamlit-cookies-manager==0.2.0
+
+

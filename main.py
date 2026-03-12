@@ -13,8 +13,8 @@ from ultralytics import YOLO
 # --- Core ---
 from core.config import (
     GENERAL_MODEL_PATH, PLATE_MODEL_PATH, LINE_Y_PIXELS, LINE_Y_RATIO, RTSP_URL, OCR_SOURCE,
-    SIGNAL_LOSS_TIMEOUT, DOOR_ROI, FACE_RECOGNITION_AVAILABLE,
-    authorized_plates, normalize_plate, DB_PATH,
+    SIGNAL_LOSS_TIMEOUT, FACE_RECOGNITION_AVAILABLE,
+    authorized_plates, normalize_plate,
     CAMERA_SHIFT_CHECK_EVERY_FRAMES,
     CAMERA_SHIFT_MIN_INLIER_RATIO,
     CAMERA_SHIFT_MAX_ROTATION_DEG,
@@ -40,7 +40,7 @@ from services.api_server import start_api_server
 from services.camera_manager import CameraManager
 
 # ========== KHỞI TẠO ==========
-db = DatabaseManager(DB_PATH)
+db = DatabaseManager()
 door_controller = DoorController()
 mqtt_manager = MQTTManager(door_controller)
 mqtt_manager.start()
@@ -271,7 +271,6 @@ while True:
     save_active_learning = False
 
     # Khởi tạo TripwireTracker lần đầu (cần biết line_y_fn runtime)
-    global _tripwire_tracker
     if _tripwire_tracker is None:
         _line_y_cache = line_y  # capture giá trị hiện tại; fn gọi lại mỗi frame
         _tripwire_tracker = TripwireTracker(

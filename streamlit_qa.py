@@ -26,7 +26,7 @@ st.set_page_config(
     layout="wide",
 )
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "license_plate_recognition.pt")
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "bien_so_xe.pt")
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), "data", "snapshots")
 os.makedirs(SNAPSHOT_DIR, exist_ok=True)
 
@@ -190,8 +190,7 @@ def detect_faces(face_app, img: np.ndarray, known_dir: str):
 def get_db():
     try:
         from core.database import DatabaseManager
-        from core.config import DB_PATH
-        return DatabaseManager(DB_PATH)
+        return DatabaseManager()
     except Exception:
         return None
 
@@ -210,12 +209,15 @@ def get_asset_registry():
 # ── UI ────────────────────────────────────────────────────────────────────────
 st.title("🅿 Parking Camera Management Dashboard")
 
-tab_qa, tab_dori, tab_asset, tab_sla, tab_health = st.tabs([
+tab_qa, tab_dori, tab_asset, tab_sla, tab_health, tab_telegram, tab_cam_info, tab_sys_config = st.tabs([
     "🔍 Nhận diện",
     "📐 DORI Calculator",
     "🗂 Asset Registry",
     "📊 SLA Report",
     "❤️ Camera Health",
+    "🤖 Telegram Bot",
+    "📷 Camera Info",
+    "⚙️ Cấu hình hệ thống",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -411,12 +413,22 @@ with tab_dori:
             "Đạt tiêu chuẩn": "✅" if max_dist >= 1.0 else "⚠️ Quá gần",
         })
 
-    import pandas as pd
-    df_dori = pd.DataFrame(rows)
     st.dataframe(df_dori, use_container_width=True, hide_index=True)
 
-    # Visual bar chart
-    st.bar_chart(df_dori.set_index("Mức DORI")["Khoảng cách tối đa (m)"])
+    # Visual bar chart — dùng altair để tránh Vega-Lite warning với categorical axis
+    import altair as alt
+    _order = ["Detection", "Observation", "Recognition", "Identification"]
+    chart = (
+        alt.Chart(df_dori)
+        .mark_bar(color="#00e676")
+        .encode(
+            x=alt.X("Mức DORI:O", sort=_order, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("Khoảng cách tối đa (m):Q", scale=alt.Scale(domain=[0, df_dori["Khoảng cách tối đa (m)"].max() * 1.2] if not df_dori.empty else [0, 100])),
+            tooltip=["Mức DORI", "Khoảng cách tối đa (m)", "PPM yêu cầu"],
+        )
+        .properties(width=600, height=220)
+    )
+    st.altair_chart(chart, use_container_width=False)
 
     st.info(
         "**Hướng dẫn:** Identification (250 PPM) là mức tối thiểu để nhận dạng pháp lý. "
@@ -602,3 +614,136 @@ with tab_health:
                 if hold_path:
                     db.release_legal_hold(hold_path)
                     st.success("Đã giải phóng.")
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 6 — TELEGRAM BOT
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab_telegram:
+    st.subheader("🤖 Quản lý Telegram Bot")
+    from core.config import TOKEN, CHAT_IMPORTANT, CHAT_REGULAR
+    from services.telegram_service import notify_telegram
+
+    t1, t2 = st.columns(2)
+    with t1:
+        st.markdown("**Cấu hình:**")
+        if TOKEN:
+            masked_token = TOKEN[:10] + "..." + TOKEN[-5:]
+            st.info(f"Bot Token: `{masked_token}`")
+        else:
+            st.error("Chưa cấu hình TELEGRAM_TOKEN")
+        
+        st.write(f"Chat ID (Important): `{CHAT_IMPORTANT}`")
+        st.write(f"Chat ID (Regular): `{CHAT_REGULAR}`")
+
+    with t2:
+        st.markdown("**Kiểm tra Bot:**")
+        if st.button("🔍 Check Bot Status"):
+            try:
+                import requests
+                r = requests.get(f"https://api.telegram.org/bot{TOKEN}/getMe", timeout=5).json()
+                if r.get("ok"):
+                    bot_info = r["result"]
+                    st.success(f"Bot online: @{bot_info['username']} ({bot_info['first_name']})")
+                else:
+                    st.error(f"Lỗi: {r.get('description')}")
+            except Exception as e:
+                st.error(f"Không thể kết nối Telegram API: {e}")
+
+    st.divider()
+    st.markdown("**Gửi tin nhắn thử nghiệm:**")
+    msg_text = st.text_input("Nội dung tin nhắn", placeholder="Xin chào từ Streamlit dashboard!")
+    is_imp = st.checkbox("Gửi vào nhóm QUAN TRỌNG")
+    if st.button("📤 Gửi ngay"):
+        if msg_text:
+            try:
+                notify_telegram(msg_text, important=is_imp)
+                st.success("Đã gửi tin nhắn (Kiểm tra Telegram của bạn!)")
+            except Exception as e:
+                st.error(f"Lỗi gửi tin nhắn: {e}")
+        else:
+            st.warning("Vui lòng nhập nội dung.")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 7 — CAMERA INFO
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab_cam_info:
+    st.subheader("📷 Thông tin Camera & Cấu hình AI")
+    
+    from core.config import CAMERA_IP, RTSP_URL, LINE_Y_RATIO, PROCESS_WIDTH, STREAM_WIDTH, STREAM_FPS
+    # Note: PROCESS_HEIGHT is typically 3/4 of width for 4:3 or 9/16 for 16:9
+    process_h = int(PROCESS_WIDTH * 0.75) 
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Camera IP", CAMERA_IP or "N/A")
+    k2.metric("AI Process Size", f"{PROCESS_WIDTH}x{process_h}")
+    k3.metric("Vạch đếm (Ratio)", f"{LINE_Y_RATIO:.2f}")
+
+    st.markdown("**RTSP URL hiện tại:**")
+    st.code(RTSP_URL, language=None)
+
+    st.divider()
+    st.markdown("**Danh sách Camera trong Registry:**")
+    if registry:
+        all_cams = registry.get_all()
+        if all_cams:
+            import pandas as pd
+            df_cams = pd.DataFrame(all_cams)
+            cols_to_show = ["cam_id", "name", "ip", "model", "rtsp_url", "dori_class"]
+            display_df = df_cams[cols_to_show] if all(c in df_cams.columns for c in cols_to_show) else df_cams
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Chưa có camera nào được đăng ký.")
+    else:
+        st.error("Không thể kết nối Asset Registry.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 8 — SYSTEM CONFIG
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab_sys_config:
+    st.subheader("⚙️ Cấu hình hệ thống (Runtime Settings)")
+    st.caption("Thay đổi các thông số hiệu năng và AI mà không cần sửa code.")
+    
+    from core.config import settings_mgr
+    current_settings = settings_mgr.settings
+
+    with st.form("sys_config_form"):
+        st.markdown("**Hiệu năng & Stream:**")
+        sc1, sc2 = st.columns(2)
+        new_process_w = sc1.number_input("AI Process Width (px)", value=current_settings["PROCESS_WIDTH"], step=16)
+        new_stream_w = sc2.number_input("Stream Width (px)", value=current_settings["STREAM_WIDTH"], step=16)
+        
+        sc3, sc4 = st.columns(2)
+        new_fps = sc3.slider("Stream FPS", 1, 30, current_settings["STREAM_FPS"])
+        new_q = sc4.slider("JPEG Quality", 10, 100, current_settings["STREAM_JPEG_QUALITY"])
+
+        st.divider()
+        st.markdown("**Tham số AI & Phát hiện:**")
+        sa1, sa2 = st.columns(2)
+        new_conf = sa1.slider("General Detect Confidence", 0.1, 0.9, current_settings["GENERAL_DETECT_CONF"])
+        new_imgsz = sa2.selectbox("YOLO Input Size", [320, 480, 640, 960], index=[320, 480, 640, 960].index(current_settings["GENERAL_DETECT_IMGSZ"]))
+
+        sa3, sa4 = st.columns(2)
+        new_every_n = sa3.number_input("Detect Plate every N frames", value=current_settings["PLATE_DETECT_EVERY_N_FRAMES"], min_value=1, max_value=30)
+        new_line_ratio = sa4.slider("Vạch đếm (Line Y Ratio)", 0.1, 0.9, current_settings["LINE_Y_RATIO"])
+        
+        new_timeout = st.number_input("Signal Loss Timeout (s)", value=current_settings["SIGNAL_LOSS_TIMEOUT"], min_value=5)
+
+        st.divider()
+        if st.form_submit_button("💾 Lưu cấu hình"):
+            updated = {
+                "PROCESS_WIDTH": new_process_w,
+                "STREAM_WIDTH": new_stream_w,
+                "STREAM_FPS": new_fps,
+                "STREAM_JPEG_QUALITY": new_q,
+                "GENERAL_DETECT_CONF": new_conf,
+                "GENERAL_DETECT_IMGSZ": new_imgsz,
+                "PLATE_DETECT_EVERY_N_FRAMES": new_every_n,
+                "LINE_Y_RATIO": new_line_ratio,
+                "SIGNAL_LOSS_TIMEOUT": new_timeout
+            }
+            if settings_mgr.save_settings(updated):
+                st.success("✅ Đã lưu cấu hình vào config/settings.json!")
+                st.info("💡 Lưu ý: Cần khởi động lại dịch vụ chính (main.py) để áp dụng các thay đổi AI/Performance.")
+                st.rerun()
+            else:
+                st.error("❌ Lỗi khi lưu cấu hình.")

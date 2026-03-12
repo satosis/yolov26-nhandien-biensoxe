@@ -28,7 +28,7 @@ logger = logging.getLogger("retention_manager")
 # Defaults — override via env vars
 DEFAULT_RETENTION_DAYS           = int(os.environ.get("RETENTION_DAYS", "30"))
 DEFAULT_RETENTION_SENSITIVE_DAYS = int(os.environ.get("RETENTION_SENSITIVE_DAYS", "90"))
-DEFAULT_SNAPSHOT_DIR             = os.environ.get("SNAPSHOT_DIR", "./data/snapshots")
+DEFAULT_SNAPSHOT_DIR             = "./data/snapshots"
 SCAN_INTERVAL_HOURS              = 6   # scan every 6 hours
 
 

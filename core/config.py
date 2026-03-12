@@ -88,14 +88,20 @@ OCR_SOURCE = "rtsp"
 SIGNAL_LOSS_TIMEOUT = 30
 
 
-# --- Performance tuning (optimized for Orange Pi class devices) ---
-PROCESS_WIDTH = 960          # Resize frame trước khi AI để giảm tải CPU
-STREAM_WIDTH = 960           # Resize frame trước khi stream MJPEG
-STREAM_FPS = 8               # FPS stream về HA
-STREAM_JPEG_QUALITY = 68     # Giảm bandwidth + CPU encode
-GENERAL_DETECT_IMGSZ = 640   # Input size cho YOLO track
-GENERAL_DETECT_CONF = 0.35
-PLATE_DETECT_EVERY_N_FRAMES = 3  # Chỉ chạy model biển số mỗi N frame
+# --- Settings Manager (Dynamic Config) ---
+from core.settings import SettingsManager
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "settings.json")
+settings_mgr = SettingsManager(SETTINGS_FILE)
+
+PROCESS_WIDTH = settings_mgr.get("PROCESS_WIDTH")
+STREAM_WIDTH = settings_mgr.get("STREAM_WIDTH")
+STREAM_FPS = settings_mgr.get("STREAM_FPS")
+STREAM_JPEG_QUALITY = settings_mgr.get("STREAM_JPEG_QUALITY")
+GENERAL_DETECT_IMGSZ = settings_mgr.get("GENERAL_DETECT_IMGSZ")
+GENERAL_DETECT_CONF = settings_mgr.get("GENERAL_DETECT_CONF")
+PLATE_DETECT_EVERY_N_FRAMES = settings_mgr.get("PLATE_DETECT_EVERY_N_FRAMES")
+LINE_Y_RATIO = settings_mgr.get("LINE_Y_RATIO")
+SIGNAL_LOSS_TIMEOUT = settings_mgr.get("SIGNAL_LOSS_TIMEOUT")
 
 # --- Camera orientation monitor ---
 CAMERA_SHIFT_CHECK_EVERY_FRAMES = 8

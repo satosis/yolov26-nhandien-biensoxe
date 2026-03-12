@@ -1,319 +1,507 @@
 import os
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
-
 class DatabaseManager:
-    def __init__(self, path):
-        self.path = path
-        db_dir = os.path.dirname(self.path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-        self.init_db()
+    def __init__(self, dsn=None):
+        # Use DATABASE_URL from env if dsn not provided
+        self.dsn = dsn or os.environ.get("DATABASE_URL", "postgresql://camera_user:password@localhost:5432/camera_ai")
+        # init_db is now handled by init.sql in the Postgres container.
 
-    def init_db(self):
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME, event_type TEXT, description TEXT,
-                truck_count INTEGER, person_count INTEGER
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS vehicle_whitelist (
-                plate_norm TEXT PRIMARY KEY,
-                label TEXT,
-                added_at_utc TEXT,
-                added_by TEXT,
-                note TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS pending_plates (
-                pending_id TEXT PRIMARY KEY,
-                event_id INTEGER,
-                plate_raw TEXT,
-                plate_norm TEXT,
-                first_seen_utc TEXT,
-                status TEXT,
-                confirmed_at_utc TEXT,
-                confirmed_by TEXT
-            )
-        ''')
-        cursor.execute(
-            'CREATE INDEX IF NOT EXISTS idx_vehicle_whitelist_plate_norm ON vehicle_whitelist (plate_norm)'
-        )
-        cursor.execute(
-            'CREATE INDEX IF NOT EXISTS idx_pending_plates_plate_norm ON pending_plates (plate_norm)'
-        )
-        cursor.execute(
-            'CREATE INDEX IF NOT EXISTS idx_pending_plates_status ON pending_plates (status)'
-        )
-        # Camera health & recording continuity log
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS camera_health_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cam_id TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                started_at TEXT NOT NULL,
-                ended_at TEXT,
-                duration_seconds REAL,
-                notes TEXT
-            )
-        ''')
-        cursor.execute(
-            'CREATE INDEX IF NOT EXISTS idx_health_cam_id ON camera_health_log (cam_id)'
-        )
-        cursor.execute(
-            'CREATE INDEX IF NOT EXISTS idx_health_event_type ON camera_health_log (event_type)'
-        )
-        # Legal hold — footage that must NOT be auto-deleted
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS legal_hold (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_path TEXT NOT NULL UNIQUE,
-                reason TEXT,
-                held_by TEXT,
-                held_at TEXT NOT NULL,
-                released_at TEXT
-            )
-        ''')
-        # SLA daily metrics
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS sla_daily (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                report_date TEXT NOT NULL,
-                cam_id TEXT NOT NULL,
-                uptime_pct REAL,
-                gap_count INTEGER,
-                gap_total_seconds REAL,
-                offline_count INTEGER,
-                UNIQUE(report_date, cam_id)
-            )
-        ''')
-        conn.commit()
-        conn.close()
+    def _get_connection(self):
+        return psycopg2.connect(self.dsn)
 
     def is_plate_whitelisted(self, plate_norm):
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute('SELECT 1 FROM vehicle_whitelist WHERE plate_norm = ? LIMIT 1', (plate_norm,))
-            row = cursor.fetchone()
-            conn.close()
-            return row is not None
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute('SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND is_active = TRUE LIMIT 1', (plate_norm,))
+                    return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"Postgres Error: {e}")
             return False
 
     def add_pending_plate(self, pending_id, event_id, plate_raw, plate_norm, first_seen_utc):
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                '''
-                INSERT OR IGNORE INTO pending_plates (
-                    pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                ''',
-                (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending")
-            )
-            conn.commit()
-            conn.close()
-        except sqlite3.Error:
-            pass
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''
+                        INSERT INTO pending_plates (
+                            pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status
+                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (pending_id) DO NOTHING
+                        ''',
+                        (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending")
+                    )
+        except Exception as e:
+            print(f"Postgres Error: {e}")
 
     def upsert_vehicle_whitelist(self, plate_norm, label, added_by, note=None):
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                '''
-                INSERT INTO vehicle_whitelist (plate_norm, label, added_at_utc, added_by, note)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(plate_norm) DO UPDATE SET
-                    label=excluded.label,
-                    added_at_utc=excluded.added_at_utc,
-                    added_by=excluded.added_by,
-                    note=excluded.note
-                ''',
-                (plate_norm, label, datetime.utcnow().isoformat(), added_by, note)
-            )
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''
+                        INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, note, is_active)
+                        VALUES (%s, 'white', %s, %s, %s, TRUE)
+                        ON CONFLICT(plate_number) DO UPDATE SET
+                            owner_name=EXCLUDED.owner_name,
+                            added_by=EXCLUDED.added_by,
+                            note=EXCLUDED.note,
+                            updated_at=NOW()
+                        ''',
+                        (plate_norm, label, added_by, note)
+                    )
+                    return True
+        except Exception as e:
+            print(f"Postgres Error: {e}")
             return False
 
     def update_pending_status(self, plate_norm, status, confirmed_by):
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                '''
-                UPDATE pending_plates
-                SET status = ?, confirmed_at_utc = ?, confirmed_by = ?
-                WHERE plate_norm = ? AND status = 'pending'
-                ''',
-                (status, datetime.utcnow().isoformat(), confirmed_by, plate_norm)
-            )
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''
+                        UPDATE pending_plates
+                        SET status = %s, confirmed_at_utc = NOW(), confirmed_by = %s
+                        WHERE plate_norm = %s AND status = 'pending'
+                        ''',
+                        (status, confirmed_by, plate_norm)
+                    )
+                    return True
+        except Exception as e:
+            print(f"Postgres Error: {e}")
             return False
 
     def log_event(self, event_type, description, trucks, people):
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        cursor.execute(
-            'INSERT INTO events (timestamp, event_type, description, truck_count, person_count) VALUES (?, ?, ?, ?, ?)',
-            (datetime.now(), event_type, description, trucks, people)
-        )
-        event_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return event_id
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''
+                        INSERT INTO plate_events (event_time, camera_id, vehicle_type, plate_number) 
+                        VALUES (NOW(), %s, %s, %s) RETURNING id
+                        ''',
+                        ("default", event_type, "unknown")
+                    )
+                    return cursor.fetchone()[0]
+        except Exception as e:
+            print(f"Postgres Error: {e}")
+            return None
 
     def get_stats(self):
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*), event_type FROM events GROUP BY event_type')
-        stats = cursor.fetchall()
-        conn.close()
-        return stats
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute('SELECT COUNT(*), vehicle_type FROM plate_events GROUP BY vehicle_type')
+                    return cursor.fetchall()
+        except:
+            return []
 
     def get_pending_plates(self):
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT plate_norm, plate_raw, first_seen_utc FROM pending_plates WHERE status = 'pending'")
-        pending = cursor.fetchall()
-        conn.close()
-        return pending
-
-    # ── Camera health log ─────────────────────────────────────────────────────
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT plate_norm, plate_raw, first_seen_utc FROM pending_plates WHERE status = 'pending'")
+                    return cursor.fetchall()
+        except:
+            return []
 
     def log_camera_event(self, cam_id: str, event_type: str, started_at: str,
                          ended_at: str = None, duration_seconds: float = None,
                          notes: str = None) -> int:
-        """Log a camera health event (OFFLINE, GAP, SHIFT, etc.)."""
-        conn = sqlite3.connect(self.path)
-        cursor = conn.cursor()
-        cursor.execute(
-            '''INSERT INTO camera_health_log
-               (cam_id, event_type, started_at, ended_at, duration_seconds, notes)
-               VALUES (?, ?, ?, ?, ?, ?)''',
-            (cam_id, event_type, started_at, ended_at, duration_seconds, notes)
-        )
-        row_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return row_id
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO camera_status_log
+                           (camera_id, status, logged_at)
+                           VALUES (%s, %s, %s) RETURNING id''',
+                        (cam_id, event_type, started_at)
+                    )
+                    return cursor.fetchone()[0]
+        except:
+            return 0
 
     def get_camera_health(self, cam_id: str = None, hours: int = 24) -> list[dict]:
-        """Return health events for the last N hours, optionally filtered by cam_id."""
-        conn = sqlite3.connect(self.path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        if cam_id:
-            cursor.execute(
-                '''SELECT * FROM camera_health_log
-                   WHERE cam_id = ?
-                   AND started_at >= datetime('now', ?)
-                   ORDER BY started_at DESC''',
-                (cam_id, f'-{hours} hours')
-            )
-        else:
-            cursor.execute(
-                '''SELECT * FROM camera_health_log
-                   WHERE started_at >= datetime('now', ?)
-                   ORDER BY started_at DESC''',
-                (f'-{hours} hours',)
-            )
-        rows = [dict(r) for r in cursor.fetchall()]
-        conn.close()
-        return rows
-
-    # ── Legal hold ────────────────────────────────────────────────────────────
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    if cam_id:
+                        cursor.execute(
+                            "SELECT * FROM camera_status_log WHERE camera_id = %s AND logged_at >= NOW() - INTERVAL '%s hours' ORDER BY logged_at DESC",
+                            (cam_id, hours)
+                        )
+                    else:
+                        cursor.execute(
+                            "SELECT * FROM camera_status_log WHERE logged_at >= NOW() - INTERVAL '%s hours' ORDER BY logged_at DESC",
+                            (hours,)
+                        )
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
 
     def add_legal_hold(self, file_path: str, reason: str, held_by: str) -> bool:
-        """Mark a file as legally held — retention manager must not delete it."""
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                '''INSERT OR IGNORE INTO legal_hold (file_path, reason, held_by, held_at)
-                   VALUES (?, ?, ?, ?)''',
-                (file_path, reason, held_by, datetime.utcnow().isoformat())
-            )
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        'INSERT INTO legal_hold (file_path, reason, held_by, held_at) VALUES (%s, %s, %s, NOW()) ON CONFLICT DO NOTHING',
+                        (file_path, reason, held_by)
+                    )
+                    return True
+        except:
             return False
 
     def release_legal_hold(self, file_path: str) -> bool:
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE legal_hold SET released_at = ? WHERE file_path = ? AND released_at IS NULL",
-                (datetime.utcnow().isoformat(), file_path)
-            )
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE legal_hold SET released_at = NOW() WHERE file_path = %s AND released_at IS NULL",
+                        (file_path,)
+                    )
+                    return True
+        except:
             return False
 
     def is_legal_hold(self, file_path: str) -> bool:
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT 1 FROM legal_hold WHERE file_path = ? AND released_at IS NULL LIMIT 1",
-                (file_path,)
-            )
-            row = cursor.fetchone()
-            conn.close()
-            return row is not None
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT 1 FROM legal_hold WHERE file_path = %s AND released_at IS NULL LIMIT 1", (file_path,))
+                    return cursor.fetchone() is not None
+        except:
             return False
-
-    # ── SLA daily ─────────────────────────────────────────────────────────────
 
     def upsert_sla_daily(self, report_date: str, cam_id: str, uptime_pct: float,
                          gap_count: int, gap_total_seconds: float, offline_count: int):
+        # Using monthly_reports table which is the closest match in init.sql
         try:
-            conn = sqlite3.connect(self.path)
-            cursor = conn.cursor()
-            cursor.execute(
-                '''INSERT INTO sla_daily
-                   (report_date, cam_id, uptime_pct, gap_count, gap_total_seconds, offline_count)
-                   VALUES (?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(report_date, cam_id) DO UPDATE SET
-                       uptime_pct=excluded.uptime_pct,
-                       gap_count=excluded.gap_count,
-                       gap_total_seconds=excluded.gap_total_seconds,
-                       offline_count=excluded.offline_count''',
-                (report_date, cam_id, uptime_pct, gap_count, gap_total_seconds, offline_count)
-            )
-            conn.commit()
-            conn.close()
-        except sqlite3.Error:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO monthly_reports
+                           (report_type, report_date, camera_id, total_vehicles)
+                           VALUES ('daily', %s, %s, %s)
+                           ON CONFLICT(report_type, report_date, camera_id) DO UPDATE SET
+                               total_vehicles=EXCLUDED.total_vehicles''',
+                        (report_date, cam_id, int(uptime_pct)) # Mock mapping
+                    )
+        except:
             pass
 
     def get_sla_daily(self, days: int = 30) -> list[dict]:
-        conn = sqlite3.connect(self.path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            '''SELECT * FROM sla_daily
-               WHERE report_date >= date('now', ?)
-               ORDER BY report_date DESC, cam_id''',
-            (f'-{days} days',)
-        )
-        rows = [dict(r) for r in cursor.fetchall()]
-        conn.close()
-        return rows
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute(
+                        "SELECT * FROM monthly_reports WHERE report_type = 'daily' AND report_date >= CURRENT_DATE - INTERVAL '%s days' ORDER BY report_date DESC, camera_id",
+                        (days,)
+                    )
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def get_user(self, username: str) -> dict:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute(
+                        '''SELECT u.*, r.role_name as role 
+                           FROM users u 
+                           JOIN roles r ON u.role_id = r.id 
+                           WHERE u.username = %s''', 
+                        (username,)
+                    )
+                    row = cursor.fetchone()
+                    return dict(row) if row else None
+        except:
+            return None
+
+    def create_user(self, username: str, hashed_password: str, role_name: str) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO users (username, hashed_password, role_id) 
+                           VALUES (%s, %s, (SELECT id FROM roles WHERE role_name = %s LIMIT 1)) 
+                           ON CONFLICT DO NOTHING RETURNING id''',
+                        (username, hashed_password, role_name)
+                    )
+                    return cursor.fetchone() is not None
+        except Exception as e:
+            print(f"DB Error create_user: {e}")
+            return False
+
+    def update_role_permissions(self, role_id: int, allowed_menus: str) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE roles SET allowed_menus = %s WHERE id = %s",
+                        (allowed_menus, role_id)
+                    )
+                    return True
+        except Exception as e:
+            print(f"Update Role Error: {e}")
+            return False
+
+    def get_all_users(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute(
+                        '''SELECT u.id, u.username, r.role_name as role, u.created_at 
+                           FROM users u 
+                           JOIN roles r ON u.role_id = r.id 
+                           ORDER BY u.id'''
+                    )
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def update_user(self, user_id, username, role_name, hashed_password=None) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    if hashed_password:
+                        cursor.execute(
+                            '''UPDATE users 
+                               SET username=%s, 
+                                   role_id=(SELECT id FROM roles WHERE role_name=%s LIMIT 1), 
+                                   hashed_password=%s 
+                               WHERE id=%s''',
+                            (username, role_name, hashed_password, user_id)
+                        )
+                    else:
+                        cursor.execute(
+                            '''UPDATE users 
+                               SET username=%s, 
+                                   role_id=(SELECT id FROM roles WHERE role_name=%s LIMIT 1) 
+                               WHERE id=%s''',
+                            (username, role_name, user_id)
+                        )
+                    return True
+        except Exception as e:
+            print(f"Update User Error: {e}")
+            return False
+
+    def delete_user(self, user_id) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+                    return True
+        except:
+            return False
+
+    def get_telegram_bots(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT * FROM telegram_bots ORDER BY bot_name")
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def upsert_telegram_bot(self, bot_name, token, chat_important, chat_normal) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO telegram_bots (bot_name, token, chat_id_important, chat_id_normal)
+                           VALUES (%s, %s, %s, %s)
+                           ON CONFLICT(bot_name) DO UPDATE SET
+                               token=EXCLUDED.token,
+                               chat_id_important=EXCLUDED.chat_id_important,
+                               chat_id_normal=EXCLUDED.chat_id_normal''',
+                        (bot_name, token, chat_important, chat_normal)
+                    )
+                    return True
+        except:
+            return False
+
+    def delete_telegram_bot(self, bot_name) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM telegram_bots WHERE bot_name = %s", (bot_name,))
+                    return True
+        except:
+            return False
+
+    def get_roles(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT * FROM roles ORDER BY id")
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    # ==========================================
+    # CAMERA ZONES
+    # ==========================================
+    def get_zones(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT * FROM camera_zones ORDER BY id")
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def add_zone(self, zone_name, description="") -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO camera_zones (zone_name, description) VALUES (%s, %s)",
+                        (zone_name, description)
+                    )
+                    return True
+        except:
+            return False
+
+    def delete_zone(self, zone_id) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    # Unlink cameras first
+                    cursor.execute("UPDATE cameras SET zone_id = NULL WHERE zone_id = %s", (zone_id,))
+                    cursor.execute("DELETE FROM camera_zones WHERE id = %s", (zone_id,))
+                    return True
+        except:
+            return False
+
+    # ==========================================
+    # CAMERA MANAGEMENT (New table: cameras)
+    # ==========================================
+    def get_all_cameras(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT c.*, cz.zone_name 
+                        FROM cameras c 
+                        LEFT JOIN camera_zones cz ON c.zone_id = cz.id
+                        ORDER BY cz.zone_name NULLS LAST, c.camera_name
+                    """)
+                    return [dict(r) for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error fetching cameras: {e}")
+            return []
+
+    def get_cameras_by_zone(self, zone_id) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT c.*, cz.zone_name 
+                        FROM cameras c 
+                        LEFT JOIN camera_zones cz ON c.zone_id = cz.id
+                        WHERE c.zone_id = %s AND c.is_active = TRUE
+                        ORDER BY c.camera_name
+                    """, (zone_id,))
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def get_active_cameras(self) -> list[dict]:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("""
+                        SELECT c.*, cz.zone_name 
+                        FROM cameras c 
+                        LEFT JOIN camera_zones cz ON c.zone_id = cz.id
+                        WHERE c.is_active = TRUE
+                        ORDER BY cz.zone_name NULLS LAST, c.camera_name
+                    """)
+                    return [dict(r) for r in cursor.fetchall()]
+        except:
+            return []
+
+    def get_camera(self, camera_id: int) -> dict:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                    cursor.execute("SELECT * FROM cameras WHERE id = %s", (camera_id,))
+                    row = cursor.fetchone()
+                    return dict(row) if row else None
+        except:
+            return None
+
+    def add_camera(self, name, cam_type, imou_device_id, rtsp_url, is_active=True, imou_channel_id="0", zone_id=None) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO cameras (camera_name, camera_type, imou_device_id, imou_channel_id, rtsp_url, is_active, zone_id)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)''',
+                        (name, cam_type, imou_device_id, imou_channel_id, rtsp_url, is_active, zone_id)
+                    )
+                    return True
+        except Exception as e:
+            print(f"Error adding camera: {e}")
+            return False
+
+    def update_camera(self, camera_id, name, cam_type, imou_device_id, rtsp_url, is_active, imou_channel_id="0", zone_id=None) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''UPDATE cameras 
+                           SET camera_name=%s, camera_type=%s, imou_device_id=%s, imou_channel_id=%s, rtsp_url=%s, is_active=%s, zone_id=%s, updated_at=NOW()
+                           WHERE id=%s''',
+                        (name, cam_type, imou_device_id, imou_channel_id, rtsp_url, is_active, zone_id, camera_id)
+                    )
+                    return True
+        except:
+            return False
+
+    def delete_camera(self, camera_id: int) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM cameras WHERE id = %s", (camera_id,))
+                    return True
+        except:
+            return False
+
+    def get_imou_api_keys(self) -> dict:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_OPEN_APP_ID', 'IMOU_OPEN_APP_SECRET')")
+                    res = {k: v for k, v in cursor.fetchall()}
+                    return {
+                        'app_id': res.get('IMOU_OPEN_APP_ID', ''),
+                        'app_secret': res.get('IMOU_OPEN_APP_SECRET', '')
+                    }
+        except:
+            return {'app_id': '', 'app_secret': ''}
+
+    def update_imou_api_keys(self, app_id: str, app_secret: str) -> bool:
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        '''INSERT INTO app_settings (key, value) VALUES ('IMOU_OPEN_APP_ID', %s)
+                           ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()''',
+                        (app_id,)
+                    )
+                    cursor.execute(
+                        '''INSERT INTO app_settings (key, value) VALUES ('IMOU_OPEN_APP_SECRET', %s)
+                           ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()''',
+                        (app_secret,)
+                    )
+                    return True
+        except Exception as e:
+            print(f"Error updating Imou API Keys: {e}")
+            return False
+

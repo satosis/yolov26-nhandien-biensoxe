@@ -133,7 +133,7 @@ CAMERA_UI_PASS=changeme
 CAMERA_2_URL=                       # Camera phụ 2 (optional)
 CAMERA_3_URL=                       # Camera phụ 3 (optional)
 CAMERA_4_URL=                       # Camera phụ 4 (optional)
-SNAPSHOT_DIR=./data/snapshots
+SNAPSHOT_DIR=./data/snapshots (Hardcoded)
 
 # Home Assistant
 HA_INTERNAL_URL=http://192.168.1.131:8123
