@@ -1,0 +1,49 @@
+mqtt:
+  host: mosquitto
+  port: 1883
+  topic_prefix: frigate
+
+database:
+  path: /media/frigate/frigate.db
+
+detectors:
+  ov_cpu:
+    type: openvino
+    device: CPU
+
+cameras:
+  imou_cam:
+    enabled: True
+    ffmpeg:
+      inputs:
+        - path: ${RTSP_URL}
+          roles:
+            - detect
+            - record
+    detect:
+      enabled: True
+      width: 1280
+      height: 720
+      fps: 5
+    objects:
+      track:
+        - person
+        - car
+        - motorcycle
+        - bus
+        - truck
+    snapshots:
+      enabled: True
+      timestamp: True
+      bounding_box: True
+      retain:
+        default: 7
+    record:
+      enabled: True
+      retain:
+        days: 3
+        mode: motion
+      events:
+        retain:
+          default: 10
+          mode: active_objects

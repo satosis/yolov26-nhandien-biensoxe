@@ -1,0 +1,19 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Cài đặt thư viện hệ thống cần thiết cho psycopg2 và các công cụ build cơ bản
+RUN apt-get update && apt-get install -y \
+    libpq-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Sao chép file requirements rút gọn
+COPY docker/requirements_bridge.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Sao chép mã nguồn cần thiết
+COPY core/ ./core/
+COPY event_bridge.py .
+COPY .env .
+
+CMD ["python", "event_bridge.py"]

@@ -1,0 +1,47 @@
+# ========== PROJECT REQUIREMENTS (MERGED) ==========
+# Dùng cho toàn bộ hệ thống: AI Core, Streamlit UI, Event Bridge và Parking HPC.
+# Cài đặt: pip install -r requirements.txt
+
+# --- Core & Utils ---
+opencv-contrib-python==4.10.0.84
+opencv-contrib-python==4.10.0.84
+numpy<2.0.0
+pandas==2.0.2
+python-dotenv>=1.0.0
+requests>=2.32.3
+Pillow>=10.0.0
+psycopg2-binary==2.9.11
+bcrypt
+OPi.GPIO                # Orange Pi GPIO control
+
+# --- AI & Detection (YOLO, Face) ---
+ultralytics==8.3.160
+face-recognition
+insightface>=0.7.3
+onnx==1.17.0
+onnxscript>=0.6.2
+onnxruntime>=1.18.0
+
+# --- OCR (PaddleOCR Vietnamese) ---
+paddlepaddle>=2.6.2
+paddleocr==2.10.0
+
+# --- Web & API (FastAPI, MQTT, ONVIF) ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+paho-mqtt==2.1.0
+onvif-zeep==0.2.12
+tinytuya
+
+# --- UI & Dashboard (Streamlit) ---
+streamlit
+streamlit-cookies-manager==0.2.0
+streamlit-webrtc
+plotly
+google-genai>=1.0.0
+
+# --- Parking HPC Specific (Flask, SocketIO) ---
+flask>=3.0.0
+flask-socketio>=5.3.6
+python-socketio[asyncio_client]>=5.11.0
+eventlet>=0.36.0

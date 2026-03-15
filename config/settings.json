@@ -1,0 +1,6 @@
+{
+    "PROCESS_WIDTH": 960,
+    "STREAM_FPS": 9,
+    "GENERAL_DETECT_CONF": 0.35,
+    "LINE_Y_RATIO": 0.62
+}
