@@ -24,7 +24,6 @@ def _read_localstorage():
         st.session_state['_ls_loaded'] = True
         if '_ls_token' in st.query_params:
             del st.query_params['_ls_token']
-            st.rerun()
 
 
 def _inject_ls_reader():

@@ -265,15 +265,49 @@ def _rtsp_detection_tab(controller, config):
 
 def detection_view(controller, config):
     """Simplified detection view — live webcam + upload + RTSP camera."""
-    st.subheader("🔍 Nhận diện")
+    st.markdown("""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px; font-weight: 600; color: #f8fafc;">🔍 Nhận diện</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
     is_mobile = st.query_params.get("mobile") == "1"
+    
     if is_mobile:
-        st.info("📱 Chế độ mobile")
-        tab_live, tab_upload = st.tabs(["🎥 Live Camera", "📁 Upload ảnh"])
-        tab_rtsp = None
+        col_main = st.container()
+        col_sidebar = st.container()
     else:
-        tab_live, tab_rtsp, tab_upload = st.tabs(["🎥 Live Webcam", "📹 Camera khu vực", "📁 Upload ảnh"])
+        col_main, col_sidebar = st.columns([3, 1], gap="large")
+
+    with col_sidebar:
+        st.markdown("<h4 style='color: #cbd5e1; margin-bottom: 15px; font-size: 1.05rem;'>⚙️ Cấu hình AI</h4>", unsafe_allow_html=True)
+        with st.container(border=True):
+            mode = st.radio("Chế độ", ["🔢 Biển số xe", "👤 Khuôn mặt"], index=1)
+            conf_thresh = st.slider("Conf", 0.1, 0.95, 0.25)
+            iou_thresh = st.slider("IoU", 0.1, 0.9, 0.45)
+            show_enhanced = st.checkbox("Enhanced", value=True)
+            aggressive_ocr = st.checkbox("Aggressive OCR", value=False)
+            default_face_dir = os.path.abspath("./config/faces")
+            known_dir = st.text_input("Faces Dir", value=default_face_dir)
+            
+            config.update({
+                'mode': mode,
+                'conf_thresh': conf_thresh,
+                'iou_thresh': iou_thresh,
+                'show_enhanced': show_enhanced,
+                'aggressive_ocr': aggressive_ocr,
+                'known_dir': known_dir
+            })
+
+    with col_main:
+        if is_mobile:
+            st.info("📱 Chế độ mobile")
+            tab_live, tab_upload = st.tabs(["🎥 Live Camera", "📁 Upload ảnh"])
+            tab_rtsp = None
+        else:
+            tab_live, tab_rtsp, tab_upload = st.tabs(["🎥 Live Webcam", "📹 Camera khu vực", "📁 Upload ảnh"])
 
     # ========== TAB 1: LIVE WEBCAM ==========
     with tab_live:

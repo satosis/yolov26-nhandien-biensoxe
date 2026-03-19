@@ -108,8 +108,7 @@ def main():
 .block-container {{ padding-top: 0 !important; margin-top: 0 !important; }}
 header[data-testid="stHeader"] {{ display: none !important; }}
 </style>
-<div class="flex items-center justify-between px-4 h-14 bg-slate-900/60 border-b border-white/10 rounded-b-xl mb-4 shadow-md">
-    <span class="text-lg font-bold text-slate-50">🅿 Parking Camera</span>
+<div class="flex items-center justify-end px-4 h-14 bg-slate-900/60 border-b border-white/10 rounded-b-xl mb-4 shadow-md">
     <span class="text-sm text-slate-400 flex items-center gap-2">
         <span class="text-cyan-400 font-bold">{html_mod.escape(user_data.get('username','User'))}</span>
         <span class="bg-cyan-500/15 text-cyan-400 px-2 py-0.5 rounded-lg text-xs font-semibold border border-cyan-500/20">{html_mod.escape(user_role)}</span>
@@ -119,6 +118,7 @@ header[data-testid="stHeader"] {{ display: none !important; }}
 
     # Sidebar Rendering
     with st.sidebar:
+        st.markdown("<h3 style='color: #f8fafc; margin-top: -20px; margin-bottom: 24px; font-weight: 700; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;'>🅿 Parking Camera</h3>", unsafe_allow_html=True)
         # Global site selector — always visible
         from streamlit_app.controllers.site_controller import site_controller
         _sites = site_controller.get_sites(active_only=True)
@@ -145,22 +145,6 @@ header[data-testid="stHeader"] {{ display: none !important; }}
                         st.query_params["menu"] = k
                         st.rerun()
 
-        # Context-aware configuration configs in sidebar
-        if selected_key == "detection":
-            st.divider()
-            st.caption("⚙️ AI CONFIG")
-            mode = st.radio("Chế độ", ["🔢 Biển số xe", "👤 Khuôn mặt"], index=1 if "mode" in dir() and mode == "👤 Khuôn mặt" else 1, label_visibility="collapsed")
-            conf_thresh = st.slider("Conf", 0.1, 0.95, 0.25)
-            iou_thresh = st.slider("IoU", 0.1, 0.9, 0.45)
-            show_enhanced = st.checkbox("Enhanced", value=True)
-            aggressive_ocr = st.checkbox("Aggressive OCR", value=False)
-            default_face_dir = os.path.abspath("./config/faces")
-            known_dir = st.text_input("Faces Dir", value=default_face_dir)
-        elif selected_key == "telegram":
-            st.divider()
-            st.info("🤖 Quản lý Telegram Bot")
-
-
         # LOGOUT AT BOTTOM
         st.markdown('<div class="logout-spacer" style="margin-top: 50px;"></div>', unsafe_allow_html=True)
         if st.button("🚪 Logout", width='stretch', type="secondary"):
@@ -168,14 +152,7 @@ header[data-testid="stHeader"] {{ display: none !important; }}
 
     # Main Area Rendering
     if selected_key == "detection":
-        config = {
-            'mode': mode,
-            'conf_thresh': conf_thresh,
-            'iou_thresh': iou_thresh,
-            'show_enhanced': show_enhanced,
-            'aggressive_ocr': aggressive_ocr,
-            'known_dir': known_dir
-        }
+        config = {}
         detection_view(det_controller, config)
     elif selected_key == "cameras":
         camera_management_view()

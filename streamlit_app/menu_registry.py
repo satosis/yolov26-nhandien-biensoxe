@@ -14,19 +14,19 @@ MENU_GROUPS = {
         "parking_analytics": "📊 Phân tích Bãi xe",
     },
     "🛠 Quản lý": {
-        "sites": "🏢 Quản lý Địa điểm",
-        "cameras": "📹 Quản lý Camera",
-        "providers": "🏭 Nhà cung cấp Camera",
-        "door_providers": "🚪 Nhà cung cấp Cửa cuốn",
-        "vehicles": "🚗 Quản lý Phương tiện",
+        "sites": "🏢 Địa điểm",
+        "cameras": "📹 Camera",
+        "providers": "🏭 NCC Camera",
+        "door_providers": "🚪 NCC Cửa cuốn",
+        "vehicles": "🚗 Phương tiện",
         "strangers": "👤 Người lạ",
         "pending_plates": "🚘 Xe lạ",
-        "telegram": "🤖 Quản lý Telegram",
+        "telegram": "🤖 Telegram",
     },
     "⚙️ Hệ thống": {
         "config": "⚙️ Cấu hình",
-        "users": "👥 Quản lý Người dùng",
-        "rbac": "🛡️ Quản lý Phân quyền",
+        "users": "👥 Người dùng",
+        "rbac": "🛡️ Phân quyền",
     },
 }
 
