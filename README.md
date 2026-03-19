@@ -36,7 +36,6 @@ pip install -r requirements.txt
 ### 2. Cấu hình .env
 Sao chép `.env.example` thành `.env` và điền các thông tin quan trọng:
 *   `POSTGRES_PASSWORD`: Mật khẩu cơ sở dữ liệu.
-*   `TELEGRAM_TOKEN`: Token bot để nhận thông báo.
 
 ### 3. Khởi động các dịch vụ
 

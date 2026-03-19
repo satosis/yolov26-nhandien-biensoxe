@@ -7,6 +7,8 @@ from streamlit_app.models.detector_model import get_password_hash
 from streamlit_app.controllers.user_controller import user_controller
 from streamlit_app.controllers.site_controller import site_controller
 from streamlit_app.utils.toast import show_toast
+from streamlit_app.util.ui_components import render_page_header, render_table_header, render_badge
+
 
 def strip_vn_accents(s):
     """Simple VN accent removal for OpenCV putText."""
@@ -26,7 +28,7 @@ def strip_vn_accents(s):
     return s
 
 def user_management_view():
-    st.subheader("👥 Quản lý người dùng (Admin Only)")
+    render_page_header("Quản lý người dùng (Admin Only)", "👥")
     
     # Check for Edit Mode
     editing_id = st.session_state.get('editing_user_id')
@@ -46,40 +48,37 @@ def user_management_view():
         users = user_controller.get_all_users()
         if users:
             # Custom Header
-            h_cols = st.columns([0.5, 1.5, 3.5, 1.5, 1, 1])
-            h_cols[0].markdown("**ID**")
-            h_cols[1].markdown("**Username**")
-            h_cols[2].markdown("**Họ và tên**")
-            h_cols[3].markdown("**Role**")
-            h_cols[4].markdown("**Sửa**")
-            h_cols[5].markdown("**Xóa**")
-            st.divider()
+            st.markdown(render_table_header([
+                {'label': 'TÀI KHOẢN', 'width': '25%'},
+                {'label': 'HỌ VÀ TÊN', 'width': '35%'},
+                {'label': 'VAI TRÒ', 'width': '20%'},
+                {'label': 'THAO TÁC', 'width': '20%'}
+            ]), unsafe_allow_html=True)
 
             for u in users:
                 u_id = u['id']
                 u_username = u['username']
-                # [ID, Username, Full Name, Role, Sửa, Xóa]
-                cols = st.columns([0.5, 1.5, 3.5, 1.5, 1, 1])
-                cols[0].write(u_id)
-                cols[1].write(u_username)
-                cols[2].write(u.get('full_name') or "-")
-                cols[3].write(u.get('role', 'N/A'))
                 
-                # Edit button - Sets state to "redirect"
-                if cols[4].button("✏️", key=f"edit_btn_{u_id}", width='stretch'):
+                cols = st.columns([2.5, 3.5, 2, 2])
+                cols[0].markdown(f"<div class='font-bold text-slate-50'>{u_username}</div><div class='text-xs text-slate-500'>ID: {u_id}</div>", unsafe_allow_html=True)
+                cols[1].markdown(f"<div class='text-slate-300 py-2'>{u.get('full_name') or '-'}</div>", unsafe_allow_html=True)
+                cols[2].markdown(f"<div class='py-2'>{render_badge(u.get('role', 'N/A'), 'info')}</div>", unsafe_allow_html=True)
+                
+                # Actions
+                bc1, bc2 = cols[3].columns(2)
+                if bc1.button("✏️", key=f"edit_btn_{u_id}", use_container_width=True):
                     st.session_state['editing_user_id'] = u_id
                     st.rerun()
                 
-                # Delete button (skip for admin)
                 if u_username != 'admin':
-                    if cols[5].button("🗑️", key=f"del_btn_{u_id}", width='stretch', type="secondary"):
+                    if bc2.button("🗑️", key=f"del_btn_{u_id}", use_container_width=True, type="secondary"):
                         if user_controller.delete_user(u_id):
                             show_toast(f"Đã xóa người dùng {u_username}", type="success")
                             st.rerun()
                         else:
                             st.error("Lỗi khi xóa")
                 else:
-                    cols[5].write("")
+                    bc2.write("")
         else:
             st.info("Chưa có người dùng nào")
 
@@ -131,7 +130,7 @@ def render_user_edit_view(u_id):
             st.rerun()
         return
 
-    st.markdown(f"### ✏️ Chỉnh sửa người dùng: `{user['username']}`")
+    st.markdown(f"<h3 class='text-xl font-bold text-slate-50 mb-4'>✏️ Chỉnh sửa người dùng: <span class='text-cyan-400'>{user['username']}</span></h3>", unsafe_allow_html=True)
     
     tab_info, tab_face = st.tabs(["📝 Thông tin tài khoản", "📷 Nhận diện khuôn mặt (AI)"])
     

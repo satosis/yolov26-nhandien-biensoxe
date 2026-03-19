@@ -2,9 +2,10 @@ import streamlit as st
 from streamlit_app.controllers.rbac_controller import rbac_controller
 from streamlit_app.utils.toast import show_toast
 from streamlit_app.menu_registry import ALL_MENUS
+from streamlit_app.util.ui_components import render_page_header
 
 def rbac_management_view():
-    st.subheader("🛡️ Quản lý Phân quyền (RBAC)")
+    render_page_header("Quản lý Phân quyền (RBAC)", "🛡️")
 
     if 'just_added_role' in st.session_state:
         show_toast(st.session_state.pop('just_added_role'), type="success")

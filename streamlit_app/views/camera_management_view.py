@@ -3,6 +3,7 @@ from collections import Counter
 from streamlit_app.controllers.camera_controller import camera_controller, get_camera_providers
 from streamlit_app.controllers.provider_controller import provider_controller
 from streamlit_app.utils.toast import show_toast
+from streamlit_app.util.ui_components import render_page_header, render_metric_card, render_table_header, render_table_row, get_status_dot, render_provider_badge
 
 
 def _render_stats(cameras):
@@ -14,19 +15,13 @@ def _render_stats(cameras):
 
     cols = st.columns(4)
     metrics = [
-        ("📹", "Tổng Camera", total, "cam-stat-total"),
-        ("🟢", "Đang hoạt động", active, "cam-stat-active"),
-        ("⚫", "Không hoạt động", inactive, "cam-stat-inactive"),
-        ("🏭", "Nhà cung cấp", providers, "cam-stat-providers"),
+        ("📹", "Tổng Camera", total, "text-white"),
+        ("🟢", "Đang hoạt động", active, "text-emerald-400"),
+        ("⚫", "Không hoạt động", inactive, "text-slate-500"),
+        ("🏭", "Nhà cung cấp", providers, "text-cyan-400"),
     ]
     for col, (icon, label, value, css_class) in zip(cols, metrics):
-        col.markdown(f"""
-        <div class="cam-metric-card {css_class}">
-            <span class="cam-metric-icon">{icon}</span>
-            <span class="cam-metric-value">{value}</span>
-            <span class="cam-metric-label">{label}</span>
-        </div>
-        """, unsafe_allow_html=True)
+        col.markdown(render_metric_card(icon, label, value, css_class), unsafe_allow_html=True)
 
 
 def _render_filters(cameras, provider_types, provider_labels):
@@ -71,16 +66,6 @@ def _apply_filters(cameras, provider_filter, status_filter, search_query, active
     return filtered
 
 
-def _get_provider_color(cam_type):
-    """Return CSS color for provider badge."""
-    colors = {
-        "imou": "#3B82F6", "hikvision": "#EF4444", "dahua": "#F59E0B",
-        "reolink": "#10B981", "tapo": "#8B5CF6", "axis": "#EC4899",
-        "rtsp": "#6366F1", "onvif": "#14B8A6",
-    }
-    return colors.get(cam_type, "#64748B")
-
-
 def _render_camera_table(cameras, provider_labels):
     """Render camera data table."""
     if not cameras:
@@ -88,19 +73,17 @@ def _render_camera_table(cameras, provider_labels):
         return
 
     # Table header
-    st.markdown("""
-    <div class="cam-table-header">
-        <span style="width:50px">TT</span>
-        <span style="width:180px">Tên Camera</span>
-        <span style="width:110px">Nhà cung cấp</span>
-        <span style="width:140px">Địa điểm</span>
-        <span style="width:170px">Device ID</span>
-        <span style="width:200px">RTSP URL</span>
-        <span style="width:60px">API</span>
-        <span style="width:100px">Cập nhật</span>
-        <span style="width:120px">Thao tác</span>
-    </div>
-    """, unsafe_allow_html=True)
+    col_specs = [
+        {'label': 'TT', 'width': '50px', 'align': 'center'},
+        {'label': 'Tên Camera', 'width': '180px'},
+        {'label': 'Nhà cung cấp', 'width': '110px'},
+        {'label': 'Địa điểm', 'width': '140px'},
+        {'label': 'Device ID', 'width': '170px'},
+        {'label': 'RTSP URL', 'width': '200px'},
+        {'label': 'API', 'width': '60px', 'align': 'center'},
+        {'label': 'Cập nhật', 'width': '100px'},
+    ]
+    st.markdown(render_table_header(col_specs), unsafe_allow_html=True)
 
     for cam in cameras:
         _render_camera_row(cam, provider_labels)
@@ -108,33 +91,35 @@ def _render_camera_table(cameras, provider_labels):
 
 def _render_camera_row(cam, provider_labels):
     """Render a single camera row with actions."""
-    status_dot = "🟢" if cam['is_active'] else "⚫"
-    cam_name = cam['camera_name']
+    status_dot = get_status_dot(cam['is_active'])
+    cam_name = f"<span class='font-bold text-slate-50'>{cam['camera_name']}</span>"
     cam_type = cam['camera_type']
     provider_label = provider_labels.get(cam_type, cam_type.upper())
-    provider_color = _get_provider_color(cam_type)
+    
     site_names = cam.get('site_names') or []
-    sites_html = " ".join(f'<span class="cam-site-pill">{s}</span>' for s in site_names) if site_names else '<span class="cam-text-muted">—</span>'
-    device_id = cam.get('imou_device_id') or "—"
+    sites_html = " ".join(f'<span class="inline-flex px-2 py-0.5 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-300">{s}</span>' for s in site_names) if site_names else '<span class="text-slate-500 text-xs">—</span>'
+    
+    device_id = f"<span class='text-xs font-mono text-slate-400'>{cam.get('imou_device_id') or '—'}</span>"
     rtsp = cam.get('rtsp_url') or "—"
-    rtsp_display = (rtsp[:35] + "...") if len(rtsp) > 35 else rtsp
+    rtsp_display = f"<span class='text-[11px] font-mono text-slate-500 truncate block' title='{rtsp}'>{(rtsp[:35] + '...') if len(rtsp) > 35 else rtsp}</span>"
+    
     has_keys = bool(cam.get('provider_keys'))
     api_icon = "🔑" if has_keys else "⚠️"
     updated = cam.get('updated_at')
-    updated_str = updated.strftime("%d/%m %H:%M") if updated else "—"
+    updated_str = f"<span class='text-[11px] text-slate-500'>{updated.strftime('%d/%m %H:%M') if updated else '—'}</span>"
 
-    st.markdown(f"""
-    <div class="cam-table-row {'cam-row-inactive' if not cam['is_active'] else ''}">
-        <span style="width:50px;text-align:center">{status_dot}</span>
-        <span style="width:180px;font-weight:600;color:#f8fafc">{cam_name}</span>
-        <span style="width:110px"><span class="cam-provider-badge" style="background:{provider_color}">{provider_label}</span></span>
-        <span style="width:140px">{sites_html}</span>
-        <span style="width:170px;font-family:monospace;font-size:0.75rem;color:#94a3b8">{device_id}</span>
-        <span style="width:200px;font-family:monospace;font-size:0.7rem;color:#64748b" title="{rtsp}">{rtsp_display}</span>
-        <span style="width:60px;text-align:center">{api_icon}</span>
-        <span style="width:100px;font-size:0.75rem;color:#64748b">{updated_str}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    col_data = [
+        {'content': status_dot, 'width': '50px', 'align': 'center'},
+        {'content': cam_name, 'width': '180px'},
+        {'content': render_provider_badge(cam_type, provider_label), 'width': '110px'},
+        {'content': sites_html, 'width': '140px'},
+        {'content': device_id, 'width': '170px'},
+        {'content': rtsp_display, 'width': '200px'},
+        {'content': api_icon, 'width': '60px', 'align': 'center'},
+        {'content': updated_str, 'width': '100px'}
+    ]
+
+    st.markdown(render_table_row(col_data, is_active=cam['is_active']), unsafe_allow_html=True)
 
     # Action buttons row
     ac1, ac2, ac3, ac4 = st.columns([1, 1, 1, 3])
@@ -272,7 +257,9 @@ def camera_management_view():
 
     # Header
     hc1, hc2 = st.columns([3, 1])
-    hc1.markdown("### 📹 Quản lý Camera")
+    with hc1:
+        render_page_header("Quản lý Camera", "📹")
+
     if hc2.button("➕ Thêm Camera", type="primary", use_container_width=True):
         st.session_state['show_add_camera_form'] = True
 

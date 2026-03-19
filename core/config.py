@@ -27,10 +27,6 @@ def load_env_file(path: str, override: bool = False) -> None:
 load_env_file(".env")
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 
-# --- Telegram ---
-TOKEN = os.getenv("TELEGRAM_TOKEN", "")
-CHAT_IMPORTANT = os.getenv("TELEGRAM_CHAT_IMPORTANT", "")
-CHAT_REGULAR = os.getenv("TELEGRAM_CHAT_NONIMPORTANT", "")
 
 
 # --- Database ---

@@ -2,9 +2,10 @@ import streamlit as st
 import html as html_mod
 from streamlit_app.controllers.vehicle_controller import vehicle_controller
 from streamlit_app.utils.toast import show_toast
+from streamlit_app.util.ui_components import render_page_header
 
 def vehicle_management_view():
-    st.title("🚗 Quản lý Phương tiện")
+    render_page_header("Quản lý Phương tiện", "🚗")
     
     if 'just_added_vehicle' in st.session_state:
         show_toast(st.session_state.pop('just_added_vehicle'), type="success")
@@ -26,7 +27,8 @@ def vehicle_management_view():
 
     with col_form:
         edit_v = st.session_state.get('edit_vehicle')
-        st.subheader("✏️ Chỉnh sửa Xe" if edit_v else "➕ Thêm Xe mới")
+        header_text = "✏️ Chỉnh sửa Xe" if edit_v else "➕ Thêm Xe mới"
+        st.markdown(f"<h3 class='text-lg font-bold text-slate-50 mb-4'>{header_text}</h3>", unsafe_allow_html=True)
         
         if not site_options:
             st.warning("Chưa có khu vực nào. Vui lòng tạo khu vực trước.")
@@ -92,7 +94,7 @@ def vehicle_management_view():
                     st.rerun()
 
     with col_list:
-        st.subheader("📋 Danh sách Phương tiện")
+        st.markdown("<h3 class='text-lg font-bold text-slate-50 mb-4'>📋 Danh sách Phương tiện</h3>", unsafe_allow_html=True)
 
         f_col1, f_col2 = st.columns(2)
         search_query = f_col1.text_input("🔍 Tìm kiếm", placeholder="Biển số hoặc tên chủ xe...")
@@ -113,21 +115,35 @@ def vehicle_management_view():
             st.caption(f"{len(vehicles)} xe")
             for v in vehicles:
                 with st.container(border=True):
-                    c1, c2, c3 = st.columns([2, 2, 1])
-                    c1.markdown(f"**{html_mod.escape(v.get('plate_number', ''))}**")
-                    c1.caption(f"{html_mod.escape(v.get('owner_name') or 'Chưa có tên')}")
-                    c2.caption(f"📍 {html_mod.escape(v.get('site_name') or 'N/A')}")
-                    c2.caption(f"📝 {html_mod.escape(v.get('note') or 'Không có ghi chú')}")
+                    c1, c2, c3 = st.columns([2, 5, 2])
+                    plate = html_mod.escape(v.get('plate_number', ''))
+                    c1.markdown(f"<div class='font-bold text-lg text-cyan-400 text-center py-2 border border-cyan-500/30 rounded bg-cyan-500/10'>{plate}</div>", unsafe_allow_html=True)
+                    
+                    owner = html_mod.escape(v.get('owner_name') or 'Chưa có tên')
+                    site = html_mod.escape(v.get('site_name') or 'N/A')
+                    note = html_mod.escape(v.get('note') or 'Không có ghi chú')
+                    details = f"""
+                    <div class='flex flex-col gap-1 py-1'>
+                        <div class='text-sm text-slate-50 font-medium'>👤 {owner}</div>
+                        <div class='text-xs text-slate-400 flex gap-4'>
+                            <span>📍 {site}</span>
+                            <span>📝 {note}</span>
+                        </div>
+                    </div>
+                    """
+                    c2.markdown(details, unsafe_allow_html=True)
 
                     with c3:
-                        if st.button("✏️ Sửa", key=f"edit_v_{v['id']}", use_container_width=True):
+                        bc1, bc2 = st.columns(2)
+                        st.markdown("<div class='py-1'></div>", unsafe_allow_html=True) # spacing
+                        if bc1.button("✏️", key=f"edit_v_{v['id']}", use_container_width=True):
                             st.session_state['edit_vehicle'] = v
                             st.rerun()
 
                         confirm_key = f'confirm_del_v_{v["id"]}'
                         if st.session_state.get(confirm_key):
                             y, n = st.columns(2)
-                            if y.button("✅", key=f"yes_dv_{v['id']}", use_container_width=True):
+                            if y.button("✅", key=f"yes_dv_{v['id']}", use_container_width=True, type="primary"):
                                 if vehicle_controller.delete_whitelist_vehicle(v['plate_number'], v.get('site_id')):
                                     st.session_state['just_deleted_vehicle'] = f"Đã xóa: {v['plate_number']}"
                                     del st.session_state[confirm_key]
@@ -136,7 +152,7 @@ def vehicle_management_view():
                                 del st.session_state[confirm_key]
                                 st.rerun()
                         else:
-                            if st.button("🗑 Xóa", key=f"del_v_{v['id']}", use_container_width=True, type="secondary"):
+                            if bc2.button("🗑", key=f"del_v_{v['id']}", use_container_width=True, type="secondary"):
                                 st.session_state[confirm_key] = True
                                 st.rerun()
         else:

@@ -108,9 +108,12 @@ def main():
 .block-container {{ padding-top: 0 !important; margin-top: 0 !important; }}
 header[data-testid="stHeader"] {{ display: none !important; }}
 </style>
-<div style="display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:50px;background:rgba(15,23,42,0.6);border-bottom:1px solid rgba(255,255,255,0.08);border-radius:0 0 12px 12px;margin-bottom:16px;">
-    <span style="font-size:1.1rem;font-weight:700;color:#f8fafc;">🅿 Parking Camera</span>
-    <span style="font-size:0.85rem;color:#94a3b8;">👤 <b style="color:#6366f1;">{html_mod.escape(user_data.get('username','User'))}</b> &nbsp;·&nbsp; <span style="background:rgba(99,102,241,0.15);color:#6366f1;padding:2px 8px;border-radius:8px;font-size:0.8rem;">{html_mod.escape(user_role)}</span></span>
+<div class="flex items-center justify-between px-4 h-14 bg-slate-900/60 border-b border-white/10 rounded-b-xl mb-4 shadow-md">
+    <span class="text-lg font-bold text-slate-50">🅿 Parking Camera</span>
+    <span class="text-sm text-slate-400 flex items-center gap-2">
+        <span class="text-cyan-400 font-bold">{html_mod.escape(user_data.get('username','User'))}</span>
+        <span class="bg-cyan-500/15 text-cyan-400 px-2 py-0.5 rounded-lg text-xs font-semibold border border-cyan-500/20">{html_mod.escape(user_role)}</span>
+    </span>
 </div>
 """, unsafe_allow_html=True)
 

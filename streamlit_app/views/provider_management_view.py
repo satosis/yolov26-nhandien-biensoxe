@@ -3,6 +3,7 @@ import html as html_mod
 from streamlit_app.controllers.provider_controller import provider_controller
 from streamlit_app.controllers.camera_controller import camera_controller
 from streamlit_app.utils.toast import show_toast
+from streamlit_app.util.ui_components import render_page_header, render_table_header, render_table_row
 
 PROVIDER_DEFAULT_KEYS = {
     "imou":      ["app_id", "app_secret", "device_id"],
@@ -38,17 +39,15 @@ def _toggle_html(is_on: bool) -> str:
 
 
 def _render_table(providers: list):
-    hdr = (
-        '<div class="prov-table">'
-        '<div class="prov-hdr">'
-        '<span style="width:180px">TÊN NCC</span>'
-        '<span style="width:160px">PHƯƠNG THỨC</span>'
-        '<span style="flex:1">API KEYS</span>'
-        '<span style="width:100px">KÍCH HOẠT</span>'
-        '<span style="width:120px">HÀNH ĐỘNG</span>'
-        '</div>'
-    )
-    rows = ""
+    col_specs = [
+        {'label': 'TÊN NCC', 'width': '180px'},
+        {'label': 'PHƯƠNG THỨC', 'width': '160px'},
+        {'label': 'API KEYS', 'width': '100%'},
+        {'label': 'KÍCH HOẠT', 'width': '100px'},
+        {'label': 'HÀNH ĐỘNG', 'width': '120px'}
+    ]
+    st.markdown(render_table_header(col_specs), unsafe_allow_html=True)
+
     for p in providers:
         pk = p["provider_key"]
         name = html_mod.escape(p["name"])
@@ -68,17 +67,20 @@ def _render_table(providers: list):
             keys_html = '<span style="color:#64748b;font-size:11px;">Chưa cấu hình</span>'
 
         toggle = _toggle_html(active)
-        rows += (
-            f'<div class="prov-row">'
-            f'<div style="width:180px"><div style="font-size:13px;font-weight:600;color:#f8fafc;">{name}</div>'
-            f'<div style="font-size:11px;color:#64748b;">{html_mod.escape(pk)}</div></div>'
-            f'<span style="width:160px;font-size:12px;color:#94a3b8;">{notes}</span>'
-            f'<div style="flex:1">{keys_html}</div>'
-            f'<div style="width:100px">{toggle}</div>'
-            f'<div style="width:120px;display:flex;gap:8px;" data-pk="{html_mod.escape(pk)}"></div>'
-            f'</div>'
-        )
-    st.markdown(hdr + rows + "</div>", unsafe_allow_html=True)
+        
+        name_col = f"<div class='text-[13px] font-bold text-slate-50'>{name}</div><div class='text-[11px] text-slate-500'>{html_mod.escape(pk)}</div>"
+        notes_col = f"<span class='text-xs text-slate-400'>{notes}</span>"
+        actions_col = f"<div class='flex gap-2' data-pk='{html_mod.escape(pk)}'></div>"
+
+        col_data = [
+            {'content': name_col, 'width': '180px'},
+            {'content': notes_col, 'width': '160px'},
+            {'content': keys_html, 'width': '100%'},
+            {'content': toggle, 'width': '100px'},
+            {'content': actions_col, 'width': '120px'}
+        ]
+
+        st.markdown(render_table_row(col_data, is_active=active), unsafe_allow_html=True)
 
 
 def _provider_form(existing=None, context="edit"):
@@ -188,7 +190,8 @@ def _confirm_delete(pk: str, name: str):
 def provider_management_view():
     # --- Header ---
     col_h, col_btn = st.columns([4, 1])
-    col_h.markdown("### 🏭 Nhà cung cấp Camera")
+    with col_h:
+        render_page_header("Nhà cung cấp Camera", "🏭")
     if col_btn.button("➕ Thêm NCC", type="primary", use_container_width=True):
         st.session_state["show_add_provider"] = True
         st.session_state.pop("edit_provider_key", None)

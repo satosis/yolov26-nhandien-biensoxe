@@ -1,10 +1,11 @@
 import streamlit as st
 from streamlit_app.controllers.site_controller import site_controller
 from streamlit_app.utils.toast import show_toast
+from streamlit_app.util.ui_components import render_page_header, render_badge
 
 
 def sites_view():
-    st.title("🏢 Quản lý Địa điểm")
+    render_page_header("Quản lý Địa điểm", "🏢")
 
     sites = site_controller.get_sites()
 
@@ -37,14 +38,14 @@ def sites_view():
             col_info, col_actions = st.columns([4, 1])
 
             with col_info:
-                status_badge = "🟢" if site.get("is_active", True) else "🔴"
-                st.markdown(f"#### {status_badge} {site['site_name']}")
+                status_html = render_badge("Hoạt động", "success") if site.get("is_active", True) else render_badge("Tạm dừng", "neutral")
+                st.markdown(f"<div class='flex items-center gap-3 mb-2'><h4 class='text-lg font-bold text-slate-50 m-0 p-0'>{site['site_name']}</h4> {status_html}</div>", unsafe_allow_html=True)
                 if site.get("address"):
-                    st.caption(f"📍 {site['address']}")
+                    st.markdown(f"<div class='text-sm text-slate-400 mb-1'>📍 {site['address']}</div>", unsafe_allow_html=True)
                 if site.get("description"):
-                    st.caption(site["description"])
+                    st.markdown(f"<div class='text-sm text-slate-500 italic mb-3'>{site['description']}</div>", unsafe_allow_html=True)
 
-                st.write(f"🅿️ Sức chứa: `{site.get('total_slots', 0)}` chỗ")
+                st.markdown(f"<div class='text-sm font-medium text-cyan-400 bg-cyan-500/10 px-3 py-1 rounded-lg inline-block border border-cyan-500/20'>🅿️ Sức chứa: <span class='font-bold text-slate-50'>{site.get('total_slots', 0)}</span> chỗ</div>", unsafe_allow_html=True)
 
                 # Inline edit form
                 edit_key = f"edit_site_{site['id']}"

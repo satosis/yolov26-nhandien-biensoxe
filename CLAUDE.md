@@ -264,18 +264,10 @@ yolov26-nhandien-biensoxe/
 ## Biến môi trường quan trọng
 
 ```bash
-TELEGRAM_TOKEN=                    # Bot token
-TELEGRAM_CHAT_IMPORTANT=           # Chat ID cảnh báo quan trọng
-TELEGRAM_CHAT_NONIMPORTANT=        # Chat ID thông báo thường
-RTSP_URL=rtsp://user:pass@ip:554/...
 DATABASE_URL=postgresql://camera_user:password@localhost:5432/camera_ai
-GEMINI_API_KEY=
 IMOU_OPEN_APP_ID=
 IMOU_OPEN_APP_SECRET=
 IMOU_OPEN_DEVICE_ID=
-WEBRTC_TURN_URL=
-WEBRTC_TURN_USERNAME=
-WEBRTC_TURN_PASSWORD=
 ```
 
 ## Tính năng đã release
