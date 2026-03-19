@@ -1,0 +1,36 @@
+.git
+.gitignore
+.pytest_cache
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+
+# Data and models — mount via volumes
+data/
+logs/
+
+# IDE / AI tools
+.claude/
+.vscode/
+.cursor/
+CLAUDE.md
+
+# Build artifacts
+docker-compose.yml
+install.sh
+tests/
+.env
+.env.*
+cmd
+
+# Large files not needed in image
+*.md
+*.pdf
+scripts/
+tmp_*
+test_*
+extract_css.py
+.streamlit/

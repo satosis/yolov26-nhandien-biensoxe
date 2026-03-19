@@ -52,6 +52,10 @@ class TripwireTracker:
         # obj_id -> last seen time
         self._last_seen: dict[int, float] = {}
 
+        self._last_cleanup = 0.0
+        self._current_frame_line_y = None
+        self._current_frame_time = 0.0
+
     # ------------------------------------------------------------------
     def update(self, obj_id: int, center_y: int) -> str | None:
         """
@@ -63,15 +67,18 @@ class TripwireTracker:
             None  – chưa xác định / đang ở giữa
         """
         now = time.monotonic()
-        line_y = self._line_y_fn()
+        # Cache line_y for the current frame to avoid repeated function calls
+        if now - self._current_frame_time > 0.01:
+            self._current_frame_time = now
+            self._current_frame_line_y = self._line_y_fn()
+
+        line_y = self._current_frame_line_y
         below = center_y >= line_y  # True = bên trong (phía dưới)
 
-        # Khởi tạo buffer nếu là object mới
-        if obj_id not in self._positions:
-            self._positions[obj_id] = deque(maxlen=self._buffer)
+        # Khởi tạo buffer nếu là object mới, sử dụng setdefault để tối ưu
+        buf = self._positions.setdefault(obj_id, deque(maxlen=self._buffer))
+        if obj_id not in self._confirmed_side:
             self._confirmed_side[obj_id] = None
-
-        buf = self._positions[obj_id]
         buf.append(below)
         self._last_seen[obj_id] = now
 
@@ -118,6 +125,11 @@ class TripwireTracker:
         Truyền None để chỉ dựa vào timeout (không cần biết active_ids).
         """
         now = time.monotonic()
+        # Throttle stale cleanup to execute only once per second
+        if now - self._last_cleanup < 1.0:
+            return
+        self._last_cleanup = now
+
         stale_ids = [
             oid
             for oid, ts in self._last_seen.items()

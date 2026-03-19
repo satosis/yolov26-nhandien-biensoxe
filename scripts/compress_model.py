@@ -3,8 +3,8 @@ import onnx
 from onnxruntime.quantization import quantize_dynamic, QuantType
 
 def compress_model():
-    input_model = "models/bien_so_xe.onnx"
-    output_model = "models/bien_so_xe_int8.onnx"
+    input_model = "models/yolo26_plate_people_door.onnx"
+    output_model = "models/yolo26_plate_people_door_int8.onnx"
     
     if not os.path.exists(input_model):
         print(f"[-] Base ONNX model not found at {input_model}. Please run optimize_models.py first.")

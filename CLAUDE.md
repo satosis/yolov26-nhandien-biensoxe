@@ -1,32 +1,180 @@
 # CLAUDE.md — Bộ nhớ chung cho Camera AI Project
 
+## Quyền hạn Agent
+
+- Agent có **toàn quyền sửa, xóa, tạo file** trong project — không cần hỏi lại user
+- Càng ít phụ thuộc vào user càng tốt — tự quyết định, tự triển khai
+- **CLAUDE.md phải được cập nhật** mỗi khi release tính năng mới
+
+## Quy trình phát triển (SDLC) — Full Auto
+
+Mọi yêu cầu từ user đều đi qua quy trình tự động. User chỉ cần nói tiếng Việt tự nhiên — hệ thống 24 agents tự xử lý.
+
+### Phase 1: Prompt Analysis (BA/PM)
+- **MỌI prompt** → dispatch `prompt-analyzer` TRƯỚC TIÊN
+- prompt-analyzer dịch tiếng Việt mơ hồ → technical brief (intent, scope, dispatch plan)
+- Nếu prompt quá mơ hồ → hỏi lại user 1 câu ngắn gọn bằng tiếng Việt
+
+### Phase 2: Architecture (nếu cần)
+- Task phức tạp (>5 files, cross-domain) → dispatch `tech-architect`
+- Thiết kế solution, resolve file conflicts giữa agents
+- Task đơn giản → skip, dispatch dev agents trực tiếp
+
+### Phase 3: Development (Coding)
+- Auto-dispatch agents theo routing rules + dependency graph
+- Dispatch **song song** khi tasks không overlap files
+- Tech Lead tự code task đơn giản (sửa 1 file, fix typo)
+- Mỗi agent tự `py_compile` sau khi sửa file
+
+### Phase 4: Quality Gate
+- Dispatch `code-reviewer` + `security-auditor` song song
+- Nếu FAIL → dev agents tự fix → re-review
+- Critical issues → fix ngay trước khi tiếp tục
+
+### Phase 5: Testing
+- Dispatch `test-writer` viết/chạy tests
+- `python3 -m pytest tests/ -v` phải PASS
+- Nếu FAIL → fix → re-test
+
+### Phase 6: Deploy & Docs
+- `py_compile` tất cả files đã sửa
+- Dispatch `infrastructure` nếu cần deploy changes
+- Dispatch `doc-writer` cập nhật CLAUDE.md
+
+### Phase 7: Meta-review
+- `self-improver` phân tích lỗi lặp, đề xuất cải thiện
+- `monitoring-agent` verify system health sau deploy
+
+## Hệ thống 24 Agents
+
+### Phân cấp tổ chức:
+```
+Tech Lead (main agent) — orchestrate toàn bộ
+│
+├── Nhóm Điều phối
+│   ├── prompt-analyzer (BA/PM) — LUÔN chạy đầu tiên
+│   ├── product-owner (PO) — roadmap, đề xuất tính năng
+│   └── tech-architect (SA) — kiến trúc, resolve conflicts
+│
+├── Nhóm Nghiên cứu
+│   ├── market-researcher — cào tính năng từ nền tảng camera/parking thực
+│   └── feature-scout — so sánh đối thủ, gap analysis, đề xuất tính năng
+│
+├── Nhóm Development
+│   ├── ai-detection (AI Engineer) — YOLO, OCR, face, tripwire
+│   ├── backend-services (Backend Dev) — DB methods, services, Telegram
+│   ├── frontend-ui (Frontend Dev) — Streamlit UI, views, CSS
+│   ├── database-postgres (DBA) — schema, migrations, queries
+│   ├── infrastructure (DevOps) — Docker, deploy, scripts
+│   ├── iot-integration (IoT Engineer) — cửa cuốn, barrier, relay, MQTT
+│   └── camera-specialist (Camera Engineer) — RTSP, ONVIF, PTZ, WebRTC
+│
+├── Nhóm Quality & Security
+│   ├── code-reviewer (QA Lead) — review code, CHỈ ĐỌC
+│   ├── test-writer (QA Engineer) — viết + chạy tests
+│   ├── security-auditor (Security) — OWASP, credentials, injection
+│   ├── performance-optimizer (Perf) — ARM profiling, memory, latency
+│   └── error-handler (Reliability) — retry, fallback, circuit breaker
+│
+├── Nhóm Vận hành
+│   ├── monitoring-agent (SRE) — health checks, uptime, disk
+│   ├── data-analyst (Analytics) — thống kê, trends, insights
+│   ├── alert-manager (Alerts) — Telegram routing, escalation, dedup
+│   └── backup-recovery (Backup) — DB backup, retention, disaster recovery
+│
+└── Nhóm UX & Meta
+    ├── ux-advisor (UX) — mobile-first, accessibility, Vietnamese UI
+    ├── doc-writer (Docs) — CLAUDE.md, user guide, changelog
+    └── self-improver (Meta) — phân tích lỗi lặp, cải thiện agents
+```
+
+### Routing Rules (Auto-dispatch):
+
+MỌI PROMPT → `prompt-analyzer` TRƯỚC → technical brief → dispatch theo brief
+
+| User nói (tiếng Việt tự nhiên) | Agent(s) được dispatch |
+|---|---|
+| YOLO, model, OCR, biển số, nhận diện, face, stranger, tripwire, vạch ảo, threshold | **ai-detection** |
+| FastAPI, API, Telegram, service, whitelist, settings, app_settings | **backend-services** |
+| Streamlit, UI, dashboard, view, form, login, sidebar, menu, CSS, trang, màn hình | **frontend-ui** |
+| schema, bảng, table, migration, SQL, index, query, PostgreSQL, init.sql | **database-postgres** |
+| Docker, Dockerfile, compose, deploy, container, port, install, requirements | **infrastructure** |
+| cửa cuốn, barrier, relay, cảm biến, Tuya, Tasmota, Shelly, GPIO, MQTT | **iot-integration** |
+| camera, RTSP, ONVIF, PTZ, Imou, WebRTC, stream, kết nối camera | **camera-specialist** |
+| test, pytest, coverage, fixture, mock | **test-writer** |
+| review, kiểm tra code, audit | **code-reviewer** |
+| bảo mật, hack, credentials, injection | **security-auditor** |
+| chậm, lag, memory, CPU, tối ưu | **performance-optimizer** |
+| lỗi, crash, không chạy, bug | **error-handler** |
+| health, uptime, disk, monitoring | **monitoring-agent** |
+| thống kê, báo cáo, trends, analytics | **data-analyst** |
+| cảnh báo, alert, Telegram routing | **alert-manager** |
+| backup, sao lưu, restore, mất data | **backup-recovery** |
+| giao diện khó dùng, UX, mobile, accessibility | **ux-advisor** |
+| hướng dẫn, cách dùng, documentation | **doc-writer** |
+| nên làm gì tiếp, roadmap, tính năng mới | **product-owner** |
+| cải thiện agent, refactor, duplication | **self-improver** |
+| đối thủ có gì, tính năng camera khác, so sánh, thị trường | **market-researcher** → **feature-scout** |
+| tính năng nào nên thêm, gap, thiếu gì, đối thủ hơn gì | **feature-scout** |
+
+### Dispatch Order (Dependency Graph):
+```
+prompt-analyzer → tech-architect (nếu complex)
+  → database-postgres (nếu schema change)
+  → [parallel] backend-services + iot-integration + camera-specialist + ai-detection
+  → frontend-ui
+  → [parallel] code-reviewer + security-auditor
+  → test-writer → performance-optimizer (nếu cần)
+  → infrastructure (deploy) → doc-writer + monitoring-agent
+
+Research flow (khi cần nghiên cứu thị trường):
+  prompt-analyzer → market-researcher (cào data từ web)
+  → feature-scout (so sánh + gap analysis)
+  → product-owner (quyết định priority)
+  → tech-architect (thiết kế solution)
+  → dev agents...
+```
+
+### Multi-agent dispatch:
+- Task liên quan nhiều domain → dispatch **song song** (không overlap files)
+- VD: "Thêm loại cửa cuốn mới + UI" → iot-integration + database-postgres + frontend-ui
+- VD: "Đối thủ có gì hay" → market-researcher → feature-scout → product-owner
+- Tech Lead tổng hợp kết quả, resolve conflicts
+
+### Khi KHÔNG cần dispatch:
+- Task đơn giản (sửa 1 file, fix typo) → Tech Lead tự làm
+- Câu hỏi/giải thích → Tech Lead trả lời trực tiếp
+- Research/explore → dùng Explore agent
+
 ## Tổng quan hệ thống
 
 Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro (ARM)**, tích hợp:
-- Nhận diện biển số xe Việt Nam (YOLOv11 + PaddleOCR)
+- Nhận diện biển số xe Việt Nam (YOLOv26 + PaddleOCR)
 - Đếm người/xe qua vạch ảo (TripwireTracker)
 - Phát hiện camera lệch góc (ORB feature matching + RANSAC)
-- Điều khiển cửa cuốn tự động (Tuya + MQTT)
+- Điều khiển cửa cuốn tự động (Tuya)
 - Cảnh báo Telegram (2 kênh: quan trọng / thường)
-- Tích hợp Home Assistant + Frigate NVR
 - PTZ camera control qua ONVIF + Imou Open API
-- Multi-camera grid UI (FastAPI + MJPEG)
-
+- Quản lý toàn bộ hệ thống qua Streamlit UI
+- Nhận diện khuôn mặt (InsightFace buffalo_sc)
+- Phát hiện người lạ (stranger detection, threshold 0.25)
+- Remember token login (, localStorage + DB)
+- Camera provider management (DB-driven, không hardcode)
+- RBAC phân quyền menu (DB-driven)
+- Multi-site management (nhiều bãi xe, mỗi site có zone/camera riêng)
+- Mobile WebRTC camera view (TURN server, facingMode environment)
 
 ## Stack công nghệ
 
 | Thành phần | Công nghệ |
 |---|---|
-| AI inference | YOLOv11 (Ultralytics), PaddleOCR, face_recognition |
-| Backend | FastAPI + uvicorn, paho-mqtt |
+| AI inference | YOLOv26 (Ultralytics), PaddleOCR, InsightFace |
+| Backend | FastAPI + uvicorn |
 | Camera | OpenCV RTSP, ONVIF, Imou Open API |
-| NVR | Frigate (Docker) |
-| Smart home | Home Assistant (Docker) |
+| UI/Management | Streamlit + WebRTC |
 | Messaging | Telegram Bot API |
-| Database | SQLite (core/database.py) |
+| Database | PostgreSQL |
 | Container | Docker Compose |
-| Network | Tailscale (remote access) |
-
 
 ## Kiến trúc tổng thể
 
@@ -34,208 +182,153 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 RTSP Camera (Imou 2K)
     │
     ├─► main.py (AI core: YOLO track + OCR + TripwireTracker)
-    │       └─► core/database.py (SQLite: events, whitelist, pending_plates)
+    │       └─► core/database.py (PostgreSQL)
     │       └─► services/telegram_service.py (cảnh báo)
-    │       └─► core/mqtt_manager.py (MQTT publish state)
-    │       └─► services/api_server.py (MJPEG stream + dashboard)
     │
-    ├─► deploy/event_bridge/app.py (Docker: Frigate events → Telegram + ONVIF PTZ)
-    │
-    ├─► Frigate NVR (Docker: record + detect + zones)
-    │       └─► MQTT → mosquitto → event_bridge
-    │
-    ├─► Home Assistant (Docker: automation + dashboard)
-    │       └─► MQTT sensors: shed_people_count, shed_vehicle_count
-    │       └─► cover.garage_door (Tuya)
-    │
-
+    └─► Streamlit UI (quản lý toàn bộ hệ thống)
+            └─► streamlit_app/menu_registry.py (single source of truth cho menus)
+            └─► streamlit_app/controllers/ (thin wrappers, gọi thẳng get_db().method())
+            └─► streamlit_app/views/ (UI components)
 ```
+
+## Nguyên tắc code
+
+1. **KHÔNG hardcode data** — tất cả providers, roles, menus, settings đều từ DB
+2. **KHÔNG defensive null check vô nghĩa** — `get_db()` luôn trả về DatabaseManager, không cần `if not db`
+3. **KHÔNG hardcode credentials** — tất cả secrets qua `.env`
+4. **KHÔNG commit `.env`** — chỉ commit `.env.example`
+5. **KHÔNG dùng f-string SQL** — luôn dùng parameterized query
+6. **KHÔNG silent except:pass** — luôn log error với `logger.warning/error`
+7. **Controller layer = thin wrapper** — chỉ gọi `get_db().method()`, không có business logic
+8. **Single source of truth** — menu registry ở `streamlit_app/menu_registry.py`
+9. **KHÔNG xóa whitelist biển số** mà không backup
+10. **KHÔNG thay đổi `LINE_Y_RATIO`** mà không test lại TripwireTracker
+11. **KHÔNG sửa Dockerfile** mà không rebuild: `docker compose up -d --build`
+12. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng RetentionManager
+13. **KHÔNG sửa `core/config.py`** mà không chạy `python3 -m py_compile core/config.py`
 
 ## Cấu trúc folder
 
 ```
-yolov11-nhandien-biensoxe/
+yolov26-nhandien-biensoxe/
 ├── main.py                    # Entry point: AI loop chính
-├── CLAUDE.md                  # File này
-├── .env                       # Credentials (KHÔNG commit)
-├── .env.example               # Template env
+├── CLAUDE.md                  # File này — CẬP NHẬT khi release tính năng mới
+├── init.sql                   # PostgreSQL schema (source of truth)
 ├── requirements.txt           # Python deps
-├── docker-compose.yml         # Stack: mosquitto, frigate, homeassistant, event_bridge, ai_core
-├── install.sh                 # One-command setup
-├── cmd                        # CLI shortcuts (stats, today, whitelist...)
+├── docker-compose.yml         # Stack: ai_core, postgres
 │
 ├── core/                      # Business logic thuần Python
-│   ├── config.py              # Tất cả constants + env loading
-│   ├── database.py            # SQLite: events, whitelist, pending_plates, camera_health, SLA
+│   ├── config.py              # Constants + env loading
+│   ├── database.py            # PostgreSQL DatabaseManager (connection pool)
 │   ├── asset_registry.py      # CMDB camera assets
-│   ├── camera_orientation_monitor.py  # ORB shift detection
 │   ├── door_controller.py     # Tuya door control
-│   ├── mjpeg_streamer.py      # MJPEG frame buffer
-│   ├── mqtt_manager.py        # MQTT publish/subscribe
+│   ├── settings_store.py      # App settings
 │   └── tripwire.py            # Vạch ảo đếm người/xe
 │
-├── services/                  # Application services
-│   ├── api_server.py          # FastAPI: /dashboard, /video_feed, /snapshot, /login
-│   ├── camera_manager.py      # Multi-camera RTSP manager + gap detection
-│   ├── telegram_service.py    # Telegram bot commands + alerts
-│   ├── face_service.py        # face_recognition wrapper
-│   ├── door_service.py        # Door state detection
-│   ├── system_monitor.py      # CPU temp monitoring
-│   ├── retention_manager.py   # Auto-delete snapshots (30 ngày)
-│   └── sla_reporter.py        # SLA daily metrics
+├── streamlit_app/             # Streamlit UI (MVC)
+│   ├── main.py                # App entry, routing, sidebar
+│   ├── menu_registry.py       # Single source of truth cho menu definitions
+│   ├── models/                # Model loading (YOLO, OCR, Face)
+│   ├── controllers/           # Thin DB wrappers (get_db().method())
+│   │   ├── camera_controller.py
+│   │   ├── detection_controller.py
+│   │   ├── parking_controller.py
+│   │   ├── provider_controller.py
+│   │   ├── rbac_controller.py
+│   │   ├── site_controller.py
+│   │   ├── stranger_controller.py
+│   │   ├── system_controller.py
+│   │   ├── telegram_controller.py
+│   │   ├── user_controller.py
+│   │   ├── vehicle_controller.py
+│   └── views/                 # UI pages
+│       ├── login_view.py      # Auth + remember token
+│       ├── detection_view.py  # Live webcam + RTSP + upload
+│       ├── camera_management_view.py
+│       ├── provider_management_view.py
+│       ├── sites_view.py         # Multi-site CRUD
+│       ├── stranger_management_view.py
+│       └── ...
+│
+├── models/
+│   ├── best.onnx              # YOLOv26 (gốc)
+│   └── best_int8.onnx         # YOLOv26 INT8 (production)
 │
 ├── util/
 │   └── ocr_utils.py           # VNPlateOCR (PaddleOCR wrapper)
 │
-├── config/
-│   ├── authorized.json        # Whitelist biển số (JSON)
-│   └── faces/                 # Face embeddings
-│
-├── models/
-│   ├── bien_so_xe.pt          # YOLOv11: biển số + người + xe
-│   └── door_model.pt          # Door state model (optional)
-│
-├── deploy/
-│   ├── event_bridge/app.py    # Frigate event handler + PTZ + Telegram
-│   ├── frigate/config.yml     # Frigate NVR config (zones, detect, record)
-│   ├── mosquitto/             # MQTT broker config
-│   ├── scripts/               # resolve_camera_ip.py, check_remote_ha.py
-│   └── reporting/             # monthly_chart.py
-│
-
-├── parking_hpc/               # High-performance multiprocessing pipeline
-├── tests/
-│   └── test_security.py       # Security self-tests (20 tests, tất cả PASS)
-└── streamlit_qa.py            # Streamlit QA dashboard (5 tabs)
+└── tests/
+    └── test_security.py       # Security self-tests
 ```
 
 ## Biến môi trường quan trọng
 
 ```bash
-# Telegram
 TELEGRAM_TOKEN=                    # Bot token
 TELEGRAM_CHAT_IMPORTANT=           # Chat ID cảnh báo quan trọng
 TELEGRAM_CHAT_NONIMPORTANT=        # Chat ID thông báo thường
-
-# Camera
-RTSP_URL=rtsp://user:pass@ip:554/... # Stream chính
-CAMERA_MAC=30:24:50:67:cb:1b        # MAC để tự tìm IP
-CAMERA_IP_SUBNET=                   # Subnet quét ARP (vd: 192.168.1.0/24)
-OCR_SOURCE=rtsp                     # rtsp | webcam | image:/path
-
-# Vạch ảo
-LINE_Y_RATIO=0.62                   # Vị trí vạch theo % chiều cao (0.0-1.0)
-LINE_Y_PIXELS=0                     # Override tuyệt đối (0 = dùng ratio)
-
-# Multi-camera UI
-CAMERA_UI_USER=admin
-CAMERA_UI_PASS=changeme
-CAMERA_2_URL=                       # Camera phụ 2 (optional)
-CAMERA_3_URL=                       # Camera phụ 3 (optional)
-CAMERA_4_URL=                       # Camera phụ 4 (optional)
-SNAPSHOT_DIR=./data/snapshots (Hardcoded)
-
-# Home Assistant
-HA_INTERNAL_URL=http://192.168.1.131:8123
-HA_EXTERNAL_URL=https://ha-gateway.ts.net:8123
-
-# Tailscale (remote access)
-TS_AUTHKEY=                         # Auth key (chỉ cần lần đầu)
-TS_HOSTNAME=ha-gateway
-
-# Imou Open API (PTZ cloud)
+RTSP_URL=rtsp://user:pass@ip:554/...
+DATABASE_URL=postgresql://camera_user:password@localhost:5432/camera_ai
+GEMINI_API_KEY=
 IMOU_OPEN_APP_ID=
 IMOU_OPEN_APP_SECRET=
 IMOU_OPEN_DEVICE_ID=
-
-# PostgreSQL (nếu dùng)
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=camera_ai
-POSTGRES_USER=camera_user
-POSTGRES_PASSWORD=
-DATABASE_URL=postgresql+asyncpg://camera_user:password@localhost:5432/camera_ai
+WEBRTC_TURN_URL=
+WEBRTC_TURN_USERNAME=
+WEBRTC_TURN_PASSWORD=
 ```
 
-## Lệnh thường dùng
+## Tính năng đã release
 
-### Khởi động / tắt hệ thống
-```bash
-./install.sh                    # Cài đặt lần đầu (Docker stack + venv)
-./cmd up                        # Khởi động Docker stack (resolve CAMERA_IP trước)
-./cmd down                      # Tắt Docker stack
-source venv/bin/activate && python main.py   # Chạy AI core trực tiếp
-```
+- **Remember Token Login**: token , localStorage + DB, không lưu password
+- **Camera Provider Management**: DB-driven, API keys + email lưu trong app_settings
+- **Door Provider Management**: 7 nhà cung cấp cửa cuốn (Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT)
+- **Tuya Door Control**: tinytuya local SDK, toggle relay DPS "1"
+- **Stranger Detection**: InsightFace, threshold 0.25, cooldown 60s, log vào DB
+- **Unknown Plate → Pending**: biển số không trong whitelist tự động vào pending_plates (cooldown 60s)
+- **OCR Active Learning**: confidence 0.3-0.7 lưu sample, admin review qua UI "OCR Review"
+- **RBAC Menu System**: menu_registry.py → DB roles → allowed_menus
+- **Plate Detection Labels**: chỉ dùng màu (xanh=whitelist, vàng=unknown), không text [OK]/[LA]
+- **Login UI**: vertically centered, Enter submit, no duplicate form render
+- **Header 50px**: custom header, ẩn Streamlit default header
+- **Mobile Responsive**: CSS breakpoints 768px + 480px cho tất cả trang
+- **No Fee Feature**: không tính phí gửi xe — chỉ xem camera + nhận diện
+- **Multi-site Management**: bảng `sites` thay thế `camera_zones`, global site selector trong sidebar, filter dashboard/cameras theo site
+- **Mobile WebRTC Camera View**: TURN server config (env + app_settings), facingMode environment cho camera sau, `?mobile=1` ẩn tab RTSP, responsive CSS cho video player
+- **Dynamic Provider API Keys**: mỗi nhà cung cấp camera có bộ key kết nối riêng (PROVIDER_DEFAULT_KEYS), UI tự render dynamic inputs
 
-### Xem log và trạng thái
-```bash
-./cmd stats                     # Thống kê sự kiện
-./cmd today                     # Sự kiện hôm nay
-./cmd last 50                   # 50 sự kiện gần nhất
-./cmd gate                      # Trạng thái cửa + số người/xe
-./cmd pending                   # Biển số lạ chờ duyệt
-./cmd whitelist                 # Danh sách biển số quen
-./cmd remote-check              # Kiểm tra cấu hình HA remote
-docker compose logs -f event_bridge   # Log event bridge
-docker compose logs -f frigate        # Log Frigate NVR
-```
+## Schema DB (init.sql)
 
-### Báo cáo
-```bash
-./cmd report-month 2026-03      # Báo cáo tháng dạng text
-./cmd chart-month 2026-03       # Biểu đồ PNG (lưu ./data/event_bridge/reports/)
-python -m services.sla_reporter --run-now   # SLA report hôm qua
-```
+| Bảng | Mô tả |
+|---|---|
+| `roles` | RBAC roles + allowed_menus |
+| `users` | Users + remember_token + site_ids |
+| `sites` | Địa điểm (bãi xe vật lý) + total_slots |
+| `cameras` | Camera config + site_ids (multi-site) |
+| `plate_events` | Sự kiện nhận diện biển số |
+| `vehicle_sessions` | Phiên đỗ xe |
+| `plate_whitelist` | Whitelist biển số |
+| `pending_plates` | Biển số lạ chờ duyệt |
+| `app_settings` | Key-value settings |
+| `camera_status_log` | Camera health |
+| `legal_hold` | File protection |
+| `monthly_reports` | Báo cáo tổng hợp |
+| `telegram_bots` | Multi-bot config |
+| `cameras_asset` | CMDB camera assets |
+| `camera_providers` | Nhà cung cấp camera |
+| `door_providers` | Nhà cung cấp cửa cuốn |
+| `stranger_logs` | Face stranger detection |
+| `ocr_training_samples` | OCR active learning samples |
 
-### Quản lý whitelist biển số
-```bash
-# Qua Telegram bot:
-/mine 29A12345                  # Thêm xe của tôi
-/staff 51G99999                 # Thêm xe nhân viên
-/reject 30A00000                # Từ chối biển số lạ
-/whitelist                      # Xem danh sách
-```
+## Thông tin kỹ thuật
 
-### Test và debug
-```bash
-python3.11 -m pytest tests/test_security.py -v   # Security tests (20 tests)
-./cmd webcam-people --camera 0 --model models/bien_so_xe.pt   # Test webcam
-./cmd test-ptz                  # Test PTZ camera
-python -m services.retention_manager --run-now   # Chạy retention ngay
-streamlit run streamlit_qa.py   # QA dashboard (5 tabs)
-```
-
-### Restream với vạch đỏ
-```bash
-scripts/restream_tripwire.sh "rtsp://..." "rtsp://0.0.0.0:8554/cam_doorline" 0.62 6
-```
-
-## Quy tắc KHÔNG được vi phạm
-
-1. **KHÔNG hardcode credentials** — tất cả secrets phải qua `.env`
-2. **KHÔNG commit `.env`** — chỉ commit `.env.example`
-3. **KHÔNG xóa whitelist biển số** mà không backup `config/authorized.json` và bảng `vehicle_whitelist`
-4. **KHÔNG thay đổi `LINE_Y_RATIO`** mà không test lại TripwireTracker với video thực
-5. **KHÔNG sửa `deploy/frigate/config.yml`** mà không rebuild: `docker compose up -d frigate`
-6. **KHÔNG sửa Dockerfile** mà không chạy `./cmd up` để rebuild image
-7. **KHÔNG dùng f-string SQL** — luôn dùng parameterized query `cursor.execute(sql, (param,))`
-8. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng RetentionManager hoặc legal hold
-9. **KHÔNG thay đổi MQTT topic prefix** `frigate/` mà không cập nhật cả `event_bridge/app.py` và `frigate/config.yml`
-10. **KHÔNG sửa `core/config.py`** mà không chạy `python3 -m py_compile core/config.py` để kiểm tra syntax
-
-## Workflow chuẩn khi thêm tính năng mới
-
-
-
-## Thông tin kỹ thuật quan trọng
-
-- **Python version**: 3.10.x (production), 3.11.x (dev/test)
-- **Model chính**: `models/bien_so_xe.pt` — dùng cho cả general detection và plate detection
-- **API port**: 8000 (ai_core Docker: 8080→8000), event_bridge: 8000
-- **Frigate UI**: http://host:5000
-- **HA**: http://host:8123
-- **MQTT broker**: mosquitto:1883
-- **Camera shift**: ORB + RANSAC, ngưỡng rotation=3.5°, translation=18px
-- **Vạch ảo**: TripwireTracker, buffer=3 frames, cooldown=3s
-- **Retention**: 30 ngày mặc định, legal hold không bao giờ xóa
-- **Security tests**: 20 tests, tất cả PASS (chạy: `python3.11 -m pytest tests/test_security.py -v`)
+- **Python**: 3.10.x (production), 3.11.x (dev/test)
+- **Model**: `models/best_int8.onnx` (YOLOv26 INT8)
+- **Streamlit UI**: http://host:8501
+- **Face detection**: InsightFace buffalo_sc, similarity threshold 0.25
+- **Stranger cooldown**: 60s per camera
+- **Pending plate cooldown**: 60s per plate
+- **OCR sample range**: confidence 0.3-0.7
+- **Remember token**: , `secrets.token_urlsafe(32)`
+- **Retention**: 30 ngày, legal hold không xóa
+- **Door control**: Tuya local (tinytuya), Tasmota, HTTP, GPIO

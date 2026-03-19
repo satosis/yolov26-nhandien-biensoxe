@@ -1,32 +1,44 @@
 import streamlit as st
 import requests
-from streamlit_app.models.detector_model import get_db
+import html as html_mod
+from streamlit_app.controllers.telegram_controller import telegram_controller
 
+@st.cache_data(ttl=300)
 def check_bot_status(token):
+    if not token: return False, "N/A"
     try:
-        r = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=2).json()
+        r = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=3).json()
         return r.get("ok", False), r.get("result", {}).get("username", "Unknown")
-    except:
+    except Exception:
         return False, "N/A"
 
 def set_custom_css():
     st.markdown("""
         <style>
-        .bot-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 20px; background-color: #ffffff; }
-        .bot-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
-        .bot-title-group { display: flex; align-items: center; gap: 15px; }
-        .bot-icon { background: #f1f5f9; color: #3b82f6; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-family: monospace; }
-        .bot-name { font-weight: bold; font-size: 1.1rem; color: #1e293b; margin: 0; }
-        .bot-meta { color: #64748b; font-size: 0.85rem; margin: 0; }
-        .bot-active-toggle { color: #10b981; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+        .bot-profile-card {
+            background-color: rgba(30, 41, 59, 0.4);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .bot-profile-title {
+            color: #38bdf8;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .bot-profile-desc {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
         </style>
     """, unsafe_allow_html=True)
 
 def multi_telegram_view(bot_config=None):
     set_custom_css()
-    db = get_db()
     
-    # State management for Modals
     if 'show_add_bot' not in st.session_state:
         st.session_state['show_add_bot'] = False
         
@@ -36,97 +48,86 @@ def multi_telegram_view(bot_config=None):
     # Header
     col1, col2 = st.columns([5, 1])
     with col1:
-        st.markdown("### Cấu Hình Telegram Bot")
-        st.markdown("<p style='color: #64748b; font-size: 0.9rem;'>Quản lý các bot và cài đặt gửi thông báo</p>", unsafe_allow_html=True)
+        st.markdown("### 🤖 Quản lý Cấu hình Telegram")
+        st.markdown("<p style='color: #64748b; font-size: 0.9rem;'>Một Bot có thể dùng cho nhiều Chat ID. Mỗi cấu hình (Profile) sẽ lưu một cặp Bot Token + Chat ID.</p>", unsafe_allow_html=True)
     with col2:
         if not st.session_state['show_add_bot']:
-            st.button("➕ Thêm Bot Mới", type="primary", width='stretch', on_click=open_add_modal)
+            st.button("➕ Thêm Cấu hình", type="primary", width='stretch', on_click=open_add_modal)
 
-    # ADD BOT "MODAL" (Rendered inline at top if active)
+    # ADD PROFILE FORM
     if st.session_state['show_add_bot']:
         with st.container(border=True):
-            st.markdown("#### ➕ Thêm Bot Mới\n<span style='color:gray;font-size:14px'>Kết nối bot Telegram với hệ thống</span>", unsafe_allow_html=True)
+            st.markdown("#### ➕ Thêm Cấu Hình Mới", unsafe_allow_html=True)
             with st.form("add_bot_form"):
-                n_name = st.text_input("Tên Bot *", placeholder="VD: Staging Bot")
+                n_name = st.text_input("Tên Cấu Hình (Profile Name) *", placeholder="VD: Bot Nhóm 1")
                 n_tok = st.text_input("Bot Token *", placeholder="123456789:AABBCcdd...", type="password")
                 n_cid = st.text_input("Chat ID *", placeholder="-100123456789")
                 
-                c_cancel, c_submit = st.columns([8, 2])
-                c_cancel.form_submit_button("Hủy", on_click=close_add_modal)
-                if c_submit.form_submit_button("Lưu Bot", type="primary"):
+                if st.form_submit_button("Lưu Cấu Hình", type="primary"):
                     if n_name and n_tok and n_cid:
-                        if db.upsert_telegram_bot(n_name, n_tok, n_cid, ""):
-                            st.success("Lưu bot thành công!")
+                        if telegram_controller.upsert_telegram_bot(n_name, n_tok, n_cid):
+                            st.success("Lưu cấu hình thành công!")
                             close_add_modal()
                             st.rerun()
                         else:
-                            st.error("Lỗi khi lưu DB!")
+                            st.error("Lỗi khi lưu Database!")
                     else:
-                        st.error("Vui lòng điền các trường bắt buộc (*)")
+                        st.error("Vui lòng điền đủ Tên, Token và Chat ID.")
+                if st.form_submit_button("Hủy"):
+                    close_add_modal()
+                    st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["🤖 Telegram Bots", "⚙ Cài Đặt"])
+    
+    bots = telegram_controller.get_telegram_bots()
+    if not bots:
+        st.info("Chưa có cấu hình Telegram nào. Bấm 'Thêm Cấu hình' để bắt đầu.")
+        return
 
-    with tab1:
-        bots = db.get_telegram_bots()
-        if not bots:
-            st.info("Hiện hệ thống chưa liên kết Bot Telegram nào. Bấm 'Thêm Bot Mới' để bắt đầu.")
-            return
+    for idx, bot in enumerate(bots):
+        with st.container(border=True):
+            bot_name = bot['bot_name']
+            token = bot['token']
+            
+            # Fetch real bot username to verify token
+            is_valid, bot_username = check_bot_status(token)
+            status_icon = "🟢" if is_valid else "🔴"
+            status_text = f"Đã kết nối (@{bot_username})" if is_valid else "Token không hợp lệ"
+            
+            st.markdown(f"""
+            <div class="bot-profile-card">
+                <div class="bot-profile-title">📋 {html_mod.escape(bot_name)}</div>
+                <div class="bot-profile-desc">{status_icon} <b>Trạng thái:</b> {status_text} &nbsp;|&nbsp; <b>Cập nhật:</b> {str(bot.get('updated_at') or bot.get('created_at'))[:19]}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with st.expander("Chỉnh sửa cấu hình & Gửi thử", expanded=False):
+                with st.form(f"edit_form_{idx}"):
+                    c_tok = st.text_input("Bot Token", value=token, type="password")
+                    c_cid = st.text_input("Chat ID", value=bot.get('chat_id', ''))
+                    
+                    if st.form_submit_button("📝 Lưu Thay Đổi"):
+                        telegram_controller.upsert_telegram_bot(bot_name, c_tok, c_cid)
+                        st.success("Đã cập nhật!")
+                        st.rerun()
 
-        for idx, bot in enumerate(bots):
-            with st.container(border=True):
-                # Custom Header using HTML for exact look
-                header_html = f"""
-                <div class='bot-header'>
-                    <div class='bot-title-group'>
-                        <div class='bot-icon'>(o)</div>
-                        <div>
-                            <p class='bot-name'>{bot['bot_name']}</p>
-                            <p class='bot-meta'>Tạo ngày {str(bot.get('created_at') or bot.get('updated_at', 'N/A'))[:10]} • Quản lý cảnh báo & hệ thống</p>
-                        </div>
-                    </div>
-                </div>
-                """
-                st.markdown(header_html, unsafe_allow_html=True)
-                
-                # Input configuration fields
-                c_tok, c_cid = st.columns(2)
-                
-                # Editing logic inline
-                token_val = c_tok.text_input("Bot Token", value=bot['token'], type="password", key=f"tok_{bot['bot_name']}")
-                cid_val = c_cid.text_input("Chat ID (Important)", value=bot['chat_id_important'], key=f"cid_{bot['bot_name']}")
-                
-                st.caption(f"Trạng thái Database (Cập nhật lúc: {str(bot.get('updated_at', 'N/A'))[:19]})")
-                
                 st.divider()
+                st.write("**Gửi tin nhắn thử (Test Connection)**:")
                 
-                # Action Buttons
-                c_btn1, c_btn2, c_btn3, c_spacer = st.columns([2.5, 2, 2, 5])
-                
-                if c_btn1.button("💬 Gửi tin nhắn thử", key=f"test_{bot['bot_name']}"):
-                    if cid_val and token_val:
-                        res, user = check_bot_status(token_val)
+                t1, t2 = st.columns([1, 4])
+                if t1.button("📩 Gửi Thử Tin Nhắn", key=f"test_msg_{idx}"):
+                    if c_cid and c_tok:
+                        res, _ = check_bot_status(c_tok)
                         if res:
-                            api_url = f"https://api.telegram.org/bot{token_val}/sendMessage"
-                            send_res = requests.post(api_url, json={"chat_id": cid_val, "text": f"✅ Test Msg từ Hệ thống qua bot @{user}"}).json()
-                            if send_res.get("ok"):
-                                st.success("Gửi tin nhắn thử thành công!")
-                            else:
-                                st.error(f"Telegram chặn: {send_res.get('description')}")
+                            res_test = requests.post(f"https://api.telegram.org/bot{c_tok}/sendMessage", json={"chat_id": c_cid, "text": f"✅ Test Msg từ cấu hình '{bot_name}'"}).json()
+                            if res_test.get("ok"): st.success("Gửi thành công!")
+                            else: st.error(f"Lỗi Telegram: {res_test.get('description')}")
                         else:
-                            st.error("Bot Token không hợp lệ hoặc Telegram không phản hồi.")
+                            st.error("Token không hợp lệ.")
                     else:
                         st.warning("Cần cấu hình đủ Token & Chat ID!")
                         
-                if c_btn2.button("📝 Lưu sửa bot", key=f"save_{bot['bot_name']}"):
-                    db.upsert_telegram_bot(bot['bot_name'], token_val, cid_val, bot['chat_id_normal'])
-                    st.success("Đã lưu thông tin mới!")
+                if t2.button("🗑 Xóa Cấu Hình", key=f"del_{idx}", type="primary"):
+                    telegram_controller.delete_telegram_bot(bot_name)
+                    st.warning(f"Đã xóa cấu hình {bot_name}!")
                     st.rerun()
-                    
-                if c_btn3.button("🗑 Xóa bot", key=f"del_{bot['bot_name']}", type="primary"):
-                    db.delete_telegram_bot(bot['bot_name'])
-                    st.warning(f"Đã xóa bot {bot['bot_name']}")
-                    st.rerun()
-
-    with tab2:
-        st.info("Tính năng cài đặt thông báo nâng cao đang được phát triển...")

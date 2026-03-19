@@ -2,4 +2,4 @@
 /data/
 __pycache__/
 *.pyc
-venv
+venvmodels/yolo26_plate_people_door.onnx

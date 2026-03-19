@@ -23,9 +23,9 @@ def benchmark():
     
     # 1. Test Model Loading
     print("\n[1/4] Loading models...")
-    pt_path = "models/bien_so_xe.pt"
-    onnx_path = "models/bien_so_xe.onnx"
-    int8_path = "models/bien_so_xe_int8.onnx"
+    pt_path = "models/yolo26_plate_people_door.pt"
+    onnx_path = "models/yolo26_plate_people_door.onnx"
+    int8_path = "models/yolo26_plate_people_door_int8.onnx"
     
     models = {}
     if os.path.exists(pt_path):

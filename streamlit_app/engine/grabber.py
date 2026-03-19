@@ -98,67 +98,71 @@ class CameraReader:
         prev_gray: Optional[np.ndarray] = None
         frame_idx = 0
 
-        while not self.stop_event.is_set():
-            cap = self._open_capture()
-            if cap is None:
-                time.sleep(cfg.RTSP_RECONNECT_DELAY)
-                continue
-
-            logger.info("[%s] Stream opened", self.cam_id)
-            t_last = time.monotonic()
-
+        try:
             while not self.stop_event.is_set():
-                ret, frame = cap.read()
-                if not ret or frame is None:
-                    logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
-                    break
+                cap = self._open_capture()
+                if cap is None:
+                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    continue
 
-                # Throttle to GRAB_FPS_CAP
-                now = time.monotonic()
-                elapsed = now - t_last
-                if elapsed < frame_interval:
-                    time.sleep(frame_interval - elapsed)
+                logger.info("[%s] Stream opened", self.cam_id)
                 t_last = time.monotonic()
 
-                # Resize to target resolution
-                if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
-                    frame = cv2.resize(
-                        frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_LINEAR
-                    )
+                while not self.stop_event.is_set():
+                    ret, frame = cap.read()
+                    if not ret or frame is None:
+                        logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
+                        break
 
-                # Write frame to shared memory (zero-copy for inference process)
-                np.copyto(self._buf, frame)
-                self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+                    # Throttle to GRAB_FPS_CAP
+                    now = time.monotonic()
+                    elapsed = now - t_last
+                    if elapsed < frame_interval:
+                        time.sleep(frame_interval - elapsed)
+                    t_last = time.monotonic()
 
-                # Motion detection - optimized by downscaling to 1/4
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
-                    small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                    if roi_mask is None:
-                        roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
-                    
-                    if _motion_in_roi(prev_gray, small_gray, roi_mask):
-                        token = {
-                            "cam_id": self.cam_id,
-                            "shm_name": self.shm_name,
-                            "frame_idx": frame_idx,
-                            "ts": time.time(),
-                        }
-                        if not self.infer_queue.full():
-                            self.infer_queue.put_nowait(token)
-                    prev_gray = small_gray
-                elif prev_gray is None:
-                    prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                frame_idx += 1
+                    # Resize to target resolution
+                    if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
+                        frame = cv2.resize(
+                            frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_LINEAR
+                        )
 
-            cap.release()
-            if not self.stop_event.is_set():
-                logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
-                time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    # Write frame to shared memory (zero-copy for inference process)
+                    np.copyto(self._buf, frame)
+                    self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
 
-        self._shm.close()
-        self._shm.unlink()
-        logger.info("[%s] Grabber stopped", self.cam_id)
+                    # Motion detection - optimized by downscaling to 1/4
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
+                        small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                        if roi_mask is None:
+                            roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
+                        
+                        if _motion_in_roi(prev_gray, small_gray, roi_mask):
+                            token = {
+                                "cam_id": self.cam_id,
+                                "shm_name": self.shm_name,
+                                "frame_idx": frame_idx,
+                                "ts": time.time(),
+                            }
+                            import queue
+                            try:
+                                self.infer_queue.put_nowait(token)
+                            except queue.Full:
+                                pass # Drop frame if inference queue is full to prevent IPC blocking
+                        prev_gray = small_gray
+                    elif prev_gray is None:
+                        prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                    frame_idx += 1
+
+                cap.release()
+                if not self.stop_event.is_set():
+                    logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
+                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+        finally:
+            self._shm.close()
+            self._shm.unlink()
+            logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
         """Open RTSP with FFmpeg backend + hardware-friendly flags."""
@@ -170,6 +174,7 @@ class CameraReader:
             logger.error("[%s] Cannot open stream: %s", self.cam_id, self.rtsp_url)
             return None
 
+        cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, cfg.RTSP_BUFFER_SIZE)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.GRAB_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.GRAB_HEIGHT)

@@ -1,165 +1,262 @@
 import streamlit as st
-import time
+import streamlit.components.v1 as components
 import os
-from streamlit_app.models.detector_model import get_db, verify_password
-from streamlit_cookies_manager import EncryptedCookieManager
+import base64
+import json
+import time
+from streamlit_app.controllers.user_controller import user_controller
 
-
-# Use a secure prefix for our cookies
 COOKIE_PREFIX = "parking_camera_"
-# The library by default sets persistent cookies (typically expiring far in the future).
-cookies = EncryptedCookieManager(
-    password=os.environ.get("COOKIE_PASSWORD", "super-secret-password-for-cookies"),
-)
+SESSION_TIMEOUT_MINUTES = 60
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_SECONDS = 900  # 15 minutes
 
-if not cookies.ready():
-    st.stop()
+# --- localStorage Helpers (token ONLY, never password) ---
+
+def _read_localstorage():
+    """Read remember token from localStorage via query param bridge."""
+    if st.session_state.get('_ls_loaded'):
+        return
+
+    ls_token = st.query_params.get('_ls_token')
+    if ls_token:
+        st.session_state['_saved_token'] = ls_token
+        st.session_state['_ls_loaded'] = True
+        if '_ls_token' in st.query_params:
+            del st.query_params['_ls_token']
+            st.rerun()
+
+
+def _inject_ls_reader():
+    """Inject JS to read localStorage token and reload with it as query param."""
+    if st.session_state.get('_ls_loaded') or st.session_state.get('_ls_reader_injected'):
+        return
+
+    # If we already tried a token and it was invalid, clear it first
+    if st.session_state.get('_token_invalid'):
+        st.session_state.pop('_token_invalid', None)
+        st.session_state['_ls_reader_injected'] = True
+        clear_localstorage(reload=False)
+        return
+
+    js_code = """
+    <script>
+    (function() {
+        const prefix = "parking_camera_";
+        const token = localStorage.getItem(prefix + "remember_token") || "";
+        // Clean up legacy password storage
+        localStorage.removeItem(prefix + "password");
+        if (token) {
+            const url = new URL(window.parent.location);
+            if (!url.searchParams.has('_ls_token')) {
+                url.searchParams.set('_ls_token', token);
+                window.parent.history.replaceState({}, '', url);
+                window.parent.location.reload();
+            }
+        }
+    })();
+    </script>
+    """
+    components.html(js_code, height=0)
+    st.session_state['_ls_reader_injected'] = True
+
+
+def _save_token_to_localstorage(token: str):
+    """Inject JS to save remember token to localStorage. Never stores password."""
+    safe_token = json.dumps(token)
+    js_code = f"""
+    <script>
+    (function() {{
+        const prefix = "parking_camera_";
+        localStorage.setItem(prefix + "remember_token", {safe_token});
+        // Ensure no legacy password remains
+        localStorage.removeItem(prefix + "password");
+    }})();
+    </script>
+    """
+    components.html(js_code, height=0)
+
+
+def clear_localstorage(reload=True):
+    """Inject JS to clear all saved credentials from localStorage."""
+    reload_js = "window.parent.location.reload();" if reload else ""
+    js_code = f"""
+    <script>
+    (function() {{
+        const prefix = "parking_camera_";
+        localStorage.removeItem(prefix + "remember_token");
+        localStorage.removeItem(prefix + "saved_username");
+        localStorage.removeItem(prefix + "password");
+        {f'setTimeout(() => {{ {reload_js} }}, 100);' if reload else ""}
+    }})();
+    </script>
+    """
+    components.html(js_code, height=0)
+
+
+def logout_user():
+    """Perform a full logout: clear DB tokens and signal session to clear localStorage."""
+    user = st.session_state.get('user')
+    if user and 'id' in user:
+        user_controller.delete_remember_tokens(user['id'])
+    st.query_params.clear()
+    st.session_state['logout_pending'] = True
+    st.session_state['authenticated'] = False
+    st.rerun()
+
+
+# --- Rate Limiting ---
+
+def _check_rate_limit(username: str) -> bool:
+    """Return True if login is allowed, False if locked out."""
+    attempts = st.session_state.get('_login_attempts', {})
+    info = attempts.get(username)
+    if not info:
+        return True
+    if info['count'] >= MAX_LOGIN_ATTEMPTS:
+        elapsed = time.time() - info['last']
+        if elapsed < LOCKOUT_SECONDS:
+            return False
+        # Lockout expired, reset
+        attempts.pop(username, None)
+        st.session_state['_login_attempts'] = attempts
+    return True
+
+
+def _record_failed_attempt(username: str):
+    attempts = st.session_state.setdefault('_login_attempts', {})
+    info = attempts.get(username, {'count': 0, 'last': 0})
+    info['count'] += 1
+    info['last'] = time.time()
+    attempts[username] = info
+    st.session_state['_login_attempts'] = attempts
+
+
+def _clear_attempts(username: str):
+    attempts = st.session_state.get('_login_attempts', {})
+    attempts.pop(username, None)
+    st.session_state['_login_attempts'] = attempts
+
+
+# --- UI ---
 
 def set_bg():
-    bg_path = "/Users/mac/Documents/yolov11-nhandien-biensoxe/streamlit_app/assets/login_bg.png"
+    bg_path = os.path.join(os.path.dirname(__file__), "assets", "login_bg.png")
     bin_str = ""
     if os.path.exists(bg_path):
         with open(bg_path, "rb") as f:
             bin_str = base64.b64encode(f.read()).decode()
-            
     page_bg_css = f'''
     <style>
     .stApp {{
         background: url("data:image/png;base64,{bin_str}");
         background-size: cover;
     }}
-    /* Target the container with border=True */
-    [data-testid="stVerticalBlockBorderWrapper"] {{
-        background: rgba(15, 23, 42, 0.6) !important;
-        backdrop-filter: blur(20px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 24px !important;
-        padding: 40px !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
-    }}
-    .stButton>button {{
-        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-        color: white;
-        border: none;
-        padding: 12px;
-        border-radius: 12px;
-        font-weight: 700;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        height: 3.5rem;
-        margin-top: 10px;
-    }}
-    .stButton>button:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
-        border: none;
-        color: white;
-    }}
-    h1 {{
-        background: linear-gradient(to right, #f8fafc, #94a3b8);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-size: 2.5rem;
-        font-weight: 900;
-        margin-bottom: 0px;
-        text-align: center;
-    }}
-    .subtitle {{
-        color: #94a3b8;
-        font-size: 1rem;
-        margin-bottom: 30px;
-        text-align: center;
-        font-weight: 500;
-    }}
-    /* Custom input styling */
-    div[data-baseweb="input"] {{
-        background-color: rgba(2, 6, 23, 0.4) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        border-radius: 12px !important;
-    }}
-    div[data-baseweb="input"]:focus-within {{
-        border-color: #6366f1 !important;
-    }}
-    label {{
-        color: #e2e8f0 !important;
-        font-size: 0.9rem !important;
-        font-weight: 600 !important;
-    }}
     </style>
     '''
     st.markdown(page_bg_css, unsafe_allow_html=True)
 
-import os
-import base64
 
 def login_view():
     set_bg()
-    
-    st.write("##")
-    st.write("##")
-    
+    st.markdown("""
+    <style>
+    .block-container { padding-top: 0 !important; }
+    section[data-testid="stMain"] > div { display: flex; align-items: center; min-height: 100vh; }
+    </style>
+    """, unsafe_allow_html=True)
+
     col1, col2, col3 = st.columns([1, 1.5, 1])
-    
     with col2:
         with st.container(border=True):
             st.markdown("<h1>PLATFORM</h1>", unsafe_allow_html=True)
             st.markdown("<p class='subtitle'>Hệ thống quản lý Camera AI chuyên dụng</p>", unsafe_allow_html=True)
-            
-            last_username = cookies.get(f"{COOKIE_PREFIX}last_user", "")
-            last_password = cookies.get(f"{COOKIE_PREFIX}last_password", "")
-            
-            username = st.text_input("Tài khoản", value=last_username, placeholder="Nhập username...")
-            password = st.text_input("Mật khẩu", value=last_password, type="password", placeholder="••••••••")
-            
-            remember_me = st.checkbox("Ghi nhớ đăng nhập", value=True)
-            
-            if st.button("TRUY CẬP TRUNG TÂM ĐIỀU KHIỂN"):
-                db = get_db()
-                if db:
-                    user = db.get_user(username)
-                    if user and verify_password(password, user['hashed_password']):
+
+            with st.form("login_form"):
+                username = st.text_input("Tài khoản", placeholder="Nhập username...")
+                password = st.text_input("Mật khẩu", type="password", placeholder="••••••••")
+                submitted = st.form_submit_button("ĐĂNG NHẬP", use_container_width=True, type="primary")
+
+            if submitted:
+                if not _check_rate_limit(username):
+                    remaining = LOCKOUT_SECONDS - (time.time() - st.session_state.get('_login_attempts', {}).get(username, {}).get('last', 0))
+                    st.error(f"Tài khoản bị khóa tạm. Thử lại sau {int(remaining)}s.")
+                else:
+                    user = user_controller.get_user(username)
+                    if user and user_controller.verify_password(password, user['hashed_password']):
+                        _clear_attempts(username)
                         st.session_state['authenticated'] = True
                         st.session_state['user'] = user
-                        
-                        if remember_me:
-                            cookies[f"{COOKIE_PREFIX}username"] = username
-                            cookies[f"{COOKIE_PREFIX}last_user"] = username
-                            cookies[f"{COOKIE_PREFIX}last_password"] = password
-                            cookies.save()
-                            
-                        st.success("Đang kết nối...")
-                        time.sleep(1)
+                        st.session_state['_last_activity'] = time.time()
+
+                        # Always remember login token
+                        token = user_controller.create_remember_token(user['id'])
+                        if token:
+                            st.session_state['_pending_save_token'] = token
                         st.rerun()
                     else:
-                        st.error("Xác thực không chính xác")
-                else:
-                    st.error("Lỗi kết nối cơ sở dữ liệu")
-            
-            st.markdown('<p style="text-align: center; color: #475569; font-size: 0.7rem; margin-top: 30px;">SECURE LOGON • ENCRYPTED SESSION • v2.1.0</p>', unsafe_allow_html=True)
+                        _record_failed_attempt(username)
+                        attempts_left = MAX_LOGIN_ATTEMPTS - st.session_state.get('_login_attempts', {}).get(username, {}).get('count', 0)
+                        if attempts_left > 0:
+                            st.error(f"Sai tài khoản hoặc mật khẩu. Còn {attempts_left} lần thử.")
+                        else:
+                            st.error(f"Tài khoản bị khóa {LOCKOUT_SECONDS // 60} phút.")
+
+            st.markdown('<p style="text-align: center; color: #475569; font-size: 0.7rem; margin-top: 30px;">SECURE LOGON • ENCRYPTED SESSION • v2.2.0</p>', unsafe_allow_html=True)
+
+    _inject_ls_reader()
+
+
+# --- PLACEHOLDER_CHECK_AUTH ---
 
 def check_auth():
-    # 1. Check if already authenticated in this session
-    if 'authenticated' in st.session_state and st.session_state['authenticated']:
+    """Gate function: ensures user is authenticated before proceeding."""
+    if st.session_state.get('logout_pending'):
+        clear_localstorage()
+        st.query_params.clear()
+        st.session_state.clear()
+        st.session_state['_ls_loaded'] = True
+        login_view()
+        st.stop()
+
+    if st.session_state.get('authenticated'):
+        user = st.session_state.get('user')
+        if not user or 'role' not in user:
+            st.session_state.clear()
+            st.rerun()
+        # Session timeout check
+        last = st.session_state.get('_last_activity', 0)
+        if last and (time.time() - last) > SESSION_TIMEOUT_MINUTES * 60:
+            st.session_state.clear()
+            st.rerun()
+        st.session_state['_last_activity'] = time.time()
         return
 
-    # 2. Try auto-login from cookies if not authenticated and not explicitly logged out
-    if not st.session_state.get('explicit_logout', False):
-        saved_user = cookies.get(f"{COOKIE_PREFIX}username")
-        if saved_user:
-            db = get_db()
-            if db:
-                user = db.get_user(saved_user)
-                if user:
-                    st.session_state['authenticated'] = True
-                    st.session_state['user'] = user
-                    return # Auto-logged in successfully
+    # Try auto-login from remember token
+    _read_localstorage()
+    saved_token = st.session_state.get('_saved_token', '')
+    if saved_token:
+        user = user_controller.get_user_by_remember_token(saved_token)
+        if user:
+            st.session_state['authenticated'] = True
+            st.session_state['user'] = user
+            st.session_state['_last_activity'] = time.time()
+            return
+        else:
+            st.session_state['_token_invalid'] = True
+            st.session_state.pop('_saved_token', None)
 
-
-    # 3. If still not authenticated, show login
     login_view()
     st.stop()
-    
-    # Defensive check for stale session data after schema change
-    if 'user' not in st.session_state or 'role' not in st.session_state['user']:
-        st.session_state['authenticated'] = False
-        st.session_state.clear() # Clear everything to be safe
-        st.rerun()
+
+
+def flush_pending_localstorage():
+    """Call this from main app after page render to inject pending localStorage ops."""
+    pending_token = st.session_state.pop('_pending_save_token', None)
+    if pending_token:
+        _save_token_to_localstorage(pending_token)
+
+    if st.session_state.pop('_pending_clear_all', False):
+        clear_localstorage()
+    elif st.session_state.pop('_pending_clear_token', False):
+        clear_localstorage()

@@ -6,6 +6,13 @@ import threading
 
 from core.config import TOKEN, CHAT_IMPORTANT, CHAT_REGULAR, FACES_DIR, normalize_plate
 
+# Whitelist of Telegram user IDs allowed to execute bot commands
+# Set TELEGRAM_ALLOWED_USERS=123456,789012 in .env (comma-separated)
+_ALLOWED_USERS_RAW = os.environ.get("TELEGRAM_ALLOWED_USERS", "")
+TELEGRAM_ALLOWED_USERS = set(
+    int(uid.strip()) for uid in _ALLOWED_USERS_RAW.split(",") if uid.strip().isdigit()
+)
+
 
 def notify_telegram(message, important=False):
     """Gửi thông báo qua Telegram cho TẤT CẢ các bot trong DB, fallback về config mặc định."""
@@ -19,7 +26,7 @@ def notify_telegram(message, important=False):
         
         if bots:
             for bot in bots:
-                chat_id = bot.get('chat_id_important') if important else bot.get('chat_id_normal')
+                chat_id = bot.get('chat_id')
                 if not chat_id:
                     continue
                 url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
@@ -44,7 +51,7 @@ def notify_telegram(message, important=False):
             print(f"Lỗi gửi Telegram fallback: {e}")
 
 
-def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn, mqtt_manager):
+def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn):
     """Xử lý lệnh từ Telegram."""
     parts = text.strip().split()
     if not parts:
@@ -55,7 +62,6 @@ def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn, mqtt_mana
     # Lệnh mở/đóng cửa
     if cmd == "/open":
         print(f"Telegram CMD: OPEN from {user_id}")
-        mqtt_manager.publish_trigger_open()
         notify_telegram(f"Đã gửi lệnh MỞ cửa theo yêu cầu của {user_id}")
         return
 
@@ -162,7 +168,7 @@ def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn, mqtt_mana
             notify_telegram("⚠️ Mục tiêu dọn dẹp không hợp lệ. Chọn: faces, active_learning, db.")
 
 
-def telegram_polling_loop(db, load_faces_fn, mqtt_manager):
+def telegram_polling_loop(db, load_faces_fn):
     """Vòng lặp nhận tin nhắn từ Telegram."""
     if not TOKEN:
         return
@@ -189,7 +195,9 @@ def telegram_polling_loop(db, load_faces_fn, mqtt_manager):
                             user_id = msg["from"]["id"]
 
                             if str(chat_id_msg) in [CHAT_IMPORTANT, CHAT_REGULAR]:
-                                handle_telegram_command(text, chat_id_msg, user_id, db, load_faces_fn, mqtt_manager)
+                                if TELEGRAM_ALLOWED_USERS and user_id not in TELEGRAM_ALLOWED_USERS:
+                                    continue
+                                handle_telegram_command(text, chat_id_msg, user_id, db, load_faces_fn)
                                 # Forward non-command messages to agents (REMOVED)
                                 pass
 
@@ -214,6 +222,10 @@ def telegram_bot_handler(db, get_cpu_temp_fn, get_state_fn):
                     chat_id = msg.get("chat", {}).get("id")
                     user = msg.get("from", {})
                     user_label = user.get("username") or str(user.get("id") or "unknown")
+                    user_id = user.get("id")
+
+                    if TELEGRAM_ALLOWED_USERS and user_id not in TELEGRAM_ALLOWED_USERS:
+                        continue
 
                     if not text or not text.startswith("/"):
                         continue
@@ -293,12 +305,12 @@ def telegram_bot_handler(db, get_cpu_temp_fn, get_state_fn):
                             f"https://api.telegram.org/bot{TOKEN}/sendMessage",
                             json={"chat_id": chat_id, "text": f"✅ Đã từ chối {plate_norm}."}
                         )
-        except:
-            pass
+        except Exception as e:
+            print(f"Lỗi Telegram bot handler: {e}")
         time.sleep(2)
 
 
-def start_telegram_threads(db, load_faces_fn, mqtt_manager, get_cpu_temp_fn, get_state_fn):
+def start_telegram_threads(db, load_faces_fn, get_cpu_temp_fn, get_state_fn):
     """Khởi chạy tất cả telegram threads."""
-    threading.Thread(target=telegram_polling_loop, args=(db, load_faces_fn, mqtt_manager), daemon=True).start()
+    threading.Thread(target=telegram_polling_loop, args=(db, load_faces_fn), daemon=True).start()
     threading.Thread(target=telegram_bot_handler, args=(db, get_cpu_temp_fn, get_state_fn), daemon=True).start()

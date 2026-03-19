@@ -5,6 +5,15 @@ import logging
 import threading
 import requests
 
+try:
+    import tinytuya
+    _TINYTUYA_AVAILABLE = True
+except ImportError:
+    _TINYTUYA_AVAILABLE = False
+    logging.getLogger("door_controller").warning(
+        "tinytuya not installed — tuya_local relay type unavailable. Run: pip install tinytuya"
+    )
+
 logger = logging.getLogger("door_controller")
 
 class DoorController:
@@ -19,18 +28,12 @@ class DoorController:
         self.RELAY_HTTP_URL = ""
 
         # Tuya Local Config (Get these from Tuya IoT Platform or tinytuya scan)
-        self.TUYA_DEVICE_ID = "PLACEHOLDER_DEVICE_ID"
-        self.TUYA_LOCAL_KEY = "PLACEHOLDER_LOCAL_KEY"
-        self.TUYA_IP = "192.168.1.PROPER_IP" # Optional but recommended for speed
+        self.TUYA_DEVICE_ID = os.environ.get("TUYA_DEVICE_ID", "")
+        self.TUYA_LOCAL_KEY = os.environ.get("TUYA_LOCAL_KEY", "")
+        self.TUYA_IP = os.environ.get("TUYA_IP", "")  # Optional but recommended for speed
         
         self.door_state_lock = threading.Lock()
         self.door_state = "closed" # open, closed, opening, closing
-        self.mqtt_client = None # To be set by main app
-        self.state_topic = "shed/state/door"
-
-    def set_mqtt_client(self, client, topic):
-        self.mqtt_client = client
-        self.state_topic = topic
 
     def control_door(self, action: str) -> None:
         """Control garage door relay: OPEN, CLOSE, STOP"""
@@ -74,15 +77,35 @@ class DoorController:
                 except Exception as exc:
                     logger.error("HTTP control failed: %s", exc)
 
+        elif self.RELAY_TYPE == "tuya_local":
+            if not _TINYTUYA_AVAILABLE:
+                logger.error("tinytuya not installed — cannot control door via tuya_local")
+            elif not self.TUYA_DEVICE_ID or not self.TUYA_LOCAL_KEY:
+                logger.error(
+                    "tuya_local requires TUYA_DEVICE_ID and TUYA_LOCAL_KEY env vars"
+                )
+            else:
+                try:
+                    device = tinytuya.OutletDevice(
+                        dev_id=self.TUYA_DEVICE_ID,
+                        address=self.TUYA_IP or "Auto",
+                        local_key=self.TUYA_LOCAL_KEY,
+                    )
+                    device.set_version(3.3)
+                    # Read current DPS "1" state then toggle
+                    status = device.status()
+                    current = status.get("dps", {}).get("1", False)
+                    device.set_value("1", not current)
+                    logger.info(
+                        "tuya_local toggle OK — DPS '1': %s -> %s (action=%s)",
+                        current, not current, action,
+                    )
+                except Exception as exc:
+                    logger.error("tuya_local control failed: %s", exc)
+
         # Simulating state change for UI feedback
         with self.door_state_lock:
             if action == "OPEN":
                 self.door_state = "open"
             elif action == "CLOSE":
                 self.door_state = "closed"
-            
-            if self.mqtt_client:
-                try:
-                    self.mqtt_client.publish(self.state_topic, self.door_state, retain=True)
-                except:
-                    pass

@@ -1,8 +1,13 @@
 import streamlit as st
 import os
 
+from streamlit_app.utils.toast import show_toast
+from streamlit_app.controllers.system_controller import system_controller
+
 def sys_config_view():
     st.subheader("⚙️ Cấu hình hệ thống")
+    if 'just_saved_config' in st.session_state:
+        show_toast(st.session_state.pop('just_saved_config'), type="success")
     try:
         from core.config import settings_mgr
         current = settings_mgr.settings
@@ -28,7 +33,25 @@ def sys_config_view():
                 "LINE_Y_RATIO": new_line_ratio,
             }
             if settings_mgr.save_settings(updated):
-                st.success("✅ Đã lưu cấu hình!")
+                st.session_state['just_saved_config'] = "Đã lưu cấu hình!"
                 st.rerun()
             else:
                 st.error("❌ Lỗi khi lưu.")
+
+    st.divider()
+    st.markdown("### 📡 WebRTC / TURN Server")
+    st.caption("Cấu hình TURN server cho mobile camera view (qua NAT/cellular)")
+    with st.form("turn_config_form"):
+        turn_url = st.text_input("TURN URL", value=system_controller.get_app_setting("WEBRTC_TURN_URL") or "",
+            placeholder="turn:your-server.com:3478")
+        turn_user = st.text_input("TURN Username", value=system_controller.get_app_setting("WEBRTC_TURN_USERNAME") or "")
+        turn_pass = st.text_input("TURN Password", type="password",
+            value=system_controller.get_app_setting("WEBRTC_TURN_PASSWORD") or "")
+        if st.form_submit_button("💾 Lưu TURN config", type="primary"):
+            system_controller.set_many_app_settings({
+                "WEBRTC_TURN_URL": turn_url,
+                "WEBRTC_TURN_USERNAME": turn_user,
+                "WEBRTC_TURN_PASSWORD": turn_pass,
+            })
+            show_toast("Đã lưu TURN config", type="success")
+            st.rerun()

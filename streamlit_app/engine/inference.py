@@ -120,7 +120,7 @@ class PlateDetector:
         else:
             logger.info("Using standard PyTorch model: %s", path)
             
-        self._model = YOLO(path)
+        self._model = YOLO(path, task="detect")
         logger.info("PlateDetector loaded: %s", path)
 
     def detect(self, frame: np.ndarray) -> list[tuple[int, int, int, int, float]]:
@@ -309,7 +309,7 @@ class InferenceWorker:
                 continue
 
             result = InferenceResult(cam_id=cam_id, ts=ts)
-            result.annotated_frame = frame.copy()
+            result.annotated_frame = frame  # Use the already copied SHM frame directly
 
             # ── Plate detection ───────────────────────────────────────────────
             boxes = self._plate_detector.detect(frame)
@@ -340,19 +340,16 @@ class InferenceWorker:
                         logger.info("[%s] New plate recognized: %s (%.2f) → %s",
                                     cam_id, best_text, best_conf, result.snapshot_path)
                         
-                        # --- LOG TO POSTGRESQL ---
-                        try:
-                            # Use persistent connection if possible, or new one
-                            self._db.record_vehicle_entry(
-                                plate_norm=best_text,
-                                vehicle_type="car", 
-                                camera_id=1,        
-                                image_path=result.snapshot_path
-                            )
-                        except Exception as e:
-                            logger.error("Failed to log to DB: %s", e)
-                            # Re-init DB manager if connection died
-                            self._db = DatabaseManager()
+                        # --- ASYNC LOG TO POSTGRESQL ---
+                        # Use the Class executor to log to DB in a background thread 
+                        # so inference is never blocked by network latency
+                        self._executor.submit(
+                            self._db.record_vehicle_entry,
+                            plate_norm=best_text,
+                            vehicle_type="car", 
+                            camera_id=cam_id,
+                            image_path=result.snapshot_path
+                        )
 
             # ── Face recognition (every N frames) ────────────────────────────
             self._frame_counter += 1

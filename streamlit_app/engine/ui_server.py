@@ -22,7 +22,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string, jsonify, request, abort
 from flask_socketio import SocketIO
 
 from streamlit_app.engine import config as cfg
@@ -33,7 +33,14 @@ logger = logging.getLogger("ui_server")
 # ── Flask app ─────────────────────────────────────────────────────────────────
 flask_app = Flask(__name__)
 flask_app.config["SECRET_KEY"] = os.urandom(24)
-socketio = SocketIO(flask_app, cors_allowed_origins="*", async_mode="threading")
+_HPC_API_KEY = os.environ.get("HPC_API_KEY", "")
+socketio = SocketIO(flask_app, cors_allowed_origins=os.environ.get("HPC_CORS_ORIGINS", "http://localhost:8501"), async_mode="threading")
+
+
+def _check_api_key():
+    """Verify API key if HPC_API_KEY is configured."""
+    if _HPC_API_KEY and request.headers.get("X-API-Key") != _HPC_API_KEY:
+        abort(401)
 
 # Shared state (written by background thread, read by Flask routes)
 _latest_frames: dict[str, Optional[np.ndarray]] = {"cam1": None, "cam2": None}
@@ -115,12 +122,14 @@ def index():
 
 @flask_app.route("/api/events")
 def api_events():
+    _check_api_key()
     with _lock:
         return jsonify(list(_event_log))
 
 
 @flask_app.route("/api/stats")
 def api_stats():
+    _check_api_key()
     with _lock:
         return jsonify({
             "plates_today": _stats["plates_today"],
@@ -132,6 +141,7 @@ def api_stats():
 @flask_app.route("/api/snapshot/latest/<cam_id>")
 def latest_snapshot(cam_id: str):
     """Return base64 JPEG of the latest frame for a camera."""
+    _check_api_key()
     frame = _latest_frames.get(cam_id)
     if frame is None:
         return jsonify({"error": "no frame"}), 404

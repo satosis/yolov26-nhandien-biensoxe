@@ -39,6 +39,27 @@ class SimpleTracker:
                     best_id = tid
             
             if best_id is not None:
+                # Update existing track
+                prev_track = self.tracks[best_id]
+                
+                # Check for identity persistence (for faces)
+                if det["type"] == "face":
+                    similarity = det.get("similarity", 0.0)
+                    name = str(det.get("name", ""))
+                    is_high_conf = similarity > 0.5 and name not in ["STRANGER", "UNKNOWN", "None", ""]
+                    
+                    # If current detection is high confidence, update/set confirmed identity
+                    if is_high_conf:
+                        det["confirmed_identity"] = {
+                            "name": name,
+                            "full_name": det.get("full_name"),
+                            "username": det.get("username"),
+                            "similarity": similarity
+                        }
+                    # If current is low confidence but we have a previous confirmed identity, persist it
+                    elif "confirmed_identity" in prev_track["data"]:
+                        det["confirmed_identity"] = prev_track["data"]["confirmed_identity"]
+
                 new_tracks[best_id] = {
                     "bbox": det["bbox"], 
                     "lost": 0, 
@@ -48,6 +69,17 @@ class SimpleTracker:
                 del self.tracks[best_id]
             else:
                 # New track
+                if det["type"] == "face":
+                    similarity = det.get("similarity", 0.0)
+                    name = str(det.get("name", ""))
+                    if similarity > 0.5 and name not in ["STRANGER", "UNKNOWN", "None", ""]:
+                        det["confirmed_identity"] = {
+                            "name": name,
+                            "full_name": det.get("full_name"),
+                            "username": det.get("username"),
+                            "similarity": similarity
+                        }
+
                 new_tracks[self.next_id] = {
                     "bbox": det["bbox"], 
                     "lost": 0, 

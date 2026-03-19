@@ -1,105 +1,12 @@
 services:
-  mosquitto:
-    image: eclipse-mosquitto:2
-    container_name: mosquitto
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-    volumes:
-      - ./docker/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./data/mosquitto:/mosquitto/data
-      - ./data/mosquitto-log:/mosquitto/log
-    networks:
-      - surv-net
-
-  frigate:
-    image: ghcr.io/blakeblackshear/frigate:stable
-    container_name: frigate
-    restart: unless-stopped
-    privileged: true
-    shm_size: "256mb"
-    depends_on:
-      - mosquitto
-    env_file:
-      - ./.env
-    ports:
-      - "5000:5000"
-      - "8554:8554"
-      - "8555:8555/tcp"
-      - "8555:8555/udp"
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./docker/config/frigate.yml:/config/config.yml:ro
-      - ./data/frigate:/media/frigate
-    networks:
-      - surv-net
-
-  homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:stable
-    container_name: homeassistant
-    restart: unless-stopped
-    depends_on:
-      - mosquitto
-    env_file:
-      - ./.env
-    network_mode: host
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - HA_INTERNAL_URL=${HA_INTERNAL_URL:-http://127.0.0.1:8123}
-      - HA_EXTERNAL_URL=${HA_EXTERNAL_URL:-http://127.0.0.1:8123}
-    volumes:
-      - ./data/homeassistant:/config
-      - /etc/localtime:/etc/localtime:ro
-
-  tailscale:
-    image: tailscale/tailscale:stable
-    container_name: tailscale
-    restart: unless-stopped
-    profiles: ["remote_ha_tailscale"]
-    depends_on:
-      - homeassistant
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      - ./data/tailscale:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY:-}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_HOSTNAME=${TS_HOSTNAME:-ha-gateway}
-      - TS_EXTRA_ARGS=${TS_EXTRA_ARGS:---accept-dns=true --accept-routes=true}
-
-  event_bridge:
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile.event_bridge
-    container_name: event_bridge
-    restart: unless-stopped
-    depends_on:
-      - mosquitto
-    env_file:
-      - ./.env
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-    volumes:
-      - ./data/event_bridge:/data
-    ports:
-      - "8000:8000"
-    networks:
-      - surv-net
-
   ai_core:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.ai_core
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: ai_core
     restart: unless-stopped
-    depends_on:
-      - mosquitto
     env_file:
       - ./.env
     environment:
@@ -107,10 +14,14 @@ services:
     ports:
       - "8080:8000"
     volumes:
-      - .:/app
+      - ./core:/app/core:ro
+      - ./data:/app/data
+      - ./models:/app/models:ro
+      - ./services:/app/services:ro
+      - ./util:/app/util:ro
+      - ./main.py:/app/main.py:ro
     networks:
       - surv-net
-
 
   postgres:
     image: postgres:16-alpine
@@ -123,7 +34,7 @@ services:
       - TZ=Asia/Ho_Chi_Minh
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/config/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     networks:

@@ -18,7 +18,7 @@ MODEL_PATH = cfg.PLATE_MODEL_PATH
 @st.cache_resource(show_spinner="Đang tải model YOLO…")
 def load_yolo_model():
     print(f"[INFO] Loading YOLO model: {MODEL_PATH}")
-    return YOLO(MODEL_PATH)
+    return YOLO(MODEL_PATH, task="detect")
 
 
 @st.cache_resource(show_spinner="Đang tải PaddleOCR…")
@@ -62,20 +62,16 @@ def get_password_hash(password):
         password = password.encode('utf-8')
     return bcrypt.hashpw(password, bcrypt.gensalt()).decode('utf-8')
 
+_db_instance = None
+
 def get_db():
+    global _db_instance
+    if _db_instance is not None:
+        return _db_instance
     try:
         from core.database import DatabaseManager
-        return DatabaseManager()
-    except Exception:
-        return None
-
-def get_asset_registry():
-    try:
-        from core.asset_registry import AssetRegistry
-        # We don't need DB_PATH anymore as DatabaseManager uses env vars, 
-        # but AssetRegistry might still expect it if not refactored yet.
-        # However, our recent refactor changed DatabaseManager to use env.
-        # For now, passing None if it's not strictly needed or env-based.
-        return AssetRegistry(None) 
-    except Exception:
+        _db_instance = DatabaseManager()
+        return _db_instance
+    except Exception as e:
+        print(f"[ERROR] get_db failed: {e}")
         return None

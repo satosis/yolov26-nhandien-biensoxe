@@ -4,9 +4,7 @@ All settings are now managed in core/config.py
 """
 import core.config as cfg
 
-# RTSP Sources
-RTSP_CAM1 = cfg.RTSP_CAM1
-RTSP_CAM2 = cfg.RTSP_CAM2
+# RTSP Sources will be fetched dynamically from Database
 
 # ROI Polygon
 ROI_POLYGON_NORM = cfg.ROI_POLYGON_NORM

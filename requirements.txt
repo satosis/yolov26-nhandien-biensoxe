@@ -4,7 +4,6 @@
 
 # --- Core & Utils ---
 opencv-contrib-python==4.10.0.84
-opencv-contrib-python==4.10.0.84
 numpy<2.0.0
 pandas==2.0.2
 python-dotenv>=1.0.0
@@ -26,10 +25,9 @@ onnxruntime>=1.18.0
 paddlepaddle>=2.6.2
 paddleocr==2.10.0
 
-# --- Web & API (FastAPI, MQTT, ONVIF) ---
+# --- Web & API (FastAPI, ONVIF) ---
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
-paho-mqtt==2.1.0
 onvif-zeep==0.2.12
 tinytuya
 
@@ -45,3 +43,4 @@ flask>=3.0.0
 flask-socketio>=5.3.6
 python-socketio[asyncio_client]>=5.11.0
 eventlet>=0.36.0
+openai>=1.0.0

@@ -1,22 +1,20 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from streamlit_app.models.detector_model import get_db
+from streamlit_app.controllers.parking_controller import parking_controller
 
 def parking_analytics_view():
     st.title("📊 Phân tích Bãi xe")
-    db = get_db()
-    if not db:
-        st.error("Lỗi kết nối CSDL")
-        return
-
-    history = db.get_parking_history(limit=500)
+    
+    history = parking_controller.get_parking_history(limit=500)
     if not history:
         st.info("Chưa có đủ dữ liệu để phân tích.")
         return
 
     df = pd.DataFrame(history)
-    
+    df['entered_at_utc'] = pd.to_datetime(df['entered_at_utc'], errors='coerce', utc=True)
+    df = df.dropna(subset=['entered_at_utc'])
+
     # 1. Average Parking Duration
     completed_df = df[df['status'] == 'completed'].copy()
     if not completed_df.empty:
@@ -46,16 +44,3 @@ def parking_analytics_view():
                         color_discrete_sequence=['#10b981'])
     st.plotly_chart(fig_traffic, width='stretch')
 
-    st.divider()
-
-    # 3. Revenue Overview
-    if not completed_df.empty:
-        total_revenue = completed_df['fee'].sum()
-        st.metric("🪙 Tổng doanh thu dự kiến", f"{total_revenue:,} VND")
-        
-        # Revenue by zone
-        rev_zone = completed_df.groupby('zone_name')['fee'].sum().reset_index()
-        fig_rev = px.pie(rev_zone, values='fee', names='zone_name', 
-                       title="Doanh thu theo Khu vực",
-                       hole=0.4)
-        st.plotly_chart(fig_rev, width='stretch')

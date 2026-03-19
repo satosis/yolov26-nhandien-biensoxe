@@ -42,31 +42,26 @@ logger = logging.getLogger("main")
 def set_cpu_performance():
     """Force all CPU cores to performance governor (requires root or sudo)."""
     try:
+        allowed_governors = {"performance", "powersave", "ondemand", "conservative", "schedutil"}
+        governor = cfg.CPU_GOVERNOR if cfg.CPU_GOVERNOR in allowed_governors else "performance"
         cpu_count = os.cpu_count() or 6
         for i in range(cpu_count):
             path = f"/sys/devices/system/cpu/cpu{i}/cpufreq/scaling_governor"
             if os.path.exists(path):
-                os.system(f"echo {cfg.CPU_GOVERNOR} | sudo tee {path} > /dev/null 2>&1")
-        logger.info("CPU governor set to '%s' on %d cores", cfg.CPU_GOVERNOR, cpu_count)
+                import subprocess
+                subprocess.run(["sudo", "tee", path], input=governor.encode(),
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        logger.info("CPU governor set to '%s' on %d cores", governor, cpu_count)
     except Exception as e:
         logger.warning("Could not set CPU governor: %s", e)
 
 
 def setup_zram():
     """Enable ZRAM swap if not already active (prevents OOM on full load)."""
-    try:
-        result = os.popen("swapon --show=NAME --noheadings 2>/dev/null").read()
-        if "zram" in result:
-            logger.info("ZRAM already active")
-            return
-        os.system("sudo modprobe zram num_devices=1 2>/dev/null")
-        os.system("echo lz4 | sudo tee /sys/block/zram0/comp_algorithm > /dev/null 2>&1")
-        os.system("echo 1G | sudo tee /sys/block/zram0/disksize > /dev/null 2>&1")
-        os.system("sudo mkswap /dev/zram0 > /dev/null 2>&1")
-        os.system("sudo swapon -p 100 /dev/zram0 2>/dev/null")
-        logger.info("ZRAM 1G swap enabled")
-    except Exception as e:
-        logger.warning("ZRAM setup failed: %s", e)
+    # ZRAM with LZ4 compression overhead may impact performance dynamically on RK3399
+    # so we disable it for now according to the optimization plan.
+    logger.info("ZRAM disabled for better dynamic performance on RK3399")
+    return
 
 
 # ── Process management ────────────────────────────────────────────────────────
@@ -120,10 +115,22 @@ def main():
     infer_queue: Queue = Queue(maxsize=cfg.INFER_QUEUE_MAXSIZE)
     result_queue: Queue = Queue(maxsize=cfg.RESULT_QUEUE_MAXSIZE)
 
-    # Build camera list
-    cameras = [("cam1", cfg.RTSP_CAM1, cfg.SHM_NAME_CAM1)]
-    if cfg.RTSP_CAM2:
-        cameras.append(("cam2", cfg.RTSP_CAM2, cfg.SHM_NAME_CAM2))
+    # Build camera list dynamically from Database
+    from streamlit_app.controllers.camera_controller import camera_controller
+
+    db_cameras = camera_controller.get_all_cameras()
+
+    cameras = []
+    cam_index = 1
+    for cam in db_cameras:
+        if cam.get("is_active") and cam.get("rtsp_url"):
+            # generate unique SHM name based on cam index
+            shm_name = f"hpc_cam{cam_index}_frame"
+            cameras.append((f"cam{cam_index}", cam["rtsp_url"], shm_name))
+            cam_index += 1
+            
+    if not cameras:
+        logger.warning("No active cameras found in database. Please configure cameras in Camera Management view.")
 
     # Spawn processes
     grabbers = [
@@ -144,6 +151,17 @@ def main():
         logger.info("Shutdown signal received — stopping all processes…")
         stop_event.set()
 
+        # Cleanup shared memory
+        from multiprocessing import shared_memory
+        for cam in cameras:
+            try:
+                shm = shared_memory.SharedMemory(name=cam[2])
+                shm.close()
+                shm.unlink()
+                logger.info("Unlinked SHM: %s", cam[2])
+            except FileNotFoundError:
+                pass
+
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
@@ -163,6 +181,17 @@ def main():
                     continue
                 logger.warning("%s died (exit %s) — restarting (#%d)",
                                key, p.exitcode, restart_counts[key])
+
+                # Cleanup potential orphaned shared memory
+                try:
+                    from multiprocessing import shared_memory
+                    old_shm = shared_memory.SharedMemory(name=shm)
+                    old_shm.close()
+                    old_shm.unlink()
+                    logger.info("Cleaned orphaned SHM: %s before restart", shm)
+                except FileNotFoundError:
+                    pass
+
                 new_p = _spawn_grabber(cam_id, url, shm, infer_queue, stop_event)
                 grabbers[i] = new_p
                 all_procs[i] = new_p

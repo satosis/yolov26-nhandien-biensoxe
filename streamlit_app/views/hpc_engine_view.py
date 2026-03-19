@@ -3,11 +3,11 @@ import subprocess
 import os
 import signal
 import psutil
-import time
 import sys
 
+@st.cache_data(ttl=2)
 def get_hpc_status():
-    """Kiểm tra xem engine HPC có đang chạy không."""
+    """Kiểm tra xem engine HPC có đang chạy không. Caches result for 2s to prevent psutil CPU spike."""
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             cmdline = proc.info.get('cmdline')
@@ -42,38 +42,45 @@ def hpc_engine_view():
     st.header("⚡ AI Engine Hiệu Năng Cao (HPC)")
     st.info("Chế độ này tối ưu 100% tài nguyên Orange Pi 4 Pro để xử lý camera với tốc độ cao nhất.")
 
+    if msg := st.session_state.pop('hpc_action_msg', None):
+        st.success(msg)
+
     pid = get_hpc_status()
-    
+
     col1, col2 = st.columns(2)
-    
+
     if pid:
-        st.success(f"✅ AI Engine đang chạy (PID: {pid})")
-        if st.button("🔴 Dừng AI Engine", type="primary", width='stretch'):
-            try:
-                os.kill(pid, signal.SIGTERM)
-                st.toast("Đang dừng Engine...")
-                time.sleep(2)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Lỗi khi dừng: {e}")
+        with col1:
+            st.success(f"✅ AI Engine đang chạy (PID: {pid})")
+        with col2:
+            if st.button("🔴 Dừng AI Engine", type="primary", width='stretch'):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    st.session_state['hpc_action_msg'] = "Đã gửi lệnh dừng Engine."
+                    get_hpc_status.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi khi dừng: {e}")
     else:
-        st.warning("⚪ AI Engine đang dừng")
-        if st.button("🚀 Khởi động AI Engine", type="primary", width='stretch'):
-            try:
-                # Chạy script hpc main dưới dạng process ngầm từ vị trí mới
-                log_file = open("data/hpc_engine.log", "a")
-                subprocess.Popen(
-                    [sys.executable, "-m", "streamlit_app.engine.main"],
-                    stdout=log_file,
-                    stderr=log_file,
-                    cwd=os.getcwd(),
-                    start_new_session=True
-                )
-                st.toast("Đang khởi động Engine...")
-                time.sleep(3)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Lỗi khi khởi động: {e}")
+        with col1:
+            st.warning("⚪ AI Engine đang dừng")
+        with col2:
+            if st.button("🚀 Khởi động AI Engine", type="primary", width='stretch'):
+                try:
+                    # Chạy script hpc main dưới dạng process ngầm từ vị trí mới
+                    log_file = open("data/hpc_engine.log", "a")
+                    subprocess.Popen(
+                        [sys.executable, "-m", "streamlit_app.engine.main"],
+                        stdout=log_file,
+                        stderr=log_file,
+                        cwd=os.getcwd(),
+                        start_new_session=True
+                    )
+                    st.session_state['hpc_action_msg'] = "Đã gửi lệnh khởi động Engine."
+                    get_hpc_status.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Lỗi khi khởi động: {e}")
 
     st.divider()
     

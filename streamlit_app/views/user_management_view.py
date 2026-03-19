@@ -3,7 +3,10 @@ import pandas as pd
 import os
 import time
 from datetime import datetime
-from streamlit_app.models.detector_model import get_db, get_password_hash # I need to make sure get_password_hash is available in the model
+from streamlit_app.models.detector_model import get_password_hash
+from streamlit_app.controllers.user_controller import user_controller
+from streamlit_app.controllers.site_controller import site_controller
+from streamlit_app.utils.toast import show_toast
 
 def strip_vn_accents(s):
     """Simple VN accent removal for OpenCV putText."""
@@ -25,22 +28,22 @@ def strip_vn_accents(s):
 def user_management_view():
     st.subheader("👥 Quản lý người dùng (Admin Only)")
     
-    db = get_db()
-    if not db:
-        st.error("Database connection failed")
-        return
-
     # Check for Edit Mode
     editing_id = st.session_state.get('editing_user_id')
     if editing_id:
-        render_user_edit_view(db, editing_id)
+        render_user_edit_view(editing_id)
         return
 
     # Tabs for different operations
     tab_list, tab_add = st.tabs(["📋 Danh sách người dùng", "➕ Thêm người dùng mới"])
 
     with tab_list:
-        users = db.get_all_users()
+        if 'just_added_user' in st.session_state:
+            show_toast(st.session_state.pop('just_added_user'), type="success")
+        if 'just_edited_user' in st.session_state:
+            show_toast(st.session_state.pop('just_edited_user'), type="success")
+            
+        users = user_controller.get_all_users()
         if users:
             # Custom Header
             h_cols = st.columns([0.5, 1.5, 3.5, 1.5, 1, 1])
@@ -70,8 +73,8 @@ def user_management_view():
                 # Delete button (skip for admin)
                 if u_username != 'admin':
                     if cols[5].button("🗑️", key=f"del_btn_{u_id}", width='stretch', type="secondary"):
-                        if db.delete_user(u_id):
-                            st.warning(f"Đã xóa {u_username}")
+                        if user_controller.delete_user(u_id):
+                            show_toast(f"Đã xóa người dùng {u_username}", type="success")
                             st.rerun()
                         else:
                             st.error("Lỗi khi xóa")
@@ -87,7 +90,7 @@ def user_management_view():
             with col1:
                 user_name = st.text_input("Username (Dùng để đăng nhập)", placeholder="VD: nguyenvan_a")
                 user_pass = st.text_input("Password", type="password")
-                roles = db.get_roles()
+                roles = user_controller.get_roles()
                 role_names = [r['role_name'] for r in roles]
                 user_role = st.selectbox("Role hệ thống", role_names, index=role_names.index('Security') if 'Security' in role_names else 0)
             
@@ -95,24 +98,30 @@ def user_management_view():
                 full_name = st.text_input("Họ và tên (Nhân sự)", placeholder="VD: Nguyễn Văn A")
                 note = st.text_area("Ghi chú", placeholder="VD: Nhân viên kho", height=100)
             
-            zones = db.get_zones()
-            zone_options = {z['id']: z['zone_name'] for z in zones}
-            selected_zones = st.multiselect("Khu vực cho phép", options=list(zone_options.keys()), format_func=lambda x: zone_options[x])
+            sites = site_controller.get_sites()
+            site_options = {s['id']: s['site_name'] for s in sites}
+            selected_sites = st.multiselect(
+                "Địa điểm cho phép",
+                options=list(site_options.keys()),
+                format_func=lambda x: site_options[x],
+                key="site_ids_add",
+            )
 
-            if st.form_submit_button("🚀 Tạo người dùng/nhân sự", width='stretch'):
+            if st.form_submit_button("🚀 Tạo người dùng/nhân sự", use_container_width=True):
                 if user_name:
                     hashed = get_password_hash(user_pass) if user_pass else None
-                    if db.create_user(user_name, hashed, user_role, full_name, note, selected_zones):
-                        st.success(f"Đã tạo thành công {user_name}")
+                    ok, msg = user_controller.create_user(user_name, hashed, user_role, full_name, note, selected_sites)
+                    if ok:
+                        st.session_state['just_added_user'] = f"✅ Đã tạo thành công người dùng {user_name}"
                         st.rerun()
                     else:
-                        st.error("Lỗi: Username đã tồn tại hoặc có lỗi CSDL!")
+                        st.error(msg)
                 else:
                     st.warning("Vui lòng nhập ít nhất Username.")
 
 
-def render_user_edit_view(db, u_id):
-    users = db.get_all_users()
+def render_user_edit_view(u_id):
+    users = user_controller.get_all_users()
     user = next((u for u in users if u['id'] == u_id), None)
     
     if not user:
@@ -128,13 +137,14 @@ def render_user_edit_view(db, u_id):
     
     with tab_info:
         with st.container(border=True):
-            roles = db.get_roles()
+            roles = user_controller.get_roles()
             role_names = [r['role_name'] for r in roles]
             
             with st.form("edit_user_form_page"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    new_username = st.text_input("Username", value=user['username'])
+                    st.text_input("Username", value=user['username'], disabled=True)
+                    new_username = user['username']
                     current_role = user.get('role', 'User')
                     role_idx = role_names.index(current_role) if current_role in role_names else 0
                     new_role = st.selectbox("Role", role_names, index=role_idx)
@@ -144,19 +154,24 @@ def render_user_edit_view(db, u_id):
                     new_full_name = st.text_input("Họ và tên", value=user.get('full_name') or "")
                     new_note = st.text_area("Ghi chú", value=user.get('note') or "", height=100)
 
-                zones = db.get_zones()
-                zone_options = {z['id']: z['zone_name'] for z in zones}
-                current_zones = user.get('zone_ids') or []
-                new_zones = st.multiselect("Khu vực cho phép", options=list(zone_options.keys()), 
-                                           default=current_zones, format_func=lambda x: zone_options[x])
-                
-                if st.form_submit_button("💾 Lưu thay đổi", width='stretch'):
+                sites = site_controller.get_sites()
+                site_options = {s['id']: s['site_name'] for s in sites}
+                current_sites = user.get('site_ids') or []
+                new_sites = st.multiselect(
+                    "Địa điểm cho phép",
+                    options=list(site_options.keys()),
+                    format_func=lambda x: site_options[x],
+                    default=current_sites,
+                    key="site_ids_edit",
+                )
+
+                if st.form_submit_button("💾 Lưu thay đổi", use_container_width=True):
                     hashed = None
                     if new_pass:
                         hashed = get_password_hash(new_pass)
-                    
-                    if db.update_user(u_id, new_username, new_role, hashed, new_full_name, new_note, new_zones):
-                        st.success(f"Đã cập nhật {new_username}")
+
+                    if user_controller.update_user(u_id, new_username, new_role, hashed, new_full_name, new_note, new_sites):
+                        st.session_state['just_edited_user'] = f"✅ Đã cập nhật người dùng {new_username}"
                         st.session_state.pop('editing_user_id', None)
                         st.rerun()
                     else:
@@ -164,7 +179,15 @@ def render_user_edit_view(db, u_id):
 
     with tab_face:
 
-        face_dir = os.path.join(".", "config", "faces", str(u_id))
+        # Validate user ID to prevent path traversal
+        if not isinstance(u_id, int) or u_id <= 0:
+            st.error("ID người dùng không hợp lệ.")
+            return
+        base_faces = os.path.abspath(os.path.join(".", "config", "faces"))
+        face_dir = os.path.join(base_faces, str(u_id))
+        if not os.path.abspath(face_dir).startswith(base_faces):
+            st.error("Đường dẫn không hợp lệ.")
+            return
         os.makedirs(face_dir, exist_ok=True)
 
         # KYC configuration
@@ -196,7 +219,6 @@ def render_user_edit_view(db, u_id):
             # 3. Header & Camera Logic
             if next_stage is None:
                 st.info("Hệ thống đã có đủ dữ liệu khuôn mặt của bạn. Bạn có thể xem lại ảnh ở phần Thư viện bên dưới.")
-                st.balloons()
             else:
                 st.markdown(
                     f"<div style='padding:12px;background:#1e3a5f;border-radius:8px;font-size:1.2rem;text-align:center;"
@@ -209,6 +231,7 @@ def render_user_edit_view(db, u_id):
                 import av
                 import cv2 as _cv2
                 from streamlit_app.models.detector_model import load_face_app
+                from streamlit_app.utils.webrtc_utils import get_ice_servers
                 face_app = load_face_app()
 
                 # Processor class inside for scope or outside? Inside is safer for fragments sometimes
@@ -278,13 +301,13 @@ def render_user_edit_view(db, u_id):
                     mode=WebRtcMode.SENDRECV,
                     video_processor_factory=lambda: RegistrationProcessor(face_dir, STAGES),
                     async_processing=True,
-                    rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+                    rtc_configuration={"iceServers": get_ice_servers()},
                     media_stream_constraints={"video": True, "audio": False},
                 )
 
                 if webrtc_ctx.video_processor and webrtc_ctx.video_processor.captured:
                     webrtc_ctx.video_processor.captured = False
-                    st.toast("✅ Đã ghi nhận tư thế!", icon="📸")
+                    show_toast("Đã ghi nhận tư thế!", type="success")
                     st.rerun(scope="fragment")
 
             st.divider()
@@ -303,11 +326,11 @@ def render_user_edit_view(db, u_id):
                     label = stage_labels.get(stem, fname)
                     with cols[i % 5]:
                         with st.container(border=True):
-                            st.image(img_path, width='stretch', caption=label)
+                            st.image(img_path, use_container_width=True, caption=label)
                             if st.button("🗑️ Xóa", key=f"del_face_{fname}", width='stretch'):
                                 try:
                                     os.remove(img_path)
-                                    st.toast(f"Đã xóa {label}", icon="🗑️")
+                                    show_toast(f"Đã xóa {label}", type="success")
                                     st.rerun(scope="fragment")
                                 except Exception as e:
                                     st.error(f"Lỗi: {e}")

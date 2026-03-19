@@ -37,6 +37,6 @@ def optimize_yolo_model(model_path):
 if __name__ == "__main__":
     # Get base directory
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    model_file = os.path.join(base_dir, "models", "bien_so_xe.pt")
+    model_file = os.path.join(base_dir, "models", "yolo26_plate_people_door.pt")
     
     optimize_yolo_model(model_file)

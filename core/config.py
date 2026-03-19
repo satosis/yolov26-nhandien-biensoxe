@@ -28,15 +28,16 @@ load_env_file(".env")
 logging.getLogger("ultralytics").setLevel(logging.WARNING)
 
 # --- Telegram ---
-TOKEN = "6434708723:AAEK3eWhfe7gOc9F2g0w2sokk6TumvYEeAk"
-CHAT_IMPORTANT = "-5273529392"
-CHAT_REGULAR = "-5171619580"
+TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+CHAT_IMPORTANT = os.getenv("TELEGRAM_CHAT_IMPORTANT", "")
+CHAT_REGULAR = os.getenv("TELEGRAM_CHAT_NONIMPORTANT", "")
+
 
 # --- Database ---
 
 # Model Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_RAW_PATH = os.path.join(BASE_DIR, "models", "bien_so_xe.pt")
+_RAW_PATH = os.path.join(BASE_DIR, "models", "yolo26_plate_people_door.pt")
 
 def _get_best_model():
     candidates = [
@@ -56,8 +57,6 @@ FACE_MODEL_DIR = os.path.join(BASE_DIR, "models", "insightface")
 KNOWN_FACES_DIR = os.path.join(BASE_DIR, "config", "faces")
 
 # --- RTPS & Cameras ---
-RTSP_CAM1 = os.getenv("RTSP_URL", "rtsp://admin:L2D47B99@192.168.1.55:554/cam/realmonitor?channel=1&subtype=0")
-RTSP_CAM2 = os.getenv("CAMERA_2_URL", "")
 
 # --- Detection & Tripwire ---
 LINE_Y_RATIO = 0.62
@@ -74,39 +73,9 @@ ROI_POLYGON_NORM = [
 TRIPWIRE_BUFFER_FRAMES = 3
 # Thời gian chờ (giây) trước khi fire lại cùng object (tránh đếm lặp khi đứng tại vạch)
 TRIPWIRE_COOLDOWN_SECS = 3.0
-CAMERA_IP = ""
-_RTSP_URL_RAW = "rtsp://admin:L2D47B99@192.168.1.55:554/cam/realmonitor?channel=1&subtype=0"
-
-
-def resolve_rtsp_url(rtsp_url: str, camera_ip: str) -> str:
-    if not rtsp_url or not camera_ip:
-        return rtsp_url
-    if "{CAMERA_IP}" in rtsp_url:
-        return rtsp_url.replace("{CAMERA_IP}", camera_ip)
-
-    parsed = urlsplit(rtsp_url)
-    if not parsed.scheme.startswith("rtsp"):
-        return rtsp_url
-
-    if not parsed.hostname:
-        return rtsp_url
-
-    auth = ""
-    if parsed.username:
-        auth = parsed.username
-        if parsed.password:
-            auth += f":{parsed.password}"
-        auth += "@"
-
-    port = f":{parsed.port}" if parsed.port else ""
-    new_netloc = f"{auth}{camera_ip}{port}"
-    return urlunsplit((parsed.scheme, new_netloc, parsed.path, parsed.query, parsed.fragment))
 
 # Ép OpenCV dùng giao thức TCP để tránh rớt gói tin gây xám màn hình
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
-
-_resolved_url = resolve_rtsp_url(_RTSP_URL_RAW, CAMERA_IP)
-RTSP_URL = _resolved_url.replace("subtype=0", "subtype=1") if "subtype=0" in _resolved_url else _resolved_url
 
 OCR_SOURCE = "rtsp"
 SIGNAL_LOSS_TIMEOUT = 30
@@ -168,15 +137,6 @@ if os.path.exists(CONFIG_PATH):
         config = json.load(f)
         authorized_plates = [p.upper().replace(" ", "") for p in config.get("plates", [])]
         logging.getLogger(__name__).info("Loaded %d authorized plates", len(authorized_plates))
-
-# --- Face recognition (optional) ---
-try:
-    import face_recognition
-
-    FACE_RECOGNITION_AVAILABLE = True
-except ImportError:
-    FACE_RECOGNITION_AVAILABLE = False
-
 
 # --- Utility ---
 def normalize_plate(plate_text):
