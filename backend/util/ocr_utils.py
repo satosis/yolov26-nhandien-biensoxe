@@ -11,7 +11,15 @@ class VNPlateOCR:
         from paddleocr import PaddleOCR
         # use_angle_cls=False speeds up inference; lang='en' for plate chars
         # Lang='en' works well for Vietnamese plates as they use Latin characters
-        self._ocr = PaddleOCR(use_angle_cls=False, lang="en", show_log=False, use_gpu=False)
+        self._ocr = PaddleOCR(
+            use_angle_cls=False, 
+            lang="en", 
+            show_log=False, 
+            use_gpu=False,
+            det_limit_side_len=320,  # Fast detection for small plate crops
+            cpu_threads=6,           # Multi-threaded inference
+            use_space_char=False     # Skip space detection 
+        )
         logger.info("PaddleOCR initialised for VNPlateOCR")
 
     def read(self, crop: np.ndarray) -> tuple[str, float]:
