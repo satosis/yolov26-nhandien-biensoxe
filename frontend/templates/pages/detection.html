@@ -203,13 +203,20 @@
     }
   }
 
-  // --- Webcam ---
-  btnStart.addEventListener('click', async () => {
+  window.stopWebcam = function() {
     if (stream) {
       stream.getTracks().forEach(t => t.stop()); stream = null;
       if (webcamInterval) clearInterval(webcamInterval); webcamInterval = null;
       video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
-      btnStart.textContent = 'START'; return;
+      btnStart.textContent = 'START';
+    }
+  };
+
+  // --- Webcam ---
+  btnStart.addEventListener('click', async () => {
+    if (stream) {
+      window.stopWebcam();
+      return;
     }
     try {
       const constraints = {video: currentDeviceId ? {deviceId:{exact:currentDeviceId}} : {facingMode:'environment'}, audio:false};
