@@ -242,7 +242,12 @@
       webcamInterval = true;
       
       const processFrame = () => {
-        if (!stream || !video.videoWidth || !webcamInterval) return;
+        if (!stream || !webcamInterval) return;
+        if (!video.videoWidth) {
+          // Wait for video to initialize
+          setTimeout(processFrame, 100);
+          return;
+        }
         
         // Optimization for Mac: Fixed 480x360 resolution is often faster and less 'noisy'
         captureCanvas.width = 480;
@@ -265,7 +270,7 @@
         }, 'image/jpeg', 0.8);
       };
       
-      video.onloadedmetadata = () => setTimeout(processFrame, 100);
+      setTimeout(processFrame, 500);
     } catch(e) { alert('Lỗi: ' + e.message); }
   });
 
