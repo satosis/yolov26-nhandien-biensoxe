@@ -94,3 +94,43 @@ async def toggle_camera(
     if not ok:
         logger.error("toggle_camera: update_camera returned False for id=%d", camera_id)
     return RedirectResponse(url="/cameras", status_code=303)
+
+
+@router.post("/{camera_id}/edit")
+async def edit_camera(
+    camera_id: int,
+    request: Request,
+    user: dict = Depends(require_menu("cameras")),
+    camera_name: str = Form(...),
+    camera_type: str = Form(...),
+    imou_device_id: str = Form(""),
+    imou_channel_id: str = Form("0"),
+    rtsp_url: str = Form(""),
+    site_ids: Optional[str] = Form(None),
+):
+    parsed_site_ids = []
+    if site_ids:
+        try:
+            parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
+        except ValueError:
+            logger.warning("edit_camera: invalid site_ids value: %s", site_ids)
+
+    db = get_db()
+    cam = db.get_camera(camera_id)
+    if not cam:
+        logger.warning("edit_camera: camera id=%d not found", camera_id)
+        return RedirectResponse(url="/cameras", status_code=303)
+
+    ok = db.update_camera(
+        camera_id=camera_id,
+        name=camera_name,
+        cam_type=camera_type,
+        imou_device_id=imou_device_id,
+        rtsp_url=rtsp_url,
+        is_active=cam["is_active"],
+        imou_channel_id=imou_channel_id,
+        site_ids=parsed_site_ids or None,
+    )
+    if not ok:
+        logger.error("edit_camera: update_camera returned False for id=%d", camera_id)
+    return RedirectResponse(url="/cameras", status_code=303)

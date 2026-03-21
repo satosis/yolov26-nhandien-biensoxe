@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS cameras (
 );
 
 -- Seeder: default camera (Imou at Lán, site_id=1)
-INSERT INTO cameras (camera_name, camera_type, imou_device_id, imou_channel_id, site_ids) VALUES
-('Cam cổng chính', 'imou', '5552ABJPSFFB063', '0', ARRAY[1])
+INSERT INTO cameras (camera_name, camera_type, imou_device_id, imou_channel_id, rtsp_url, site_ids) VALUES
+('Cam cổng chính', 'imou', '5552ABJPSFFB063', '0', 'rtsp://admin:password@192.168.1.100:554/cam/realmonitor?channel=1&subtype=0', ARRAY[1])
 ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS users (
