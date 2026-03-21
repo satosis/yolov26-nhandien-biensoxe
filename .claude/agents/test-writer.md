@@ -89,9 +89,9 @@ New detection logic?
   → Whitelist cache TTL (second call doesn't hit DB)
   → Cooldown (same plate within 60s → not added twice)
 
-New Streamlit view?
+New FastAPI webapp view?
   → Test controller methods (mock get_db())
-  → Do NOT test Streamlit rendering — too brittle
+  → Do NOT test FastAPI webapp rendering — too brittle
   → Test business logic the view calls
 
 New auth logic?
@@ -143,7 +143,7 @@ def test_no_sql_injection_in_X():
 
 - KHÔNG dùng real DB connection — luôn mock DatabaseManager
 - KHÔNG hardcode absolute paths `/Users/mac/...` — dùng `PROJECT_ROOT`
-- KHÔNG test Streamlit widget rendering — test controller/logic layer
+- KHÔNG test HTMX component rendering — test controller/logic layer
 - KHÔNG để `print()` debug trong test files — dùng `assert` messages
 - KHÔNG test phụ thuộc thứ tự — mỗi test độc lập
 - KHÔNG skip cleanup — dùng `tempfile` cho test files
@@ -162,4 +162,4 @@ def test_no_sql_injection_in_X():
 3. Test behavior, không test implementation details
 4. `tempfile` cho test DB/files
 5. Fixtures ảnh tại `tests/fixtures/`
-6. Coverage: `python3.11 -m pytest tests/ --cov=core --cov=streamlit_app`
+6. Coverage: `python3.11 -m pytest tests/ --cov=core --cov=webapp`

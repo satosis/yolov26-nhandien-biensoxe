@@ -21,48 +21,48 @@ Bạn là AI Engineer trong team phát triển. Bạn sở hữu toàn bộ AI i
 | Folder/File | Trách nhiệm |
 |---|---|
 | `main.py` | AI core loop |
-| `core/tripwire.py` | Vạch ảo đếm người/xe |
-| `core/camera_orientation_monitor.py` | ORB shift detection |
+| `backend/core/tripwire.py` | Vạch ảo đếm người/xe |
+| `backend/core/camera_orientation_monitor.py` | ORB shift detection |
 | `util/ocr_utils.py` | VNPlateOCR (PaddleOCR) |
 | `util/drawing_utils.py` | Bounding box + label rendering |
 | `models/` | YOLO models (.pt, .onnx) |
 | `scripts/compress_model.py` | Model compression |
 | `scripts/optimize_models.py` | Model optimization |
 | `scripts/benchmark_engine.py` | Benchmark |
-| `streamlit_app/controllers/detection_controller.py` | Detection logic + face recognition |
-| `streamlit_app/engine/` | HPC multiprocessing pipeline |
+| `frontend/routers/detection_controller.py` | Detection logic + face recognition |
+| `frontend/engine/` | HPC multiprocessing pipeline |
 
 ## File-level Knowledge
 
-### `core/config.py`
+### `backend/core/config.py`
 - `normalize_plate(plate_text: str) -> str` — strips non-alphanumeric, uppercases
 - `LINE_Y_RATIO` loaded from `settings_mgr`, default 0.62
 
-### `core/tripwire.py`
+### `backend/core/tripwire.py`
 - `TripwireTracker(line_y_fn, buffer_frames=3, cooldown_secs=3.0, stale_secs=30.0)`
 - `.update(obj_id, center_y) -> "IN"|"OUT"|None`
 - `.cleanup_stale(active_ids)` — PHẢI gọi mỗi frame end
 
-### `core/camera_orientation_monitor.py`
+### `backend/core/camera_orientation_monitor.py`
 - ORB + RANSAC, thresholds: rotation=3.5°, translation=18px, scale_delta=0.08
 - `consecutive_alerts=3` trước khi trigger alert
 
-### `streamlit_app/controllers/detection_controller.py`
+### `frontend/routers/detection_controller.py`
 - `_whitelist_cache` dict với TTL=30s — giảm DB hits
 - `_pending_plate_seen` dict với cooldown=60s
 - `_ocr_sample_seen` dict với cooldown=120s
 - OCR sample range: confidence 0.3-0.7
 
-### `streamlit_app/engine/inference.py`
+### `frontend/engine/inference.py`
 - `InferenceResult` dataclass: cam_id, ts, plate_text, plate_conf, plate_bbox, face_name, face_conf, snapshot_path, annotated_frame
 - `enhance_plate(crop)` → upscale 2x → Gaussian blur → adaptive threshold
 
-### `streamlit_app/engine/grabber.py`
+### `frontend/engine/grabber.py`
 - `_build_roi_mask(h, w, scale)` uses `cfg.ROI_POLYGON_NORM`
 - SharedMemory IPC, motion detection before pushing to infer_queue
 
-### `streamlit_app/models/detector_model.py`
-- `load_yolo_model()`, `load_ocr()`, `load_face_app()` — all `@st.cache_resource`
+### `frontend/models/detector_model.py`
+- `load_yolo_model()`, `load_ocr()`, `load_face_app()` — all `@lru_cache`
 - `get_db()` singleton pattern with global `_db_instance`
 
 ## Decision Trees
@@ -106,7 +106,7 @@ Add known face?
 ## Common Tasks
 
 ### Task: Adjust OCR pipeline
-1. `enhance_plate()` in `streamlit_app/engine/inference.py` — modify preprocessing
+1. `enhance_plate()` in `frontend/engine/inference.py` — modify preprocessing
 2. For PaddleOCR params: `load_ocr()` in `detector_model.py`
 3. Test with `tests/test_whitelist_check.py`
 
@@ -120,8 +120,8 @@ Add known face?
 ## Anti-patterns
 
 - KHÔNG `cap.read()` mà không set `CAP_PROP_BUFFERSIZE=1` — frame lag trên RTSP
-- KHÔNG import `streamlit` trong `core/` modules — core dùng bởi cả main.py và Streamlit
-- KHÔNG `st.cache_resource.clear()` trong production — 30s model reload
+- KHÔNG import UI code trong `backend/core/` modules — core dùng bởi cả main.py và FastAPI webapp
+- KHÔNG `lru_cache.clear()` trong production — 30s model reload
 - KHÔNG modify `_whitelist_cache` trực tiếp — dùng `reset_cache()` pattern
 - KHÔNG blocking call trong main inference loop
 - KHÔNG hardcode threshold — dùng DB/env/settings_mgr
@@ -138,7 +138,7 @@ Add known face?
 
 - Model: `models/best_int8.onnx` (YOLOv26 INT8, production)
 - Face: InsightFace `buffalo_sc`, similarity threshold **0.25**
-- OCR: PaddleOCR, `normalize_plate()` trong `core/config.py`
+- OCR: PaddleOCR, `normalize_plate()` trong `backend/core/config.py`
 - Tripwire: `LINE_Y_RATIO=0.62`, buffer=3 frames, cooldown=3s
 - Camera shift: ORB + RANSAC, rotation=3.5°, translation=18px
 - Stranger cooldown: 60s per camera

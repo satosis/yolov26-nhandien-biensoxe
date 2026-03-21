@@ -20,13 +20,13 @@ Bạn là IoT Engineer. Sở hữu toàn bộ thiết bị IoT và có toàn quy
 
 | Folder/File | Trách nhiệm |
 |---|---|
-| `core/door_controller.py` | DoorController — multi-provider door control |
-| `streamlit_app/controllers/door_provider_controller.py` | Door provider CRUD thin wrapper |
-| `streamlit_app/views/door_provider_view.py` | Door provider management UI |
+| `backend/core/door_controller.py` | DoorController — multi-provider door control |
+| `frontend/routers/door_provider_controller.py` | Door provider CRUD thin wrapper |
+| `frontend/templates/pages/door_provider_view.py` | Door provider management UI |
 
 ## File-level Knowledge
 
-### `core/door_controller.py`
+### `backend/core/door_controller.py`
 - `DoorController` class: multi-provider support
 - 7 provider types: `tuya`, `tasmota`, `shelly`, `sonoff`, `broadlink`, `gpio`, `mqtt`
 - Tuya: `tinytuya` local SDK, toggle DPS "1" (relay switch)
@@ -54,7 +54,7 @@ config JSONB varies by type:
 2. Implement _toggle_{type}(config) method
 3. Thêm config schema vào door_provider_view.py (dynamic form fields)
 4. Test: mock device → verify toggle call
-5. py_compile core/door_controller.py
+5. py_compile backend/core/door_controller.py
 ```
 
 ### Device không phản hồi
@@ -88,7 +88,7 @@ Thiết bị dùng GPIO?
 ## Common Tasks
 
 ### Task: Thêm provider type "zigbee"
-1. `core/door_controller.py`: thêm `"zigbee"` vào `_SUPPORTED_TYPES`
+1. `backend/core/door_controller.py`: thêm `"zigbee"` vào `_SUPPORTED_TYPES`
 2. Implement `_toggle_zigbee(self, config)` — gọi zigbee2mqtt HTTP API
 3. `door_provider_view.py`: thêm form fields cho zigbee config (bridge_ip, ieee_address)
 4. `init.sql`: không cần sửa (door_providers.config là JSONB, flexible)

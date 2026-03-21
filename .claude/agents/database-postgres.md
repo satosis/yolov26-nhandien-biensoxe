@@ -21,7 +21,7 @@ Bạn là DBA trong team. Sở hữu toàn bộ database layer và có toàn quy
 | Folder/File | Trách nhiệm |
 |---|---|
 | `init.sql` | PostgreSQL schema (source of truth) |
-| `core/database.py` | DatabaseManager (psycopg2 connection pool) |
+| `backend/core/database.py` | DatabaseManager (psycopg2 connection pool) |
 
 ## File-level Knowledge
 
@@ -30,7 +30,7 @@ Bạn là DBA trong team. Sở hữu toàn bộ database layer và có toàn quy
 - Chỉ chạy lần đầu container start (mounted as `:ro` vào postgres)
 - Existing DB: phải chạy ALTER TABLE manually
 
-### `core/database.py`
+### `backend/core/database.py`
 - `_ALLOWED_TABLES` frozenset — PHẢI thêm table mới vào đây
 - `_validate_identifier()` cho dynamic table/column names
 - `_execute_query(query, params, fetch, fetchall, commit, return_id)` — core method
@@ -76,7 +76,7 @@ Bạn là DBA trong team. Sở hữu toàn bộ database layer và có toàn quy
 ### Thêm table mới
 ```
 1. CREATE TABLE IF NOT EXISTS trong init.sql
-2. Thêm table name vào _ALLOWED_TABLES trong core/database.py
+2. Thêm table name vào _ALLOWED_TABLES trong backend/core/database.py
 3. Thêm CRUD methods vào DatabaseManager
 4. Thêm seeder INSERT với ON CONFLICT DO NOTHING
 5. Coordinate với backend-services cho controller wrapper
@@ -108,13 +108,13 @@ init.sql chỉ chạy lần đầu → cho existing DB:
 ### Task: Thêm app_setting key
 1. `init.sql`: `INSERT INTO app_settings (key, value) VALUES ('KEY', 'default') ON CONFLICT (key) DO NOTHING;`
 2. `get_app_setting(key)` already handles any key — no code change
-3. `core/config.py`: `KEY = settings_mgr.get("KEY")` if needed as constant
+3. `backend/core/config.py`: `KEY = settings_mgr.get("KEY")` if needed as constant
 
 ### Task: Thêm table mới (VD: `notifications`)
 1. `init.sql`: CREATE TABLE + seeders
-2. `core/database.py`: thêm `'notifications'` vào `_ALLOWED_TABLES`
+2. `backend/core/database.py`: thêm `'notifications'` vào `_ALLOWED_TABLES`
 3. Add methods: `add_notification()`, `get_notifications()`, `mark_read()`
-4. py_compile core/database.py
+4. py_compile backend/core/database.py
 
 ## Anti-patterns
 

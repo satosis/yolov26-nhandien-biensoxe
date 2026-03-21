@@ -20,15 +20,15 @@ Bạn là Backend Developer trong team. Sở hữu toàn bộ backend services v
 
 | Folder/File | Trách nhiệm |
 |---|---|
-| `core/database.py` | PostgreSQL DatabaseManager (connection pool) |
-| `core/config.py` | Constants + env loading |
-| `core/settings_store.py` | App settings (SettingsManager + SettingsStore) |
-| `core/telegram_service.py` | Telegram service core |
-| `streamlit_app/controllers/` | Thin DB wrappers (tất cả controllers) |
+| `backend/core/database.py` | PostgreSQL DatabaseManager (connection pool) |
+| `backend/core/config.py` | Constants + env loading |
+| `backend/core/settings_store.py` | App settings (SettingsManager + SettingsStore) |
+| `backend/core/telegram_service.py` | Telegram service core |
+| `frontend/routers/` | Thin DB wrappers (tất cả controllers) |
 
 ## File-level Knowledge
 
-### `core/database.py`
+### `backend/core/database.py`
 - `DatabaseManager._execute_query(query, params, fetch, fetchall, commit, return_id)` — core method
 - `_ALLOWED_TABLES` frozenset — PHẢI thêm table mới vào đây cho generic ORM
 - `_validate_identifier()` cho dynamic table/column names
@@ -36,17 +36,17 @@ Bạn là Backend Developer trong team. Sở hữu toàn bộ backend services v
 - `RealDictCursor` cho tất cả fetch queries → results là `dict`
 - `_execute_query` returns `None` on exception — callers PHẢI handle None
 
-### `core/config.py`
+### `backend/core/config.py`
 - Load `.env` via `python-dotenv`
 - All constants: TELEGRAM_TOKEN, DATABASE_URL, RTSP_URL, model paths
 - `normalize_plate()` function — used across detection + whitelist
 
-### `core/settings_store.py`
+### `backend/core/settings_store.py`
 - `SettingsManager`: JSON file-backed (`config/settings.json`)
 - `SettingsStore`: PostgreSQL-backed (app_settings table) with env fallback
 - `get(key)`, `save_settings(dict)`
 
-### `core/telegram_service.py`
+### `backend/core/telegram_service.py`
 - 2 channels: `CHAT_IMPORTANT` and `CHAT_REGULAR` from env
 - `notify_telegram(message, important=False)` — sends to all DB-configured bots
 - Fallback: env vars if no bots in DB
@@ -71,19 +71,19 @@ def get_cameras():
 
 ### Thêm DB method mới
 ```
-1. Add method to DatabaseManager in core/database.py
+1. Add method to DatabaseManager in backend/core/database.py
 2. Signature: def get_X(self, param=None) -> list[dict] | dict | None
 3. Use _execute_query: fetchall=True for lists, fetch=True for single
 4. Add thin wrapper in controller: get_db().get_X(param)
 5. NEVER add business logic to controller
-6. py_compile core/database.py
+6. py_compile backend/core/database.py
 ```
 
 ### Thêm Telegram alert type
 ```
 Important (security, stranger, door breach): use CHAT_IMPORTANT
 Routine (plate detected, session start): use CHAT_REGULAR
-1. Add method to core/telegram_service.py
+1. Add method to backend/core/telegram_service.py
 2. Call from detection_controller.py or main.py, NOT from views
 3. Coordinate with alert-manager for routing rules
 ```
@@ -91,8 +91,8 @@ Routine (plate detected, session start): use CHAT_REGULAR
 ### Thêm app_setting key
 ```
 1. init.sql: INSERT INTO app_settings VALUES ('KEY', 'default') ON CONFLICT DO NOTHING
-2. core/database.py: get_app_setting(key) already handles any key
-3. core/config.py: NEW_KEY = settings_mgr.get("NEW_KEY") if needed as constant
+2. backend/core/database.py: get_app_setting(key) already handles any key
+3. backend/core/config.py: NEW_KEY = settings_mgr.get("NEW_KEY") if needed as constant
 4. sys_config_view.py: add UI input (coordinate with frontend-ui)
 5. system_controller.py: thin wrapper if needed
 ```
@@ -100,14 +100,14 @@ Routine (plate detected, session start): use CHAT_REGULAR
 ## Common Tasks
 
 ### Task: Add new controller for domain X
-1. Create `streamlit_app/controllers/{x}_controller.py`
-2. Import: `from streamlit_app.models.detector_model import get_db`
+1. Create `frontend/routers/{x}_controller.py`
+2. Import: `from webapp.deps import get_db`
 3. Functions: thin wrappers calling `get_db().method()`
 4. NO business logic — only DB calls
 5. py_compile the file
 
 ### Task: Add remember token for different duration
-1. `core/database.py` → `create_remember_token(user_id)` — change expiry
+1. `backend/core/database.py` → `create_remember_token(user_id)` — change expiry
 2. `login_view.py` → `_inject_ls_reader()` reads from localStorage
 3. Token: `secrets.token_urlsafe(32)`, 64 chars, unique constraint
 

@@ -1,0 +1,278 @@
+{% extends "layout.html" %}
+{% block title %}Nhận diện — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">🔍</span>
+    <span class="text-2xl font-semibold text-white">Nhận diện AI</span>
+  </div>
+
+  <div class="flex gap-5 h-[calc(100vh-180px)]" x-data="{ tab: 'webcam' }" x-effect="if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
+    <!-- Video area -->
+    <div class="flex-1 flex flex-col bg-bg-card rounded-lg overflow-hidden">
+      <div class="flex border-b border-divider">
+        <button @click="tab='webcam'" :class="tab==='webcam' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📹 Live Webcam</button>
+        <button @click="tab='rtsp'" :class="tab==='rtsp' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📡 Camera khu vực</button>
+        <button @click="tab='upload'" :class="tab==='upload' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📁 Upload ảnh</button>
+      </div>
+      <div x-show="tab==='webcam'" class="flex-1 flex flex-col p-4 gap-3">
+        <div class="relative flex-1 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden">
+          <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-contain hidden"></video>
+          <canvas id="webcam-overlay" class="absolute inset-0 w-full h-full hidden"></canvas>
+          <div id="webcam-placeholder" class="text-txt-ter text-sm">Nhấn START để bắt đầu</div>
+        </div>
+        <div class="flex items-center justify-between">
+          <button id="btn-start-webcam" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">START</button>
+          <button id="btn-select-device" class="text-txt-sec text-[13px] hover:text-accent">SELECT DEVICE</button>
+        </div>
+      </div>
+      <div x-show="tab==='rtsp'" x-cloak class="flex-1 flex flex-col p-4 gap-3">
+        <div class="flex gap-3">
+          <select id="rtsp-camera" class="flex-1 bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+            <option value="">Chọn camera...</option>
+            {% for cam in cameras %}
+            <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
+            {% endfor %}
+          </select>
+          <button id="btn-start-rtsp" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md">START</button>
+        </div>
+        <div class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center">
+          <img id="rtsp-feed" class="w-full h-full object-contain hidden">
+          <div id="rtsp-placeholder" class="text-txt-ter text-sm">Chọn camera và nhấn START</div>
+        </div>
+      </div>
+      <div x-show="tab==='upload'" x-cloak class="flex-1 min-h-0 flex flex-col p-4 gap-3">
+        <input type="file" id="upload-input" accept="image/*" class="cursor-pointer text-sm text-txt-sec file:cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-bg-inset hover:file:bg-cyan-300">
+        <div class="flex-1 min-h-0 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden relative">
+          <canvas id="upload-canvas" class="max-w-full max-h-full hidden" style="object-fit: contain;"></canvas>
+          <div id="upload-placeholder" class="text-txt-ter text-sm">Chọn ảnh để nhận diện</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detection sidebar -->
+    <div class="w-[320px] flex-shrink-0 flex flex-col gap-3">
+      <div class="flex items-center justify-between">
+        <div class="text-[14px] font-semibold text-white">Kết quả nhận diện</div>
+        <div class="flex items-center gap-2">
+          <div id="loading-indicator" class="hidden flex items-center gap-2 text-accent text-[11px] animate-pulse">
+            <svg class="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+          <button id="btn-clear-results" class="text-txt-ter hover:text-rose-400 p-1 transition-colors" title="Xoá kết quả">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="detection-results" class="flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-240px)]">
+        <div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const video = document.getElementById('webcam-video');
+  const overlay = document.getElementById('webcam-overlay');
+  const placeholder = document.getElementById('webcam-placeholder');
+  const btnStart = document.getElementById('btn-start-webcam');
+  const btnDevice = document.getElementById('btn-select-device');
+  const btnClear = document.getElementById('btn-clear-results');
+  const uploadInput = document.getElementById('upload-input');
+  const uploadCanvas = document.getElementById('upload-canvas');
+  const uploadPlaceholder = document.getElementById('upload-placeholder');
+  const resultsDiv = document.getElementById('detection-results');
+  const loadingIndicator = document.getElementById('loading-indicator');
+  let stream = null;
+  let currentDeviceId = null;
+  let webcamInterval = null;
+
+  function renderResults(data, append = false) {
+    if (data.error) {
+      resultsDiv.innerHTML = `<div class="bg-bg-card rounded-md p-3.5 border border-rose-500/30 text-rose-400 text-[13px]">
+        <strong>Lỗi:</strong> ${data.error}
+      </div>`;
+      return;
+    }
+    
+    // De-duplicate: Keep only 1 record per type (highest confidence)
+    const uniqueMap = {};
+    (data.results || []).forEach(r => {
+      if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
+        uniqueMap[r.type] = r;
+      }
+    });
+    const finalResults = Object.values(uniqueMap);
+
+    if (finalResults.length === 0) {
+      resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Không phát hiện đối tượng</div>';
+      return;
+    }
+    
+    const html = finalResults.map(r => {
+      const colors = {whitelist:'bg-emerald-500',unknown:'bg-amber-500',known:'bg-blue-600',stranger:'bg-rose-500'};
+      const labels = {whitelist:'Whitelist',unknown:'Xe lạ',known:'Đã biết',stranger:'Người lạ'};
+      const bg = colors[r.status] || 'bg-slate-500';
+      
+      let badgeText = '—';
+      let mainLabel = labels[r.status] || r.status;
+      let icon = '🚗';
+
+      if (r.type === 'face') {
+        icon = '👤';
+        badgeText = 'Face';
+        if (r.status === 'known') {
+            mainLabel = r.text; // "Tên: X + id: Y"
+        }
+      } else if (r.type === 'person') {
+        icon = '🚶';
+        badgeText = 'Person';
+      } else if (r.type === 'door') {
+        icon = '🚪';
+        badgeText = 'Door';
+      } else {
+        badgeText = r.text || 'Car';
+      }
+
+      return `<div class="bg-bg-card rounded-md p-3 flex items-center gap-3 border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
+        <span class="${bg} text-white text-[11px] font-bold px-2 py-1 rounded min-w-[60px] text-center uppercase">${icon} ${badgeText}</span>
+        <div class="flex flex-col gap-0.5 flex-1 min-w-0">
+          <span class="text-white text-[13px] font-medium break-words">${mainLabel}</span>
+          <span class="text-txt-ter text-[11px]">${r.confidence}% tin cậy</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    resultsDiv.innerHTML = html;
+  }
+
+  function drawBoxes(canvas, img, results) {
+    const ctx = canvas.getContext('2d');
+    canvas.width = img.width || img.videoWidth;
+    canvas.height = img.height || img.videoHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear previous boxes if overlay
+    
+    // For webcam, we don't draw the video on overlay (video is behind), 
+    // but for upload, we draw image first.
+    if (img instanceof HTMLImageElement) {
+       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    }
+
+    for (const r of (results || [])) {
+      if (!r.bbox || r.bbox.length < 4) continue;
+      const [x1,y1,x2,y2] = r.bbox;
+      // Registered users ('known') now draw blue: #3b82f6
+      const color = (r.status === 'known') ? '#3b82f6' : (r.status === 'whitelist') ? '#22c55e' : (r.status === 'stranger' || r.status === 'blacklist') ? '#ef4444' : '#f59e0b';
+      
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([]);
+      ctx.strokeRect(x1, y1, x2-x1, y2-y1);
+      
+      if (r.text) {
+        ctx.fillStyle = color;
+        const fontSize = 14;
+        ctx.font = `bold ${fontSize}px JetBrains Mono, monospace`;
+        const textWidth = ctx.measureText(r.text).width;
+        ctx.fillRect(x1, y1 - fontSize - 8, textWidth + 12, fontSize + 8);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(r.text, x1 + 6, y1 - 7);
+      }
+    }
+  }
+
+  async function sendFrame(blob) {
+    if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+    const fd = new FormData();
+    fd.append('file', blob, 'frame.jpg');
+    try {
+      const resp = await fetch('/detection/api/detect', {method:'POST', body:fd});
+      if (loadingIndicator) loadingIndicator.classList.add('hidden');
+      if (!resp.ok) return {error: 'Server error ' + resp.status, results:[]};
+      return await resp.json();
+    } catch(e) { 
+      if (loadingIndicator) loadingIndicator.classList.add('hidden');
+      return {error: "Không thể kết nối máy chủ", results:[]}; 
+    }
+  }
+
+  // --- Webcam ---
+  btnStart.addEventListener('click', async () => {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop()); stream = null;
+      if (webcamInterval) clearInterval(webcamInterval); webcamInterval = null;
+      video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
+      btnStart.textContent = 'START'; return;
+    }
+    try {
+      const constraints = {video: currentDeviceId ? {deviceId:{exact:currentDeviceId}} : {facingMode:'environment'}, audio:false};
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
+      btnStart.textContent = 'STOP';
+      webcamInterval = setInterval(async () => {
+        if (!stream || !video.videoWidth) return;
+        // Optimization for Mac: Fixed 480x360 resolution is often faster and less 'noisy'
+        captureCanvas.width = 480;
+        captureCanvas.height = 360;
+        const ctx = captureCanvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = false; // Disable interpolation for performance
+        ctx.drawImage(video, 0, 0, 480, 360);
+        
+        captureCanvas.toBlob(async (blob) => {
+          const data = await sendFrame(blob);
+          renderResults(data); 
+          overlay.classList.remove('hidden');
+          drawBoxes(overlay, video, data.results);
+        }, 'image/jpeg', 0.8);
+      }, 3000);
+    } catch(e) { alert('Lỗi: ' + e.message); }
+  });
+
+  btnClear.addEventListener('click', () => {
+    resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>';
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+  });
+
+  btnDevice.addEventListener('click', async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const vd = devices.filter(d => d.kind === 'videoinput');
+    if (!vd.length) return;
+    const names = vd.map((d,i) => `${i+1}. ${d.label||'Cam '+(i+1)}`).join('\n');
+    const choice = prompt('Chọn camera:\n'+names, '1');
+    if (choice) {
+      const idx = parseInt(choice)-1;
+      if (vd[idx]) {
+        currentDeviceId = vd[idx].deviceId;
+        if (stream) { btnStart.click(); setTimeout(()=>btnStart.click(), 300); }
+      }
+    }
+  });
+
+  // --- Upload ---
+  uploadInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    uploadPlaceholder.classList.add('hidden'); uploadCanvas.classList.remove('hidden');
+    const img = new Image();
+    img.onload = async () => {
+      uploadCanvas.width = img.naturalWidth; uploadCanvas.height = img.naturalHeight;
+      const container = uploadCanvas.parentElement;
+      const scale = Math.min((container.clientWidth-16)/img.naturalWidth, (container.clientHeight-16)/img.naturalHeight, 1);
+      uploadCanvas.style.width = Math.round(img.naturalWidth*scale)+'px';
+      uploadCanvas.style.height = Math.round(img.naturalHeight*scale)+'px';
+      const data = await sendFrame(file);
+      renderResults(data, false); // Replace for upload
+      drawBoxes(uploadCanvas, img, data.results);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+})();
+</script>
+{% endblock %}

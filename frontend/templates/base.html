@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Parking Camera{% endblock %}</title>
+  <link rel="shortcut icon" href="{{ url_for('static', path='/favicon.png') }}" type="image/x-icon">
+  <link rel="stylesheet" href="/static/css/output.css?v=2.1">
+  <link rel="stylesheet" href="/static/css/tom-select.css?v=2.1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="/static/js/htmx.min.js?v=2.1"></script>
+  <script src="/static/js/alpine.min.js?v=2.1" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-bg-page text-white font-sans antialiased">
+  {% block body %}{% endblock %}
+
+
+  <!-- Toast container -->
+  <div id="toast-container" class="fixed top-6 right-6 z-[9999] flex flex-col gap-2"></div>
+  <script>
+    document.body.addEventListener("showToast", (e) => {
+      const d = e.detail || {};
+      const msg = d.msg || d.value || "";
+      const type = d.type || "success";
+      const colors = {success:"bg-emerald-500",error:"bg-rose-500",warning:"bg-amber-500",info:"bg-blue-500"};
+      const icons = {success:"\u2705",error:"\u274c",warning:"\u26a0\ufe0f",info:"\u2139\ufe0f"};
+      const el = document.createElement("div");
+      el.className = `${colors[type]||colors.success} text-white px-5 py-3 rounded-lg shadow-xl text-sm font-medium flex items-center gap-3 transition-all duration-300 translate-x-0 opacity-100`;
+      el.innerHTML = `<span>${icons[type]||""}</span><span>${msg}</span>`;
+      document.getElementById("toast-container").appendChild(el);
+      setTimeout(() => { el.style.opacity="0"; el.style.transform="translateX(100%)"; setTimeout(()=>el.remove(),300); }, 3000);
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

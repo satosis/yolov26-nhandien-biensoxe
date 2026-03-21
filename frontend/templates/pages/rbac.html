@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block title %}Phân quyền — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">🔐</span>
+      <span class="text-2xl font-semibold text-white">Phân quyền (RBAC)</span>
+    </div>
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
+            onclick="document.getElementById('add-role-form').classList.toggle('hidden')">+ Thêm vai trò</button>
+  </div>
+
+  <form id="add-role-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên vai trò *</label>
+        <input name="role_name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="operator">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Mô tả</label>
+        <input name="description" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-2">Menu được phép</label>
+      <div class="grid grid-cols-4 gap-2">
+        {% for m in all_menus %}
+        <label class="flex items-center gap-2 text-[12px] text-txt-sec cursor-pointer hover:text-white">
+          <input type="checkbox" name="allowed_menus" value="{{ m }}" class="accent-accent"> {{ m }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+    </div>
+  </form>
+
+  <div class="flex flex-col gap-4">
+    {% for r in roles %}
+    <div class="bg-bg-card rounded-lg p-5">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-3">
+          <span class="text-[15px] font-semibold text-white">{{ r.role_name }}</span>
+          <span class="text-[11px] text-txt-ter">{{ r.description or '' }}</span>
+        </div>
+        <div class="flex gap-2">
+          <button class="text-txt-sec hover:text-accent text-sm">✏️</button>
+          {% if r.role_name != 'admin' %}
+          <button class="text-txt-sec hover:text-status-red text-sm">🗑</button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        {% for m in (r.allowed_menus or []) %}
+        <span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-accent/10 text-accent border border-accent/20">{{ m }}</span>
+        {% endfor %}
+        {% if not r.allowed_menus %}<span class="text-[11px] text-txt-ter">Không có quyền</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

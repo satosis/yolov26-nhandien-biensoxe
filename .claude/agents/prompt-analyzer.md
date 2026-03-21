@@ -65,10 +65,10 @@ config, users, rbac
 ```
 
 ### Naming conventions
-- View: `streamlit_app/views/{key}_view.py` → `def {key}_view():`
-- Controller: `streamlit_app/controllers/{key}_controller.py` → class hoặc functions
-- DB method: `core/database.py` → `DatabaseManager.{method_name}()`
-- Config: `core/config.py` → constants + env loading
+- View: `frontend/templates/pages/{key}_view.py` → `def {key}_view():`
+- Controller: `frontend/routers/{key}_controller.py` → class hoặc functions
+- DB method: `backend/core/database.py` → `DatabaseManager.{method_name}()`
+- Config: `backend/core/config.py` → constants + env loading
 
 ### DB tables (init.sql)
 ```

@@ -79,7 +79,7 @@ Bạn là UX Designer. Nhiệm vụ: **đề xuất cải thiện UX** — mobil
 - [ ] Charts readable trên mobile
 - [ ] Color coding consistent
 
-## Common UX Issues trong Streamlit
+## Common UX Issues trong FastAPI webapp
 
 | Issue | Fix |
 |---|---|
@@ -109,10 +109,10 @@ Bạn là UX Designer. Nhiệm vụ: **đề xuất cải thiện UX** — mobil
 
 | File | Review Focus |
 |---|---|
-| `streamlit_app/views/*.py` | UI flow, form design, feedback |
-| `streamlit_app/assets/css/*.css` | Responsive, mobile breakpoints |
-| `streamlit_app/main.py` | Navigation, routing, sidebar |
-| `streamlit_app/menu_registry.py` | Menu structure, grouping |
+| `frontend/templates/pages/*.py` | UI flow, form design, feedback |
+| `frontend/assets/css/*.css` | Responsive, mobile breakpoints |
+| `frontend/app.py` | Navigation, routing, sidebar |
+| `frontend/menu_registry.py` | Menu structure, grouping |
 
 ## Anti-patterns
 

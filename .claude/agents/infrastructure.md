@@ -46,7 +46,7 @@ Bạn là DevOps Engineer trong team. Sở hữu toàn bộ infrastructure và c
 |---|---|---|
 | ai_core | 8080→8000 | AI inference + FastAPI |
 | postgres | 5432 | PostgreSQL 16 |
-| streamlit | 8501 | Streamlit UI (chạy ngoài Docker hiện tại) |
+|  8000| 8000 | FastAPI + Jinja2 + HTMX UI (chạy ngoài Docker hiện tại) |
 
 ## Decision Trees
 
@@ -54,7 +54,7 @@ Bạn là DevOps Engineer trong team. Sở hữu toàn bộ infrastructure và c
 ```
 Changed Python code only (no Dockerfile, no requirements)?
   → Volumes mount code → restart: docker compose restart ai_core
-  → Streamlit: tự reload khi file thay đổi
+  → FastAPI webapp: tự reload khi file thay đổi
 
 Changed requirements.txt?
   → PHẢI rebuild: docker compose up -d --build ai_core
@@ -94,7 +94,7 @@ Changed init.sql (schema)?
 ```
 1. Thêm vào .env.example với comment
 2. Thêm vào .env (local, KHÔNG commit)
-3. Reference trong core/config.py: os.getenv("VAR", "default")
+3. Reference trong backend/core/config.py: os.getenv("VAR", "default")
 4. Nếu sensitive: KHÔNG log, KHÔNG print
 ```
 

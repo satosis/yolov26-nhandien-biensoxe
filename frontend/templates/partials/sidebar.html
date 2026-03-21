@@ -1,0 +1,44 @@
+<!-- Sidebar: logo + site selector + menu groups + logout -->
+<div class="flex flex-col h-full py-4 px-3 gap-2">
+
+  <!-- Logo -->
+  <div class="px-1 pb-4">
+    <span class="text-[15px] font-bold text-white">🅿 Parking Camera</span>
+  </div>
+
+  <!-- Site selector -->
+  <select name="site_id" class="w-full bg-bg-card text-txt-sec text-xs font-medium rounded-md px-3 py-2 border-0 focus:outline-none focus:ring-1 focus:ring-accent/50 cursor-pointer"
+          hx-post="/set-site" hx-trigger="change" hx-swap="none"
+          hx-on::after-request="window.location.reload()">
+    <option value="0" {% if active_site_id == 0 %}selected{% endif %}>🌐 Tất cả địa điểm</option>
+    {% for site in sites %}
+    <option value="{{ site.id }}" {% if active_site_id == site.id %}selected{% endif %}>📍 {{ site.site_name }}</option>
+    {% endfor %}
+  </select>
+
+  <!-- Menu groups -->
+  <nav class="flex-1 mt-2 flex flex-col gap-0.5">
+    {% for group_name, items in menu_groups.items() %}
+    <div class="pt-3 pb-1 px-4">
+      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1px]">{{ group_name }}</span>
+    </div>
+    {% for key, label in items.items() %}
+    <a href="/{{ key }}"
+       class="flex items-center gap-2 mx-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-colors
+              {% if current_menu == key %}bg-accent text-bg-inset font-semibold{% else %}text-txt-sec hover:bg-white/5{% endif %}">
+      {{ label }}
+    </a>
+    {% endfor %}
+    {% endfor %}
+  </nav>
+
+  <!-- Logout -->
+  <div class="mt-auto pt-4 border-t border-divider">
+    <form method="post" action="/logout">
+      <button type="submit" class="w-full flex items-center gap-2 px-4 py-2.5 rounded-md text-[13px] font-medium text-txt-sec hover:bg-white/5 transition-colors border border-txt-mut">
+        <span class="text-status-red">🚪</span> Logout
+      </button>
+    </form>
+  </div>
+
+</div>

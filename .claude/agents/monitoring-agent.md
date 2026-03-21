@@ -43,7 +43,7 @@ ps aux --sort=-%mem | head -10
 |---|---|---|
 | PostgreSQL | `pg_isready -h localhost` | Connection refused |
 | ai_core | `curl -s localhost:8000/health` | HTTP != 200 |
-| Streamlit | `curl -s localhost:8501` | HTTP != 200 |
+| FastAPI webapp | `curl -s localhost:8000` | HTTP != 200 |
 | RTSP streams | `camera_status_log` query | >3 consecutive fails |
 
 ### 4. Data Growth
@@ -57,9 +57,9 @@ ps aux --sort=-%mem | head -10
 ### Scope Files
 | File | Trách nhiệm |
 |---|---|
-| `core/database.py` | DB health methods (get_camera_status, log_camera_status) |
-| `streamlit_app/views/sys_config_view.py` | System status display |
-| `streamlit_app/controllers/system_controller.py` | System health thin wrapper |
+| `backend/core/database.py` | DB health methods (get_camera_status, log_camera_status) |
+| `frontend/templates/pages/sys_config_view.py` | System status display |
+| `frontend/routers/system_controller.py` | System health thin wrapper |
 
 ### Health Check Pattern
 ```python

@@ -20,12 +20,12 @@ Bạn là Camera Engineer. Sở hữu toàn bộ camera management và có toàn
 
 | Folder/File | Trách nhiệm |
 |---|---|
-| `streamlit_app/controllers/camera_controller.py` | Camera CRUD + provider loading |
-| `streamlit_app/views/camera_management_view.py` | Camera management UI |
-| `streamlit_app/views/provider_management_view.py` | Camera provider CRUD UI |
-| `streamlit_app/controllers/provider_controller.py` | Provider CRUD thin wrapper |
-| `core/mjpeg_streamer.py` | MJPEG frame buffer for HTTP streaming |
-| `streamlit_app/engine/grabber.py` | RTSP frame grabber (SharedMemory IPC) |
+| `frontend/routers/camera_controller.py` | Camera CRUD + provider loading |
+| `frontend/templates/pages/camera_management_view.py` | Camera management UI |
+| `frontend/templates/pages/provider_management_view.py` | Camera provider CRUD UI |
+| `frontend/routers/provider_controller.py` | Provider CRUD thin wrapper |
+| `backend/core/mjpeg_streamer.py` | MJPEG frame buffer for HTTP streaming |
+| `frontend/engine/grabber.py` | RTSP frame grabber (SharedMemory IPC) |
 
 ## File-level Knowledge
 
@@ -106,7 +106,7 @@ Imou API error?
 ### Chọn stream type
 ```
 Xem live trên desktop?
-  → RTSP qua OpenCV → MJPEG stream → Streamlit image
+  → RTSP qua OpenCV → MJPEG stream → FastAPI webapp image
 
 Xem live trên mobile?
   → WebRTC (low latency, native browser support)

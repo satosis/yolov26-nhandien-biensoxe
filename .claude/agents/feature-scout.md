@@ -50,7 +50,7 @@ User profile:
 1. Đọc CLAUDE.md → "Tính năng đã release"
 2. Đọc init.sql → schema tables = data model
 3. Đọc menu_registry.py → UI features
-4. Đọc streamlit_app/views/ → actual UI pages
+4. Đọc frontend/templates/pages/ → actual UI pages
 5. Tổng hợp: feature_current.md
 ```
 

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Đăng nhập — Parking Camera{% endblock %}
+{% block body %}
+<div class="min-h-screen flex" style="min-height:100dvh;">
+
+  <!-- Left: Brand Panel -->
+  <div class="hidden lg:flex w-[640px] flex-col items-center justify-center gap-8 px-12 py-16"
+       style="background:linear-gradient(180deg, #0F172A 0%, #0A1628 50%, #0D1B2A 100%);">
+
+    <!-- Logo -->
+    <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
+      <span class="text-4xl font-extrabold text-bg-inset">🅿</span>
+    </div>
+
+    <h1 class="text-4xl font-extrabold text-white tracking-tight">Parking Camera</h1>
+    <p class="text-[15px] text-txt-sec text-center max-w-[400px]">Hệ thống giám sát bãi xe thông minh</p>
+
+    <!-- Features -->
+    <div class="flex flex-col gap-4 w-[400px]">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#22D3EE15;">
+          <span class="text-base text-accent">🔍</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-semibold text-white">Nhận diện biển số</span>
+          <span class="text-[11px] text-txt-ter">YOLOv26 + PaddleOCR</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#22C55E15;">
+          <span class="text-base text-status-green">👤</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-semibold text-white">Nhận diện khuôn mặt</span>
+          <span class="text-[11px] text-txt-ter">InsightFace buffalo_sc</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#F59E0B15;">
+          <span class="text-base text-status-yellow">🚪</span>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <span class="text-[13px] font-semibold text-white">Điều khiển cửa cuốn</span>
+          <span class="text-[11px] text-txt-ter">Tuya · Tasmota · GPIO</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Login Form -->
+  <div class="flex-1 flex items-center justify-center bg-bg-page px-6 py-16">
+    <div class="w-full max-w-[420px] bg-bg-card rounded-xl p-10 border border-white/[0.03]">
+
+      <div class="text-center mb-7">
+        <!-- Mobile logo (hidden on desktop) -->
+        <div class="lg:hidden flex justify-center mb-4">
+          <div class="w-14 h-14 rounded-full bg-accent flex items-center justify-center">
+            <span class="text-2xl font-extrabold text-bg-inset">🅿</span>
+          </div>
+        </div>
+        <h2 class="text-[28px] font-bold text-white">Đăng nhập</h2>
+        <p class="text-[13px] text-txt-sec mt-2">Nhập tài khoản để truy cập hệ thống</p>
+      </div>
+
+      {% if error %}
+      <div class="bg-status-red/10 border border-status-red/30 text-status-red text-sm rounded-md px-4 py-3 mb-5">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login" class="flex flex-col gap-[18px]">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[13px] font-medium text-txt-sec">Tài khoản</label>
+          <input type="text" name="username" placeholder="Nhập username..." required autofocus
+                 class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-[13px] font-medium text-txt-sec">Mật khẩu</label>
+          <input type="password" name="password" placeholder="••••••••" required
+                 class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
+        </div>
+
+        <div class="flex items-center justify-between mt-1">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" name="remember" class="accent-accent w-[18px] h-[18px] rounded">
+            <span class="text-[12px] text-txt-sec">Ghi nhớ đăng nhập</span>
+          </label>
+        </div>
+
+        <button type="submit" class="w-full h-[46px] bg-accent text-bg-inset font-bold text-[14px] tracking-wider rounded-lg hover:bg-cyan-300 transition-colors mt-2">
+          ĐĂNG NHẬP
+        </button>
+      </form>
+
+      <p class="text-center text-txt-mut text-[10px] font-medium mt-7 tracking-wide">SECURE LOGON • ENCRYPTED SESSION • v3.0</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

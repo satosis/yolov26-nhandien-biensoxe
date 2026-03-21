@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Camera Shift — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">📷</span>
+    <span class="text-2xl font-semibold text-white">Camera Shift Detection (HPC)</span>
+  </div>
+
+  <div class="grid grid-cols-2 gap-5">
+    <!-- Status -->
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+      <div class="text-[14px] font-semibold text-white border-b border-divider pb-3">Trạng thái camera</div>
+      {% for cam in cameras %}
+      <div class="flex items-center justify-between py-2 border-b border-divider last:border-0">
+        <div class="flex items-center gap-3">
+          <span class="text-[13px] font-semibold text-white">{{ cam.camera_name }}</span>
+          <span class="text-[11px] text-txt-ter">{{ cam.camera_type }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          {% if cam.shift_detected %}
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-status-red/10 text-status-red border border-status-red/20">⚠️ Lệch</span>
+          {% else %}
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-status-green/10 text-status-green border border-status-green/20">✅ OK</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not cameras %}
+      <div class="text-txt-ter text-sm">Chưa có camera.</div>
+      {% endif %}
+    </div>
+
+    <!-- Info -->
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+      <div class="text-[14px] font-semibold text-white border-b border-divider pb-3">Thông tin</div>
+      <div class="flex flex-col gap-3 text-[13px] text-txt-sec">
+        <div class="flex justify-between"><span>Phương pháp</span><span class="text-white">ORB Feature Matching + RANSAC</span></div>
+        <div class="flex justify-between"><span>Ngưỡng cảnh báo</span><span class="text-white">Inlier ratio &lt; 0.3</span></div>
+        <div class="flex justify-between"><span>Tần suất kiểm tra</span><span class="text-white">Mỗi 5 phút</span></div>
+        <div class="flex justify-between"><span>Cảnh báo qua</span><span class="text-white">Telegram</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+{% block title %}Xe lạ — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">🚘</span>
+    <span class="text-2xl font-semibold text-white">Biển số chờ duyệt</span>
+  </div>
+
+  <div class="flex flex-col gap-3" id="pending-list">
+    {% for p in plates %}
+    <div class="bg-bg-card rounded-lg p-4 flex items-center justify-between" id="pending-{{ p.pending_id }}">
+      <div class="flex items-center gap-4">
+        <span class="bg-status-yellow/10 text-status-yellow px-3 py-1.5 rounded-md text-[15px] font-mono font-bold border border-status-yellow/20">{{ p.plate_norm }}</span>
+        <div class="flex flex-col">
+          <span class="text-[12px] text-txt-sec">Raw: {{ p.plate_raw or p.plate_norm }}{% if p.site_name %} ({{ p.site_name }}){% endif %}</span>
+          <span class="text-[11px] text-txt-ter">{{ p.first_seen.strftime('%d/%m/%Y %H:%M') if p.first_seen else '—' }}</span>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="bg-status-green/10 text-status-green text-[12px] font-medium px-3 py-1.5 rounded-md border border-status-green/20 hover:bg-status-green/20 transition-colors"
+                hx-post="/pending_plates/{{ p.pending_id }}/approve" hx-target="#pending-{{ p.pending_id }}" hx-swap="outerHTML">✅ Duyệt</button>
+        <button class="bg-status-red/10 text-status-red text-[12px] font-medium px-3 py-1.5 rounded-md border border-status-red/20 hover:bg-status-red/20 transition-colors"
+                hx-post="/pending_plates/{{ p.pending_id }}/reject" hx-target="#pending-{{ p.pending_id }}" hx-swap="outerHTML">❌ Từ chối</button>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not plates %}
+    <div class="bg-bg-card rounded-lg p-8 text-center text-txt-ter text-sm">Không có biển số nào chờ duyệt.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

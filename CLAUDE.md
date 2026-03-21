@@ -63,7 +63,7 @@ Tech Lead (main agent) — orchestrate toàn bộ
 ├── Nhóm Development
 │   ├── ai-detection (AI Engineer) — YOLO, OCR, face, tripwire
 │   ├── backend-services (Backend Dev) — DB methods, services, Telegram
-│   ├── frontend-ui (Frontend Dev) — Streamlit UI, views, CSS
+│   ├── frontend-ui (Frontend Dev) — FastAPI UI, Jinja2 templates, HTMX, Tailwind CSS
 │   ├── database-postgres (DBA) — schema, migrations, queries
 │   ├── infrastructure (DevOps) — Docker, deploy, scripts
 │   ├── iot-integration (IoT Engineer) — cửa cuốn, barrier, relay, MQTT
@@ -96,7 +96,7 @@ MỌI PROMPT → `prompt-analyzer` TRƯỚC → technical brief → dispatch the
 |---|---|
 | YOLO, model, OCR, biển số, nhận diện, face, stranger, tripwire, vạch ảo, threshold | **ai-detection** |
 | FastAPI, API, Telegram, service, whitelist, settings, app_settings | **backend-services** |
-| Streamlit, UI, dashboard, view, form, login, sidebar, menu, CSS, trang, màn hình | **frontend-ui** |
+| FastAPI, UI, dashboard, view, form, login, sidebar, menu, CSS, trang, màn hình, Jinja2, HTMX, Tailwind | **frontend-ui** |
 | schema, bảng, table, migration, SQL, index, query, PostgreSQL, init.sql | **database-postgres** |
 | Docker, Dockerfile, compose, deploy, container, port, install, requirements | **infrastructure** |
 | cửa cuốn, barrier, relay, cảm biến, Tuya, Tasmota, Shelly, GPIO, MQTT | **iot-integration** |
@@ -155,7 +155,7 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 - Điều khiển cửa cuốn tự động (Tuya)
 - Cảnh báo Telegram (2 kênh: quan trọng / thường)
 - PTZ camera control qua ONVIF + Imou Open API
-- Quản lý toàn bộ hệ thống qua Streamlit UI
+- Quản lý toàn bộ hệ thống qua FastAPI + Jinja2 + HTMX + Tailwind CSS
 - Nhận diện khuôn mặt (InsightFace buffalo_sc)
 - Phát hiện người lạ (stranger detection, threshold 0.25)
 - Remember token login (, localStorage + DB)
@@ -171,7 +171,7 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 | AI inference | YOLOv26 (Ultralytics), PaddleOCR, InsightFace |
 | Backend | FastAPI + uvicorn |
 | Camera | OpenCV RTSP, ONVIF, Imou Open API |
-| UI/Management | Streamlit + WebRTC |
+| UI/Management | FastAPI + Jinja2 + HTMX + Tailwind CSS |
 | Messaging | Telegram Bot API |
 | Database | PostgreSQL |
 | Container | Docker Compose |
@@ -185,10 +185,10 @@ RTSP Camera (Imou 2K)
     │       └─► core/database.py (PostgreSQL)
     │       └─► services/telegram_service.py (cảnh báo)
     │
-    └─► Streamlit UI (quản lý toàn bộ hệ thống)
-            └─► streamlit_app/menu_registry.py (single source of truth cho menus)
-            └─► streamlit_app/controllers/ (thin wrappers, gọi thẳng get_db().method())
-            └─► streamlit_app/views/ (UI components)
+    └─► frontend/ (FastAPI app — quản lý toàn bộ hệ thống)
+            └─► frontend/menu_registry.py (single source of truth cho menus)
+            └─► frontend/routers/ (17 route handlers)
+            └─► frontend/templates/ (Jinja2 HTML templates)
 ```
 
 ## Nguyên tắc code
@@ -200,7 +200,7 @@ RTSP Camera (Imou 2K)
 5. **KHÔNG dùng f-string SQL** — luôn dùng parameterized query
 6. **KHÔNG silent except:pass** — luôn log error với `logger.warning/error`
 7. **Controller layer = thin wrapper** — chỉ gọi `get_db().method()`, không có business logic
-8. **Single source of truth** — menu registry ở `streamlit_app/menu_registry.py`
+8. **Single source of truth** — menu registry ở `frontend/menu_registry.py`
 9. **KHÔNG xóa whitelist biển số** mà không backup
 10. **KHÔNG thay đổi `LINE_Y_RATIO`** mà không test lại TripwireTracker
 11. **KHÔNG sửa Dockerfile** mà không rebuild: `docker compose up -d --build`
@@ -217,7 +217,7 @@ yolov26-nhandien-biensoxe/
 ├── requirements.txt           # Python deps
 ├── docker-compose.yml         # Stack: ai_core, postgres
 │
-├── core/                      # Business logic thuần Python
+├── backend/core/                      # Business logic thuần Python
 │   ├── config.py              # Constants + env loading
 │   ├── database.py            # PostgreSQL DatabaseManager (connection pool)
 │   ├── asset_registry.py      # CMDB camera assets
@@ -225,30 +225,17 @@ yolov26-nhandien-biensoxe/
 │   ├── settings_store.py      # App settings
 │   └── tripwire.py            # Vạch ảo đếm người/xe
 │
-├── streamlit_app/             # Streamlit UI (MVC)
-│   ├── main.py                # App entry, routing, sidebar
+├── frontend/                    # FastAPI UI (Jinja2 + HTMX + Tailwind)
+│   ├── app.py                 # FastAPI entry, routing
+│   ├── deps.py                # Dependencies, auth, RBAC
+│   ├── auth.py                # Login/logout logic
 │   ├── menu_registry.py       # Single source of truth cho menu definitions
-│   ├── models/                # Model loading (YOLO, OCR, Face)
-│   ├── controllers/           # Thin DB wrappers (get_db().method())
-│   │   ├── camera_controller.py
-│   │   ├── detection_controller.py
-│   │   ├── parking_controller.py
-│   │   ├── provider_controller.py
-│   │   ├── rbac_controller.py
-│   │   ├── site_controller.py
-│   │   ├── stranger_controller.py
-│   │   ├── system_controller.py
-│   │   ├── telegram_controller.py
-│   │   ├── user_controller.py
-│   │   ├── vehicle_controller.py
-│   └── views/                 # UI pages
-│       ├── login_view.py      # Auth + remember token
-│       ├── detection_view.py  # Live webcam + RTSP + upload
-│       ├── camera_management_view.py
-│       ├── provider_management_view.py
-│       ├── sites_view.py         # Multi-site CRUD
-│       ├── stranger_management_view.py
-│       └── ...
+│   ├── routers/               # 17 route handlers
+│   └── templates/             # Jinja2 HTML templates
+│       ├── base.html          # Tailwind CDN + HTMX + Alpine
+│       ├── layout.html        # Sidebar + header layout
+│       ├── login.html         # Login page
+│       └── pages/             # 18 page templates
 │
 ├── models/
 │   ├── best.onnx              # YOLOv26 (gốc)
@@ -278,16 +265,17 @@ IMOU_OPEN_DEVICE_ID=
 - **Tuya Door Control**: tinytuya local SDK, toggle relay DPS "1"
 - **Stranger Detection**: InsightFace, threshold 0.25, cooldown 60s, log vào DB
 - **Unknown Plate → Pending**: biển số không trong whitelist tự động vào pending_plates (cooldown 60s)
-- **OCR Active Learning**: confidence 0.3-0.7 lưu sample, admin review qua UI "OCR Review"
+- **OCR Active Learning**: confidence 0.3-0.7 lưu sample, admin review qua FastAPI webapp "OCR Review"
 - **RBAC Menu System**: menu_registry.py → DB roles → allowed_menus
 - **Plate Detection Labels**: chỉ dùng màu (xanh=whitelist, vàng=unknown), không text [OK]/[LA]
 - **Login UI**: vertically centered, Enter submit, no duplicate form render
-- **Header 50px**: custom header, ẩn Streamlit default header
+- **Header 50px**: custom header trong layout.html
 - **Mobile Responsive**: CSS breakpoints 768px + 480px cho tất cả trang
 - **No Fee Feature**: không tính phí gửi xe — chỉ xem camera + nhận diện
 - **Multi-site Management**: bảng `sites` thay thế `camera_zones`, global site selector trong sidebar, filter dashboard/cameras theo site
 - **Mobile WebRTC Camera View**: TURN server config (env + app_settings), facingMode environment cho camera sau, `?mobile=1` ẩn tab RTSP, responsive CSS cho video player
 - **Dynamic Provider API Keys**: mỗi nhà cung cấp camera có bộ key kết nối riêng (PROVIDER_DEFAULT_KEYS), UI tự render dynamic inputs
+- **Frontend**: FastAPI + Jinja2 + HTMX + Tailwind CSS (frontend/, port 8000)
 
 ## Schema DB (init.sql)
 
@@ -316,7 +304,7 @@ IMOU_OPEN_DEVICE_ID=
 
 - **Python**: 3.10.x (production), 3.11.x (dev/test)
 - **Model**: `models/best_int8.onnx` (YOLOv26 INT8)
-- **Streamlit UI**: http://host:8501
+- **Webapp**: http://host:8000
 - **Face detection**: InsightFace buffalo_sc, similarity threshold 0.25
 - **Stranger cooldown**: 60s per camera
 - **Pending plate cooldown**: 60s per plate

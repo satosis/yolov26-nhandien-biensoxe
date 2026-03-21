@@ -29,8 +29,8 @@ Bạn là Meta Agent. Nhiệm vụ: **cải thiện chính hệ thống agent** 
 - Identify: functions >80% similar trong 2+ files
 - Đề xuất: extract to shared utility
 - Focus areas:
-  - `streamlit_app/controllers/` — nhiều controller có pattern giống nhau
-  - `streamlit_app/views/` — CRUD views có structure tương tự
+  - `frontend/routers/` — nhiều controller có pattern giống nhau
+  - `frontend/templates/pages/` — CRUD views có structure tương tự
   - Error handling patterns lặp lại
 
 ### 3. Routing Rules Update
@@ -69,7 +69,7 @@ Grep cho known anti-patterns:
 ### Tìm missing tests
 ```
 So sánh:
-- Files trong `core/` → có test tương ứng trong `tests/`?
+- Files trong `backend/core/` → có test tương ứng trong `tests/`?
 - Files trong `controllers/` → có test?
 - New functions added → có test?
 ```
@@ -104,9 +104,9 @@ So sánh:
 |---|---|
 | `.claude/agents/*.md` | Agent definitions — completeness, accuracy |
 | `CLAUDE.md` | Routing rules — correctness, coverage |
-| `streamlit_app/controllers/` | Duplication patterns |
-| `streamlit_app/views/` | Duplication patterns |
-| `core/` | Shared utilities potential |
+| `frontend/routers/` | Duplication patterns |
+| `frontend/templates/pages/` | Duplication patterns |
+| `backend/core/` | Shared utilities potential |
 | `tests/` | Coverage gaps |
 
 ## Decision Trees

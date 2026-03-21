@@ -1,0 +1,35 @@
+{% extends "layout.html" %}
+{% block title %}Người lạ — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">🕵️</span>
+      <span class="text-2xl font-semibold text-white">Người lạ</span>
+    </div>
+    <span class="text-[12px] text-txt-ter">Threshold: 0.25 · Cooldown: 60s</span>
+  </div>
+
+  <div class="flex flex-col gap-3" id="stranger-list">
+    {% for s in strangers %}
+    <div class="bg-bg-card rounded-lg p-4 flex items-center gap-4">
+      {% if s.snapshot_path %}
+      <img src="/static/snapshots/{{ s.snapshot_path }}" class="w-16 h-16 rounded-lg object-cover border border-white/10" alt="snapshot">
+      {% else %}
+      <div class="w-16 h-16 rounded-lg bg-bg-inset flex items-center justify-center text-txt-ter text-2xl">👤</div>
+      {% endif %}
+      <div class="flex-1 flex flex-col gap-1">
+        <div class="flex items-center gap-2">
+          <span class="text-[13px] font-semibold text-white">Camera: {{ s.camera_name or s.camera_id }}{% if s.site_name %} ({{ s.site_name }}){% endif %}</span>
+          <span class="text-[11px] px-2 py-0.5 rounded-full bg-status-red/10 text-status-red border border-status-red/20">Stranger</span>
+        </div>
+        <span class="text-[11px] text-txt-ter">Similarity: {{ '%.2f'|format(s.similarity or 0) }} · {{ s.detected_at.strftime('%d/%m/%Y %H:%M:%S') if s.detected_at else '—' }}</span>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not strangers %}
+    <div class="bg-bg-card rounded-lg p-8 text-center text-txt-ter text-sm">Chưa phát hiện người lạ nào.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -88,9 +88,9 @@ GROUP BY camera_id ORDER BY stranger_count DESC;
 
 | File | Trách nhiệm |
 |---|---|
-| `streamlit_app/views/parking_analytics_view.py` | Analytics charts (Plotly) |
-| `streamlit_app/views/parking_dashboard_view.py` | Real-time dashboard |
-| `streamlit_app/controllers/parking_controller.py` | Parking data queries |
+| `frontend/templates/pages/parking_analytics_view.py` | Analytics charts (Plotly) |
+| `frontend/templates/pages/parking_dashboard_view.py` | Real-time dashboard |
+| `frontend/routers/parking_controller.py` | Parking data queries |
 
 ## Nguyên tắc
 

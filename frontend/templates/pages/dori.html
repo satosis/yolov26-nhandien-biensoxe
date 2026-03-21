@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block title %}DORI — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">📐</span>
+    <span class="text-2xl font-semibold text-white">DORI Calculator</span>
+  </div>
+
+  <div class="grid grid-cols-2 gap-5">
+    <!-- Input -->
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+      <div class="text-[14px] font-semibold text-white border-b border-divider pb-3">Thông số camera</div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[13px] font-medium mb-1">Focal Length (mm)</label>
+          <input type="number" id="focal" value="3.6" step="0.1" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[13px] font-medium mb-1">Sensor Width (mm)</label>
+          <input type="number" id="sensor" value="3.2" step="0.1" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[13px] font-medium mb-1">Resolution (px)</label>
+          <input type="number" id="resolution" value="1920" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[13px] font-medium mb-1">Target Height (m)</label>
+          <input type="number" id="target" value="1.8" step="0.1" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+      </div>
+      <button onclick="calcDORI()" class="self-start bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">📐 Tính toán</button>
+    </div>
+
+    <!-- Results -->
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+      <div class="text-[14px] font-semibold text-white border-b border-divider pb-3">Kết quả DORI</div>
+      <div class="grid grid-cols-2 gap-3" id="dori-results">
+        {% for key, label, color in [('D','Detect','#22C55E'),('O','Observe','#F59E0B'),('R','Recognize','#EF4444'),('I','Identify','#A78BFA')] %}
+        <div class="bg-bg-inset rounded-lg p-4 flex flex-col gap-1">
+          <span class="text-[11px] font-semibold uppercase tracking-[1px]" style="color:{{ color }}">{{ label }}</span>
+          <span class="font-mono text-[24px] font-bold text-white" id="dori-{{ key }}">—</span>
+          <span class="text-[11px] text-txt-ter">mét</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function calcDORI() {
+  const f = parseFloat(document.getElementById('focal').value);
+  const sw = parseFloat(document.getElementById('sensor').value);
+  const res = parseFloat(document.getElementById('resolution').value);
+  const th = parseFloat(document.getElementById('target').value);
+  const ppd = [25, 62.5, 125, 250]; // D, O, R, I pixels per meter
+  const keys = ['D','O','R','I'];
+  const ppm = (f * res) / (sw * th);
+  keys.forEach((k, i) => {
+    const dist = (ppm / ppd[i]).toFixed(1);
+    document.getElementById('dori-' + k).textContent = dist;
+  });
+}
+</script>
+{% endblock %}

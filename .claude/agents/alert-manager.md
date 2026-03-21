@@ -19,9 +19,9 @@ Bạn là Alert Manager. Nhiệm vụ: **quản lý toàn bộ hệ thống cả
 
 | File | Trách nhiệm |
 |---|---|
-| `core/telegram_service.py` | Core alert sending (2 channels) |
-| `streamlit_app/controllers/telegram_controller.py` | Multi-bot CRUD |
-| `streamlit_app/views/multi_telegram_view.py` | Telegram config UI |
+| `backend/core/telegram_service.py` | Core alert sending (2 channels) |
+| `frontend/routers/telegram_controller.py` | Multi-bot CRUD |
+| `frontend/templates/pages/multi_telegram_view.py` | Telegram config UI |
 
 ## Current Alert Architecture
 

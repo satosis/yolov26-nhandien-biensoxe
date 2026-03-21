@@ -1,0 +1,172 @@
+{% extends "layout.html" %}
+{% block title %}Phương tiện — Parking Camera{% endblock %}
+
+{% block head %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+<style>
+.ts-wrapper.multi .ts-control { background:#1a1e2e; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 10px; min-height:38px; color:#fff; box-shadow:none; }
+.ts-wrapper.multi .ts-control:focus-within { border-color:rgba(34,211,238,0.5); }
+.ts-wrapper.multi .ts-control .item { background:rgba(34,211,238,0.15); color:#22d3ee; border:1px solid rgba(34,211,238,0.3); border-radius:4px; padding:1px 6px; font-size:12px; }
+.ts-wrapper.multi .ts-control .item .remove { color:#22d3ee; margin-left:4px; }
+.ts-dropdown { background:#1a1e2e; border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; }
+.ts-dropdown .option { padding:8px 12px; font-size:13px; }
+.ts-dropdown .option:hover, .ts-dropdown .option.active { background:rgba(34,211,238,0.1); color:#22d3ee; }
+.ts-dropdown .option.selected { color:#22d3ee; font-weight:600; }
+.ts-wrapper .ts-control input { color:#fff; }
+.ts-wrapper .ts-control input::placeholder { color:rgba(255,255,255,0.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">🚗</span>
+      <span class="text-2xl font-semibold text-white">Phương tiện (Whitelist)</span>
+    </div>
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors cursor-pointer"
+            onclick="showAddForm()">+ Thêm xe</button>
+  </div>
+
+  <!-- Add form -->
+  <form id="add-vehicle-form" style="display:none" class="bg-bg-card rounded-lg p-5 flex flex-col gap-4"
+        method="post" action="/vehicles">
+    <div class="text-white font-semibold text-[14px]">➕ Thêm xe mới</div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Biển số *</label>
+        <input id="add-plate" name="plate_number" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="88C-07304">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe</label>
+        <input name="owner_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
+        <select id="add-site" name="site_ids" multiple class="w-full">
+          {% for s in sites %}<option value="{{ s.id }}" {% if s.id == active_site_id and active_site_id %}selected{% endif %}>{{ s.site_name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú</label>
+      <input name="note" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300 cursor-pointer">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5 cursor-pointer" onclick="hideAddForm()">Hủy</button>
+    </div>
+  </form>
+
+  <!-- Edit form (hidden, filled by JS) -->
+  <form id="edit-vehicle-form" style="display:none" class="bg-bg-card rounded-lg p-5 flex flex-col gap-4"
+        method="post" action="">
+    <input type="hidden" name="_method" value="PUT">
+    <div class="text-white font-semibold text-[14px]">✏️ Sửa xe</div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Biển số *</label>
+        <input id="edit-plate" name="plate_number" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe</label>
+        <input id="edit-owner" name="owner_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
+        <select id="edit-site" name="site_ids" multiple class="w-full">
+          {% for s in sites %}<option value="{{ s.id }}">{{ s.site_name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú</label>
+      <input id="edit-note" name="note" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300 cursor-pointer">💾 Cập nhật</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5 cursor-pointer" onclick="hideEditForm()">Hủy</button>
+    </div>
+  </form>
+
+  <!-- Table -->
+  <div class="bg-bg-card rounded-lg overflow-hidden" id="vehicles-list">
+    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
+      <div class="w-[180px]">BIỂN SỐ</div>
+      <div class="w-[180px]">CHỦ XE</div>
+      <div class="w-[160px]">ĐỊA ĐIỂM</div>
+      <div class="flex-1">GHI CHÚ</div>
+      <div class="w-[100px]">HÀNH ĐỘNG</div>
+    </div>
+    {% for v in vehicles %}
+    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
+      <div class="w-[180px]">
+        <span class="bg-status-green/10 text-status-green px-2.5 py-1 rounded-md text-[13px] font-mono font-bold border border-status-green/20">{{ v.plate_number }}</span>
+      </div>
+      <div class="w-[180px] text-[13px] text-white">{{ v.owner_name or '—' }}</div>
+      <div class="w-[160px] text-[12px] text-txt-sec flex flex-wrap gap-1">
+        {% for s in (v.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
+        {% if not v.site_names %}—{% endif %}
+      </div>
+      <div class="flex-1 text-[12px] text-txt-ter">{{ v.note or '—' }}</div>
+      <div class="w-[100px] flex gap-2">
+        <button class="text-txt-sec hover:text-accent text-sm cursor-pointer"
+                onclick="openEdit({{ v.id }}, '{{ v.plate_number }}', '{{ v.owner_name or '' }}', {{ v.site_ids | tojson }}, '{{ v.note or '' }}')">✏️</button>
+        <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer"
+                onclick="if(confirm('Xóa {{ v.plate_number }}?')) { document.getElementById('del-{{ v.id }}').submit() }">🗑</button>
+        <form id="del-{{ v.id }}" method="post" action="/vehicles/{{ v.id }}/delete" style="display:none"></form>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not vehicles %}
+    <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có phương tiện nào.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+var tsAdd, tsEdit;
+
+document.addEventListener("DOMContentLoaded", function() {
+  tsAdd = new TomSelect("#add-site", {
+    plugins: ['remove_button'],
+    placeholder: "— Chọn địa điểm —",
+    maxItems: null,
+  });
+  tsEdit = new TomSelect("#edit-site", {
+    plugins: ['remove_button'],
+    placeholder: "— Chọn địa điểm —",
+    maxItems: null,
+  });
+});
+
+function showAddForm() {
+  document.getElementById('add-vehicle-form').style.display = 'flex';
+  document.getElementById('edit-vehicle-form').style.display = 'none';
+  tsAdd.clear();
+  document.getElementById('add-plate').focus();
+}
+function hideAddForm() {
+  document.getElementById('add-vehicle-form').style.display = 'none';
+}
+function openEdit(id, plate, owner, siteIds, note) {
+  document.getElementById('add-vehicle-form').style.display = 'none';
+  var f = document.getElementById('edit-vehicle-form');
+  f.action = '/vehicles/' + id + '/edit';
+  document.getElementById('edit-plate').value = plate;
+  document.getElementById('edit-owner').value = owner;
+  document.getElementById('edit-note').value = note;
+  
+  // Sync Tom Select
+  var ids = Array.isArray(siteIds) ? siteIds.map(String) : [];
+  tsEdit.setValue(ids);
+  
+  f.style.display = 'flex';
+  f.scrollIntoView({behavior:'smooth'});
+}
+function hideEditForm() {
+  document.getElementById('edit-vehicle-form').style.display = 'none';
+}
+</script>
+{% endblock %}

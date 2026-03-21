@@ -37,12 +37,12 @@ Bạn là QA Lead trong team. Nhiệm vụ: **CHỈ ĐỌC và báo cáo** — k
 - Blocking call trong async handler
 - Memory leak (frame không release, SharedMemory không cleanup)
 - Missing `cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)` cho RTSP
-- Duplicate widget key trong Streamlit
+- Duplicate widget key trong FastAPI webapp
 - `components.html()` inject trước form render (gây duplicate form)
 - Hardcoded fallback values
 - `normalize_plate()` không được gọi trước whitelist comparison
 - `_whitelist_cache["ts"] = 0` không reset sau whitelist modification (stale cache)
-- `st.session_state` key dùng mà không `.get()` default — KeyError risk
+- `request.session` key dùng mà không `.get()` default — KeyError risk
 - `subprocess.Popen` mà không `start_new_session=True`
 
 ### 🟢 Suggestion
@@ -62,14 +62,14 @@ Bạn là QA Lead trong team. Nhiệm vụ: **CHỈ ĐỌC và báo cáo** — k
 ### Known patterns
 - `get_db()` returns `DatabaseManager` or `None` (if DB init failed)
 - `_execute_query` returns `None` on exception — callers should handle
-- `st.cache_resource` functions với mutable arguments → cache key collision
+- `lru_cache` functions với mutable arguments → cache key collision
 - SharedMemory trong HPC engine — verify release on cleanup
 
 ### Cross-file consistency
 - `menu_registry.py` keys match routing in `main.py`
 - Controller methods match DatabaseManager methods
 - `init.sql` tables match `_ALLOWED_TABLES` in `database.py`
-- `.env.example` has all vars referenced in `core/config.py`
+- `.env.example` has all vars referenced in `backend/core/config.py`
 
 ## Format báo cáo
 

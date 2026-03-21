@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block title %}Người dùng — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">👥</span>
+      <span class="text-2xl font-semibold text-white">Người dùng</span>
+    </div>
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
+            onclick="document.getElementById('add-user-form').classList.toggle('hidden')">+ Thêm</button>
+  </div>
+
+  <form id="add-user-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Username *</label>
+        <input name="username" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Mật khẩu *</label>
+        <input name="password" type="password" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Họ tên</label>
+        <input name="full_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Vai trò</label>
+        <select name="role" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% for r in roles %}<option value="{{ r.role_name }}">{{ r.role_name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+    </div>
+  </form>
+
+  <div class="bg-bg-card rounded-lg overflow-hidden">
+    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
+      <div class="w-[200px]">TÀI KHOẢN</div>
+      <div class="flex-1">HỌ VÀ TÊN</div>
+      <div class="w-[120px]">VAI TRÒ</div>
+      <div class="w-[120px]">HÀNH ĐỘNG</div>
+    </div>
+    {% for u in all_users %}
+    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
+      <div class="w-[200px]">
+        <div class="text-[13px] font-semibold text-white">{{ u.username }}</div>
+        <div class="text-[11px] text-txt-ter">ID: {{ u.id }}</div>
+      </div>
+      <div class="flex-1 text-[13px] text-txt-sec">{{ u.full_name or '—' }}</div>
+      <div class="w-[120px]">
+        <span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent border border-accent/20">{{ u.role or 'N/A' }}</span>
+      </div>
+      <div class="w-[120px] flex gap-2">
+        <button class="text-txt-sec hover:text-accent text-sm">✏️</button>
+        {% if u.username != 'admin' %}
+        <button class="text-txt-sec hover:text-status-red text-sm">🗑</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

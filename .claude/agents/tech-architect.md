@@ -58,9 +58,9 @@ Thứ tự chuẩn cho feature mới:
 ### 4. Conflict Resolution
 
 Khi 2 agents cần sửa cùng file:
-- `core/database.py`: DBA sở hữu schema methods, Backend sở hữu connection logic → DBA thêm method, Backend không sửa
-- `core/config.py`: Backend sở hữu env loading, AI sở hữu model config → phân chia theo section trong file
-- `streamlit_app/main.py`: Frontend sở hữu routing, Backend không sửa file này
+- `backend/core/database.py`: DBA sở hữu schema methods, Backend sở hữu connection logic → DBA thêm method, Backend không sửa
+- `backend/core/config.py`: Backend sở hữu env loading, AI sở hữu model config → phân chia theo section trong file
+- `frontend/app.py`: Frontend sở hữu routing, Backend không sửa file này
 - `init.sql`: DBA sở hữu hoàn toàn, các agent khác request qua DBA
 
 ## Architecture Knowledge
@@ -71,27 +71,27 @@ RTSP Camera → main.py (YOLO detect) → detection_controller → DatabaseManag
                                      → telegram_service → Telegram Bot API
                                      → door_controller → Tuya/Tasmota/HTTP
 
-Streamlit UI → views/ → controllers/ → DatabaseManager → PostgreSQL
+FastAPI + Jinja2 + HTMX UI → views/ → controllers/ → DatabaseManager → PostgreSQL
 ```
 
 ### Module Dependencies
 ```
 core/config.py ← (imported by everything)
-core/database.py ← streamlit_app/models/detector_model.py (get_db singleton)
-                 ← streamlit_app/controllers/* (thin wrappers)
+core/database.py ← frontend/models/detector_model.py (get_db singleton)
+                 ← frontend/routers/* (thin wrappers)
                  ← main.py (direct)
 
-streamlit_app/menu_registry.py ← streamlit_app/main.py (routing)
-                                ← streamlit_app/views/rbac_management_view.py
+frontend/menu_registry.py ← frontend/app.py (routing)
+                                ← frontend/templates/pages/rbac_management_view.py
 
-streamlit_app/models/detector_model.py ← streamlit_app/views/detection_view.py
-                                        ← streamlit_app/controllers/detection_controller.py
+frontend/models/detector_model.py ← frontend/templates/pages/detection_view.py
+                                        ← frontend/routers/detection_controller.py
 ```
 
 ### Constraints
 - Orange Pi 4 Pro: 4GB RAM, ARM RK3399
 - PostgreSQL: single instance, ThreadedConnectionPool(1, 15)
-- Streamlit: single-threaded per session, st.cache_resource for shared state
+- FastAPI webapp: single-threaded per session, lru_cache for shared state
 - No Redis/RabbitMQ — keep stack simple
 
 ## Output Format

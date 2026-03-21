@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% block title %}Cấu hình — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">⚙️</span>
+    <span class="text-2xl font-semibold text-white">Cấu hình hệ thống</span>
+  </div>
+
+  <form class="bg-bg-card rounded-lg p-6 flex flex-col gap-5" hx-post="/config" hx-swap="none">
+    <div class="text-[14px] font-semibold text-white border-b border-divider pb-3">🤖 AI Detection</div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Process Width</label>
+        <input name="process_width" type="number" value="{{ settings.get('process_width', 640) }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">FPS</label>
+        <input name="fps" type="number" value="{{ settings.get('fps', 5) }}" min="1" max="30" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Confidence</label>
+        <input name="confidence" type="number" step="0.05" value="{{ settings.get('confidence', 0.25) }}" min="0" max="1" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tripwire Line Ratio</label>
+        <input name="line_y_ratio" type="number" step="0.05" value="{{ settings.get('line_y_ratio', 0.6) }}" min="0" max="1" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+
+    <div class="text-[14px] font-semibold text-white border-b border-divider pb-3 mt-4">📡 TURN Server (WebRTC)</div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">TURN URL</label>
+        <input name="turn_url" value="{{ settings.get('turn_url', '') }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="turn:server:3478">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Username</label>
+        <input name="turn_username" value="{{ settings.get('turn_username', '') }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Password</label>
+        <input name="turn_password" type="password" value="{{ settings.get('turn_password', '') }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+
+    <button type="submit" class="self-start bg-accent text-bg-inset font-semibold text-[13px] px-6 py-2.5 rounded-md hover:bg-cyan-300 transition-colors mt-2">💾 Lưu cấu hình</button>
+  </form>
+</div>
+{% endblock %}

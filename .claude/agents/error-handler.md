@@ -60,7 +60,7 @@ except Exception as e:
     continue  # Skip this frame, process next
 ```
 
-### Layer 4: Streamlit UI
+### Layer 4: FastAPI + Jinja2 + HTMX UI
 ```python
 # Pattern: user-friendly error message
 try:
@@ -144,7 +144,7 @@ User nói "bị lỗi" nhưng không crash?
 - KHÔNG retry vô hạn — max retries + alert
 - KHÔNG log sensitive data (passwords, tokens) trong error messages
 - KHÔNG `sys.exit()` trong error handler — graceful degradation
-- KHÔNG raise exception trong Streamlit view — dùng `st.error()` cho user
+- KHÔNG raise exception trong FastAPI webapp view — dùng `st.error()` cho user
 
 ## Cross-agent Coordination
 

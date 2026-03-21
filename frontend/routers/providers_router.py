@@ -1,0 +1,113 @@
+"""Providers router — Camera provider CRUD."""
+import json
+from typing import Optional
+from fastapi import APIRouter, Request, Form, Depends
+from fastapi.templating import Jinja2Templates
+from starlette.responses import HTMLResponse, RedirectResponse
+from pathlib import Path
+
+from frontend.deps import get_db, get_current_user, get_menu_context, require_menu
+
+router = APIRouter(prefix="/providers")
+templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
+
+
+def _mask(val) -> str:
+    v = str(val or "")
+    return ("●" * 4 + v[-4:]) if len(v) > 4 else "●" * 4
+
+
+@router.get("")
+async def providers_page(request: Request, user: dict = Depends(require_menu("providers"))):
+    ctx = get_menu_context(request, user)
+    db = get_db()
+    providers = db.get_all_providers()
+    for p in providers:
+        pk = p["provider_key"]
+        keys = db.get_provider_api_keys(pk)
+        p["_api_keys"] = keys or {}
+        p["_masked"] = {k: _mask(v) for k, v in (keys or {}).items() if k != "email"}
+    ctx["providers"] = providers
+    ctx["current_menu"] = "providers"
+    return templates.TemplateResponse("pages/providers.html", {"request": request, **ctx})
+
+
+@router.post("")
+async def upsert_provider(
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+    provider_key: str = Form(...),
+    name: str = Form(...),
+    api_base_url: Optional[str] = Form(None),
+    api_doc_url: Optional[str] = Form(None),
+    rtsp_template: Optional[str] = Form(None),
+    onvif_port: int = Form(80),
+    default_rtsp_port: int = Form(554),
+    default_http_port: int = Form(80),
+    notes: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+):
+    get_db().upsert_provider(
+        provider_key=provider_key.strip().lower(),
+        name=name.strip(),
+        api_base_url=api_base_url or None,
+        api_doc_url=api_doc_url or None,
+        rtsp_template=rtsp_template or None,
+        onvif_port=onvif_port,
+        default_rtsp_port=default_rtsp_port,
+        default_http_port=default_http_port,
+        notes=notes or None,
+        is_active=is_active == "on" or is_active == "1" or is_active == "true",
+    )
+    return RedirectResponse("/providers", status_code=303)
+
+
+@router.delete("/{provider_key}")
+async def delete_provider(
+    provider_key: str,
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+):
+    get_db().delete_provider(provider_key)
+    return RedirectResponse("/providers", status_code=303)
+
+
+@router.post("/{provider_key}/toggle")
+async def toggle_provider(
+    provider_key: str,
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+):
+    db = get_db()
+    provider = db.get_provider(provider_key)
+    if provider:
+        db.upsert_provider(
+            provider_key=provider["provider_key"],
+            name=provider["name"],
+            api_base_url=provider.get("api_base_url"),
+            api_doc_url=provider.get("api_doc_url"),
+            rtsp_template=provider.get("rtsp_template"),
+            onvif_port=provider.get("onvif_port", 80),
+            default_rtsp_port=provider.get("default_rtsp_port", 554),
+            default_http_port=provider.get("default_http_port", 80),
+            notes=provider.get("notes"),
+            is_active=not provider.get("is_active", True),
+        )
+    return RedirectResponse("/providers", status_code=303)
+
+
+# Fields that are form metadata, not API key values
+_NON_KEY_FIELDS = frozenset()
+
+
+@router.post("/{provider_key}/api-keys")
+async def save_api_keys(
+    provider_key: str,
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+):
+    form = await request.form()
+    # All form fields are API key entries — no metadata fields to filter
+    keys = {k: v for k, v in form.items()}
+    get_db().update_provider_api_keys(provider_key, keys)
+    return RedirectResponse("/providers", status_code=303)

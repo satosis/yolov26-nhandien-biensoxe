@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block title %}Lịch sử xe — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">📋</span>
+      <span class="text-2xl font-semibold text-white">Lịch sử xe ra vào</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <input type="date" id="filter-date" class="bg-bg-inset border border-white/5 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      <button class="bg-accent/10 text-accent text-[12px] font-medium px-3 py-1.5 rounded-md border border-accent/20 hover:bg-accent/20"
+              hx-get="/parking/logs" hx-target="#logs-table" hx-swap="innerHTML" hx-include="#filter-date">🔍 Lọc</button>
+    </div>
+  </div>
+
+  <div class="bg-bg-card rounded-lg overflow-hidden" id="logs-table">
+    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
+      <div class="w-[160px]">BIỂN SỐ</div>
+      <div class="w-[100px]">LOẠI</div>
+      <div class="w-[140px]">CAMERA</div>
+      <div class="w-[140px]">ĐỊA ĐIỂM</div>
+      <div class="flex-1">THỜI GIAN VÀO</div>
+      <div class="flex-1">THỜI GIAN RA</div>
+      <div class="w-[100px]">TRẠNG THÁI</div>
+    </div>
+    {% for log in logs %}
+    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
+      <div class="w-[160px]">
+        {% if log.is_whitelist %}
+        <span class="bg-status-green/10 text-status-green px-2.5 py-1 rounded-md text-[13px] font-mono font-bold border border-status-green/20">{{ log.plate_number }}</span>
+        {% else %}
+        <span class="bg-status-yellow/10 text-status-yellow px-2.5 py-1 rounded-md text-[13px] font-mono font-bold border border-status-yellow/20">{{ log.plate_number }}</span>
+        {% endif %}
+      </div>
+      <div class="w-[100px]">
+        <span class="text-[11px] px-2 py-0.5 rounded-full {% if log.direction == 'in' %}bg-status-green/10 text-status-green border-status-green/20{% else %}bg-accent/10 text-accent border-accent/20{% endif %} border">{{ '🔽 Vào' if log.direction == 'in' else '🔼 Ra' }}</span>
+      </div>
+      <div class="w-[140px] text-[12px] text-txt-sec">{{ log.camera_name or '—' }}</div>
+      <div class="w-[140px] text-[12px] text-txt-sec">{{ log.site_name or '—' }}</div>
+      <div class="flex-1 text-[11px] font-mono text-txt-ter">{{ log.entry_time.strftime('%d/%m %H:%M:%S') if log.entry_time else '—' }}</div>
+      <div class="flex-1 text-[11px] font-mono text-txt-ter">{{ log.exit_time.strftime('%d/%m %H:%M:%S') if log.exit_time else '—' }}</div>
+      <div class="w-[100px]">
+        {% if log.exit_time %}<span class="text-[11px] text-txt-ter">Đã ra</span>
+        {% else %}<span class="text-[11px] text-status-yellow">Đang đỗ</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% if not logs %}
+    <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có lịch sử.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

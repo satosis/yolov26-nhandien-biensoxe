@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="flex h-screen overflow-hidden">
+
+  <!-- Sidebar: 260px, bg-inset -->
+  <aside class="w-[260px] flex-shrink-0 bg-bg-inset border-r border-divider flex flex-col overflow-y-auto">
+    {% include "partials/sidebar.html" %}
+  </aside>
+
+  <!-- Right panel -->
+  <div class="flex flex-col flex-1 min-w-0">
+
+    <!-- Header: 50px -->
+    <header class="h-[50px] flex-shrink-0 bg-bg-inset border-b border-divider flex items-center justify-between px-6">
+      {% include "partials/header.html" %}
+    </header>
+
+    <!-- Content: padding 24/32, gap 20 -->
+    <main class="flex-1 overflow-y-auto p-6 lg:py-6 lg:px-8" id="main-content">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div>
+</div>
+{% endblock %}

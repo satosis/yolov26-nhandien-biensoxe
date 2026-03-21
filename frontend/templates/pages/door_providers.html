@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% block title %}NCC Cửa cuốn — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">🚪</span>
+      <span class="text-2xl font-semibold text-white">Nhà cung cấp Cửa cuốn</span>
+    </div>
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
+            onclick="document.getElementById('add-door-form').classList.toggle('hidden')">+ Thêm NCC</button>
+  </div>
+
+  <form id="add-door-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Provider Key *</label>
+        <input name="provider_key" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="tuya_local">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên *</label>
+        <input name="name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Loại kết nối</label>
+        <select name="connection_type" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          <option value="gpio">🔌 GPIO</option>
+          <option value="http">🌐 HTTP API</option>
+          <option value="tuya_local">☁️ Local SDK</option>
+          <option value="mqtt">📡 MQTT</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+    </div>
+  </form>
+
+  <div class="bg-bg-card rounded-lg overflow-hidden">
+    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
+      <div class="w-[160px]">TÊN NCC</div>
+      <div class="w-[120px]">LOẠI</div>
+      <div class="flex-1">MÔ TẢ</div>
+      <div class="w-[100px]">KÍCH HOẠT</div>
+      <div class="w-[120px]">HÀNH ĐỘNG</div>
+    </div>
+    {% set conn_badges = {'gpio':('🔌 GPIO','#6366f1'),'http':('🌐 HTTP','#0ea5e9'),'tuya_local':('☁️ Local SDK','#f59e0b'),'mqtt':('📡 MQTT','#10b981')} %}
+    {% for p in providers %}
+    {% set badge = conn_badges.get(p.connection_type, ('🔧 '+p.connection_type, '#94a3b8')) %}
+    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
+      <div class="w-[160px]">
+        <div class="text-[13px] font-semibold text-white">{{ p.name }}</div>
+        <div class="text-[11px] text-txt-ter">{{ p.provider_key }}</div>
+      </div>
+      <div class="w-[120px]">
+        <span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold" style="color:{{ badge[1] }};background:{{ badge[1] }}20;border:1px solid {{ badge[1] }}30;">{{ badge[0] }}</span>
+      </div>
+      <div class="flex-1 text-[12px] text-txt-sec">{{ p.notes or '—' }}</div>
+      <div class="w-[100px]">
+        {% if p.is_active %}<span class="text-[11px] text-status-green">● Bật</span>
+        {% else %}<span class="text-[11px] text-txt-mut">● Tắt</span>{% endif %}
+      </div>
+      <div class="w-[120px] flex gap-2">
+        <button class="text-txt-sec hover:text-accent text-sm">✏️</button>
+        <button class="text-txt-sec hover:text-status-red text-sm">🗑</button>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not providers %}<div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

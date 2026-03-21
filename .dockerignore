@@ -33,4 +33,3 @@ scripts/
 tmp_*
 test_*
 extract_css.py
-.streamlit/

@@ -52,13 +52,13 @@ Bạn là Security Engineer. Nhiệm vụ: **audit bảo mật toàn bộ codeba
 
 **Data Protection:**
 - Passwords stored in plaintext (phải bcrypt)
-- Sensitive data in `st.session_state` (persists across reruns)
+- Sensitive data in `request.session` (persists across reruns)
 - Snapshot files accessible without auth
 - Legal hold bypass (xóa file đang hold)
 
 **Input Validation:**
 - Missing validation trên form inputs
-- XSS via Streamlit `st.markdown(unsafe_html=True)`
+- XSS via FastAPI webapp `Jinja2 template(unsafe_html=True)`
 - Integer overflow trên pagination params
 - Negative values cho slot counts, thresholds
 
@@ -77,10 +77,10 @@ Bạn là Security Engineer. Nhiệm vụ: **audit bảo mật toàn bộ codeba
 - Hardcoded "Guest" role, "changeme123" password đã xóa — verify
 
 ### Known attack surfaces
-- `core/database.py`: `_execute_query` — central SQL execution point
-- `streamlit_app/views/login_view.py`: auth flow, token handling
-- `core/door_controller.py`: device control — command injection risk
-- `streamlit_app/engine/grabber.py`: RTSP URL handling
+- `backend/core/database.py`: `_execute_query` — central SQL execution point
+- `frontend/templates/pages/login_view.py`: auth flow, token handling
+- `backend/core/door_controller.py`: device control — command injection risk
+- `frontend/engine/grabber.py`: RTSP URL handling
 - `init.sql`: seeder data — default credentials
 
 ## Output Format

@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% block title %}Địa điểm — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <span class="text-accent text-[28px]">🏢</span>
+      <span class="text-2xl font-semibold text-white">Địa điểm</span>
+    </div>
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
+            onclick="document.getElementById('add-form').classList.toggle('hidden')">+ Thêm</button>
+  </div>
+
+  <form id="add-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4"
+        hx-post="/sites" hx-target="#sites-list" hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful){this.reset();this.classList.add('hidden')}">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên *</label>
+        <input name="site_name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="Lán xe A">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Sức chứa</label>
+        <input name="total_slots" type="number" value="0" min="0" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa chỉ</label>
+      <input name="address" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+    </div>
+  </form>
+
+  <div id="sites-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for s in site_list %}
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-3" id="site-{{ s.id }}">
+      <div class="flex items-center justify-between">
+        <span class="text-[15px] font-semibold text-white">{{ s.site_name }}</span>
+        {% if s.is_active %}<span class="text-[11px] text-status-green">● Hoạt động</span>
+        {% else %}<span class="text-[11px] text-txt-mut">● Tắt</span>{% endif %}
+      </div>
+      <div class="text-[12px] text-txt-ter">{{ s.address or '—' }}</div>
+      <div class="text-[12px] text-txt-sec">🅿️ {{ s.total_slots or 0 }} chỗ</div>
+      <div class="flex gap-2 mt-1">
+        <button class="text-txt-sec hover:text-accent text-[12px]" hx-get="/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️ Sửa</button>
+        <button class="text-txt-sec hover:text-status-red text-[12px]" hx-delete="/sites/{{ s.id }}" hx-target="#site-{{ s.id }}" hx-swap="outerHTML" hx-confirm="Xóa {{ s.site_name }}?">🗑 Xóa</button>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not site_list %}<div class="col-span-full text-center text-txt-ter text-sm py-8">Chưa có địa điểm nào.</div>{% endif %}
+  </div>
+</div>
+{% endblock %}

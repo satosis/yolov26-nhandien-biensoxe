@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard Bãi xe — Parking Camera{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-5">
+  <div class="flex items-center gap-2.5">
+    <span class="text-accent text-[28px]">🅿️</span>
+    <span class="text-2xl font-semibold text-white">Dashboard Bãi xe</span>
+  </div>
+
+  <!-- Metrics -->
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
+      <span class="text-2xl">🅿️</span>
+      <span class="font-mono text-[28px] font-bold text-white">{{ stats.total_slots or 0 }}</span>
+      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">Tổng chỗ</span>
+    </div>
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
+      <span class="text-2xl">🚗</span>
+      <span class="font-mono text-[28px] font-bold text-status-yellow">{{ stats.occupied or 0 }}</span>
+      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">Đang đỗ</span>
+    </div>
+    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
+      <span class="text-2xl">✅</span>
+      <span class="font-mono text-[28px] font-bold text-status-green">{{ (stats.total_slots or 0) - (stats.occupied or 0) }}</span>
+      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">Còn trống</span>
+    </div>
+  </div>
+
+  <!-- Occupancy bar -->
+  {% set pct = ((stats.occupied or 0) / (stats.total_slots or 1) * 100)|int %}
+  <div class="bg-bg-card rounded-lg p-5">
+    <div class="flex justify-between text-[13px] mb-2">
+      <span class="text-txt-sec">Tỷ lệ lấp đầy</span>
+      <span class="text-white font-semibold">{{ pct }}%</span>
+    </div>
+    <div class="w-full h-3 bg-bg-inset rounded-full overflow-hidden">
+      <div class="h-full rounded-full transition-all {% if pct > 80 %}bg-status-red{% elif pct > 50 %}bg-status-yellow{% else %}bg-status-green{% endif %}" style="width:{{ pct }}%"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
