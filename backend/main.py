@@ -43,7 +43,10 @@ class CameraOrchestrator:
             
             for cam in cameras:
                 cam_id = str(cam['id'])
-                rtsp_url = cam['rtsp_url']
+                rtsp_url = cam.get('rtsp_url')
+                if not rtsp_url:
+                    logger.warning(f"Camera {cam_id} has no valid RTSP URL. Skipping...")
+                    continue
                 # site_ids is a list in the new schema
                 site_id = cam['site_ids'][0] if cam.get('site_ids') else None
                 
