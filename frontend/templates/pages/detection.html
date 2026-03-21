@@ -34,18 +34,26 @@
         </div>
       </div>
       <div x-show="tab==='rtsp'" x-cloak class="flex-1 flex flex-col p-4 gap-3">
-        <div class="flex gap-3">
+        <div class="flex gap-3 min-h-[36px]">
           <select id="rtsp-camera" class="flex-1 bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
             <option value="">Chọn camera...</option>
             {% for cam in cameras %}
             <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
             {% endfor %}
           </select>
-          <button id="btn-start-rtsp" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md">START</button>
+          <div>
+            <button id="btn-start-rtsp" class="hidden bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold text-[13px] px-5 py-1.5 rounded-md hover:bg-rose-500/30 transition-colors">NGỪNG CAMERA (STOP)</button>
+          </div>
         </div>
-        <div class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center">
-          <img id="rtsp-feed" class="w-full h-full object-contain hidden">
-          <div id="rtsp-placeholder" class="text-txt-ter text-sm">Chọn camera và nhấn START</div>
+        <div class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center relative overflow-hidden">
+          <img id="rtsp-feed" class="w-full h-full object-contain hidden relative z-0">
+          <canvas id="rtsp-overlay" class="absolute inset-0 w-full h-full hidden z-10"></canvas>
+          <div id="rtsp-placeholder" class="flex flex-col items-center gap-3 cursor-pointer hover:scale-105 transition-transform z-20" onclick="document.getElementById('btn-start-rtsp').click()">
+            <div class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <span class="text-accent text-[13px] font-semibold tracking-wide uppercase">Nhấn để mở Camera</span>
+          </div>
         </div>
       </div>
       <div x-show="tab==='upload'" x-cloak class="flex-1 min-h-0 flex flex-col p-4 gap-3">
@@ -247,6 +255,29 @@
         }, 'image/jpeg', 0.8);
       }, 800);
     } catch(e) { alert('Lỗi: ' + e.message); }
+  });
+
+  // --- RTSP ---
+  const btnStartRtsp = document.getElementById('btn-start-rtsp');
+  const rtspCamera = document.getElementById('rtsp-camera');
+  const rtspPlaceholder = document.getElementById('rtsp-placeholder');
+  let rtspActive = false;
+
+  btnStartRtsp.addEventListener('click', () => {
+    if (rtspActive) {
+      rtspActive = false;
+      btnStartRtsp.classList.add('hidden');
+      rtspPlaceholder.classList.remove('hidden');
+    } else {
+      if (!rtspCamera.value) {
+        alert('Vui lòng chọn camera ở ô bên trên trước khi thu video!');
+        return;
+      }
+      rtspActive = true;
+      btnStartRtsp.classList.remove('hidden');
+      rtspPlaceholder.classList.add('hidden');
+      alert('Kết nối luồng RTSP từ backend đang được phát triển.');
+    }
   });
 
   window.clearResults = function() {
