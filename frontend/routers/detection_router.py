@@ -69,99 +69,87 @@ async def detection_page(request: Request, user: dict = Depends(require_menu("de
 async def detect_image(file: UploadFile = File(...)):
     """Accept an image, run plate detection + OCR, return JSON results."""
     try:
+        import asyncio
         import cv2
         import numpy as np
         from PIL import Image
         import io
 
         contents = await file.read()
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
-        # Convert PIL RGB to OpenCV BGR for AI core
-        frame_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-
         detector, ocr, face = _get_models()
-        results = []
 
-        if detector:
-            # detect returns list of (x1, y1, x2, y2, conf, cls_id)
-            detections = detector.detect(frame_bgr)
-            for x1, y1, x2, y2, conf, cls_id in detections:
-                if cls_id == 0: # Plate
-                    crop = frame_bgr[y1:y2, x1:x2]
-                    text, ocr_conf = "", 0.0
-                    if ocr and crop.size > 0:
-                        text, ocr_conf = ocr.read(crop)
+        def run_ai_pipeline():
+            img = Image.open(io.BytesIO(contents)).convert("RGB")
+            frame_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+            res = []
 
-                    # Check whitelist
-                    status = "unknown"
-                    db = get_db()
-                    if text:
-                        normalized = text.upper().replace(" ", "").replace(".", "").replace("-", "")
-                        wl = db.check_whitelist(normalized)
-                        status = "whitelist" if wl else "unknown"
+            if detector:
+                detections = detector.detect(frame_bgr)
+                for x1, y1, x2, y2, conf, cls_id in detections:
+                    if cls_id == 0: # Plate
+                        crop = frame_bgr[y1:y2, x1:x2]
+                        text, ocr_conf = "", 0.0
+                        if ocr and crop.size > 0:
+                            text, ocr_conf = ocr.read(crop)
 
-                    results.append({
-                        "type": "plate",
-                        "text": text,
-                        "confidence": round(conf * 100, 1),
-                        "ocr_confidence": round(ocr_conf * 100, 1),
-                        "status": status,
-                        "bbox": [x1, y1, x2, y2],
-                    })
-                elif cls_id == 1: # Person
-                    results.append({
-                        "type": "person",
-                        "text": "Person",
-                        "confidence": round(conf * 100, 1),
-                        "status": "unknown",
-                        "bbox": [x1, y1, x2, y2],
-                    })
-                elif cls_id == 2: # Door
-                    results.append({
-                        "type": "door",
-                        "text": "Door",
-                        "confidence": round(conf * 100, 1),
-                        "status": "unknown",
-                        "bbox": [x1, y1, x2, y2],
-                    })
-
-        if face:
-            try:
-                name, sim, f_bbox = face.identify(frame_bgr)
-                if name:
-                    display_text = name
-                    status = "stranger"
-                    
-                    if name != "STRANGER":
+                        status = "unknown"
                         db = get_db()
-                        # name could be username or id from folder name
-                        user_info = db.get_person_by_identity(name)
-                        if user_info:
-                            # User requested format: "Tên: [Name] + id: [ID]"
-                            display_text = f"Tên: {user_info['full_name']} + id: {user_info['identity']}"
-                            status = "known"
-                            logger.info(f"Face identified: {display_text}")
-                        else:
-                            logger.warning(f"Face recognized as {name} but no user info found in DB")
-                    
-                    results.append({
-                        "type": "face",
-                        "text": display_text,
-                        "confidence": round(sim * 100, 1),
-                        "status": status,
-                        "bbox": f_bbox,
-                    })
-            except Exception as e:
-                logger.error("Face recognition error: %s", e)
-                pass
+                        if text:
+                            normalized = text.upper().replace(" ", "").replace(".", "").replace("-", "")
+                            wl = db.check_whitelist(normalized)
+                            status = "whitelist" if wl else "unknown"
+
+                        res.append({
+                            "type": "plate",
+                            "text": text,
+                            "confidence": round(conf * 100, 1),
+                            "ocr_confidence": round(ocr_conf * 100, 1),
+                            "status": status,
+                            "bbox": [x1, y1, x2, y2],
+                        })
+                    elif cls_id == 1: # Person
+                        res.append({
+                            "type": "person", "text": "Person",
+                            "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
+                        })
+                    elif cls_id == 2: # Door
+                        res.append({
+                            "type": "door", "text": "Door",
+                            "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
+                        })
+
+            if face:
+                try:
+                    name, sim, f_bbox = face.identify(frame_bgr)
+                    if name:
+                        display_text = name
+                        status = "stranger"
+                        
+                        if name != "STRANGER":
+                            db = get_db()
+                            user_info = db.get_person_by_identity(name)
+                            if user_info:
+                                display_text = f"Tên: {user_info['full_name']} + id: {user_info['identity']}"
+                                status = "known"
+                        
+                        res.append({
+                            "type": "face", "text": display_text,
+                            "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
+                        })
+                except Exception as e:
+                    logger.error("Face recognition error: %s", e)
+
+            return res
+
+        results = await asyncio.to_thread(run_ai_pipeline)
 
         return JSONResponse({
             "results": results, 
             "count": len(results),
             "info": {
-                "detector": _plate_detector is not False,
-                "ocr": _ocr_reader is not False,
-                "face": _face_recognizer is not False
+                "detector": detector is not False and detector is not None,
+                "ocr": ocr is not False and ocr is not None,
+                "face": face is not False and face is not None
             }
         })
     except Exception as e:

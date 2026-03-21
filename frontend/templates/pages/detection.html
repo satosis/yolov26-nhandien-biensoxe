@@ -221,7 +221,8 @@
   window.stopWebcam = function() {
     if (stream) {
       stream.getTracks().forEach(t => t.stop()); stream = null;
-      if (webcamInterval) clearInterval(webcamInterval); webcamInterval = null;
+      if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
+      webcamInterval = false;
       video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
       btnStart.classList.add('hidden');
     }
@@ -238,8 +239,11 @@
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
       btnStart.classList.remove('hidden');
-      webcamInterval = setInterval(async () => {
-        if (!stream || !video.videoWidth) return;
+      webcamInterval = true;
+      
+      const processFrame = () => {
+        if (!stream || !video.videoWidth || !webcamInterval) return;
+        
         // Optimization for Mac: Fixed 480x360 resolution is often faster and less 'noisy'
         captureCanvas.width = 480;
         captureCanvas.height = 360;
@@ -248,12 +252,20 @@
         ctx.drawImage(video, 0, 0, 480, 360);
         
         captureCanvas.toBlob(async (blob) => {
+          if (!webcamInterval) return;
           const data = await sendFrame(blob);
+          if (!webcamInterval) return;
+          
           renderResults(data); 
           overlay.classList.remove('hidden');
           drawBoxes(overlay, video, data.results);
+          
+          // Wait 100ms before pulling the next frame to prevent locking up the browser
+          setTimeout(processFrame, 100);
         }, 'image/jpeg', 0.8);
-      }, 800);
+      };
+      
+      video.onloadedmetadata = () => setTimeout(processFrame, 100);
     } catch(e) { alert('Lỗi: ' + e.message); }
   });
 
