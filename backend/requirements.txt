@@ -23,7 +23,7 @@ onnxruntime>=1.18.0
 
 # --- OCR (PaddleOCR Vietnamese) ---
 paddlepaddle>=2.6.2
-paddleocr==2.10.0
+rapidocr-onnxruntime
 
 # --- Web & API (FastAPI + Jinja2 + HTMX) ---
 fastapi==0.115.0
