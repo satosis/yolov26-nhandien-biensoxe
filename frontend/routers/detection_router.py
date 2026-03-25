@@ -89,7 +89,16 @@ async def detect_image(file: UploadFile = File(...)):
             db = get_db()  # Get once — not per-detection
             for x1, y1, x2, y2, conf, cls_id in detections:
                 if cls_id == 0: # Plate
-                    crop = frame_bgr[y1:y2, x1:x2]
+                    # Add 5% padding to improve OCR context
+                    h_img, w_img = frame_bgr.shape[:2]
+                    pad_w = int((x2 - x1) * 0.05)
+                    pad_h = int((y2 - y1) * 0.05)
+                    x1_p = max(0, x1 - pad_w)
+                    y1_p = max(0, y1 - pad_h)
+                    x2_p = min(w_img, x2 + pad_w)
+                    y2_p = min(h_img, y2 + pad_h)
+                    
+                    crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
                     text, ocr_conf = "", 0.0
                     if ocr and crop.size > 0:
                         # Auto-enhance small crops

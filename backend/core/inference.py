@@ -49,17 +49,26 @@ class InferenceResult:
 # ── Plate enhancement ─────────────────────────────────────────────────────────
 
 def enhance_plate(crop):
-    """Plate enhancement for low-res crops."""
+    """Clean enhancement for OCR using Bilateral Filter and Gamma."""
+    if crop is None or crop.size == 0:
+        return crop
+    
+    # 1. Upscale 4x (Lanczos) for maximum detail
     h, w = crop.shape[:2]
-    upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
-    gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-    binary = cv2.adaptiveThreshold(
-        blurred, 255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 11, 2,
-    )
-    return cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)
+    upscaled = cv2.resize(crop, (w * 4, h * 4), interpolation=cv2.INTER_LANCZOS4)
+    
+    # 2. Denoise with Bilateral Filter (Preserves edges, removes texture noise)
+    denoised = cv2.bilateralFilter(upscaled, 9, 75, 75)
+    
+    # 3. Gamma Correction (Darken text, brighten background)
+    # gamma < 1.0 brightens image, > 1.0 darkens. We want to increase contrast.
+    # We use a lookup table for speed.
+    gamma = 1.2 
+    invGamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** invGamma) * 255 for i in np.arange(0, 256)]).astype("uint8")
+    enhanced = cv2.LUT(denoised, table)
+    
+    return enhanced
 
 # ── Plate buffer / voting ─────────────────────────────────────────────────────
 
