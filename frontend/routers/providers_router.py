@@ -32,6 +32,46 @@ async def providers_page(request: Request, user: dict = Depends(require_menu("pr
     return templates.TemplateResponse("pages/providers.html", {"request": request, **ctx})
 
 
+@router.get("/{provider_key}/api-keys")
+async def edit_api_keys_page(
+    provider_key: str,
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+):
+    ctx = get_menu_context(request, user)
+    db = get_db()
+    provider = db.get_provider(provider_key)
+    if not provider:
+        return RedirectResponse("/providers", status_code=303)
+    
+    keys = db.get_provider_api_keys(provider_key)
+    ctx["provider"] = provider
+    ctx["api_keys"] = keys or {}
+    ctx["current_menu"] = "providers"
+    return templates.TemplateResponse("pages/provider_api_keys.html", {"request": request, **ctx})
+
+
+@router.post("/{provider_key}/api-keys")
+async def save_api_keys(
+    provider_key: str,
+    request: Request,
+    user: dict = Depends(require_menu("providers")),
+):
+    form = await request.form()
+    # Handle dynamic lists of names and values
+    names = form.getlist("api_key_names[]")
+    values = form.getlist("api_key_values[]")
+    
+    keys = {}
+    for n, v in zip(names, values):
+        n_stripped = n.strip().lower()
+        if n_stripped:
+            keys[n_stripped] = v.strip()
+            
+    get_db().update_provider_api_keys(provider_key, keys)
+    return RedirectResponse("/providers", status_code=303)
+
+
 @router.post("")
 async def upsert_provider(
     request: Request,
@@ -93,21 +133,4 @@ async def toggle_provider(
             notes=provider.get("notes"),
             is_active=not provider.get("is_active", True),
         )
-    return RedirectResponse("/providers", status_code=303)
-
-
-# Fields that are form metadata, not API key values
-_NON_KEY_FIELDS = frozenset()
-
-
-@router.post("/{provider_key}/api-keys")
-async def save_api_keys(
-    provider_key: str,
-    request: Request,
-    user: dict = Depends(require_menu("providers")),
-):
-    form = await request.form()
-    # All form fields are API key entries — no metadata fields to filter
-    keys = {k: v for k, v in form.items()}
-    get_db().update_provider_api_keys(provider_key, keys)
     return RedirectResponse("/providers", status_code=303)

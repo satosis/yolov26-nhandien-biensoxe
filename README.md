@@ -102,6 +102,7 @@ Nếu muốn cài đặt thủ công:
 ```bash
 # 1. Cài đặt Python 3.10+ và các thư viện cần thiết
 pip install -r requirements.txt
+pip install -r requirements.txt
 
 # 2. Chạy Frontend (Web Management Interface)
 cd frontend

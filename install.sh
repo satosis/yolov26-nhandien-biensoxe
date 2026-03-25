@@ -1,50 +1,62 @@
 #!/bin/bash
 
-# Cấu hình các thông số
-IMAGE="postgres:16-alpine"
-CONTAINER_NAME="global-postgres"
-NETWORK_NAME="shared-services"
-PORT_HOST=5432
-PORT_CONTAINER=5432
+# Configuration
+PROJECT_ROOT=$(pwd)
+FRONTEND_DIR="$PROJECT_ROOT/frontend"
+BACKEND_DIR="$PROJECT_ROOT/backend"
 
-echo "--- Kiểm tra trạng thái Hệ thống Docker ---"
+echo "--------------------------------------------------------"
+echo "🛠️  Automated Project Setup & Run 🛠️"
+echo "--------------------------------------------------------"
 
-# 1. Tạo network nếu chưa có
-if ! [ "$(docker network ls -q -f name=^${NETWORK_NAME}$)" ]; then
-    echo "[NEW] Tạo network dùng chung: $NETWORK_NAME"
-    docker network create $NETWORK_NAME
-fi
-
-# 2. Kiểm tra xem container có đang chạy không
-if [ "$(docker ps -q -f name=^/${CONTAINER_NAME}$)" ]; then
-    echo "[OK] Container '$CONTAINER_NAME' đang chạy. Tận dụng luôn."
-    exit 0
-fi
-
-# 3. Nếu không chạy, kiểm tra xem nó có tồn tại (nhưng bị stop) không
-if [ "$(docker ps -aq -f name=^/${CONTAINER_NAME}$)" ]; then
-    echo "[INFO] Container '$CONTAINER_NAME' tồn tại nhưng đang dừng. Đang khởi động lại..."
-    docker start $CONTAINER_NAME
-    exit 0
-fi
-
-# 4. Nếu chưa tồn tại, tạo mới
-echo "[NEW] Container '$CONTAINER_NAME' chưa có. Đang tạo mới và chạy..."
-
-# Kiểm tra cổng host
-if lsof -Pi :$PORT_HOST -sTCP:LISTEN -t >/dev/null ; then
-    echo "[ERROR] Cổng $PORT_HOST đã bị chiếm bởi một ứng dụng khác ngoài Docker!"
+# 1. Check for Python
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python3 NOT found. Please install Python 3.10+ and try again."
     exit 1
 fi
 
-docker run -d \
-  --name $CONTAINER_NAME \
-  --network $NETWORK_NAME \
-  -p ${PORT_HOST}:${PORT_CONTAINER} \
-  -e POSTGRES_PASSWORD=password \
-  -e POSTGRES_USER=camera_user \
-  -e POSTGRES_DB=camera_ai \
-  --restart unless-stopped \
-  $IMAGE
+# 2. Update pip & Install Dependencies (Silent)
+echo "📦 Installing/Updating dependencies..."
+python3 -m pip install --upgrade pip > /dev/null 2>&1
+python3 -m pip install -r backend/requirements.txt > /dev/null 2>&1
+python3 -m pip install watchdog > /dev/null 2>&1
+python3 -m pip install onnxruntime-silicon 2>/dev/null || python3 -m pip install onnxruntime > /dev/null 2>&1
 
-echo "[OK] Đã tạo và chạy container thành công trên network '$NETWORK_NAME'."
+# 3. Cleanup existing processes
+echo "🧹 Cleaning up old processes..."
+pkill -f "uvicorn" || true
+pkill -f "python3 backend/main.py" || true
+sleep 1
+
+# 4. Start Hot Reload
+export PYTHONPATH=$PYTHONPATH:$PROJECT_ROOT
+echo "🚀 Starting Java-style Hot Reload..."
+
+function cleanup_all() {
+    echo ""
+    echo "🛑 Stopping Project..."
+    pkill -P $$ # Kill child processes
+    exit
+}
+trap cleanup_all SIGINT SIGTERM
+
+# Start Frontend
+(
+    cd "$FRONTEND_DIR"
+    uvicorn app:app --host 0.0.0.0 --port 8000 --reload --log-level warning
+) &
+
+# Start Backend
+sleep 2
+watchmedo auto-restart \
+    --directory="$BACKEND_DIR" \
+    --pattern="*.py" \
+    --recursive \
+    -- python3 "$BACKEND_DIR/main.py" &
+
+echo "--------------------------------------------------------"
+echo "✅ Everything is running!"
+echo "👉 Web UI: http://localhost:8000"
+echo "--------------------------------------------------------"
+
+wait

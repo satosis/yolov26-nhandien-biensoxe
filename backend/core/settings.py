@@ -20,7 +20,11 @@ class SettingsManager:
             "GRAB_FPS_CAP": 15,
             "FRAME_BUFFER_SIZE": 5,
             "VOTE_MIN_CONF": 0.70,
-            "FACE_RECOG_EVERY_N": 10
+            "FACE_RECOG_EVERY_N": 10,
+            # Denoise Settings
+            "DENOISE_TEMPORAL_ALPHA": 0.6,
+            "DENOISE_SPATIAL_KSIZE": 3,
+            "STREAM_JPEG_QUALITY_LIVE": 88
         }
         self.settings = self.load_settings()
 

@@ -7,60 +7,91 @@
     <span class="text-2xl font-semibold text-white">Nhận diện AI</span>
   </div>
 
-  <div class="flex gap-5 h-[calc(100vh-180px)]" x-data="{ tab: 'webcam' }" x-effect="if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
+  <div class="flex gap-5 h-[calc(100vh-180px)]" x-data="{ tab: 'webcam' }"
+    x-effect="if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
     <!-- Video area -->
     <div class="flex-1 flex flex-col bg-bg-card rounded-lg overflow-hidden">
       <div class="flex border-b border-divider">
-        <button @click="tab='webcam'" :class="tab==='webcam' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📹 Live Webcam</button>
-        <button @click="tab='rtsp'" :class="tab==='rtsp' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📡 Camera khu vực</button>
-        <button @click="tab='upload'" :class="tab==='upload' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'" class="px-4 py-2.5 text-[13px] font-medium">📁 Upload ảnh</button>
+        <button @click="tab='webcam'" :class="tab==='webcam' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
+          class="px-4 py-2.5 text-[13px] font-medium">📹 Live Webcam</button>
+        <button @click="tab='rtsp'" :class="tab==='rtsp' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
+          class="px-4 py-2.5 text-[13px] font-medium">📡 Camera khu vực</button>
+        <button @click="tab='upload'" :class="tab==='upload' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
+          class="px-4 py-2.5 text-[13px] font-medium">📁 Upload ảnh</button>
       </div>
       <div x-show="tab==='webcam'" class="flex-1 flex flex-col p-4 gap-3">
-        <div class="relative flex-1 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden">
-          <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-contain hidden"></video>
+        <div
+          class="relative flex-1 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden cursor-pointer hover:bg-white/[0.02] transition-colors group"
+          onclick="window.toggleWebcam()">
+          <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-contain hidden"
+            style="image-rendering:auto;filter:contrast(1.05) brightness(1.02) saturate(1.1)"></video>
           <canvas id="webcam-overlay" class="absolute inset-0 w-full h-full hidden"></canvas>
-          <div id="webcam-placeholder" class="flex flex-col items-center gap-3 cursor-pointer hover:scale-105 transition-transform" onclick="document.getElementById('btn-start-webcam').click()">
-            <div class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <div id="webcam-placeholder"
+            class="flex flex-col items-center gap-3 transition-transform group-hover:scale-105">
+            <div
+              class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
             </div>
             <span class="text-accent text-[13px] font-semibold tracking-wide uppercase">Nhấn để mở Camera</span>
           </div>
         </div>
         <div class="flex items-center justify-between min-h-[36px]">
           <div>
-            <button id="btn-start-webcam" class="hidden bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold text-[13px] px-5 py-1.5 rounded-md hover:bg-rose-500/30 transition-colors">NGỪNG CAMERA (STOP)</button>
+            <!-- Hidden button for script compatibility or removed -->
           </div>
           <button id="btn-select-device" class="text-txt-sec text-[13px] hover:text-accent">SELECT DEVICE</button>
         </div>
       </div>
       <div x-show="tab==='rtsp'" x-cloak class="flex-1 flex flex-col p-4 gap-3">
         <div class="flex gap-3 min-h-[36px]">
-          <select id="rtsp-camera" class="flex-1 bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+          <select id="rtsp-camera"
+            class="flex-1 bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
             <option value="">Chọn camera...</option>
             {% for cam in cameras %}
             <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
             {% endfor %}
           </select>
           <div>
-            <button id="btn-start-rtsp" class="hidden bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold text-[13px] px-5 py-1.5 rounded-md hover:bg-rose-500/30 transition-colors">NGỪNG CAMERA (STOP)</button>
+            <!-- Hidden button for script compatibility or removed -->
           </div>
         </div>
-        <div class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center relative overflow-hidden">
+        <div
+          class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center relative overflow-hidden cursor-pointer hover:bg-white/[0.02] transition-colors group"
+          onclick="window.toggleRtsp()">
           <img id="rtsp-feed" class="w-full h-full object-contain hidden relative z-0">
           <canvas id="rtsp-overlay" class="absolute inset-0 w-full h-full hidden z-10"></canvas>
-          <div id="rtsp-placeholder" class="flex flex-col items-center gap-3 cursor-pointer hover:scale-105 transition-transform z-20" onclick="document.getElementById('btn-start-rtsp').click()">
-            <div class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <div id="rtsp-placeholder"
+            class="flex flex-col items-center gap-3 transition-transform group-hover:scale-105 z-20">
+            <div
+              class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z" />
+              </svg>
             </div>
             <span class="text-accent text-[13px] font-semibold tracking-wide uppercase">Nhấn để mở Camera</span>
           </div>
         </div>
       </div>
       <div x-show="tab==='upload'" x-cloak class="flex-1 min-h-0 flex flex-col p-4 gap-3">
-        <input type="file" id="upload-input" accept="image/*" class="cursor-pointer text-sm text-txt-sec file:cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-bg-inset hover:file:bg-cyan-300">
-        <div class="flex-1 min-h-0 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden relative">
+        <input type="file" id="upload-input" accept="image/*" class="hidden">
+        <div
+          class="flex-1 min-h-0 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden relative cursor-pointer hover:bg-white/[0.02] transition-colors group"
+          onclick="document.getElementById('upload-input').click()">
           <canvas id="upload-canvas" class="max-w-full max-h-full hidden" style="object-fit: contain;"></canvas>
-          <div id="upload-placeholder" class="text-txt-ter text-sm">Chọn ảnh để nhận diện</div>
+          <div id="upload-placeholder"
+            class="flex flex-col items-center gap-3 text-txt-ter text-sm transition-transform group-hover:scale-105">
+            <div class="h-12 w-12 rounded-full bg-txt-ter/10 border border-txt-ter/20 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <span>Chọn ảnh hoặc click để thay đổi</span>
+          </div>
         </div>
       </div>
     </div>
@@ -71,14 +102,20 @@
         <div class="text-[14px] font-semibold text-white">Kết quả nhận diện</div>
         <div class="flex items-center gap-2">
           <div id="loading-indicator" class="hidden flex items-center gap-2 text-accent text-[11px] animate-pulse">
-            <svg class="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <svg class="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none"
+              viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+              </path>
             </svg>
           </div>
-          <button id="btn-clear-results" class="text-txt-ter hover:text-rose-400 p-1 transition-colors" title="Xoá kết quả">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          <button id="btn-clear-results" class="text-txt-ter hover:text-rose-400 p-1 transition-colors"
+            title="Xoá kết quả">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
         </div>
@@ -93,252 +130,343 @@
 
 {% block scripts %}
 <script>
-(function() {
-  const video = document.getElementById('webcam-video');
-  const overlay = document.getElementById('webcam-overlay');
-  const placeholder = document.getElementById('webcam-placeholder');
-  const btnStart = document.getElementById('btn-start-webcam');
-  const btnDevice = document.getElementById('btn-select-device');
-  const btnClear = document.getElementById('btn-clear-results');
-  const uploadInput = document.getElementById('upload-input');
-  const uploadCanvas = document.getElementById('upload-canvas');
-  const uploadPlaceholder = document.getElementById('upload-placeholder');
-  const resultsDiv = document.getElementById('detection-results');
-  const loadingIndicator = document.getElementById('loading-indicator');
-  let stream = null;
-  let currentDeviceId = null;
-  let webcamInterval = null;
+  (function () {
+    const video = document.getElementById('webcam-video');
+    const overlay = document.getElementById('webcam-overlay');
+    const placeholder = document.getElementById('webcam-placeholder');
+    // const btnStart = document.getElementById('btn-start-webcam'); // Removed
+    const btnDevice = document.getElementById('btn-select-device');
+    const btnClear = document.getElementById('btn-clear-results');
+    const uploadInput = document.getElementById('upload-input');
+    const uploadCanvas = document.getElementById('upload-canvas');
+    const uploadPlaceholder = document.getElementById('upload-placeholder');
+    const resultsDiv = document.getElementById('detection-results');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    let stream = null;
+    let currentDeviceId = null;
+    let webcamInterval = null;
+    const captureCanvas = document.createElement('canvas'); // Persistent for performance
 
-  function renderResults(data, append = false) {
-    if (data.error) {
-      resultsDiv.innerHTML = `<div class="bg-bg-card rounded-md p-3.5 border border-rose-500/30 text-rose-400 text-[13px]">
+    function renderResults(data, append = false) {
+      if (data.error) {
+        resultsDiv.innerHTML = `<div class="bg-bg-card rounded-md p-3.5 border border-rose-500/30 text-rose-400 text-[13px]">
         <strong>Lỗi:</strong> ${data.error}
       </div>`;
-      return;
-    }
-    
-    // De-duplicate: Keep only 1 record per type (highest confidence)
-    const uniqueMap = {};
-    (data.results || []).forEach(r => {
-      if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
-        uniqueMap[r.type] = r;
+        return;
       }
-    });
-    const finalResults = Object.values(uniqueMap);
 
-    if (finalResults.length === 0) {
-      resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Không phát hiện đối tượng</div>';
-      return;
-    }
-    
-    const html = finalResults.map(r => {
-      const colors = {whitelist:'bg-emerald-500',unknown:'bg-amber-500',known:'bg-blue-600',stranger:'bg-rose-500'};
-      const labels = {whitelist:'Whitelist',unknown:'Xe lạ',known:'Đã biết',stranger:'Người lạ'};
-      const bg = colors[r.status] || 'bg-slate-500';
-      
-      let badgeText = '—';
-      let mainLabel = labels[r.status] || r.status;
-      let icon = '🚗';
-
-      if (r.type === 'face') {
-        icon = '👤';
-        badgeText = 'Face';
-        if (r.status === 'known') {
-            mainLabel = r.text; // "Tên: X + id: Y"
+      // De-duplicate: Keep only 1 record per type (highest confidence)
+      const uniqueMap = {};
+      (data.results || []).forEach(r => {
+        if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
+          uniqueMap[r.type] = r;
         }
-      } else if (r.type === 'person') {
-        icon = '🚶';
-        badgeText = 'Person';
-      } else if (r.type === 'door') {
-        icon = '🚪';
-        badgeText = 'Door';
-      } else {
-        badgeText = r.text || 'Car';
+      });
+      const finalResults = Object.values(uniqueMap);
+
+      if (finalResults.length === 0) {
+        resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Không phát hiện đối tượng</div>';
+        return;
       }
 
-      return `<div class="bg-bg-card rounded-md p-3 flex items-center gap-3 border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
+      const html = finalResults.map(r => {
+        const colors = { whitelist: 'bg-emerald-500', unknown: 'bg-amber-500', known: 'bg-blue-600', stranger: 'bg-rose-500' };
+        const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ' };
+        const bg = colors[r.status] || 'bg-slate-500';
+
+        let badgeText = '—';
+        let mainLabel = labels[r.status] || r.status;
+        let icon = '🚗';
+
+        if (r.type === 'face') {
+          icon = '👤';
+          badgeText = 'Face';
+          if (r.status === 'known') {
+            mainLabel = r.text; // "Tên: X + id: Y"
+          }
+        } else if (r.type === 'person') {
+          icon = '🚶';
+          badgeText = 'Person';
+        } else if (r.type === 'door') {
+          icon = '🚪';
+          badgeText = 'Door';
+        } else {
+          badgeText = r.text || 'Car';
+          if (r.status === 'whitelist' && r.owner_name && r.owner_name !== 'unknown') {
+            mainLabel = r.owner_name;
+          }
+        }
+
+        return `<div class="bg-bg-card rounded-md p-3 flex items-center gap-3 border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
         <span class="${bg} text-white text-[11px] font-bold px-2 py-1 rounded min-w-[60px] text-center uppercase">${icon} ${badgeText}</span>
         <div class="flex flex-col gap-0.5 flex-1 min-w-0">
           <span class="text-white text-[13px] font-medium break-words">${mainLabel}</span>
           <span class="text-txt-ter text-[11px]">${r.confidence}% tin cậy</span>
         </div>
       </div>`;
-    }).join('');
+      }).join('');
 
-    resultsDiv.innerHTML = html;
-  }
-
-  function drawBoxes(canvas, img, results) {
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width || img.videoWidth;
-    canvas.height = img.height || img.videoHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear previous boxes if overlay
-    
-    // For webcam, we don't draw the video on overlay (video is behind), 
-    // but for upload, we draw image first.
-    if (img instanceof HTMLImageElement) {
-       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resultsDiv.innerHTML = html;
     }
 
-    for (const r of (results || [])) {
-      if (!r.bbox || r.bbox.length < 4) continue;
-      const [x1,y1,x2,y2] = r.bbox;
-      // Registered users ('known') now draw blue: #3b82f6
-      const color = (r.status === 'known') ? '#3b82f6' : (r.status === 'whitelist') ? '#22c55e' : (r.status === 'stranger' || r.status === 'blacklist') ? '#ef4444' : '#f59e0b';
-      
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([]);
-      ctx.strokeRect(x1, y1, x2-x1, y2-y1);
-      
-      if (r.text) {
-        ctx.fillStyle = color;
-        const fontSize = 14;
-        ctx.font = `bold ${fontSize}px JetBrains Mono, monospace`;
-        const textWidth = ctx.measureText(r.text).width;
-        ctx.fillRect(x1, y1 - fontSize - 8, textWidth + 12, fontSize + 8);
-        ctx.fillStyle = '#fff';
-        ctx.fillText(r.text, x1 + 6, y1 - 7);
+    function drawBoxes(canvas, img, results, srcW, srcH) {
+      const ctx = canvas.getContext('2d');
+      // Use natural (pixel) dimensions for HTMLImageElement, video dimensions for webcam
+      const naturalW = (img instanceof HTMLImageElement) ? img.naturalWidth : (img.videoWidth || img.width);
+      const naturalH = (img instanceof HTMLImageElement) ? img.naturalHeight : (img.videoHeight || img.height);
+      canvas.width = naturalW;
+      canvas.height = naturalH;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // For webcam, we don't draw the video on overlay (video is behind),
+      // but for upload, we draw image first.
+      if (img instanceof HTMLImageElement) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+
+      // srcW/srcH = resolution of image sent to backend (default 640×480 = webcam)
+      const detW = srcW || 640;
+      const detH = srcH || 480;
+
+      for (const r of (results || [])) {
+        if (!r.bbox || r.bbox.length < 4) continue;
+
+        // Scale bbox from detection space (detW×detH) → display canvas space (naturalW×naturalH)
+        const scaleX = canvas.width / detW;
+        const scaleY = canvas.height / detH;
+
+        const x1 = r.bbox[0] * scaleX;
+        const y1 = r.bbox[1] * scaleY;
+        const x2 = r.bbox[2] * scaleX;
+        const y2 = r.bbox[3] * scaleY;
+
+        // Registered users ('known') now draw blue: #3b82f6
+        const color = (r.status === 'known') ? '#3b82f6' : (r.status === 'whitelist') ? '#22c55e' : (r.status === 'stranger' || r.status === 'blacklist') ? '#ef4444' : '#f59e0b';
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([]);
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+
+        if (r.text) {
+          ctx.fillStyle = color;
+          const fontSize = 14;
+          ctx.font = `bold ${fontSize}px JetBrains Mono, monospace`;
+          const textWidth = ctx.measureText(r.text).width;
+          ctx.fillRect(x1, y1 - fontSize - 8, textWidth + 12, fontSize + 8);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(r.text, x1 + 6, y1 - 7);
+        }
       }
     }
-  }
 
-  async function sendFrame(blob) {
-    if (loadingIndicator) loadingIndicator.classList.remove('hidden');
-    const fd = new FormData();
-    fd.append('file', blob, 'frame.jpg');
-    try {
-      const resp = await fetch('/detection/api/detect', {method:'POST', body:fd});
-      if (loadingIndicator) loadingIndicator.classList.add('hidden');
-      if (!resp.ok) return {error: 'Server error ' + resp.status, results:[]};
-      return await resp.json();
-    } catch(e) { 
-      if (loadingIndicator) loadingIndicator.classList.add('hidden');
-      return {error: "Không thể kết nối máy chủ", results:[]}; 
-    }
-  }
-
-  window.stopWebcam = function() {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop()); stream = null;
-      if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
-      webcamInterval = false;
-      video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
-      btnStart.classList.add('hidden');
-    }
-  };
-
-  // --- Webcam ---
-  btnStart.addEventListener('click', async () => {
-    if (stream) {
-      window.stopWebcam();
-      return;
-    }
-    try {
-      const constraints = {video: currentDeviceId ? {deviceId:{exact:currentDeviceId}} : {facingMode:'environment'}, audio:false};
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
-      btnStart.classList.remove('hidden');
-      webcamInterval = true;
-      
-      const processFrame = () => {
-        if (!stream || !webcamInterval) return;
-        if (!video.videoWidth) {
-          // Wait for video to initialize
-          setTimeout(processFrame, 100);
-          return;
+    async function sendFrame(blob) {
+      if (!blob) {
+        console.warn("Detection aborted: Blob is null");
+        return { error: "Ảnh không hợp lệ", results: [] };
+      }
+      console.log(`Sending frame to detection API... Size: ${(blob.size / 1024).toFixed(1)} KB`);
+      if (!blob || blob.size === 0) {
+        console.error("CRITICAL: Blob is empty! Check webcam/canvas state.");
+        return { error: "Ảnh không hợp lệ (size 0)", results: [] };
+      }
+      if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+      const fd = new FormData();
+      fd.append('file', blob, 'frame.jpg');
+      console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
+      try {
+        const resp = await fetch('/detection/api/detect', { method: 'POST', body: fd });
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        if (!resp.ok) {
+          console.error("Server detection error", resp.status);
+          return { error: 'Server error ' + resp.status, results: [] };
         }
-        
-        // Optimization for Mac: Fixed 480x360 resolution is often faster and less 'noisy'
-        captureCanvas.width = 480;
-        captureCanvas.height = 360;
-        const ctx = captureCanvas.getContext('2d', { alpha: false });
-        ctx.imageSmoothingEnabled = false; // Disable interpolation for performance
-        ctx.drawImage(video, 0, 0, 480, 360);
-        
-        captureCanvas.toBlob(async (blob) => {
-          if (!webcamInterval) return;
-          const data = await sendFrame(blob);
-          if (!webcamInterval) return;
-          
-          renderResults(data); 
-          overlay.classList.remove('hidden');
-          drawBoxes(overlay, video, data.results);
-          
-          // Wait 100ms before pulling the next frame to prevent locking up the browser
-          setTimeout(processFrame, 100);
-        }, 'image/jpeg', 0.8);
-      };
-      
-      setTimeout(processFrame, 500);
-    } catch(e) { alert('Lỗi: ' + e.message); }
-  });
+        return await resp.json();
+      } catch (e) {
+        console.error("Fetch error during detection", e);
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        return { error: "Không thể kết nối máy chủ", results: [] };
+      }
+    }
 
-  // --- RTSP ---
-  const btnStartRtsp = document.getElementById('btn-start-rtsp');
-  const rtspCamera = document.getElementById('rtsp-camera');
-  const rtspPlaceholder = document.getElementById('rtsp-placeholder');
-  let rtspActive = false;
+    window.stopWebcam = function () {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop()); stream = null;
+        if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
+        webcamInterval = false;
+        video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
+        // btnStart.classList.add('hidden'); // Removed
+      }
+    };
 
-  btnStartRtsp.addEventListener('click', () => {
-    if (rtspActive) {
-      rtspActive = false;
-      btnStartRtsp.classList.add('hidden');
-      rtspPlaceholder.classList.remove('hidden');
-    } else {
-      if (!rtspCamera.value) {
+    // --- Webcam ---
+    window.toggleWebcam = async () => {
+      if (stream) {
+        window.stopWebcam();
+        return;
+      }
+      try {
+        const baseVideoConstraints = {
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, min: 15 }
+        };
+        const constraints = {
+          video: currentDeviceId
+            ? { deviceId: { exact: currentDeviceId }, ...baseVideoConstraints }
+            : { facingMode: { ideal: 'environment' }, ...baseVideoConstraints },
+          audio: false
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
+        // btnStart.classList.remove('hidden'); // Button removed
+        webcamInterval = true;
+        let isProcessing = false;
+
+        const processFrame = () => {
+          if (!stream || !webcamInterval) return;
+          if (!video.videoWidth) {
+            setTimeout(processFrame, 100);
+            return;
+          }
+
+          // Schedule next capture immediately — decoupled from server latency
+          setTimeout(processFrame, 500); // Increased interval to 500ms for stability on Mac
+
+          // Only draw if video is ready
+          if (video.readyState < 2) return;
+
+          // Skip if previous detection request still in-flight
+          if (isProcessing) return;
+          isProcessing = true;
+
+          captureCanvas.width = 640;
+          captureCanvas.height = 480;
+          const ctx = captureCanvas.getContext('2d', { alpha: false });
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(video, 0, 0, 640, 480);
+
+          captureCanvas.toBlob(async (blob) => {
+            if (!webcamInterval) { isProcessing = false; return; }
+            const data = await sendFrame(blob);
+            isProcessing = false;
+            if (!webcamInterval) return;
+
+            renderResults(data);
+            overlay.classList.remove('hidden');
+            drawBoxes(overlay, video, data.results, 640, 480);
+          }, 'image/jpeg', 0.75); // 0.75 = ~40% smaller payload vs 0.9, still sharp enough for YOLO
+        };
+
+        setTimeout(processFrame, 500);
+      } catch (e) { alert('Lỗi: ' + e.message); }
+    };
+
+    // --- RTSP ---
+    const rtspCamera = document.getElementById('rtsp-camera');
+    const rtspPlaceholder = document.getElementById('rtsp-placeholder');
+    const rtspFeed = document.getElementById('rtsp-feed');
+    let rtspActive = false;
+    let rtspInterval = null;
+
+    window.toggleRtsp = async () => {
+      const camId = rtspCamera.value;
+      if (!camId) {
         alert('Vui lòng chọn camera ở ô bên trên trước khi thu video!');
         return;
       }
-      rtspActive = true;
-      btnStartRtsp.classList.remove('hidden');
-      rtspPlaceholder.classList.add('hidden');
-      alert('Kết nối luồng RTSP từ backend đang được phát triển.');
-    }
-  });
 
-  window.clearResults = function() {
-    resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>';
-    const ctx = overlay.getContext('2d');
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-    const uCtx = uploadCanvas.getContext('2d');
-    uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
-  };
+      if (rtspActive) {
+        // STOP
+        try {
+          await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
+        } catch (e) { }
+        rtspActive = false;
+        if (rtspInterval) clearInterval(rtspInterval);
+        // btnStartRtsp.classList.add('hidden'); // Removed
+        rtspPlaceholder.classList.remove('hidden');
+        rtspFeed.classList.add('hidden');
+        rtspFeed.src = '';
+      } else {
+        // START
+        rtspActive = true;
+        // btnStartRtsp.classList.remove('hidden'); // Removed
+        rtspPlaceholder.classList.add('hidden');
+        rtspFeed.classList.remove('hidden');
 
-  btnClear.addEventListener('click', window.clearResults);
+        try {
+          await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
+          // For demonstration, we'll try to use a stream endpoint if it exists,
+          // otherwise we just show a "Connecting" state.
+          rtspFeed.src = `/detection/stream/${camId}`;
 
-  btnDevice.addEventListener('click', async () => {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const vd = devices.filter(d => d.kind === 'videoinput');
-    if (!vd.length) return;
-    const names = vd.map((d,i) => `${i+1}. ${d.label||'Cam '+(i+1)}`).join('\n');
-    const choice = prompt('Chọn camera:\n'+names, '1');
-    if (choice) {
-      const idx = parseInt(choice)-1;
-      if (vd[idx]) {
-        currentDeviceId = vd[idx].deviceId;
-        if (stream) { btnStart.click(); setTimeout(()=>btnStart.click(), 300); }
+          // Polling loop for detections from SHM-based stream
+          rtspInterval = setInterval(async () => {
+            if (!rtspActive) return;
+            // We can't easily capture from <img> tag like we do with <video>,
+            // so we rely on the backend doing the detection and we just show the result.
+            // However, for the UI to be "alive", we might want to fetch results.
+          }, 1000);
+
+        } catch (e) {
+          alert('Lỗi khởi động camera: ' + e.message);
+          rtspActive = false;
+          // btnStartRtsp.classList.add('hidden'); // Removed
+          rtspPlaceholder.classList.remove('hidden');
+        }
       }
-    }
-  });
-
-  // --- Upload ---
-  uploadInput.addEventListener('change', async (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    uploadPlaceholder.classList.add('hidden'); uploadCanvas.classList.remove('hidden');
-    const img = new Image();
-    img.onload = async () => {
-      uploadCanvas.width = img.naturalWidth; uploadCanvas.height = img.naturalHeight;
-      const container = uploadCanvas.parentElement;
-      const scale = Math.min((container.clientWidth-16)/img.naturalWidth, (container.clientHeight-16)/img.naturalHeight, 1);
-      uploadCanvas.style.width = Math.round(img.naturalWidth*scale)+'px';
-      uploadCanvas.style.height = Math.round(img.naturalHeight*scale)+'px';
-      const data = await sendFrame(file);
-      renderResults(data, false); // Replace for upload
-      drawBoxes(uploadCanvas, img, data.results);
     };
-    img.src = URL.createObjectURL(file);
-  });
-})();
+
+    window.clearResults = function () {
+      resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>';
+      const ctx = overlay.getContext('2d');
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      const uCtx = uploadCanvas.getContext('2d');
+      uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+    };
+
+    btnClear.addEventListener('click', window.clearResults);
+
+    btnDevice.addEventListener('click', async () => {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const vd = devices.filter(d => d.kind === 'videoinput');
+      if (!vd.length) return;
+      const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Cam ' + (i + 1)}`).join('\n');
+      const choice = prompt('Chọn camera:\n' + names, '1');
+      if (choice) {
+        const idx = parseInt(choice) - 1;
+        if (vd[idx]) {
+          currentDeviceId = vd[idx].deviceId;
+          if (stream) { window.toggleWebcam(); setTimeout(() => window.toggleWebcam(), 300); }
+        }
+      }
+    });
+
+    // --- Upload ---
+    uploadInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      uploadPlaceholder.classList.add('hidden'); uploadCanvas.classList.remove('hidden');
+      const img = new Image();
+      img.onload = async () => {
+        // Display canvas at original resolution (for visual quality)
+        uploadCanvas.width = img.naturalWidth; uploadCanvas.height = img.naturalHeight;
+        const container = uploadCanvas.parentElement;
+        const scale = Math.min((container.clientWidth - 16) / img.naturalWidth, (container.clientHeight - 16) / img.naturalHeight, 1);
+        uploadCanvas.style.width = Math.round(img.naturalWidth * scale) + 'px';
+        uploadCanvas.style.height = Math.round(img.naturalHeight * scale) + 'px';
+
+        // Resize to 640x480 before sending — same as webcam, ensures correct bbox coordinates
+        const detectCanvas = document.createElement('canvas');
+        detectCanvas.width = 640; detectCanvas.height = 480;
+        detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, 640, 480);
+        detectCanvas.toBlob(async (blob) => {
+          const data = await sendFrame(blob);
+          renderResults(data, false);
+          drawBoxes(uploadCanvas, img, data.results, 640, 480);
+        }, 'image/jpeg', 0.9);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  })();
 </script>
 {% endblock %}

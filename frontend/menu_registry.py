@@ -16,7 +16,7 @@ MENU_GROUPS = {
     "🛠 Quản lý": {
         "sites": "🏢 Địa điểm",
         "cameras": "📹 Camera",
-        "providers": "🏭 NCC Camera",
+        "providers": "🏭 Quản lý Key",
         "door_providers": "🚪 NCC Cửa cuốn",
         "vehicles": "🚗 Phương tiện",
         "strangers": "👤 Người lạ",

@@ -9,8 +9,15 @@
       <span class="text-accent text-[28px]">📹</span>
       <span class="text-2xl font-semibold text-white">Camera</span>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
-            onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">+ Thêm Camera</button>
+    <div class="flex gap-2">
+      <a href="/providers"
+        class="bg-bg-card border border-white/5 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/5 transition-colors flex items-center gap-2">
+        <span>🔑</span> Quản lý Key
+      </a>
+      <button
+        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
+        onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">+ Thêm Camera</button>
+    </div>
   </div>
 
   <!-- Metrics -->
@@ -19,7 +26,8 @@
     {% set active = cameras|selectattr('is_active')|list|length %}
     {% set inactive = total - active %}
     {% set prov_count = cameras|map(attribute='camera_type')|unique|list|length %}
-    {% for icon, label, val, color in [('📹','Tổng Camera',total,'#FFFFFF'),('🟢','Hoạt động',active,'#22C55E'),('⚫','Không hoạt động',inactive,'#64748B'),('🏭','Nhà cung cấp',prov_count,'#22D3EE')] %}
+    {% for icon, label, val, color in [('📹','Tổng Camera',total,'#FFFFFF'),('🟢','Hoạt
+    động',active,'#22C55E'),('⚫','Không hoạt động',inactive,'#64748B'),('🏭','Nhà cung cấp',prov_count,'#22D3EE')] %}
     <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
       <span class="text-2xl">{{ icon }}</span>
       <span class="font-mono text-[28px] font-bold" style="color:{{ color }}">{{ val }}</span>
@@ -33,11 +41,13 @@
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên camera *</label>
-        <input name="camera_name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <input name="camera_name" required
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Nhà cung cấp</label>
-        <select name="camera_type" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <select name="camera_type"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
           {% for p in providers %}
           <option value="{{ p.provider_key }}">{{ p.name }}</option>
           {% endfor %}
@@ -47,31 +57,50 @@
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Device ID</label>
-        <input name="imou_device_id" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <input name="imou_device_id"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
-        <select name="site_ids" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <select name="site_ids"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
           <option value="">— Chọn địa điểm —</option>
           {% for s in sites %}
-          <option value="{{ s.id }}" {% if s.id == active_site_id %}selected{% endif %}>{{ s.site_name }}</option>
+          <option value="{{ s.id }}" {% if s.id==active_site_id %}selected{% endif %}>{{ s.site_name }}</option>
           {% endfor %}
         </select>
       </div>
     </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa chỉ IP</label>
+        <input name="camera_ip" placeholder="192.168.1.100"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Cổng RTSP</label>
+        <input name="camera_port" type="number" value="554"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
     <div>
       <label class="block text-txt-sec text-[13px] font-medium mb-1">RTSP URL</label>
-      <input name="rtsp_url" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="rtsp://...">
+      <input name="rtsp_url"
+        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+        placeholder="rtsp://...">
     </div>
     <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+      <button type="submit"
+        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
+        onclick="this.closest('form').classList.add('hidden')">Hủy</button>
     </div>
   </form>
 
   <!-- Table card -->
   <div class="bg-bg-card rounded-lg overflow-x-auto">
-    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] min-w-[900px]">
+    <div
+      class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] min-w-[900px]">
       <div class="w-[50px] text-center">TT</div>
       <div class="w-[180px]">TÊN CAMERA</div>
       <div class="w-[110px]">NHÀ CUNG CẤP</div>
@@ -82,38 +111,52 @@
       <div class="w-[70px] text-center">HÀNH ĐỘNG</div>
     </div>
     {% for cam in cameras %}
-    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors min-w-[900px] {% if not cam.is_active %}opacity-50{% endif %}">
+    <div
+      class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors min-w-[900px] {% if not cam.is_active %}opacity-50{% endif %}">
       <div class="w-[50px] text-center">{% if cam.is_active %}🟢{% else %}⚫{% endif %}</div>
       <div class="w-[180px] text-[13px] font-semibold text-white">{{ cam.camera_name }}</div>
       <div class="w-[110px]">
-        <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20">{{ cam.camera_type }}</span>
+        <span
+          class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20">{{
+          cam.camera_type }}</span>
       </div>
       <div class="w-[140px] text-[12px] text-txt-sec">
-        {% for s in (cam.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec mr-1">{{ s }}</span>{% endfor %}
+        {% for s in (cam.site_names or []) %}<span
+          class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec mr-1">{{
+          s }}</span>{% endfor %}
         {% if not cam.site_names %}—{% endif %}
       </div>
       <div class="w-[170px] text-[11px] font-mono text-txt-ter">{{ cam.imou_device_id or '—' }}</div>
-      <div class="flex-1 text-[11px] font-mono text-txt-ter truncate" title="{{ cam.rtsp_url or '' }}">{{ (cam.rtsp_url or '—')[:40] }}{% if cam.rtsp_url and cam.rtsp_url|length > 40 %}...{% endif %}</div>
-      <div class="w-[80px] text-[11px] text-txt-ter">{{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else '—' }}</div>
+      <div class="flex-1 text-[11px] font-mono text-txt-ter truncate" title="{{ cam.rtsp_url or '' }}">{{ (cam.rtsp_url
+        or '—')[:40] }}{% if cam.rtsp_url and cam.rtsp_url|length > 40 %}...{% endif %}</div>
+      <div class="w-[80px] text-[11px] text-txt-ter">{{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else
+        '—' }}</div>
       <div class="w-[70px] flex items-center justify-center gap-3">
-        <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')" class="hover:text-accent transition-colors text-[13px]" title="Sửa">✏️</button>
-        <form method="POST" action="/cameras/{{ cam.id }}" onsubmit="event.preventDefault(); if(confirm('Xóa camera này?')){ fetch(this.action, {method:'DELETE'}).then(()=>window.location.reload()); }" class="inline">
+        <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
+          class="hover:text-accent transition-colors text-[13px]" title="Sửa">✏️</button>
+        <form method="POST" action="/cameras/{{ cam.id }}"
+          onsubmit="event.preventDefault(); if(confirm('Xóa camera này?')){ fetch(this.action, {method:'DELETE'}).then(()=>window.location.reload()); }"
+          class="inline">
           <button type="submit" class="hover:text-red-400 transition-colors text-[13px]" title="Xóa">🗑️</button>
         </form>
       </div>
     </div>
     <!-- Edit form -->
-    <form id="edit-cam-form-{{ cam.id }}" method="POST" action="/cameras/{{ cam.id }}/edit" class="hidden bg-white/5 p-5 border-b border-divider flex flex-col gap-4 min-w-[900px]">
+    <form id="edit-cam-form-{{ cam.id }}" method="POST" action="/cameras/{{ cam.id }}/edit"
+      class="hidden bg-white/5 p-5 border-b border-divider flex flex-col gap-4 min-w-[900px]">
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên camera *</label>
-          <input name="camera_name" value="{{ cam.camera_name }}" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          <input name="camera_name" value="{{ cam.camera_name }}" required
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
         </div>
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Nhà cung cấp</label>
-          <select name="camera_type" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          <select name="camera_type"
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
             {% for p in providers %}
-            <option value="{{ p.provider_key }}" {% if cam.camera_type == p.provider_key %}selected{% endif %}>{{ p.name }}</option>
+            <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name
+              }}</option>
             {% endfor %}
           </select>
         </div>
@@ -121,30 +164,60 @@
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Device ID</label>
-          <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}"
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
         </div>
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
-          <select name="site_ids" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          <select name="site_ids"
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
             <option value="">— Chọn địa điểm —</option>
             {% for s in sites %}
-            <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
+            <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name
+              }}</option>
             {% endfor %}
           </select>
         </div>
       </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ IP</label>
+          <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100"
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cổng RTSP</label>
+          <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}"
+            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+      </div>
       <div>
         <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL</label>
-        <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="rtsp://...">
+        <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+          placeholder="rtsp://...">
       </div>
       <div class="flex gap-3 mt-1">
-        <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
-        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
+        <button type="submit"
+          class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập
+          nhật</button>
+        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
+          onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
       </div>
     </form>
     {% endfor %}
     {% if not cameras %}
-    <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có camera nào.</div>
+    <div class="px-5 py-12 text-center flex flex-col items-center gap-3">
+      <span class="text-4xl opacity-20">📽️</span>
+      <div class="flex flex-col gap-1">
+        <div class="text-txt-sec font-medium">Chưa có camera nào được tìm thấy</div>
+        {% if active_site_id and active_site_id > 0 %}
+        <div class="text-[12px] text-txt-ter">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b> trong sidebar.</div>
+        {% else %}
+        <div class="text-[12px] text-txt-ter">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
   </div>
 </div>

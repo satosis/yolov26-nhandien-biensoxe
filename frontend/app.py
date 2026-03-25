@@ -1,6 +1,11 @@
 """FastAPI application — Parking Camera webapp."""
 import os
 import sys
+import ssl
+import certifi
+
+# Fix for SSL certificate verification on macOS
+ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 from contextlib import asynccontextmanager
 from pathlib import Path
 from dotenv import load_dotenv

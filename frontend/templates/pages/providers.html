@@ -9,20 +9,72 @@
       <span class="text-accent text-[28px]">🏭</span>
       <span class="text-2xl font-semibold text-white">Nhà cung cấp Camera</span>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2">
+    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
+            onclick="document.getElementById('add-provider-form').classList.toggle('hidden')">
       <span>+</span> Thêm NCC
     </button>
   </div>
+
+  <!-- Add form (hidden) -->
+  <form id="add-provider-form" method="POST" action="/providers" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Provider Key * (e.g. imou, hikvision)</label>
+        <input name="provider_key" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên nhà cung cấp *</label>
+        <input name="name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">API Base URL</label>
+        <input name="api_base_url" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="https://openapi.imoulife.com">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Cấu trúc RTSP URL (Template)</label>
+        <input name="rtsp_template" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="rtsp://{username}:{password}@{ip}:{port}/{channel}">
+        <div class="text-[10px] text-txt-ter mt-0.5">Sử dụng: {username}, {password}, {ip}, {port}, {channel}</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4 border-t border-white/5 pt-4">
+      <div>
+        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">ONVIF Port</label>
+        <input name="onvif_port" type="number" value="80" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default RTSP Port</label>
+        <input name="default_rtsp_port" type="number" value="554" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default HTTP Port</label>
+        <input name="default_http_port" type="number" value="80" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+      </div>
+    </div>
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú / Mô tả</label>
+      <textarea name="notes" rows="2" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"></textarea>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" name="is_active" id="is_active_new" checked class="rounded border-white/10 bg-bg-inset text-accent focus:ring-accent/50">
+      <label for="is_active_new" class="text-txt-sec text-[13px]">Kích hoạt (Hoạt động ngay)</label>
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+    </div>
+  </form>
 
   <!-- Table card -->
   <div class="bg-bg-card rounded-lg overflow-hidden">
     <!-- Table header -->
     <div class="flex items-center gap-4 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
       <div class="w-[180px] flex-shrink-0">TÊN NCC</div>
-      <div class="w-[240px] flex-shrink-0">PHƯƠNG THỨC</div>
+      <div class="w-[240px] flex-shrink-0">MÔ TẢ</div>
       <div class="flex-1 min-w-0">API KEYS</div>
-      <div class="w-[100px] flex-shrink-0 text-center">KÍCH HOẠT</div>
-      <div class="w-[100px] flex-shrink-0 text-center">HÀNH ĐỘNG</div>
+      <div class="w-[100px] flex-shrink-0 text-center uppercase tracking-[1.5px]">KÍCH HOẠT</div>
+      <div class="w-[120px] flex-shrink-0 text-right uppercase tracking-[1.5px]">HÀNH ĐỘNG</div>
     </div>
 
     {% for p in providers %}
@@ -34,24 +86,85 @@
       <div class="w-[240px] flex-shrink-0 text-[12px] text-txt-sec break-words leading-relaxed pr-4">
         {{ p.notes or '—' }}
       </div>
-      <div class="flex-1 min-w-0 flex flex-col gap-0.5">
-        {% for k, v in p._masked.items() %}
-        <span class="text-[11px] font-mono text-txt-ter break-all">{{ k }}: {{ v }}</span>
-        {% endfor %}
-        {% if not p._masked %}<span class="text-[11px] text-txt-ter">Chưa cấu hình</span>{% endif %}
-      </div>
-      <div class="w-[100px] flex-shrink-0 flex justify-center">
-        {% if p.is_active %}
-        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-status-green"><span class="w-2 h-2 rounded-full bg-status-green"></span> Bật</span>
+      <div class="flex-1 min-w-0 flex items-center gap-2">
+        {% if p._masked %}
+          <div class="flex gap-1.5 overflow-hidden">
+            {% for k,v in p._masked.items() %}
+            <span class="px-2 py-0.5 rounded bg-white/5 text-[10px] text-txt-ter border border-white/5 whitespace-nowrap">{{ k }}: {{ v }}</span>
+            {% endfor %}
+          </div>
         {% else %}
-        <span class="inline-flex items-center gap-1.5 text-[11px] font-medium text-txt-mut"><span class="w-2 h-2 rounded-full bg-txt-mut"></span> Tắt</span>
+          <span class="text-[11px] text-txt-ter italic">Chưa cấu hình API</span>
         {% endif %}
       </div>
-      <div class="w-[100px] flex-shrink-0 flex justify-center gap-3">
-        <button class="text-txt-sec hover:text-accent text-sm transition-colors">✏️</button>
-        <button class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button>
+      <div class="w-[100px] flex-shrink-0 flex justify-center">
+        <form method="POST" action="/providers/{{ p.provider_key }}/toggle">
+          <button type="submit" class="flex items-center gap-1.5 text-[11px] font-medium {% if p.is_active %}text-status-green{% else %}text-txt-mut{% endif %}">
+            <span class="w-2 h-2 rounded-full {% if p.is_active %}bg-status-green animate-pulse{% else %}bg-txt-mut{% endif %}"></span>
+            {{ 'Bật' if p.is_active else 'Tắt' }}
+          </button>
+        </form>
+      </div>
+      <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2">
+        <a href="/providers/{{ p.provider_key }}/api-keys"
+                title="Cấu hình API Keys" class="text-txt-sec hover:text-accent text-sm transition-colors">⚙️</a>
+        <button onclick="document.getElementById('edit-provider-form-{{ p.provider_key }}').classList.toggle('hidden')"
+                title="Sửa thông tin" class="text-txt-sec hover:text-accent text-sm transition-colors">✏️</button>
+        <button onclick="if(confirm('Xóa nhà cung cấp {{ p.name }}?')){ fetch('/providers/{{ p.provider_key }}', {method:'DELETE'}).then(()=>window.location.reload()); }"
+                title="Xóa" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button>
       </div>
     </div>
+
+    <!-- Edit Basic Info Form -->
+    <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/providers" class="hidden bg-white/5 p-5 border-b border-divider flex flex-col gap-4">
+      <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên nhà cung cấp *</label>
+          <input name="name" value="{{ p.name }}" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Kích hoạt</label>
+          <select name="is_active" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+            <option value="1" {% if p.is_active %}selected{% endif %}>Bật</option>
+            <option value="0" {% if not p.is_active %}selected{% endif %}>Tắt</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">API Base URL</label>
+          <input name="api_base_url" value="{{ p.api_base_url or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cấu trúc RTSP Template</label>
+          <input name="rtsp_template" value="{{ p.rtsp_template or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-4 border-t border-white/5 pt-4">
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">ONVIF Port</label>
+          <input name="onvif_port" type="number" value="{{ p.onvif_port or 80 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default RTSP Port</label>
+          <input name="default_rtsp_port" type="number" value="{{ p.default_rtsp_port or 554 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default HTTP Port</label>
+          <input name="default_http_port" type="number" value="{{ p.default_http_port or 80 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
+        </div>
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Ghi chú</label>
+        <textarea name="notes" rows="2" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">{{ p.notes or '' }}</textarea>
+      </div>
+      <div class="flex gap-3">
+        <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
+        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+      </div>
+    </form>
+
     {% endfor %}
     {% if not providers %}
     <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</div>
