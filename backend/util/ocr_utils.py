@@ -14,6 +14,10 @@ class VNPlateOCR:
         self._ocr = RapidOCR(det_db_unclip_ratio=2.0)
         logger.info("RapidOCR initialised with det_db_unclip_ratio=2.0")
 
+        # VN Plate format: 2 digits + 1-2 letters + (optional -) + 4-5 digits (with optional .)
+        # Examples: 88A-000.24, 30A12345, 29K1-1111
+        self.vn_pattern = re.compile(r"^[0-9]{2}[A-Z]{1,2}-?[0-9]{3,5}(\.[0-9]{2})?$")
+
     def read(self, crop: np.ndarray) -> tuple[str, float]:
         """
         Structural Ensemble OCR: Advanced alignment and sorting for Vietnamese plates.
@@ -21,8 +25,7 @@ class VNPlateOCR:
         if crop is None or crop.size == 0:
             return "", 0.0
 
-        import re
-        vn_pattern = re.compile(r"^[0-9]{2}[A-Z]{1,2}[0-9]{4,5}$")
+        # The regex pattern is now an instance attribute, no need to re-import or re-compile here.
 
         # 1. Base Alignment (Deskew the original for the best shot)
         deskewed = self._deskew(crop)
@@ -30,9 +33,11 @@ class VNPlateOCR:
         # 2. Variants based on the deskewed image
         variants = [
             deskewed,
-            self._adjust_gamma(deskewed, 1.5),
-            self._sharpen(deskewed),
-            self._v_sharpen(deskewed),
+            self._adjust_gamma(deskewed, 1.6), # High contrast
+            self._adjust_gamma(deskewed, 0.7), # Low contrast for highlights
+            self._sharpen(deskewed), 
+            self._v_sharpen(deskewed),         # Specialized vertical sharpening
+            self._laplacian(deskewed),         # Laplacian for small details (. and -)
         ]
         
         # 3. Add CLAHE (Better than Gamma for uneven light)
@@ -68,12 +73,14 @@ class VNPlateOCR:
                 confs.append(float(line[2]))
             
             if not texts: continue
-            combined = "".join(texts).upper().replace(" ", "").replace("-", "").replace(".", "").strip()
+            # Keep - and . characters as requested by user
+            combined = "".join(texts).upper().replace(" ", "").strip()
             if len(combined) < 4: continue
                 
             avg_conf = sum(confs) / len(confs)
             
-            fmt_bonus = 1.30 if vn_pattern.match(combined) else 1.0
+            # Format-aware scoring using the improved regex that allows - and .
+            fmt_bonus = 1.30 if self.vn_pattern.match(combined) else 1.0
             digit_start_bonus = 1.10 if len(combined) >= 2 and combined[:2].isdigit() else 1.0
             
             score = avg_conf * (1.0 + (len(combined) * 0.025)) * fmt_bonus * digit_start_bonus
@@ -128,3 +135,11 @@ class VNPlateOCR:
         center = (w // 2, h // 2)
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
         return cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+
+    def _laplacian(self, image):
+        """Emphasizes edges and small details like dots/dashes."""
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        laplacian = cv2.Laplacian(gray, cv2.CV_64F)
+        laplacian = np.uint8(np.absolute(laplacian))
+        # Convert back to BGR for the ensemble processor
+        return cv2.cvtColor(laplacian, cv2.COLOR_GRAY2BGR)
