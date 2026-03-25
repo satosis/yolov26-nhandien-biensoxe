@@ -26,13 +26,10 @@ def optimize_yolo_model(model_path):
     onnx_path = base_name + ".onnx"
     
     print(f"[*] Optimizing to ONNX (FP16)...")
-    try:
-        # Exporting to ONNX with half=True (FP16)
-        # opset=12 is widely compatible
-        path = model.export(format="onnx", half=True, opset=12, simplify=True)
-        print(f"[+] Optimization successful! Model saved at: {path}")
-    except Exception as e:
-        print(f"[-] Optimization failed: {e}")
+    # Exporting to ONNX with half=True (FP16)
+    # opset=12 is widely compatible
+    path = model.export(format="onnx", half=True, opset=12, simplify=True)
+    print(f"[+] Optimization successful! Model saved at: {path}")
 
 if __name__ == "__main__":
     # Get base directory

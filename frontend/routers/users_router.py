@@ -37,10 +37,7 @@ async def create_user(
 ):
     parsed_site_ids = None
     if site_ids:
-        try:
-            parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
-        except ValueError:
-            logger.warning("Invalid site_ids value: %s", site_ids)
+        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     ok, msg = get_db().create_user(
@@ -70,10 +67,7 @@ async def edit_user(
 ):
     parsed_site_ids = None
     if site_ids:
-        try:
-            parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
-        except ValueError:
-            logger.warning("Invalid site_ids value for user %s: %s", user_id, site_ids)
+        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
     hashed = None
     if password:

@@ -6,6 +6,9 @@ from datetime import datetime
 from contextlib import contextmanager
 import json
 import logging
+import re
+import secrets
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -40,48 +43,39 @@ class DatabaseManager:
         """Context manager to lease a connection from the pool and return it safely.
         Includes retry logic / fail-fast if pool is broken."""
         conn = None
-        try:
-            if self._pool:
-                try:
-                    conn = self._pool.getconn()
-                except psycopg2.pool.PoolError as e:
-                    logger.error("Connection pool exhausted: %s", e)
-                    raise DatabaseError(f"Pool exhausted: {e}")
-            else:
-                conn = psycopg2.connect(self.dsn, connect_timeout=3)
-            yield conn
-        finally:
+        if self._pool:
+            conn = self._pool.getconn()
+        else:
+            conn = psycopg2.connect(self.dsn, connect_timeout=3)
+        
+        yield conn
 
-            if conn:
-                if self._pool:
-                    self._pool.putconn(conn)
-                else:
-                    conn.close()
+        if conn:
+            if self._pool:
+                self._pool.putconn(conn)
+            else:
+                conn.close()
 
     def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
         """Core method to execute queries safely with centralized error handling."""
-        try:
-            with self._get_connection() as conn:
-                cursor_factory = RealDictCursor if fetch or fetchall else None
-                with conn.cursor(cursor_factory=cursor_factory) as cursor:
-                    cursor.execute(query, params)
-                    result = True
-                    if fetch:
-                        result = cursor.fetchone()
-                        if result and cursor_factory:
-                            result = dict(result)
-                    elif fetchall:
-                        result = cursor.fetchall()
-                        if result and cursor_factory:
-                            result = [dict(r) for r in result]
-                    elif return_id:
-                        result = cursor.fetchone()[0]
-                    if commit:
-                        conn.commit()
-                    return result
-        except (psycopg2.Error, Exception) as e:
-            logger.error("Database error executing query [%s...]: %s", query[:60], e)
-            raise DatabaseError(f"Query execution failed: {e}") from e
+        with self._get_connection() as conn:
+            cursor_factory = RealDictCursor if fetch or fetchall else None
+            with conn.cursor(cursor_factory=cursor_factory) as cursor:
+                cursor.execute(query, params)
+                result = True
+                if fetch:
+                    result = cursor.fetchone()
+                    if result and cursor_factory:
+                        result = dict(result)
+                elif fetchall:
+                    result = cursor.fetchall()
+                    if result and cursor_factory:
+                        result = [dict(r) for r in result]
+                elif return_id:
+                    result = cursor.fetchone()[0]
+                if commit:
+                    conn.commit()
+                return result
     # Whitelist of allowed table/column names for generic ORM methods
     _ALLOWED_TABLES = frozenset({
         'users', 'roles', 'cameras', 'sites', 'plate_events',
@@ -94,7 +88,6 @@ class DatabaseManager:
     @staticmethod
     def _validate_identifier(name: str):
         """Validate that a SQL identifier contains only safe characters."""
-        import re
         if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
             raise ValueError(f"Invalid SQL identifier: {name}")
 
@@ -442,7 +435,6 @@ class DatabaseManager:
 
     def create_remember_token(self, user_id: int, days: int = 7) -> str | None:
         """Create a secure remember token for auto-login. Returns token string."""
-        import secrets
         token = secrets.token_urlsafe(32)
         self._execute_query(
             "UPDATE users SET remember_token = %s, remember_token_expires = NOW() + (%s * INTERVAL '1 day') WHERE id = %s",
@@ -633,7 +625,6 @@ class DatabaseManager:
         return self.select("cameras", conditions={"id": camera_id}, fetchall=False)
 
     def add_camera(self, name, cam_type, imou_device_id, rtsp_url, is_active=True, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=554) -> bool:
-        import json
         query = '''
             INSERT INTO cameras (camera_name, camera_type, imou_device_id, imou_channel_id, rtsp_url, is_active, site_ids, provider_keys, camera_ip, camera_port)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -643,7 +634,6 @@ class DatabaseManager:
         return self._execute_query(query, params, commit=True) is not None
 
     def update_camera(self, camera_id, name, cam_type, imou_device_id, rtsp_url, is_active, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=None) -> bool:
-        import json
         query = '''
             UPDATE cameras
             SET camera_name=%s, camera_type=%s, imou_device_id=%s, imou_channel_id=%s, rtsp_url=%s, is_active=%s, site_ids=%s, provider_keys=%s,
@@ -777,7 +767,6 @@ class DatabaseManager:
         channel = cam.get('imou_channel_id', '0')
         
         # Interpolate
-        import urllib.parse
         encoded_mk = urllib.parse.quote(mk)
         url = template.replace("{user}", "admin").replace("{username}", "admin") \
                       .replace("{pass}", encoded_mk).replace("{password}", encoded_mk) \

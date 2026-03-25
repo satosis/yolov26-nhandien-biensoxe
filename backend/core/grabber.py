@@ -16,6 +16,7 @@ import logging
 import signal
 import numpy as np
 import cv2
+import queue
 from multiprocessing import Process, Queue, Event, shared_memory
 from typing import Optional
 
@@ -80,11 +81,7 @@ class CameraReader:
         self.site_id = site_id
 
         total = self.HEADER_BYTES + cfg.SHM_FRAME_BYTES
-        try:
-            self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
-        except FileExistsError:
-            # Previous run didn't clean up — reuse
-            self._shm = shared_memory.SharedMemory(name=shm_name, create=False, size=total)
+        self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
         self._buf = np.ndarray(
             (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3),
             dtype=np.uint8,
@@ -100,80 +97,76 @@ class CameraReader:
         prev_gray: Optional[np.ndarray] = None
         frame_idx = 0
 
-        try:
-            while not self.stop_event.is_set():
-                cap = self._open_capture()
-                if cap is None:
-                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
-                    continue
+        while not self.stop_event.is_set():
+            cap = self._open_capture()
+            if cap is None:
+                time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                continue
 
-                logger.info("[%s] Stream opened", self.cam_id)
+            logger.info("[%s] Stream opened", self.cam_id)
+            t_last = time.monotonic()
+
+            while not self.stop_event.is_set():
+                ret, frame = cap.read()
+                if not ret or frame is None:
+                    logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
+                    break
+
+                # Expert Optimization: Use high-precision sleep for smoother 15 FPS stream
+                t_now = time.monotonic()
+                if t_now < t_last + frame_interval:
+                    time.sleep(max(0, (t_last + frame_interval) - t_now))
                 t_last = time.monotonic()
 
-                while not self.stop_event.is_set():
-                    ret, frame = cap.read()
-                    if not ret or frame is None:
-                        logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
-                        break
+                # Resize to target resolution - NEAREST is 3x faster than LINEAR on CPU
+                if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
+                    frame = cv2.resize(
+                        frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
+                    )
 
-                    # Expert Optimization: Use high-precision sleep for smoother 15 FPS stream
-                    t_now = time.monotonic()
-                    if t_now < t_last + frame_interval:
-                        time.sleep(max(0, (t_last + frame_interval) - t_now))
-                    t_last = time.monotonic()
+                # Optional temporal denoising (Disabled by default if alpha=1.0)
+                alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
+                if alpha < 1.0:
+                    if hasattr(self, '_prev_f32'):
+                        cv2.accumulateWeighted(frame, self._prev_f32, alpha)
+                        frame = cv2.convertScaleAbs(self._prev_f32)
+                    else:
+                        self._prev_f32 = frame.astype(np.float32)
 
-                    # Resize to target resolution - NEAREST is 3x faster than LINEAR on CPU
-                    if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
-                        frame = cv2.resize(
-                            frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
-                        )
+                # Write frame to shared memory (zero-copy for inference process)
+                np.copyto(self._buf, frame)
+                self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
 
-                    # Optional temporal denoising (Disabled by default if alpha=1.0)
-                    alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
-                    if alpha < 1.0:
-                        if hasattr(self, '_prev_f32'):
-                            cv2.accumulateWeighted(frame, self._prev_f32, alpha)
-                            frame = cv2.convertScaleAbs(self._prev_f32)
-                        else:
-                            self._prev_f32 = frame.astype(np.float32)
+                # Motion detection - optimized by downscaling to 1/4
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
+                    small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                    if roi_mask is None:
+                        roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
+                    
+                    if _motion_in_roi(prev_gray, small_gray, roi_mask):
+                        token = {
+                            "cam_id": self.cam_id,
+                            "shm_name": self.shm_name,
+                            "frame_idx": frame_idx,
+                            "ts": time.time(),
+                            "site_id": self.site_id,
+                        }
+                        if not self.infer_queue.full():
+                            self.infer_queue.put_nowait(token)
+                    prev_gray = small_gray
+                elif prev_gray is None:
+                    prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                frame_idx += 1
 
-                    # Write frame to shared memory (zero-copy for inference process)
-                    np.copyto(self._buf, frame)
-                    self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+            cap.release()
+            if not self.stop_event.is_set():
+                logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
+                time.sleep(cfg.RTSP_RECONNECT_DELAY)
 
-                    # Motion detection - optimized by downscaling to 1/4
-                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
-                        small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                        if roi_mask is None:
-                            roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
-                        
-                        if _motion_in_roi(prev_gray, small_gray, roi_mask):
-                            token = {
-                                "cam_id": self.cam_id,
-                                "shm_name": self.shm_name,
-                                "frame_idx": frame_idx,
-                                "ts": time.time(),
-                                "site_id": self.site_id,
-                            }
-                            import queue
-                            try:
-                                self.infer_queue.put_nowait(token)
-                            except queue.Full:
-                                pass # Drop frame if inference queue is full to prevent IPC blocking
-                        prev_gray = small_gray
-                    elif prev_gray is None:
-                        prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                    frame_idx += 1
-
-                cap.release()
-                if not self.stop_event.is_set():
-                    logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
-                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
-        finally:
-            self._shm.close()
-            self._shm.unlink()
-            logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
+        self._shm.close()
+        self._shm.unlink()
+        logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
         """Open RTSP with FFmpeg backend + hardware-friendly flags."""

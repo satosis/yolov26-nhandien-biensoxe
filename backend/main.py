@@ -36,10 +36,7 @@ class CameraOrchestrator:
     def reset_streaming_flags(self):
         """Reset all is_streaming flags to False at startup."""
         logger.info("Resetting all camera streaming flags to FALSE for a clean start...")
-        try:
-            self.db._execute_query("UPDATE cameras SET is_streaming = FALSE")
-        except Exception as e:
-            logger.error(f"Failed to reset streaming flags: {e}")
+        self.db._execute_query("UPDATE cameras SET is_streaming = FALSE")
 
     def start(self):
         logger.info("--- AI Core Orchestrator Starting ---")
@@ -98,58 +95,49 @@ class CameraOrchestrator:
 
     def run(self):
         self.start()
-        try:
-            while not self.stop_event.is_set():
-                # 1. Health check for core processes
-                for p in self.core_processes:
-                    if not p.is_alive():
-                        logger.error(f"Core process {p.name} (PID {p.pid}) has exited unexpectedly!")
-                        self.stop_event.set()
-                        break
-                
-                if self.stop_event.is_set():
+        while not self.stop_event.is_set():
+            # 1. Health check for core processes
+            for p in self.core_processes:
+                if not p.is_alive():
+                    logger.error(f"Core process {p.name} (PID {p.pid}) has exited unexpectedly!")
+                    self.stop_event.set()
                     break
+            
+            if self.stop_event.is_set():
+                break
 
-                # 2. Sync grabbers with database state
-                try:
-                    # Fetch cameras that SHOULD be streaming
-                    streaming_cams = self.db._execute_query(
-                        "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
-                    ) or []
-                    streaming_ids = {str(c['id']) for c in streaming_cams}
+            # 2. Sync grabbers with database state
+            # Fetch cameras that SHOULD be streaming
+            streaming_cams = self.db._execute_query(
+                "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
+            ) or []
+            streaming_ids = {str(c['id']) for c in streaming_cams}
 
-                    # Start missing grabbers
-                    for cam in streaming_cams:
-                        cid = str(cam['id'])
-                        if cid not in self.grabbers or not self.grabbers[cid].is_alive():
-                            self.spawn_grabber(cam)
+            # Start missing grabbers
+            for cam in streaming_cams:
+                cid = str(cam['id'])
+                if cid not in self.grabbers or not self.grabbers[cid].is_alive():
+                    self.spawn_grabber(cam)
 
-                    # Stop grabbers no longer requested
-                    active_cid_list = list(self.grabbers.keys())
-                    for cid in active_cid_list:
-                        if cid not in streaming_ids:
-                            self.stop_grabber(cid)
-                            
-                except Exception as e:
-                    logger.error(f"Error during grabber sync: {e}")
-                
-                # Check for any dead grabbers that should be running and cleanup the mapping
-                dead_cids = [cid for cid, p in self.grabbers.items() if not p.is_alive()]
-                for cid in dead_cids:
-                    logger.warning(f"Grabber for camera {cid} died. It will be restarted in next sync if still marked as streaming.")
-                    if cid in self.grabbers:
-                        p = self.grabbers[cid]
-                        if p in self.processes:
-                            self.processes.remove(p)
-                        del self.grabbers[cid]
+            # Stop grabbers no longer requested
+            active_cid_list = list(self.grabbers.keys())
+            for cid in active_cid_list:
+                if cid not in streaming_ids:
+                    self.stop_grabber(cid)
+            
+            # Check for any dead grabbers that should be running and cleanup the mapping
+            dead_cids = [cid for cid, p in self.grabbers.items() if not p.is_alive()]
+            for cid in dead_cids:
+                logger.warning(f"Grabber for camera {cid} died. It will be restarted in next sync if still marked as streaming.")
+                if cid in self.grabbers:
+                    p = self.grabbers[cid]
+                    if p in self.processes:
+                        self.processes.remove(p)
+                    del self.grabbers[cid]
 
-                time.sleep(3) # Sync interval (seconds)
-                
-        except KeyboardInterrupt:
-            logger.info("KeyboardInterrupt received.")
-            self.stop_event.set()
-        finally:
-            self.cleanup()
+            time.sleep(3) # Sync interval (seconds)
+        
+        self.cleanup()
 
     def cleanup(self):
         logger.info("Cleaning up processes...")
@@ -166,11 +154,8 @@ if __name__ == "__main__":
     mp.set_start_method('spawn', force=True)
 
     while True:
-        try:
-            orch = CameraOrchestrator()
-            orch.run()
-        except Exception:
-            logger.exception("Orchestrator encountered a fatal error")
+        orch = CameraOrchestrator()
+        orch.run()
         
         logger.info("Restarting orchestrator in 5 seconds...")
         time.sleep(5)

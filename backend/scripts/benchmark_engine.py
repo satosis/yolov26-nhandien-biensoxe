@@ -3,6 +3,9 @@ import numpy as np
 import time
 import os
 import sys
+from ultralytics import YOLO
+from paddleocr import PaddleOCR
+import backend.core.config as cfg
 
 # Add current dir to path to import config
 sys.path.append(os.getcwd())
@@ -15,10 +18,6 @@ if not hasattr(ultralytics.utils.loss, "E2ELoss"):
     ultralytics.utils.loss.E2ELoss = E2ELoss
 
 def benchmark():
-    from ultralytics import YOLO
-    from paddleocr import PaddleOCR
-    import backend.core.config as cfg
-
     print("=== System Benchmark & Optimization Test ===")
     
     # 1. Test Model Loading
@@ -49,21 +48,18 @@ def benchmark():
     for name, model in models.items():
         resolutions = [640] if name == 'ONNX' else [320, 640]
         for res in resolutions:
-            try:
-                # Warmup
+            # Warmup
+            model(frame, imgsz=res, verbose=False)
+            
+            t0 = time.time()
+            iters = 10
+            for _ in range(iters):
                 model(frame, imgsz=res, verbose=False)
-                
-                t0 = time.time()
-                iters = 10
-                for _ in range(iters):
-                    model(frame, imgsz=res, verbose=False)
-                t1 = time.time()
-                avg = (t1 - t0) / iters
-                fps = 1.0 / avg
-                print(f"  - {name} @ {res}px: {avg:.4f}s ({fps:.2f} FPS)")
-                results.append({'name': name, 'res': res, 'time': avg})
-            except Exception as e:
-                print(f"  - {name} @ {res}px: FAILED ({e})")
+            t1 = time.time()
+            avg = (t1 - t0) / iters
+            fps = 1.0 / avg
+            print(f"  - {name} @ {res}px: {avg:.4f}s ({fps:.2f} FPS)")
+            results.append({'name': name, 'res': res, 'time': avg})
 
     # 4. Benchmark OCR
     print("\n[3/4] Benchmarking OCR...")

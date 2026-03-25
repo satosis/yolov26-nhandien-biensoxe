@@ -33,27 +33,19 @@ class SettingsManager:
             self.save_settings(self.defaults)
             return self.defaults.copy()
         
-        try:
-            with open(self.settings_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Merge defaults to ensure all keys exist
-                settings = self.defaults.copy()
-                settings.update(data)
-                return settings
-        except Exception as e:
-            logging.error(f"Error loading settings: {e}")
-            return self.defaults.copy()
+        with open(self.settings_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # Merge defaults to ensure all keys exist
+            settings = self.defaults.copy()
+            settings.update(data)
+            return settings
 
     def save_settings(self, new_settings):
-        try:
-            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
-            with open(self.settings_path, "w", encoding="utf-8") as f:
-                json.dump(new_settings, f, indent=4)
-            self.settings = new_settings
-            return True
-        except Exception as e:
-            logging.error(f"Error saving settings: {e}")
-            return False
+        os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
+        with open(self.settings_path, "w", encoding="utf-8") as f:
+            json.dump(new_settings, f, indent=4)
+        self.settings = new_settings
+        return True
 
     def get(self, key):
         return self.settings.get(key, self.defaults.get(key))

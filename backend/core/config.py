@@ -33,3 +33,13 @@ MOTION_DILATE_ITER = 2
 DENOISE_TEMPORAL_ALPHA = 1.0 # 1.0 = Off
 DENOISE_SPATIAL_KSIZE = 3
 STREAM_JPEG_QUALITY_LIVE = 88
+
+# --- Telegram Bot Config (Restored) ---
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "7525014385:AAFOoctmRZUNS8_xt6nRzVBs2gIuLSSlVDc")
+CHAT_IMPORTANT = os.environ.get("TELEGRAM_CHAT_IMPORTANT", "-5273529392")
+CHAT_REGULAR = os.environ.get("TELEGRAM_CHAT_REGULAR", "-5171619580")
+FACES_DIR = os.environ.get("FACES_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "data/faces"))
+
+def normalize_plate(plate: str) -> str:
+    if not plate: return ""
+    return plate.upper().replace(" ", "").replace("-", "").replace(".", "").strip()

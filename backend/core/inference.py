@@ -1,18 +1,34 @@
 import queue
-"""
-parking_hpc/inference.py
-Process 2 — AI Inference
-"""
 import os
 import time
 import signal
 import logging
 import collections
+import threading
+import ssl
+import certifi
+import numpy as np
+import cv2
+import concurrent.futures
 from dataclasses import dataclass, field
 from multiprocessing import Process, Queue, Event, shared_memory
-from typing import Optional
+from typing import Optional, List, Tuple, Dict, Any
 
-# NO top-level cv2 or numpy imports to avoid Mac SegFaults
+import onnxruntime as ort
+import insightface
+from insightface.app import FaceAnalysis
+from ultralytics import YOLO
+
+from backend.core import config as cfg
+from backend.core.database import DatabaseManager
+from backend.util import ocr_utils, image_utils
+from backend.util.ocr_utils import VNPlateOCR
+from backend.util.image_utils import save_face_snapshot, save_snapshot
+
+"""
+parking_hpc/inference.py
+Process 2 — AI Inference
+"""
 
 logger = logging.getLogger("inference")
 
@@ -33,9 +49,7 @@ class InferenceResult:
 # ── Plate enhancement ─────────────────────────────────────────────────────────
 
 def enhance_plate(crop):
-    """Lazy imports for cv2 inside function."""
-    import cv2
-    import numpy as np
+    """Plate enhancement for low-res crops."""
     h, w = crop.shape[:2]
     upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
     gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
@@ -51,7 +65,6 @@ def enhance_plate(crop):
 
 class PlateVoter:
     def __init__(self, buffer_size: int = 5):
-        from backend.core import config as cfg
         self._buffer: collections.deque = collections.deque(maxlen=buffer_size)
         self._buffer_size = buffer_size
         self._min_conf = cfg.VOTE_MIN_CONF if hasattr(cfg, 'VOTE_MIN_CONF') else 0.3
@@ -63,8 +76,6 @@ class PlateVoter:
     def is_ready(self) -> bool:
         if len(self._buffer) == 0: return False
         if len(self._buffer) >= self._buffer_size: return True
-        # Adaptive Optimization: If we have at least 3 samples and the best one is highly confident,
-        # return ready early to reduce perceived latency (200-400ms gain).
         if len(self._buffer) >= 3:
             best_text, best_conf = self.best()
             if best_conf > 0.88: return True
@@ -86,18 +97,8 @@ class PlateVoter:
 
 # ── Model wrappers ────────────────────────────────────────────────────────────
 
-# Pre-import heavy libs to avoid per-frame overhead, but use guards for Mac safety
-try:
-    import numpy as np
-    import cv2
-    from ultralytics import YOLO
-    import onnxruntime as ort
-except ImportError:
-    pass
-
 class PlateDetector:
     def __init__(self):
-        from backend.core import config as cfg
         path = cfg.PLATE_MODEL_PATH
         onnx_path = path.replace(".pt", ".onnx")
         if os.path.exists(onnx_path):
@@ -108,21 +109,12 @@ class PlateDetector:
         self._ort_session = None
 
         if self._is_onnx:
-            try:
-                providers = ort.get_available_providers()
-                preferred = []
-                # Expert: Allow disabling CoreML via env var to save RAM in frontend process
-                use_coreml = os.environ.get("ORT_COREML_FLAGS") != "0"
-                if use_coreml and "CoreMLExecutionProvider" in providers:
-                    preferred.append("CoreMLExecutionProvider")
-                preferred.append("CPUExecutionProvider")
-                # Expert Optimization: Disable mem_pattern to potentially speed up dynamic shapes
-                sess_opt = ort.SessionOptions()
-                sess_opt.enable_mem_pattern = False
-                self._ort_session = ort.InferenceSession(path, sess_opt, providers=preferred)
-                logger.info("PlateDetector loaded via ONNXRuntime (CoreML enabled): %s", path)
-            except Exception as e:
-                logger.warning("Could not init ONNXRuntime for CoreML: %s. Using YOLO fallback.", e)
+            # Strictly use CPU to avoid GPU driver context leaks
+            preferred = ["CPUExecutionProvider"]
+            sess_opt = ort.SessionOptions()
+            sess_opt.enable_mem_pattern = False
+            self._ort_session = ort.InferenceSession(path, sess_opt, providers=preferred)
+            logger.info("PlateDetector loaded via ONNXRuntime (CPU-ONLY): %s", path)
 
         if self._is_onnx and self._ort_session:
             self._model = None
@@ -132,54 +124,44 @@ class PlateDetector:
             logger.info("PlateDetector initialized via YOLO: %s", path)
 
     def detect(self, frame):
-        from backend.core import config as cfg
-        
-        # Try CoreML-accelerated ONNXRuntime if available (10x faster on Mac)
         if self._ort_session:
-            try:
-                input_name = self._ort_session.get_inputs()[0].name
-                # Expert: Faster blob creation without dnn.blobFromImage overhead if possible
-                # However, dnn.blobFromImage is quite optimized, so we keep it but avoid re-imports
-                blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
-                outputs = self._ort_session.run(None, {input_name: blob})
+            input_name = self._ort_session.get_inputs()[0].name
+            # Input is 640x640
+            blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
+            outputs = self._ort_session.run(None, {input_name: blob})
+            
+            # E2E format detection: [1, 300, 6] -> [x1, y1, x2, y2, score, cls_id]
+            # No manual NMS or Transpose needed for this model type
+            pred = outputs[0][0]
+            
+            h, w = frame.shape[:2]
+            sx, sy = w / 640, h / 640
+            
+            boxes = []
+            for row in pred:
+                conf = float(row[4])
+                if conf < 0.25:
+                    continue
+                
+                cls_id = int(row[5])
+                x1 = int(row[0] * sx)
+                y1 = int(row[1] * sy)
+                x2 = int(row[2] * sx)
+                y2 = int(row[3] * sy)
+                
+                boxes.append((x1, y1, x2, y2, conf, cls_id))
+            return boxes
+        return []
 
-                pred = outputs[0][0].T  # [8400, n_outputs] — transpose once
-
-                # Vectorized postprocessing: replace Python for-loop over 8400 anchors
-                scores_all = pred[:, 4:]                                          # [8400, n_classes]
-                class_ids  = np.argmax(scores_all, axis=1)                        # [8400]
-                confs      = scores_all[np.arange(len(pred)), class_ids]          # [8400]
-                keep       = confs > 0.25
-                if not keep.any():
-                    return []
-
-                pred_k  = pred[keep]
-                cids_k  = class_ids[keep].tolist()
-                confs_k = confs[keep].tolist()
-
-                h, w    = frame.shape[:2]
-                sx, sy  = w / 640, h / 640
-                cx = pred_k[:, 0] * sx;  cy = pred_k[:, 1] * sy
-                cw = pred_k[:, 2] * sx;  ch = pred_k[:, 3] * sy
-                x1s = (cx - cw / 2).astype(int).tolist()
-                y1s = (cy - ch / 2).astype(int).tolist()
-                bws = cw.astype(int).tolist()
-                bhs = ch.astype(int).tolist()
-
-                indices = cv2.dnn.NMSBoxes(
-                    list(zip(x1s, y1s, bws, bhs)), confs_k, 0.25, 0.45
-                )
-                if len(indices) == 0:
-                    return []
-                return [
-                    (x1s[i], y1s[i], x1s[i] + bws[i], y1s[i] + bhs[i], confs_k[i], cids_k[i])
-                    for i in indices.flatten()
-                ]
-            except Exception as e:
-                logger.error("Error in ORT inference: %s", e)
+    def close(self):
+        """Explicitly close the ONNXRuntime session."""
+        if self._ort_session:
+            # ONNXRuntime session doesn't always have .close(), but we can delete the ref
+            self._ort_session = None
+            logger.info("PlateDetector session released")
         
         if self._model is None:
-            return []  # ORT-only mode, no fallback model
+            return []
         imgsz = 640 if self._is_onnx else 416
         results = self._model(frame, imgsz=imgsz, conf=0.25, verbose=False)
         boxes = []
@@ -194,7 +176,6 @@ class PlateDetector:
 
 class OCRReader:
     def __init__(self):
-        from backend.util.ocr_utils import VNPlateOCR
         self._ocr = VNPlateOCR()
         logger.info("OCRReader initialised")
 
@@ -203,32 +184,19 @@ class OCRReader:
 
 class FaceRecognizer:
     def __init__(self):
-        import onnxruntime as ort
-        from backend.core import config as cfg
-        import numpy as np
-        
-        providers = ort.get_available_providers()
-        # NOTE: CoreMLExecutionProvider is currently INCOMPATIBLE with InsightFace buffalo_sc 
-        # due to output shape mismatch error. Falling back to CPU/OpenCL.
-        preferred = []
-        if "OpenCLExecutionProvider" in providers:
-            preferred.append("OpenCLExecutionProvider")
-        preferred.append("CPUExecutionProvider")
+        # Force CPUExecutionProvider for FaceAnalysis
+        preferred = ["CPUExecutionProvider"]
 
-        from insightface.app import FaceAnalysis
         self._app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=preferred)
-        self._app.prepare(ctx_id=0, det_size=(320, 320))
+        self._app.prepare(ctx_id=-1, det_size=(320, 320)) # ctx_id=-1 for CPU
         
         self._names = []
-        self._matrix = None # Will hold [N, 512] embeddings
+        self._matrix = None
         
         self._load_known_faces()
         logger.info(f"FaceRecognizer ready with {len(self._names)} known identities")
 
     def _load_known_faces(self):
-        import cv2
-        import numpy as np
-        from backend.core import config as cfg
         if not os.path.isdir(cfg.KNOWN_FACES_DIR): return
         
         all_embs = []
@@ -247,34 +215,27 @@ class FaceRecognizer:
                 if faces: embeddings.append(faces[0].normed_embedding)
             
             if embeddings:
-                # Expert Tip: Average embeddings for stability + Normalize
                 avg_emb = np.mean(embeddings, axis=0)
                 avg_emb = avg_emb / np.linalg.norm(avg_emb)
                 all_embs.append(avg_emb)
                 all_names.append(person)
         
         if all_embs:
-            self._matrix = np.array(all_embs) # [N, 512]
+            self._matrix = np.array(all_embs)
             self._names = all_names
 
     def _score_to_percent(self, sim: float) -> float:
-        """Expert Calibration: Map ArcFace similarity [0.40, 0.80] to [0.0, 1.0]."""
-        import numpy as np
         lower, upper = 0.40, 0.80
         percent = (sim - lower) / (upper - lower)
         return float(np.clip(percent, 0.0, 1.0))
 
     def identify(self, frame) -> tuple[str, float, list[int]]:
-        """High-performance Face Identification."""
-        import numpy as np
         faces = self._app.get(frame)
         if not faces: return "", 0.0, []
         
-        # Prominence sorting
         faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
         face = faces[0]
         
-        # Quality check
         w, h = face.bbox[2]-face.bbox[0], face.bbox[3]-face.bbox[1]
         if w < 50 or h < 50:
             return "TOO_SMALL", 0.0, list(map(int, face.bbox))
@@ -285,7 +246,6 @@ class FaceRecognizer:
         if self._matrix is None:
             return "STRANGER", 0.0, bbox
 
-        # Vectorized Cosine Similarity
         similarities = np.dot(self._matrix, emb)
         idx = np.argmax(similarities)
         best_sim = float(similarities[idx])
@@ -294,24 +254,19 @@ class FaceRecognizer:
             return self._names[idx], self._score_to_percent(best_sim), bbox
         return "STRANGER", 0.0, bbox
 
+    def close(self):
+        """Release InsightFace resources."""
+        # InsightFace doesn't provide a public .close(), but we can clear the app ref
+        self._app = None
+        logger.info("FaceRecognizer session released")
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def save_snapshot(frame, cam_id: str, plate_text: str) -> str:
-    import cv2
-    from backend.core import config as cfg
-    os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    safe_plate = plate_text.replace("/", "_").replace("\\", "_") or "unknown"
-    path = os.path.join(cfg.SNAPSHOT_DIR, f"{cam_id}_{safe_plate}_{ts}.jpg")
-    cv2.imwrite(path, frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
-    return path
 
 # ── Inference worker ──────────────────────────────────────────────────────────
 
 class InferenceWorker:
     def __init__(self, infer_queue: Queue, result_queue: Queue, stop_event: Event):
-        from backend.core.database import DatabaseManager
-        from backend.core import config as cfg
         self.infer_queue = infer_queue
         self.result_queue = result_queue
         self.stop_event = stop_event
@@ -326,18 +281,24 @@ class InferenceWorker:
         self._seen_plates: dict[str, float] = {}
         self._frame_counter = 0
         
-        import concurrent.futures
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+
+    def cleanup(self):
+        """Explicitly release all AI resources."""
+        logger.info("InferenceWorker cleaning up...")
+        if hasattr(self._plate_detector, 'close'):
+            self._plate_detector.close()
+        if hasattr(self._face_recog, 'close'):
+            self._face_recog.close()
+        self._executor.shutdown(wait=True)
+        logger.info("InferenceWorker cleanup complete")
 
     def _get_voter(self, cam_id: str) -> PlateVoter:
         if cam_id not in self._voters:
-            from backend.core import config as cfg
             self._voters[cam_id] = PlateVoter(buffer_size=cfg.FRAME_BUFFER_SIZE)
         return self._voters[cam_id]
 
     def _get_shm_frame(self, shm_name: str):
-        import numpy as np
-        from backend.core import config as cfg
         if shm_name not in self._shm_clients:
             self._shm_clients[shm_name] = shared_memory.SharedMemory(name=shm_name, create=False)
         shm = self._shm_clients[shm_name]
@@ -345,14 +306,12 @@ class InferenceWorker:
         return arr.copy()
 
     def run(self):
-        import cv2
-        from backend.core import config as cfg
         logger.info("Inference worker started")
         while not self.stop_event.is_set():
-            try:
-                token = self.infer_queue.get(timeout=0.5)
-            except queue.Empty: # Timeout or empty queue
+            if self.infer_queue.empty():
+                time.sleep(0.1)
                 continue
+            token = self.infer_queue.get(timeout=0.5)
             
             cam_id, shm_name, ts = token["cam_id"], token["shm_name"], token["ts"]
             site_id = token.get("site_id")
@@ -362,7 +321,6 @@ class InferenceWorker:
             result = InferenceResult(cam_id=cam_id, ts=ts)
             result.annotated_frame = frame 
 
-            # ── Plate detection ───────────────────────────────────────────────
             detections = self._plate_detector.detect(frame)
             voter = self._get_voter(cam_id)
             
@@ -386,8 +344,6 @@ class InferenceWorker:
                         if not self._db.is_plate_whitelisted(best_text, site_id):
                             self._executor.submit(self._db.add_pending_plate_simple, best_text, best_text, cam_id, site_id)
 
-            # ── Face recognition ─────────────────────────────────────────────
-            # Optimization: Run face recognition in thread pool to avoid blocking plate detection
             self._frame_counter += 1
             if self._frame_counter % cfg.FACE_RECOG_EVERY_N == 0:
                 self._executor.submit(self._async_face_identify, frame, cam_id, site_id, result)
@@ -396,20 +352,15 @@ class InferenceWorker:
                 self.result_queue.put_nowait(result)
 
     def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult):
-        from backend.core import config as cfg
-        try:
-            name, sim, f_bbox = self._face_recog.identify(frame)
-            result.face_name, result.face_conf = name, sim
-            if name:
-                color = (0, 255, 0) if name != "STRANGER" else (0, 0, 255)
-                # Note: modifying result.annotated_frame from thread is safe as long as we don't draw overlapping
-                cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                if name == "STRANGER":
-                    from backend.util.image_utils import save_face_snapshot
-                    face_snap = save_face_snapshot(frame, cam_id)
-                    self._executor.submit(self._db.log_stranger, cam_id, sim, face_snap, site_id)
-        except Exception as e:
-            logger.error("Error in async face identity: %s", e)
+        name, sim, f_bbox = self._face_recog.identify(frame)
+        result.face_name, result.face_conf = name, sim
+        if name:
+            color = (0, 255, 0) if name != "STRANGER" else (0, 0, 255)
+            cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            if name == "STRANGER":
+                from backend.util.image_utils import save_face_snapshot
+                face_snap = save_face_snapshot(frame, cam_id)
+                self._executor.submit(self._db.log_stranger, cam_id, sim, face_snap, site_id)
 
     def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame):
         h, w = crop.shape[:2]
@@ -418,9 +369,13 @@ class InferenceWorker:
         if text: voter.add(text, ocr_conf * det_conf)
 
 def inference_process(infer_queue: Queue, result_queue: Queue, stop_event: Event):
-    import ssl
-    import certifi
     ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+
+    worker = InferenceWorker(infer_queue, result_queue, stop_event)
+    try:
+        worker.run()
+    finally:
+        worker.cleanup()

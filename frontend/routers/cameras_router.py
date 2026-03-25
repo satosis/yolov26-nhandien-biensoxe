@@ -22,14 +22,11 @@ async def cameras_page(request: Request, user: dict = Depends(require_menu("came
     # Robust site_id handling
     active_site_id = ctx.get("active_site_id")
     site_id_filter = None
-    try:
-        if active_site_id is not None:
-            if isinstance(active_site_id, str) and active_site_id.isdigit():
-                site_id_filter = int(active_site_id)
-            elif isinstance(active_site_id, int):
-                site_id_filter = active_site_id
-    except (ValueError, TypeError):
-        pass
+    if active_site_id is not None:
+        if isinstance(active_site_id, str) and active_site_id.isdigit():
+            site_id_filter = int(active_site_id)
+        elif isinstance(active_site_id, int):
+            site_id_filter = active_site_id
 
     ctx["cameras"] = db.get_all_cameras(site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
     ctx["providers"] = db.get_all_providers()
@@ -51,10 +48,7 @@ async def create_camera(
 ):
     parsed_site_ids = []
     if site_ids:
-        try:
-            parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
-        except ValueError:
-            logger.warning("create_camera: invalid site_ids value: %s", site_ids)
+        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
     db = get_db()
     ok = db.add_camera(
@@ -130,10 +124,7 @@ async def edit_camera(
 ):
     parsed_site_ids = []
     if site_ids:
-        try:
-            parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
-        except ValueError:
-            logger.warning("edit_camera: invalid site_ids value: %s", site_ids)
+        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
     db = get_db()
     cam = db.get_camera(camera_id)
