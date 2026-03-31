@@ -1,33 +1,166 @@
 {% extends "layout.html" %}
 {% block title %}Xe lạ — Parking Camera{% endblock %}
+
+{% block head %}
+<link href="/static/css/tom-select.css" rel="stylesheet">
+<style>
+.ts-wrapper.multi .ts-control { background:#1a1e2e; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 10px; min-height:38px; color:#fff; box-shadow:none; }
+.ts-wrapper.multi .ts-control:focus-within { border-color:rgba(34,211,238,0.5); }
+.ts-wrapper.multi .ts-control .item { background:rgba(34,211,238,0.15); color:#22d3ee; border:1px solid rgba(34,211,238,0.3); border-radius:4px; padding:1px 6px; font-size:12px; }
+.ts-wrapper.multi .ts-control .item .remove { color:#22d3ee; margin-left:4px; }
+.ts-dropdown { background:#1a1e2e; border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; }
+.ts-dropdown .option { padding:8px 12px; font-size:13px; }
+.ts-wrapper .ts-control input { color:#fff; }
+
+/* Empty state logic using :has() */
+#empty-message { display: none; }
+#pending-list:not(:has(.pending-row)) #empty-message { 
+    display: flex !important; 
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="flex flex-col gap-5">
   <div class="flex items-center gap-2.5">
     <span class="text-accent text-[28px]">🚘</span>
-    <span class="text-2xl font-semibold text-white">Biển số chờ duyệt</span>
+    <span class="text-2xl font-semibold text-white">Biển số chờ duyệt (Xe lạ)</span>
   </div>
 
-  <div class="flex flex-col gap-3" id="pending-list">
-    {% for p in plates %}
-    <div class="bg-bg-card rounded-lg p-4 flex items-center justify-between" id="pending-{{ p.pending_id }}">
-      <div class="flex items-center gap-4">
-        <span class="bg-status-yellow/10 text-status-yellow px-3 py-1.5 rounded-md text-[15px] font-mono font-bold border border-status-yellow/20">{{ p.plate_norm }}</span>
-        <div class="flex flex-col">
-          <span class="text-[12px] text-txt-sec">Raw: {{ p.plate_raw or p.plate_norm }}{% if p.site_name %} ({{ p.site_name }}){% endif %}</span>
-          <span class="text-[11px] text-txt-ter">{{ p.first_seen.strftime('%d/%m/%Y %H:%M') if p.first_seen else '—' }}</span>
-        </div>
+  <!-- Registration Form (Sync with Vehicles Add Form) -->
+  <form id="reg-vehicle-form" style="display:none" class="bg-bg-card rounded-lg p-5 flex flex-col gap-4 border border-accent/20 shadow-[0_0_20px_rgba(34,211,238,0.05)]"
+        method="post" action="/pending_plates/0/register">
+    <div class="text-accent font-semibold text-[14px] flex items-center gap-2">
+      <span>📝 Đăng ký phương tiện mới từ danh sách chờ</span>
+      <div class="h-[1px] flex-1 bg-accent/20"></div>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Biển số *</label>
+        <input id="reg-plate" name="plate_number" required readonly
+               class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2 text-sm text-accent font-mono font-bold focus:outline-none" 
+               placeholder="88A-12345">
       </div>
-      <div class="flex gap-2">
-        <button class="bg-status-green/10 text-status-green text-[12px] font-medium px-3 py-1.5 rounded-md border border-status-green/20 hover:bg-status-green/20 transition-colors"
-                hx-post="/pending_plates/{{ p.pending_id }}/approve" hx-target="#pending-{{ p.pending_id }}" hx-swap="outerHTML">✅ Duyệt</button>
-        <button class="bg-status-red/10 text-status-red text-[12px] font-medium px-3 py-1.5 rounded-md border border-status-red/20 hover:bg-status-red/20 transition-colors"
-                hx-post="/pending_plates/{{ p.pending_id }}/reject" hx-target="#pending-{{ p.pending_id }}" hx-swap="outerHTML">❌ Từ chối</button>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe *</label>
+        <input name="owner_name" required 
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" 
+               placeholder="Nguyễn Văn A">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
+        <select id="reg-site" name="site_ids" multiple class="w-full">
+          {% for s in sites %}<option value="{{ s.id }}" {% if s.id == active_site_id %}selected{% endif %}>{{ s.site_name }}</option>{% endfor %}
+        </select>
       </div>
     </div>
-    {% endfor %}
-    {% if not plates %}
-    <div class="bg-bg-card rounded-lg p-8 text-center text-txt-ter text-sm">Không có biển số nào chờ duyệt.</div>
-    {% endif %}
+    <div>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú</label>
+      <input name="note" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" 
+             placeholder="Cư dân, khách vãng lai...">
+    </div>
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-6 py-2 rounded-md hover:bg-cyan-300 transition-colors cursor-pointer">💾 Lưu & Phê duyệt</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5 cursor-pointer" onclick="hideRegForm()">Hủy</button>
+    </div>
+  </form>
+
+  <!-- Table List (Identical to Vehicles) -->
+  <div class="bg-bg-card rounded-xl border border-divider shadow-sm overflow-hidden flex flex-col min-h-[400px]" id="pending-list" x-data="{}">
+    <table class="w-full text-left border-collapse">
+      <!-- Header -->
+      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
+        <tr>
+          <th class="px-5 py-3 font-semibold w-[120px]">ẢNH</th>
+          <th class="px-5 py-3 font-semibold w-[200px]">BIỂN SỐ</th>
+          <th class="px-5 py-3 font-semibold">THỜI GIAN</th>
+          <th class="px-5 py-3 font-semibold w-[120px] text-right">HÀNH ĐỘNG</th>
+        </tr>
+      </thead>
+
+      <!-- Body -->
+      <tbody>
+        {% for p in plates %}
+        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors pending-row" id="row-{{ p.pending_id }}">
+          <!-- Thumbnail -->
+          <td class="px-5 py-4">
+            <div class="w-[100px] h-[56px] rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 cursor-zoom-in group transition-all hover:border-accent/40 shadow-sm">
+              {% if p.image_path %}
+              <img src="/snapshots/{{ p.image_path.split('/')[-1] }}" 
+                   alt="Plate" 
+                   class="w-full h-full object-cover transition-transform group-hover:scale-110"
+                   onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
+                   onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center text-[22px]\'>🚘</div>'">
+              {% else %}
+              <div class="w-full h-full flex items-center justify-center text-[22px]">🚘</div>
+              {% endif %}
+            </div>
+          </td>
+
+          <!-- Combined Plate Section -->
+          <td class="px-5 py-4">
+            <span class="bg-status-yellow/10 text-status-yellow px-2.5 py-1 rounded-md text-[15px] font-mono font-bold border border-status-yellow/20 inline-block w-fit">
+              {{ p.plate_norm or p.plate_raw or '???' }}
+            </span>
+          </td>
+
+          <!-- Time -->
+          <td class="px-5 py-4 text-[13px] text-txt-ter">
+            {{ p.first_seen.strftime('%d/%m/%Y %H:%M:%S') if p.first_seen else '—' }}
+          </td>
+
+          <!-- Actions -->
+          <td class="px-5 py-4 text-right">
+            <div class="flex justify-end gap-2">
+              <button class="text-accent hover:text-cyan-300 text-[18px] transition-colors cursor-pointer p-1" 
+                      title="Đăng ký phương tiện"
+                      onclick="showRegForm('{{ p.pending_id }}', '{{ p.plate_norm }}')">📝</button>
+              <button class="text-status-red/60 hover:text-status-red text-[18px] transition-colors cursor-pointer p-1" 
+                      title="Từ chối"
+                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                        detail: {
+                          title: 'Từ chối biển số',
+                          message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
+                          confirmText: 'Xác nhận từ chối',
+                          confirmUrl: '/pending_plates/{{ p.pending_id }}/reject',
+                          confirmTarget: '#row-{{ p.pending_id }}'
+                        }
+                      }))">❌</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div id="empty-message" class="px-5 py-12 text-center text-txt-ter text-sm flex flex-col items-center gap-2">
+      <span>Hiện không có biển số nào đang chờ duyệt.</span>
+    </div>
   </div>
 </div>
+
+<script src="/static/js/tom-select.complete.min.js"></script>
+<script>
+var tsReg;
+document.addEventListener("DOMContentLoaded", function() {
+  tsReg = new TomSelect("#reg-site", {
+    plugins: ['remove_button'],
+    placeholder: "— Chọn địa điểm —",
+    maxItems: null,
+  });
+});
+
+function showRegForm(pendingId, plate) {
+  const form = document.getElementById('reg-vehicle-form');
+  form.action = `/pending_plates/${pendingId}/register`;
+  document.getElementById('reg-plate').value = plate;
+  form.style.display = 'flex';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+function hideRegForm() {
+  document.getElementById('reg-vehicle-form').style.display = 'none';
+}
+</script>
 {% endblock %}

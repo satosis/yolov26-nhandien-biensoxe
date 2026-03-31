@@ -18,6 +18,7 @@ def preload_models():
         # General model warming (Lazy load)
         if _yolo is None:
             _yolo = YOLO(PLATE_MODEL_PATH, task="detect")
+            _yolo.to("cpu")
         if _ocr is None:
             _ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False, use_gpu=False)
         if _face is None:

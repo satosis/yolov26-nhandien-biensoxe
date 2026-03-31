@@ -7,64 +7,830 @@
       <span class="text-accent text-[28px]">👥</span>
       <span class="text-2xl font-semibold text-white">Người dùng</span>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
-            onclick="document.getElementById('add-user-form').classList.toggle('hidden')">+ Thêm</button>
+    <div class="flex items-center gap-3">
+      <button
+        class="bg-white/5 border border-white/10 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-all flex items-center gap-2"
+        onclick="cleanAiCache()">
+        <span class="text-sm">🧹</span> Dọn dẹp AI
+      </button>
+      <button
+        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors shadow-[0_4px_15px_rgba(0,229,255,0.3)]"
+        onclick="document.getElementById('add-user-form').classList.toggle('hidden')">+ Thêm</button>
+    </div>
   </div>
 
-  <form id="add-user-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
+  <form id="add-user-form" method="POST" action="/users" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Username *</label>
-        <input name="username" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <input name="username" required
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Mật khẩu *</label>
-        <input name="password" type="password" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <input name="password" type="password" required
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Họ tên</label>
-        <input name="full_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <input name="full_name"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Vai trò</label>
-        <select name="role" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% for r in roles %}<option value="{{ r.role_name }}">{{ r.role_name }}</option>{% endfor %}
+        <select name="role_name" required
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% for r in roles %}
+          <option value="{{ r.role_name }}">{{ r.role_name }}</option>
+          {% endfor %}
         </select>
       </div>
     </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm (ID, cách nhau bởi dấu phẩy)</label>
+        <input name="site_ids" placeholder="1, 2, 3"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <div class="mt-1 flex flex-wrap gap-1">
+          {% for s in sites %}
+          <span class="text-[10px] bg-white/5 px-1 rounded text-txt-ter">{{ s.id }}: {{ s.site_name }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú</label>
+        <input name="note"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
     <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+      <button type="submit"
+        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
+      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
+        onclick="this.closest('form').classList.add('hidden')">Hủy</button>
     </div>
   </form>
 
-  <div class="bg-bg-card rounded-lg overflow-hidden">
-    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
-      <div class="w-[200px]">TÀI KHOẢN</div>
-      <div class="flex-1">HỌ VÀ TÊN</div>
-      <div class="w-[120px]">VAI TRÒ</div>
-      <div class="w-[120px]">HÀNH ĐỘNG</div>
-    </div>
-    {% for u in all_users %}
-    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-      <div class="w-[200px]">
-        <div class="text-[13px] font-semibold text-white">{{ u.username }}</div>
-        <div class="text-[11px] text-txt-ter">ID: {{ u.id }}</div>
-      </div>
-      <div class="flex-1 text-[13px] text-txt-sec">{{ u.full_name or '—' }}</div>
-      <div class="w-[120px]">
-        <span class="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent border border-accent/20">{{ u.role or 'N/A' }}</span>
-      </div>
-      <div class="w-[120px] flex gap-2">
-        <button class="text-txt-sec hover:text-accent text-sm">✏️</button>
-        {% if u.username != 'admin' %}
-        <button class="text-txt-sec hover:text-status-red text-sm">🗑</button>
+  <div class="bg-bg-card rounded-lg overflow-x-auto mt-6">
+    <table class="w-full text-left border-collapse min-w-[1000px]">
+      <!-- Header -->
+      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
+        <tr>
+          <th class="px-5 py-3 font-semibold w-[200px]">TÀI KHOẢN</th>
+          <th class="px-5 py-3 font-semibold">HỌ VÀ TÊN</th>
+          <th class="px-5 py-3 font-semibold w-[140px]">VAI TRÒ</th>
+          <th class="px-5 py-3 font-semibold w-[180px]">XÁC MINH (KYC)</th>
+          <th class="px-5 py-3 font-semibold w-[140px] text-right">HÀNH ĐỘNG</th>
+        </tr>
+      </thead>
+
+      <!-- Body -->
+      <tbody>
+        {% for u in all_users %}
+        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="user-row-{{ u.id }}">
+          <td class="px-5 py-3.5">
+            <div class="text-[13px] font-semibold text-white">{{ u.username }}</div>
+            <div class="text-[11px] text-txt-ter font-mono tracking-tighter">ID: {{ u.id }}</div>
+          </td>
+          <td class="px-5 py-3.5">
+            <div class="text-[13px] text-txt-sec">{{ u.full_name or '—' }}</div>
+            {% if u.note %}
+            <div class="text-[10px] text-txt-ter italic">{{ u.note }}</div>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3.5">
+            <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider {% if u.role == 'admin' %}bg-status-red/10 text-status-red border border-status-red/20{% else %}bg-accent/10 text-accent border border-accent/20{% endif %}">
+              {{ u.role or 'N/A' }}
+            </span>
+          </td>
+          <td class="px-5 py-3.5">
+            {% set kl = u.kyc_level or 0 %}
+            {% if kl == 4 %}
+            <span class="text-status-green flex items-center gap-1.5" title="Đã xác minh danh tính">
+              <span class="text-[16px]">🛡️</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider">Đã xác minh</span>
+            </span>
+            {% elif kl == 3 %}
+            <span class="text-blue-400 flex items-center gap-1.5" title="Đang chờ admin duyệt KYC">
+              <span class="text-[16px]">⏳</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider">Đang chờ duyệt</span>
+            </span>
+            {% elif kl == -1 %}
+            <span class="text-status-red flex items-center gap-1.5" title="Bị từ chối KYC">
+              <span class="text-[16px]">❌</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider">Đã từ chối</span>
+            </span>
+            {% elif u.has_face %}
+            <span class="text-accent flex items-center gap-1.5" title="Đã đăng ký khuôn mặt (Level {{ kl }})">
+              <span class="text-[16px]">📸</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider">Đã có mặt (L{{ kl }})</span>
+            </span>
+            {% else %}
+            <span class="text-txt-ter flex items-center gap-1.5" title="Chưa đăng ký khuôn mặt">
+              <span class="text-[16px]">👤</span>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-txt-ter/50">Chưa xác minh</span>
+            </span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3.5 text-right">
+            <div class="flex justify-end gap-3">
+              <button onclick="openFaceModal('{{ u.id }}', '{{ u.username }}')"
+                      class="text-txt-sec hover:text-accent transition-colors text-[16px]" title="Đăng ký khuôn mặt">📸</button>
+              <button onclick="document.getElementById('edit-user-form-{{ u.id }}').classList.toggle('hidden')"
+                      class="text-txt-sec hover:text-accent transition-colors text-[16px]" title="Sửa">✏️</button>
+              {% if u.username != 'admin' %}
+              <button type="button" class="text-txt-sec hover:text-status-red transition-colors text-[16px] cursor-pointer" 
+                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                        detail: {
+                          title: 'Xóa người dùng',
+                          message: 'Bạn chắc chắn muốn xóa người dùng {{ u.username }}?',
+                          confirmText: 'Xác nhận xóa',
+                          confirmUrl: '/users/{{ u.id }}',
+                          confirmMethod: 'DELETE',
+                          reload: true
+                        }
+                      }))" title="Xóa">🗑️</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+
+        <!-- Edit Form Row -->
+        <tr id="edit-user-form-{{ u.id }}" class="hidden">
+          <td colspan="5" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
+            <form method="POST" action="/users/{{ u.id }}/edit" class="flex flex-col gap-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Username *</label>
+                  <input name="username" value="{{ u.username }}" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Mật khẩu (để trống nếu không đổi)</label>
+                  <input name="password" type="password" placeholder="••••••••" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Họ tên</label>
+                  <input name="full_name" value="{{ u.full_name or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Vai trò</label>
+                  <select name="role_name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                    {% for r in roles %}
+                    <option value="{{ r.role_name }}" {% if u.role==r.role_name %}selected{% endif %}>{{ r.role_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm (ID, cách nhau bởi dấu phẩy)</label>
+                  <input name="site_ids" value="{{ (u.site_ids or [])|join(', ') }}" placeholder="1, 2, 3" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Ghi chú</label>
+                  <input name="note" value="{{ u.note or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
+                <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="document.getElementById('edit-user-form-{{ u.id }}').classList.add('hidden')">Hủy</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not all_users %}
+        <tr>
+          <td colspan="5" class="px-5 py-12 text-center text-txt-ter text-sm">Chưa có người dùng nào.</td>
+        </tr>
         {% endif %}
-      </div>
-    </div>
-    {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
+
+<!-- Face Registration Modal (KYC with Face Direction Detection) -->
+<div id="face-modal" onclick="closeFaceModal()"
+  class="fixed inset-0 bg-black/80 backdrop-blur-xl z-[100] hidden flex items-center justify-center p-4">
+  <div onclick="event.stopPropagation()"
+    class="bg-bg-card w-full max-w-[420px] rounded-[32px] border border-white/5 shadow-2xl overflow-hidden flex flex-col relative">
+
+    <!-- Background subtle glow -->
+    <div class="absolute top-0 inset-x-0 h-32 bg-accent/5 blur-3xl rounded-full translate-y-[-50%] pointer-events-none">
+    </div>
+
+    <button onclick="closeFaceModal()"
+      class="absolute top-5 right-5 w-8 h-8 z-10 rounded-full bg-white/5 flex items-center justify-center text-txt-ter hover:text-white hover:bg-white/10 transition-colors">✕</button>
+
+    <div class="px-8 pt-8 pb-4 text-center z-10">
+      <h3 class="text-white text-xl font-bold tracking-tight">Xác minh khuôn mặt</h3>
+      <p class="text-[12px] text-txt-ter mt-1.5 uppercase font-semibold tracking-wider">Người dùng: <span
+          id="face-modal-username" class="text-accent"></span></p>
+    </div>
+
+    <div class="px-8 pb-8 flex flex-col items-center z-10 overflow-y-auto" style="max-height: 75vh;">
+
+      <!-- Video / Progress Container -->
+      <div class="relative mb-6 mt-2"
+        style="width: 256px; height: 256px; min-height: 256px; min-width: 256px; flex-shrink: 0;">
+        <!-- SVG Progress Ring -->
+        <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" style="scale: 1.08">
+          <circle cx="128" cy="128" r="124" fill="none" stroke="currentColor" stroke-width="3" class="text-white/5">
+          </circle>
+          <circle id="kyc-progress-circle" cx="128" cy="128" r="124" fill="none" stroke="currentColor" stroke-width="4"
+            class="text-accent transition-all duration-500 will-change-transform" stroke-dasharray="779"
+            stroke-dashoffset="779" stroke-linecap="round"></circle>
+        </svg>
+
+        <div id="video-ring"
+          class="absolute inset-0 bg-bg-inset rounded-full overflow-hidden shadow-inner border-4 border-bg-card transition-colors duration-300">
+          <video id="webcam-video" autoplay playsinline class="w-full h-full object-cover scale-x-[-1]"></video>
+          <canvas id="capture-canvas" class="hidden"></canvas>
+          <img id="face-preview" class="absolute inset-0 w-full h-full object-cover hidden z-20 scale-x-[-1]">
+          <div id="capture-flash"
+            class="absolute inset-0 bg-white z-40 opacity-0 pointer-events-none transition-opacity duration-150"></div>
+
+          <!-- Start Overlay -->
+          <div id="camera-start-overlay" onclick="startKYC()"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md z-30 cursor-pointer hover:bg-black/50 transition-all duration-300 group">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-accent to-cyan-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-[0_0_30px_rgba(0,229,255,0.4)]">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-bg-card ml-1.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+            <p class="text-[13px] text-white font-black uppercase tracking-[0.2em] group-hover:text-accent transition-colors">CHẠM ĐỂ BẮT ĐẦU</p>
+          </div>
+
+          <!-- Loading -->
+          <div id="camera-loading"
+            class="absolute inset-0 flex flex-col items-center justify-center bg-bg-card/90 backdrop-blur-sm z-30 hidden">
+            <div class="w-8 h-8 border-2 border-accent/20 border-t-accent rounded-full animate-spin mb-3"></div>
+            <p class="text-[10px] text-accent font-bold uppercase tracking-widest">Đang tải AI...</p>
+          </div>
+
+          <!-- Success Icon -->
+          <div id="success-overlay"
+            class="absolute inset-0 flex items-center justify-center bg-status-green/90 backdrop-blur-sm z-30 hidden">
+            <span class="text-white text-5xl font-black drop-shadow-md">✓</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instructions -->
+      <div class="w-full text-center flex flex-col items-center gap-2 mb-6 min-h-[60px]">
+        <span id="kyc-step-count"
+          class="text-[11px] font-black uppercase tracking-widest text-bg-card bg-accent px-4 py-1.5 rounded-full shadow-[0_2px_10px_rgba(0,229,255,0.3)]">Bước 0/5</span>
+        <span id="kyc-instruction" class="text-white text-[18px] font-bold tracking-tight mt-1">Sẵn sàng để xác minh</span>
+      </div>
+
+      <!-- Hold Progress Bar -->
+      <div class="w-full max-w-[200px] h-2 bg-white/5 rounded-full overflow-hidden mb-3 shadow-inner">
+        <div id="hold-bar" class="h-full bg-gradient-to-r from-accent to-cyan-300 rounded-full transition-all duration-100 ease-linear shadow-[0_0_10px_rgba(0,229,255,0.5)]"
+          style="width:0%"></div>
+      </div>
+      <p id="kyc-status-text" class="text-txt-sec text-[12px] text-center font-medium min-h-[20px]"></p>
+
+      <!-- Previous face images preview -->
+      <div id="kyc-preview-section" class="w-full mt-2 mb-2 hidden bg-white/5 rounded-2xl p-4 border border-white/10 shadow-lg">
+        <div class="flex items-center gap-2 mb-4 justify-center">
+           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+           </svg>
+           <p class="text-[11px] text-white font-bold uppercase tracking-widest">Bộ sưu tập khuôn mặt</p>
+        </div>
+        <div class="flex items-center justify-center gap-3" id="kyc-preview-grid">
+
+          <div class="relative group flex flex-col items-center gap-2">
+            <div
+              class="rounded-[18px] bg-bg-card border-2 border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 group-hover:border-white/20"
+              style="width: 72px; height: 72px;" title="Trực diện">
+              <img id="preview-img-front" class="w-full h-full object-cover hidden transition-opacity duration-300">
+              <div id="preview-fb-front" class="flex flex-col items-center justify-center text-white/10">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <button id="preview-del-front" onclick="deleteKycFace('front')"
+              class="absolute z-30 bg-status-red hover:bg-red-500 text-white rounded-full p-1 hidden transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-[0_4px_12px_rgba(239,68,68,0.5)] transform translate-y-2 group-hover:translate-y-0"
+              style="top: -6px; right: -6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <span class="text-[10px] text-txt-ter font-bold uppercase tracking-wider">Trực diện</span>
+          </div>
+
+          <div class="relative group flex flex-col items-center gap-2">
+            <div
+              class="rounded-[18px] bg-bg-card border-2 border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 group-hover:border-white/20"
+              style="width: 72px; height: 72px;" title="Trái">
+              <img id="preview-img-left" class="w-full h-full object-cover hidden transition-opacity duration-300">
+              <div id="preview-fb-left" class="flex flex-col items-center justify-center text-white/10">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <button id="preview-del-left" onclick="deleteKycFace('left')"
+              class="absolute z-30 bg-status-red hover:bg-red-500 text-white rounded-full p-1 hidden transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-[0_4px_12px_rgba(239,68,68,0.5)] transform translate-y-2 group-hover:translate-y-0"
+              style="top: -6px; right: -6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <span class="text-[10px] text-txt-ter font-bold uppercase tracking-wider">Trái</span>
+          </div>
+
+          <div class="relative group flex flex-col items-center gap-2">
+            <div
+              class="rounded-[18px] bg-bg-card border-2 border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 group-hover:border-white/20"
+              style="width: 72px; height: 72px;" title="Phải">
+              <img id="preview-img-right" class="w-full h-full object-cover hidden transition-opacity duration-300">
+              <div id="preview-fb-right" class="flex flex-col items-center justify-center text-white/10">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <button id="preview-del-right" onclick="deleteKycFace('right')"
+              class="absolute z-30 bg-status-red hover:bg-red-500 text-white rounded-full p-1 hidden transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-[0_4px_12px_rgba(239,68,68,0.5)] transform translate-y-2 group-hover:translate-y-0"
+              style="top: -6px; right: -6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <span class="text-[10px] text-txt-ter font-bold uppercase tracking-wider">Phải</span>
+          </div>
+
+          <div class="relative group flex flex-col items-center gap-2">
+            <div
+              class="rounded-[18px] bg-bg-card border-2 border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 group-hover:border-white/20"
+              style="width: 72px; height: 72px;" title="Lên">
+              <img id="preview-img-up" class="w-full h-full object-cover hidden transition-opacity duration-300">
+              <div id="preview-fb-up" class="flex flex-col items-center justify-center text-white/10">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <button id="preview-del-up" onclick="deleteKycFace('up')"
+              class="absolute z-30 bg-status-red hover:bg-red-500 text-white rounded-full p-1 hidden transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-[0_4px_12px_rgba(239,68,68,0.5)] transform translate-y-2 group-hover:translate-y-0"
+              style="top: -6px; right: -6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <span class="text-[10px] text-txt-ter font-bold uppercase tracking-wider">Lên</span>
+          </div>
+
+          <div class="relative group flex flex-col items-center gap-2">
+            <div
+              class="rounded-[18px] bg-bg-card border-2 border-white/5 overflow-hidden flex-shrink-0 flex items-center justify-center shadow-lg transition-transform duration-300 group-hover:scale-105 group-hover:border-white/20"
+              style="width: 72px; height: 72px;" title="Xuống">
+              <img id="preview-img-down" class="w-full h-full object-cover hidden transition-opacity duration-300">
+              <div id="preview-fb-down" class="flex flex-col items-center justify-center text-white/10">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+              </div>
+            </div>
+            <button id="preview-del-down" onclick="deleteKycFace('down')"
+              class="absolute z-30 bg-status-red hover:bg-red-500 text-white rounded-full p-1 hidden transition-all duration-200 opacity-0 group-hover:opacity-100 shadow-[0_4px_12px_rgba(239,68,68,0.5)] transform translate-y-2 group-hover:translate-y-0"
+              style="top: -6px; right: -6px;">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <span class="text-[10px] text-txt-ter font-bold uppercase tracking-wider">Xuống</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+  let currentUserId = null;
+  let stream = null;
+  let currentStep = 0;
+  let kycRunning = false;
+  let detectInterval = null;
+  let holdStart = 0;
+  const HOLD_TIME = 1500; // ms to hold correct direction
+  let modelsLoaded = false;
+  let dirHistory = []; // Rolling average buffer
+  const HISTORY_SIZE = 5;
+
+  let baselineYaw = null;
+  let baselinePitch = null;
+
+  const kycSteps = [
+    { id: 'front', instruction: 'Nhìn thẳng vào camera' },
+    { id: 'left', instruction: 'Quay đầu sang trái' },
+    { id: 'right', instruction: 'Quay đầu sang phải' },
+    { id: 'up', instruction: 'Ngước đầu lên trên' },
+    { id: 'down', instruction: 'Cúi đầu xuống dưới' }
+  ];
+
+  // Load face-api models
+  async function loadModels() {
+    if (modelsLoaded) return;
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+    modelsLoaded = true;
+  }
+
+  function estimateHeadPose(landmarks) {
+    const pts = landmarks.positions;
+    let minX = 9999, maxX = -9999, minY = 9999, maxY = -9999;
+    for (let p of pts) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+    }
+    const boxW = maxX - minX;
+    const boxH = maxY - minY;
+    
+    // YAW and PITCH are 0.0 -> 1.0 bounded inside the 2D bounding box
+    const noseTip = landmarks.getNose()[6];
+    const yaw = (noseTip.x - minX) / boxW;
+    const pitch = (noseTip.y - minY) / boxH;
+
+    dirHistory.push({ yaw, pitch });
+    if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
+
+    const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
+    const avgPitch = dirHistory.reduce((s, d) => s + d.pitch, 0) / dirHistory.length;
+
+    // Attach for UI debugging
+    window.debugPitch = avgPitch;
+    window.debugYaw = avgYaw;
+
+    return { yaw: avgYaw, pitch: avgPitch };
+  }
+
+  function openFaceModal(userId, username) {
+    currentUserId = userId;
+    document.getElementById('face-modal-username').textContent = username;
+    document.getElementById('face-modal').classList.remove('hidden');
+    currentStep = 0;
+    kycRunning = false;
+    holdStart = 0;
+    baselineYaw = null;
+    baselinePitch = null;
+    document.getElementById('camera-start-overlay').classList.remove('hidden');
+    document.getElementById('camera-loading').classList.add('hidden');
+    document.getElementById('face-preview').classList.add('hidden');
+    document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,0.1)';
+    document.getElementById('kyc-instruction').textContent = 'Nhấn bắt đầu để xác minh';
+    document.getElementById('kyc-step-count').textContent = 'Bước 0/5';
+    document.getElementById('kyc-status-text').textContent = '';
+    setCircleProgress(0);
+
+    // Load existing faces
+    const angles = [
+      { id: 'front' }, { id: 'left' }, { id: 'right' }, { id: 'up' }, { id: 'down' }
+    ];
+
+    document.getElementById('kyc-preview-section').classList.add('hidden');
+    angles.forEach(angle => {
+      const img = document.getElementById(`preview-img-${angle.id}`);
+      const fallback = document.getElementById(`preview-fb-${angle.id}`);
+      const delBtn = document.getElementById(`preview-del-${angle.id}`);
+
+      // Reset states
+      img.classList.add('hidden');
+      fallback.classList.remove('hidden');
+      if (delBtn) delBtn.classList.add('hidden');
+      img.src = '';
+
+      img.onload = () => {
+        img.classList.remove('hidden');
+        fallback.classList.add('hidden');
+        if (delBtn) delBtn.classList.remove('hidden');
+        document.getElementById('kyc-preview-section').classList.remove('hidden');
+      };
+      img.src = `/known_faces/${userId}/${angle.id}.jpg?t=${Date.now()}`;
+    });
+  }
+
+  async function deleteKycFace(angle) {
+    const result = await Swal.fire({
+      title: 'Xoá ảnh góc chụp?',
+      text: "Hành động này không thể hoàn tác!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#4b5563',
+      confirmButtonText: 'Xoá ngay',
+      cancelButtonText: 'Hủy bỏ',
+      background: '#1F2937',
+      color: '#ffffff'
+    });
+    
+    if (!result.isConfirmed) return;
+
+    const res = await fetch(`/kyc/face/${angle}/delete?target_user_id=${currentUserId}`, { method: 'POST' });
+    if (res.ok) {
+        // Refresh preview grid automatically
+        openFaceModal(currentUserId, document.getElementById('face-modal-username').textContent);
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi máy chủ',
+            text: 'Không thể xoá ảnh.',
+            background: '#1F2937', color: '#ffffff'
+        });
+    }
+  }
+
+  function setCircleProgress(pct) {
+    const c = document.getElementById('kyc-progress-circle');
+    c.style.strokeDashoffset = 779 - (pct / 100) * 779;
+  }
+
+  async function startKYC() {
+    if (kycRunning) return;
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang tải AI nhận diện...';
+    document.getElementById('camera-start-overlay').classList.add('hidden');
+    document.getElementById('camera-loading').classList.remove('hidden');
+
+    await loadModels();
+
+    if (!stream) {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 640 }, facingMode: "user" }
+      });
+      document.getElementById('webcam-video').srcObject = stream;
+    }
+    document.getElementById('camera-loading').classList.add('hidden');
+    kycRunning = true;
+    currentStep = 0;
+    runStep();
+  }
+
+  function runStep() {
+    if (currentStep >= kycSteps.length) { kycComplete(); return; }
+    const step = kycSteps[currentStep];
+
+    document.getElementById('kyc-instruction').textContent = step.instruction;
+    document.getElementById('kyc-step-count').textContent = `Bước ${currentStep + 1}/${kycSteps.length}`;
+    setCircleProgress((currentStep / kycSteps.length) * 100);
+
+    document.getElementById('face-preview').classList.add('hidden');
+    document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,0.1)';
+    document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
+
+    holdStart = 0;
+    dirHistory = []; // Reset smoothing buffer for new step
+
+    // Start detection loop
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = setInterval(() => detectFace(step.id), 300);
+  }
+
+  async function detectFace(expectedDir) {
+    if (!kycRunning) return;
+    const video = document.getElementById('webcam-video');
+    if (video.readyState < 2) return;
+
+    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+      .withFaceLandmarks(true);
+
+    const ring = document.getElementById('video-ring');
+    const bar = document.getElementById('hold-bar');
+    const status = document.getElementById('kyc-status-text');
+
+    if (!detection) {
+      ring.style.borderColor = 'rgba(255,100,100,0.5)';
+      ring.style.boxShadow = 'none';
+      bar.style.width = '0%';
+      holdStart = 0;
+      status.textContent = '❌ Không phát hiện khuôn mặt';
+      return;
+    }
+
+    const pose = estimateHeadPose(detection.landmarks);
+    
+    let isCorrect = false;
+    let dirName = 'không rõ';
+    
+    // Dynamic Calibration Algorithm:
+    // Step 0 ('front') forces user to be somewhat neutral and locks baseline coordinates.
+    // Step 1-4 uses Delta from baseline.
+    if (expectedDir === 'front') {
+        const isNeutral = (pose.yaw > 0.30 && pose.yaw < 0.70 && pose.pitch > 0.30 && pose.pitch < 0.70);
+        if (isNeutral) {
+            baselineYaw = pose.yaw;
+            baselinePitch = pose.pitch;
+            isCorrect = true;
+            dirName = 'thẳng';
+        } else {
+            isCorrect = false;
+            dirName = 'lệch chuẩn';
+        }
+    } else {
+        // We know baseline exists if we are past generic step 0
+        const dYaw = pose.yaw - baselineYaw;
+        const dPitch = pose.pitch - baselinePitch;
+        
+        let currentStatus = 'trực diện';
+        
+        // Check delta threshold heavily favoring large 8% movements
+        if (dPitch > 0.08) currentStatus = 'xuống';
+        else if (dPitch < -0.08) currentStatus = 'lên';
+        // Note standard logic: face-api unmirrored video -> moving nose right (+dYaw) is looking left
+        else if (dYaw > 0.08) currentStatus = 'trái';
+        else if (dYaw < -0.08) currentStatus = 'phải';
+        
+        dirName = currentStatus;
+        
+        // Validate against requested angle
+        if (expectedDir === 'down' && dPitch > 0.08) isCorrect = true;
+        if (expectedDir === 'up' && dPitch < -0.08) isCorrect = true;
+        if (expectedDir === 'left' && dYaw > 0.08) isCorrect = true;
+        if (expectedDir === 'right' && dYaw < -0.08) isCorrect = true;
+    }
+
+    if (isCorrect) {
+      ring.style.borderColor = 'rgba(100,255,150,0.8)';
+      ring.style.boxShadow = '0 0 20px rgba(100,255,150,0.3)';
+
+      if (holdStart === 0) holdStart = Date.now();
+      const elapsed = Date.now() - holdStart;
+      const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
+      bar.style.width = pct + '%';
+      status.textContent = `✅ Đúng hướng! Giữ yên... ${Math.ceil((HOLD_TIME - elapsed) / 1000)}s`;
+
+      if (elapsed >= HOLD_TIME) {
+        clearInterval(detectInterval);
+        autoCaptureAndUpload();
+      }
+    } else {
+      ring.style.borderColor = 'rgba(255,200,50,0.5)';
+      ring.style.boxShadow = '0 0 20px rgba(255,200,50,0.1)';
+      bar.style.width = '0%';
+      holdStart = 0;
+      let prStr = window.debugPitch ? `P:${window.debugPitch.toFixed(2)} Y:${window.debugYaw.toFixed(2)}` : '?';
+      status.textContent = `⚠️ Lệch: ${dirName} (${prStr}) — Hãy ${kycSteps[currentStep].instruction.toLowerCase()}`;
+    }
+  }
+
+  async function autoCaptureAndUpload() {
+    const video = document.getElementById('webcam-video');
+    const ring = document.getElementById('video-ring');
+    const canvas = document.getElementById('capture-canvas');
+    const flash = document.getElementById('capture-flash');
+    const step = kycSteps[currentStep];
+
+    flash.style.opacity = '1';
+    setTimeout(() => flash.style.opacity = '0', 150);
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang lưu...';
+    document.getElementById('hold-bar').style.width = '100%';
+
+    canvas.toBlob(async (blob) => {
+      const formData = new FormData();
+      formData.append('face_image', blob, `${step.id}.jpg`);
+      formData.append('angle', step.id);
+
+      const res = await fetch(`/kyc/face/${step.id}?t=${Date.now()}&target_user_id=${currentUserId}`, {
+        method: 'POST', body: formData
+      });
+      
+      if (!res.ok) {
+          let detail = "Đã xảy ra lỗi hệ thống.";
+          let rawTxt = "";
+          rawTxt = await res.text();
+          const errData = JSON.parse(rawTxt);
+          if (errData.message) detail = errData.message;
+          else if (errData.error) detail = `Lỗi: ${errData.error}`;
+          else if (errData.detail) detail = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+
+          // Now detail just contains the message string (hopefully)
+          document.getElementById('kyc-status-text').textContent = `❌ ${detail}`;
+          if (rawTxt.includes("duplicate_face")) {
+              ring.style.borderColor = 'rgba(239, 68, 68, 0.8)';
+              ring.style.boxShadow = '0 0 20px rgba(239,68,68,0.3)';
+              document.getElementById('success-overlay').innerHTML = '<span class="text-status-red text-5xl font-black drop-shadow-md">✕</span>';
+              document.getElementById('success-overlay').classList.remove('hidden');
+              kycRunning = false;
+              setTimeout(() => {
+                  document.getElementById('success-overlay').classList.add('hidden');
+                  document.getElementById('success-overlay').innerHTML = '<span class="text-white text-5xl font-black drop-shadow-md">✓</span>';
+                  document.getElementById('camera-start-overlay').classList.remove('hidden');
+                  document.getElementById('camera-start-overlay').querySelector('p').textContent = "THỬ LẠI";
+              }, 4000);
+          }
+          throw new Error(detail);
+      }
+
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Server OK=false');
+
+      document.getElementById('success-overlay').classList.remove('hidden');
+      document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+      setCircleProgress(((currentStep + 1) / kycSteps.length) * 100);
+
+      // Update preview thumbnail instantly
+      const img = document.getElementById(`preview-img-${step.id}`);
+      const fallback = document.getElementById(`preview-fb-${step.id}`);
+      const delBtn = document.getElementById(`preview-del-${step.id}`);
+      img.onload = () => {
+        img.classList.remove('hidden');
+        fallback.classList.add('hidden');
+        if (delBtn) delBtn.classList.remove('hidden');
+        document.getElementById('kyc-preview-section').classList.remove('hidden');
+      };
+      img.src = `/known_faces/${currentUserId}/${step.id}.jpg?t=${Date.now()}`;
+
+      setTimeout(() => { 
+        currentStep++; 
+        runStep(); 
+        document.getElementById('success-overlay').classList.add('hidden');
+      }, 500);
+    }, 'image/jpeg', 0.95);
+  }
+
+  function kycComplete() {
+    if (detectInterval) clearInterval(detectInterval);
+    document.getElementById('kyc-instruction').textContent = '🎉 Hoàn tất xác minh!';
+    document.getElementById('kyc-step-count').textContent = '5/5 bước hoàn thành';
+    document.getElementById('kyc-status-text').textContent = 'Đang tải lại trang...';
+    document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+    setCircleProgress(100);
+    setTimeout(() => { closeFaceModal(); window.location.reload(); }, 1500);
+  }
+
+  function closeFaceModal() {
+    kycRunning = false;
+    if (detectInterval) clearInterval(detectInterval);
+    
+    // Explicitly stop webcam and clear video source
+    const video = document.getElementById('webcam-video');
+    if (video) video.srcObject = null;
+    
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log("Stopped webcam track:", track.label);
+      });
+      stream = null;
+    }
+    
+    document.getElementById('face-modal').classList.add('hidden');
+    console.log("KYC Modal closed and webcam released.");
+  }
+  
+  // Show server-side errors if any
+  {% if error_msg %}
+  Swal.fire({
+    icon: 'error',
+    title: 'Lỗi thao tác',
+    text: '{{ error_msg }}',
+    background: '#1F2937',
+    color: '#ffffff',
+    confirmButtonColor: '#00E5FF'
+  });
+  {% endif %}
+
+  async function cleanAiCache() {
+    const { value: confirm } = await Swal.fire({
+      title: 'Làm sạch bộ nhớ AI?',
+      text: 'Hành động này sẽ làm mới dữ liệu khuôn mặt và bộ nhớ nhận diện biển số (xe lạ) để cập nhật trạng thái mới nhất.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#00E5FF',
+      cancelButtonColor: '#4b5563',
+      confirmButtonText: 'Đồng ý',
+      cancelButtonText: 'Hủy',
+      background: '#1F2937',
+      color: '#ffffff'
+    });
+
+    if (!confirm) return;
+
+    const res = await fetch('/kyc/clean-cache', { method: 'POST' });
+    const data = await res.json();
+    
+    if (data.ok) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Thành công',
+        text: data.message,
+        background: '#1F2937',
+        color: '#ffffff'
+      });
+    } else {
+      throw new Error(data.error || 'Lỗi không xác định');
+    }
+  }
+
+  // Close modal when clicking outside content area
+  window.addEventListener('click', function(e) {
+    const modal = document.getElementById('face-modal');
+    if (e.target === modal) {
+      closeFaceModal();
+    }
+  });
+</script>
 {% endblock %}

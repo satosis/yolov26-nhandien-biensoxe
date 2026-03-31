@@ -21,12 +21,6 @@ MENU_GROUPS = {
         "vehicles": "🚗 Phương tiện",
         "strangers": "👤 Người lạ",
         "pending_plates": "🚘 Xe lạ",
-        "telegram": "🤖 Telegram",
-    },
-    "⚙️ Hệ thống": {
-        "config": "⚙️ Cấu hình",
-        "users": "👥 Người dùng",
-        "rbac": "🛡️ Phân quyền",
     },
 }
 

@@ -18,7 +18,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5" x-data="{}">
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-2.5">
       <span class="text-accent text-[28px]">🚗</span>
@@ -91,36 +91,63 @@
 
   <!-- Table -->
   <div class="bg-bg-card rounded-lg overflow-hidden" id="vehicles-list">
-    <div class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
-      <div class="w-[180px]">BIỂN SỐ</div>
-      <div class="w-[180px]">CHỦ XE</div>
-      <div class="w-[160px]">ĐỊA ĐIỂM</div>
-      <div class="flex-1">GHI CHÚ</div>
-      <div class="w-[100px]">HÀNH ĐỘNG</div>
-    </div>
-    {% for v in vehicles %}
-    <div class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-      <div class="w-[180px]">
-        <span class="bg-status-green/10 text-status-green px-2.5 py-1 rounded-md text-[13px] font-mono font-bold border border-status-green/20">{{ v.plate_number }}</span>
-      </div>
-      <div class="w-[180px] text-[13px] text-white">{{ v.owner_name or '—' }}</div>
-      <div class="w-[160px] text-[12px] text-txt-sec flex flex-wrap gap-1">
-        {% for s in (v.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
-        {% if not v.site_names %}—{% endif %}
-      </div>
-      <div class="flex-1 text-[12px] text-txt-ter">{{ v.note or '—' }}</div>
-      <div class="w-[100px] flex gap-2">
-        <button class="text-txt-sec hover:text-accent text-sm cursor-pointer"
-                onclick="openEdit({{ v.id }}, '{{ v.plate_number }}', '{{ v.owner_name or '' }}', {{ v.site_ids | tojson }}, '{{ v.note or '' }}')">✏️</button>
-        <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer"
-                onclick="if(confirm('Xóa {{ v.plate_number }}?')) { document.getElementById('del-{{ v.id }}').submit() }">🗑</button>
-        <form id="del-{{ v.id }}" method="post" action="/vehicles/{{ v.id }}/delete" style="display:none"></form>
-      </div>
-    </div>
-    {% endfor %}
-    {% if not vehicles %}
-    <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có phương tiện nào.</div>
-    {% endif %}
+    <table class="w-full text-left border-collapse">
+      <!-- Header -->
+      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
+        <tr>
+          <th class="px-5 py-3 font-semibold w-[180px]">BIỂN SỐ</th>
+          <th class="px-5 py-3 font-semibold w-[180px]">CHỦ XE</th>
+          <th class="px-5 py-3 font-semibold w-[160px]">ĐỊA ĐIỂM</th>
+          <th class="px-5 py-3 font-semibold">GHI CHÚ</th>
+          <th class="px-5 py-3 font-semibold w-[100px] text-right">HÀNH ĐỘNG</th>
+        </tr>
+      </thead>
+
+      <!-- Body -->
+      <tbody>
+        {% for v in vehicles %}
+        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="vehicle-{{ v.id }}">
+          <td class="px-5 py-3.5">
+            <span class="bg-status-green/10 text-status-green px-2.5 py-1 rounded-md text-[13px] font-mono font-bold border border-status-green/20">{{ v.plate_number }}</span>
+          </td>
+          <td class="px-5 py-3.5 text-[13px] text-white">
+            {{ v.owner_name or '—' }}
+          </td>
+          <td class="px-5 py-3.5 text-[12px] text-txt-sec">
+            <div class="flex flex-wrap gap-1">
+              {% for s in (v.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
+              {% if not v.site_names %}—{% endif %}
+            </div>
+          </td>
+          <td class="px-5 py-3.5 text-[12px] text-txt-ter">
+            {{ v.note or '—' }}
+          </td>
+          <td class="px-5 py-3.5 text-right">
+            <div class="flex justify-end gap-2">
+              <button class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors"
+                      onclick="openEdit({{ v.id }}, '{{ v.plate_number }}', '{{ v.owner_name or '' }}', {{ v.site_ids | tojson }}, '{{ v.note or '' }}')">✏️</button>
+              <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer transition-colors"
+                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                        detail: {
+                          title: 'Xóa phương tiện',
+                          message: 'Bạn chắc chắn muốn xóa xe {{ v.plate_number }}?',
+                          confirmText: 'Xác nhận xóa',
+                          confirmUrl: '/vehicles/{{ v.id }}/delete',
+                          confirmMethod: 'POST',
+                          confirmTarget: '#vehicle-{{ v.id }}'
+                        }
+                      }))">🗑</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not vehicles %}
+        <tr>
+          <td colspan="5" class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có phương tiện nào.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
 </div>
 

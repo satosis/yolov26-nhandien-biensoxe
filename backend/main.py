@@ -15,6 +15,7 @@ load_dotenv()
 from backend.core.grabber import grabber_process
 from backend.core.inference import inference_process
 from backend.core.database import DatabaseManager
+from backend.util.network_utils import update_camera_ips_by_discovery
 
 # Configure logging
 logging.basicConfig(
@@ -42,7 +43,12 @@ class CameraOrchestrator:
         logger.info("--- AI Core Orchestrator Starting ---")
         self.reset_streaming_flags()
         
-        # 1. Spawn Inference Worker (Core Process)
+        # 1. Automatic IP Discovery (Optional but helpful for dynamic IPs)
+        updated = update_camera_ips_by_discovery()
+        if updated > 0:
+            logger.info(f"Auto-discovery updated {updated} camera IPs in DB.")
+            
+        # 2. Spawn Inference Worker (Core Process)
         logger.info("Spawning InferenceWorker process...")
         p_infer = mp.Process(
             target=inference_process,
@@ -56,11 +62,8 @@ class CameraOrchestrator:
     def spawn_grabber(self, cam):
         """Start a grabber process for a specific camera."""
         cam_id = str(cam['id'])
-        # Use dynamic URL generation for Imou, otherwise fallback to static rtsp_url
-        if cam.get('camera_type') == 'imou':
-            rtsp_url = self.db.get_imou_rtsp_url(cam['id'])
-        else:
-            rtsp_url = cam.get('rtsp_url')
+        # Always use the database resolver which handles Imou encoding/fallbacks
+        rtsp_url = self.db.get_camera_rtsp_url(cam['id'])
 
         if not rtsp_url:
             logger.warning(f"Camera {cam_id} has no valid RTSP URL. Skipping...")
@@ -68,7 +71,8 @@ class CameraOrchestrator:
 
         # site_ids is a list in the new schema
         site_id = cam['site_ids'][0] if cam.get('site_ids') else None
-        shm_name = f"shm_cam_{cam_id}"
+        # macOS requires SharedMemory names to start with a slash
+        shm_name = f"/shm_cam_{cam_id}"
         
         logger.info(f"Spawning Grabber for Camera {cam_id} (Site {site_id}): {rtsp_url}")
         

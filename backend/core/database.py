@@ -9,13 +9,11 @@ import logging
 import re
 import secrets
 import urllib.parse
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Expert: Load environment variables from .env globally
-from dotenv import load_dotenv
-load_dotenv() # Default path (.env in CWD)
-# Try specific paths just in case
+load_dotenv()
 load_dotenv(os.path.join(os.getcwd(), ".env"))
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
 
@@ -196,32 +194,33 @@ class DatabaseManager:
     def get_person_by_identity(self, identity):
         if identity == "STRANGER": return None
         if isinstance(identity, int) or (isinstance(identity, str) and identity.isdigit()):
-            query = "SELECT id, full_name, site_ids, note, username FROM users WHERE id = %s OR username = %s"
-            row = self._execute_query(query, (int(identity), str(identity)), fetch=True)
+            query = "SELECT id, full_name, site_ids, note, username, person_identity FROM users WHERE id = %s OR username = %s OR person_identity = %s"
+            row = self._execute_query(query, (int(identity), str(identity), str(identity)), fetch=True)
         else:
-            query = "SELECT id, full_name, site_ids, note, username FROM users WHERE username = %s"
-            row = self._execute_query(query, (identity,), fetch=True)
+            query = "SELECT id, full_name, site_ids, note, username, person_identity FROM users WHERE username = %s OR person_identity = %s"
+            row = self._execute_query(query, (identity, identity), fetch=True)
 
         if row:
             return {
                 "identity": str(row['id']),
                 "full_name": row['full_name'],
-                "sites": row['site_ids'] or [],
-                "note": row['note'],
-                "username": row['username']
+                "username": row['username'],
+                "person_identity": row['person_identity'],
+                "site_ids": row['site_ids'],
+                "note": row['note']
             }
         return None
-    def add_pending_plate(self, pending_id, event_id, plate_raw, plate_norm, first_seen_utc):
+    def add_pending_plate(self, pending_id, event_id, plate_raw, plate_norm, first_seen_utc, site_id=None):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
                     INSERT INTO pending_plates (
-                        pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                        pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status, site_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (pending_id) DO NOTHING
                     ''',
-                    (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending")
+                    (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending", site_id)
                 )
     def upsert_vehicle_whitelist(self, plate_norm, label, added_by, site_ids=None, note=None):
         with self._get_connection() as conn:
@@ -240,6 +239,7 @@ class DatabaseManager:
                     (plate_norm, label, added_by, json.dumps(site_ids) if site_ids else '[]', note)
                 )
             conn.commit()
+            self._trigger_ai_reload()
             return True
     def update_vehicle_whitelist(self, vehicle_id, plate_norm, label, site_ids=None, note=None):
         """Updates a whitelisted vehicle by ID."""
@@ -254,17 +254,103 @@ class DatabaseManager:
                     (plate_norm, label, json.dumps(site_ids) if site_ids else '[]', note, vehicle_id)
                 )
             conn.commit()
+            self._trigger_ai_reload()
             return True
-    def check_whitelist(self, plate_norm: str) -> dict | None:
-        """Check if a plate number exists in whitelist (active only). Returns the record if found."""
+    def check_whitelist(self, plate_text: str) -> dict | None:
+        """
+        Check if a plate exists in whitelist using separator-insensitive matching.
+        Normalizes both the input and the database entries to A-Z 0-9 for comparison.
+        """
+        if not plate_text: return None
+        
+        # Strip everything except alphanumeric for the lookup parameter
+        clean_input = re.sub(r'[^A-Z0-9]', '', plate_text.upper())
+        
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                # Use PostgreSQL regexp_replace to strip separators from the stored plate_number for comparison
                 cursor.execute(
-                    "SELECT * FROM plate_whitelist WHERE plate_number = %s AND is_active = TRUE LIMIT 1",
-                    (plate_norm,)
+                    """
+                    SELECT * FROM plate_whitelist 
+                    WHERE regexp_replace(plate_number, '[^a-zA-Z0-9]', '', 'g') = %s 
+                    AND is_active = TRUE 
+                    LIMIT 1
+                    """,
+                    (clean_input,)
                 )
                 row = cursor.fetchone()
                 return dict(row) if row else None
+    def update_pending_status_by_id(self, pending_id, status, confirmed_by):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''
+                    UPDATE pending_plates
+                    SET status = %s, confirmed_at_utc = NOW(), confirmed_by = %s
+                    WHERE pending_id = %s AND LOWER(TRIM(status)) = 'pending'
+                    ''',
+                    (status, confirmed_by, pending_id)
+                )
+                if cursor.rowcount > 0:
+                    logger.info(f"Updated pending record {pending_id} to {status}")
+                    self._trigger_ai_reload()
+                    return True
+                else:
+                    logger.warning(f"No pending record found with ID {pending_id} or status not 'pending'")
+                    return False
+
+    def _trigger_ai_reload(self):
+        """Touch the .reload signal file to force AI processes to refresh their caches."""
+        from backend.core import config as cfg
+        rt = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
+        os.makedirs(os.path.dirname(rt), exist_ok=True)
+        with open(rt, "w") as f:
+            f.write(str(time.time()))
+        logger.info("AI Reload trigger sent successfully")
+
+    def delete_pending_plate_by_id(self, pending_id) -> bool:
+        """Permanently delete a pending plate record, any duplicate pending tasks for the same plate, and associated logs."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                # 1. Fetch plate_norm and image_path to clear associated records
+                cursor.execute("SELECT plate_norm, image_path FROM pending_plates WHERE pending_id = %s", (pending_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                plate_norm, img_path = row[0], row[1]
+
+                # 2. Delete ALL pending records for this plate (Separator-insensitive deduplication)
+                # Ensure all formatting variants (e.g. 88A-000.24 and 88A00024) are cleared
+                clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
+                cursor.execute("""
+                    DELETE FROM pending_plates 
+                    WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s 
+                    AND LOWER(TRIM(status)) = 'pending'
+                """, (clean_plate,))
+                deleted_pending_count = cursor.rowcount
+
+                # 3. Cascading delete from stranger_logs using image_path
+                deleted_logs_count = 0
+                if img_path:
+                    cursor.execute("DELETE FROM stranger_logs WHERE image_path = %s", (img_path,))
+                    deleted_logs_count = cursor.rowcount
+
+                conn.commit()
+                self._trigger_ai_reload()
+
+                logger.info(f"Cascading Plate Delete: Removed {deleted_pending_count} pending entries for {plate_norm} and {deleted_logs_count} activity logs.")
+                return True
+
+    def delete_stranger_log(self, stranger_id: int) -> bool:
+        """Directly delete a stranger log entry by its ID."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM stranger_logs WHERE id = %s", (stranger_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+
+
     def update_pending_status(self, plate_norm, status, confirmed_by):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -272,11 +358,13 @@ class DatabaseManager:
                     '''
                     UPDATE pending_plates
                     SET status = %s, confirmed_at_utc = NOW(), confirmed_by = %s
-                    WHERE plate_norm = %s AND status = 'pending'
+                    WHERE plate_norm = %s AND LOWER(TRIM(status)) = 'pending'
                     ''',
                     (status, confirmed_by, plate_norm)
                 )
-                return True
+                res = cursor.rowcount > 0
+                if res: self._trigger_ai_reload()
+                return res
     def log_event(self, event_type, description, trucks, people):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -361,18 +449,16 @@ class DatabaseManager:
     # ───────────────── END AI AUDITOR ──────────────
 
     def get_pending_plates(self, site_id=None):
+        from psycopg2.extras import RealDictCursor
         with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                query = """
-                    SELECT p.*, s.site_name
-                    FROM pending_plates p
-                    LEFT JOIN sites s ON p.site_id = s.id
-                    WHERE p.status = 'pending'
-                """
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                query = "SELECT p.*, p.first_seen_utc AS first_seen, s.site_name FROM pending_plates p LEFT JOIN sites s ON p.site_id = s.id WHERE LOWER(TRIM(p.status)) = 'pending'"
                 params = []
                 if site_id:
-                    query += " AND p.site_id = %s"
+                    # Show site-specific AND global (NULL) pending plates
+                    query += " AND (p.site_id = %s OR p.site_id IS NULL)"
                     params.append(site_id)
+                query += " ORDER BY p.first_seen_utc DESC"
                 cursor.execute(query, params)
                 return cursor.fetchall()
     def log_camera_event(self, cam_id: str, event_type: str, started_at: str,
@@ -431,6 +517,19 @@ class DatabaseManager:
                 )
                 row = cursor.fetchone()
                 return dict(row) if row else None
+
+    def get_user_by_id(self, user_id: int) -> dict | None:
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(
+                    '''SELECT u.id, u.username, u.full_name, u.role_id, u.site_ids, u.note, u.person_identity, r.role_name as role 
+                       FROM users u 
+                       JOIN roles r ON u.role_id = r.id 
+                       WHERE u.id = %s''', 
+                    (user_id,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
     # --- Remember Token (secure "remember me", stored in users table) ---
 
     def create_remember_token(self, user_id: int, days: int = 7) -> str | None:
@@ -480,7 +579,7 @@ class DatabaseManager:
     def get_all_users(self, limit=None, offset=None) -> list[dict]:
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                query = '''SELECT u.id, u.username, r.role_name as role, u.created_at, u.full_name, u.note, u.site_ids
+                query = '''SELECT u.id, u.username, r.role_name as role, u.created_at, u.full_name, u.note, u.site_ids, u.person_identity, u.kyc_level
                            FROM users u
                            LEFT JOIN roles r ON u.role_id = r.id
                            ORDER BY u.id'''
@@ -524,6 +623,136 @@ class DatabaseManager:
                 return True
     def delete_user(self, user_id) -> bool:
         return self.delete("users", {"id": user_id})
+
+    # ── KYC Methods ──────────────────────────────────────────────────────────
+
+    def update_kyc_basic_info(self, user_id, full_name, phone, email, dob, id_number):
+        """Level 1: Save basic personal info and advance to kyc_level=1."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''UPDATE users SET full_name=%s, phone=%s, email=%s,
+                       date_of_birth=%s, id_number=%s, kyc_level=GREATEST(kyc_level, 1)
+                       WHERE id=%s''',
+                    (full_name, phone, email, dob, id_number, user_id)
+                )
+                conn.commit()
+                return True
+
+    def insert_kyc_document(self, user_id, doc_type, file_path):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''INSERT INTO kyc_documents (user_id, doc_type, file_path)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT DO NOTHING''',
+                    (user_id, doc_type, file_path)
+                )
+                conn.commit()
+                return True
+
+    def delete_kyc_document(self, user_id, doc_type):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM kyc_documents WHERE user_id=%s AND doc_type=%s",
+                    (user_id, doc_type)
+                )
+                conn.commit()
+                return True
+
+    def get_kyc_documents(self, user_id):
+        query = "SELECT * FROM kyc_documents WHERE user_id=%s ORDER BY uploaded_at"
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, (user_id,))
+                return [dict(r) for r in cursor.fetchall()]
+
+    def update_kyc_level(self, user_id, level):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                if level == 3:
+                    cursor.execute(
+                        "UPDATE users SET kyc_level=%s, kyc_submitted_at=NOW() WHERE id=%s",
+                        (level, user_id)
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET kyc_level=%s WHERE id=%s",
+                        (level, user_id)
+                    )
+                conn.commit()
+                return True
+
+    def get_kyc_user_detail(self, user_id):
+        query = '''SELECT u.id, u.username, u.full_name, u.phone, u.email,
+                          u.date_of_birth, u.id_number, u.kyc_level,
+                          u.kyc_submitted_at, u.kyc_reviewed_at,
+                          u.kyc_reviewed_by, u.kyc_reject_reason,
+                          r.role_name as role
+                   FROM users u LEFT JOIN roles r ON u.role_id = r.id
+                   WHERE u.id=%s'''
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query, (user_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+
+    def get_pending_kyc_users(self):
+        query = '''SELECT u.id, u.username, u.full_name, u.phone, u.email,
+                          u.id_number, u.kyc_level, u.kyc_submitted_at,
+                          r.role_name as role
+                   FROM users u LEFT JOIN roles r ON u.role_id = r.id
+                   WHERE u.kyc_level = 3
+                   ORDER BY u.kyc_submitted_at'''
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(query)
+                return [dict(r) for r in cursor.fetchall()]
+
+    def approve_kyc(self, user_id, reviewer):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''UPDATE users SET kyc_level=4, kyc_reviewed_at=NOW(),
+                       kyc_reviewed_by=%s, kyc_reject_reason=NULL WHERE id=%s''',
+                    (reviewer, user_id)
+                )
+                cursor.execute(
+                    "UPDATE kyc_documents SET status='approved', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
+                    (reviewer, user_id)
+                )
+                conn.commit()
+                return True
+
+    def reject_kyc(self, user_id, reviewer, reason):
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''UPDATE users SET kyc_level=-1, kyc_reviewed_at=NOW(),
+                       kyc_reviewed_by=%s, kyc_reject_reason=%s WHERE id=%s''',
+                    (reviewer, reason, user_id)
+                )
+                cursor.execute(
+                    "UPDATE kyc_documents SET status='rejected', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
+                    (reviewer, user_id)
+                )
+                conn.commit()
+                return True
+
+    def reset_kyc(self, user_id):
+        """Reset KYC for re-submission after rejection."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''UPDATE users SET kyc_level=0, kyc_submitted_at=NULL,
+                       kyc_reviewed_at=NULL, kyc_reviewed_by=NULL, kyc_reject_reason=NULL
+                       WHERE id=%s''',
+                    (user_id,)
+                )
+                cursor.execute("DELETE FROM kyc_documents WHERE user_id=%s", (user_id,))
+                conn.commit()
+                return True
 
     def get_telegram_bots(self) -> list[dict]:
         return self.select("telegram_bots", order_by="bot_name")
@@ -727,53 +956,65 @@ class DatabaseManager:
             conn.commit()
         return True
 
-    def get_imou_rtsp_url(self, camera_id: int) -> str | None:
+    def get_camera_rtsp_url(self, camera_id: int, subtype: int = 1) -> str | None:
         """
-        Generate Imou RTSP URL for a given camera using provider template and global keys.
-        Prioritizes a manual rtsp_url if it's explicitly set and non-default.
+        Resolve the RTSP URL for a camera.
+        - For Imou: specialized generation with credential encoding.
+        - Others: returns the saved rtsp_url.
         """
         cam = self.get_camera(camera_id)
         if not cam or cam.get('camera_type') != 'imou':
             return cam.get('rtsp_url') if cam else None
 
-        # Expert Fix: If user manually entered a specific RTSP URL (e.g. cloud or custom IP),
-        # use it instead of generating from template, UNLESS it's the 192.168.1.100 placeholder.
         manual_url = cam.get('rtsp_url')
-        if manual_url and manual_url.startswith("rtsp://") and "@192.168.1.100" not in manual_url:
+        # Only use manual URL if it's actually manual (doesn't have placeholders or double-at from broken encoding)
+        is_placeholder = "admin:password@192.168.1.100" in (manual_url or "")
+        is_broken = "@@" in (manual_url or "")
+        
+        if manual_url and manual_url.startswith("rtsp://") and not is_placeholder and not is_broken:
             return manual_url
 
         provider = self.get_provider('imou')
         template = provider['rtsp_template'] if provider and provider.get('rtsp_template') else \
-            'rtsp://admin:{password}@{ip}:554/cam/realmonitor?channel={channel}&subtype=0'
+            'rtsp://admin:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}'
         
-        # Get credentials
-        mk = self.get_app_setting("IMOU_MK", "bB123456789@")
+        # Get credentials - Safety Code is usually the password
+        provider_keys = cam.get('provider_keys') or {}
+        if isinstance(provider_keys, str):
+            import json
+            provider_keys = json.loads(provider_keys)
         
+        import urllib.parse
+        
+        # Priority: 1. Camera-specific MK, 2. Global app setting
+        mk = provider_keys.get('mk')
+        if not mk:
+            mk = self.get_app_setting("IMOU_MK", "bB123456789@")
+            
+        # URL encode password if it has special chars like @, #, etc.
+        encoded_mk = urllib.parse.quote(mk, safe='')
+            
         # Get IP and Port
-        ip = cam.get('camera_ip') or "192.168.1.100"
+        ip = cam.get('camera_ip')
+        if not ip:
+            logger.warning(f"Camera {camera_id} has no IP configured. Cannot generate RTSP URL.")
+            return None
+            
         port = cam.get('camera_port') or 554
         
-        # Fallback for IP if not explicitly set
-        if not cam.get('camera_ip'):
-            asset = self._execute_query("SELECT ip FROM cameras_asset WHERE cam_id = %s", (str(camera_id),), fetch=True)
-            if asset and asset['ip']:
-                ip = asset['ip']
-            elif cam.get('rtsp_url'):
-                import re
-                match = re.search(r'@([^:/]+)', cam['rtsp_url'])
-                if match:
-                    ip = match.group(1)
+        # Check if we should use sub-stream (subtype=1) from settings, default to 1 for stability
+        global_subtype = self.get_app_setting("IMOU_SUBTYPE", str(subtype))
         
-        channel = cam.get('imou_channel_id', '0')
+        channel = cam.get('imou_channel_id') or '1' 
         
-        # Interpolate
-        encoded_mk = urllib.parse.quote(mk)
-        url = template.replace("{user}", "admin").replace("{username}", "admin") \
-                      .replace("{pass}", encoded_mk).replace("{password}", encoded_mk) \
-                      .replace("{ip}", ip) \
-                      .replace("{port}", str(port)) \
-                      .replace("{channel}", str(channel))
-        return url
+        # Use template
+        return template.format(
+            password=encoded_mk,
+            ip=ip,
+            port=port,
+            channel=channel,
+            subtype=global_subtype
+        )
 
     # --- Camera Providers ---
 
@@ -854,19 +1095,41 @@ class DatabaseManager:
     # PENDING PLATES (simple)
     # ==========================================
 
-    def add_pending_plate_simple(self, plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None):
-        """Quick-add unknown plate to pending list with auto-generated ID."""
-        import uuid
-        pid = str(uuid.uuid4())[:8]
+    def add_pending_plate_simple(self, plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None):
+        """Quick-add unknown plate to pending list with auto-generated ID, with deduplication."""
+        # 1. Deduplication: Don't add if already in pending list (Separator-insensitive)
+        # Normalize input to alphanumeric only for lookup
+        clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
+        
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
+                # Use regexp_replace to match stored plate_norm robustly
+                cursor.execute("""
+                    SELECT pending_id FROM pending_plates 
+                    WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s 
+                    AND LOWER(TRIM(status)) = 'pending' 
+                    LIMIT 1
+                """, (clean_plate,))
+                
+                if cursor.fetchone():
+                    logger.info(f"Plate {plate_norm} already pending (normalized match: {clean_plate}). Skipping insertion.")
+                    return
+
+                # 2. Insert new record
+                import uuid
+                pid = str(uuid.uuid4())[:8]
+                logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
                 cursor.execute(
-                    """INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id)
-                       VALUES (%s, %s, %s, NOW(), 'pending', %s)
+                    """INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path)
+                       VALUES (%s, %s, %s, NOW(), 'pending', %s, %s)
                        ON CONFLICT (pending_id) DO NOTHING""",
-                    (pid, plate_raw, plate_norm, site_id)
+                    (pid, plate_raw, plate_norm, site_id, image_path)
                 )
                 conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"Successfully added pending plate {plate_norm} with ID {pid}")
+                else:
+                    logger.warning(f"Conflicting pending ID {pid}? No row inserted for {plate_norm}")
     # ==========================================
     # OCR TRAINING SAMPLES
     # ==========================================
@@ -900,30 +1163,40 @@ class DatabaseManager:
     def delete_ocr_sample(self, sample_id: int):
         self._execute_query("DELETE FROM ocr_training_samples WHERE id = %s", (sample_id,), commit=True)
     def log_stranger(self, camera_id: str, similarity: float, image_path: str,
-                     site_id: int | None = None, face_embedding: bytes | None = None) -> int | None:
+                     site_id: int | None = None, face_embedding: bytes | None = None,
+                     direction: str = "frontal") -> int | None:
         """Insert a stranger detection event. Returns the new row id."""
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''INSERT INTO stranger_logs
-                           (camera_id, similarity, image_path, site_id, face_embedding, status)
-                       VALUES (%s, %s, %s, %s, %s, 'new')
+                           (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time)
+                       VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW())
                        RETURNING id''',
-                    (camera_id, similarity, image_path, site_id, face_embedding)
+                    (camera_id, similarity, image_path, site_id, face_embedding, direction)
                 )
                 row_id = cursor.fetchone()[0]
             conn.commit()
             return row_id
-    def get_stranger_logs(self, status: str | None = None, limit: int = 50) -> list:
+    def get_stranger_logs(self, status: str | None = None, limit: int = 50, site_id: int | None = None) -> list:
         """Return stranger logs with site name and converted username.
-        Optionally filter by status ('new', 'reviewed', 'converted')."""
+        Optionally filter by status ('new', 'reviewed', 'converted') and site_id."""
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 params: list = []
-                where = ""
+                where_clauses = []
                 if status:
-                    where = "WHERE sl.status = %s"
+                    where_clauses.append("LOWER(TRIM(sl.status)) = LOWER(%s)")
                     params.append(status)
+                if site_id:
+                    # Show site-specific AND global (NULL) stranger logs
+                    where_clauses.append("(sl.site_id = %s OR sl.site_id IS NULL)")
+                    params.append(site_id)
+                
+                where = ""
+                if where_clauses:
+                    where = "WHERE " + " AND ".join(where_clauses)
+                
                 params.append(limit)
                 cursor.execute(f"""
                     SELECT sl.*,
@@ -937,6 +1210,20 @@ class DatabaseManager:
                     LIMIT %s
                 """, params)
                 return [dict(r) for r in cursor.fetchall()]
+
+    def get_stranger_log(self, stranger_id: int):
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT sl.*, s.site_name, u.username as converted_username
+                    FROM stranger_logs sl
+                    LEFT JOIN sites s ON sl.site_id = s.id
+                    LEFT JOIN users u ON sl.converted_user_id = u.id
+                    WHERE sl.id = %s
+                """, (stranger_id,))
+                res = cursor.fetchone()
+                return dict(res) if res else None
+
     def update_stranger_status(self, stranger_id: int, status: str,
                                converted_user_id: int | None = None, note: str | None = None) -> bool:
         """Update status (and optionally converted_user_id / note) for a stranger log row."""
@@ -1115,8 +1402,12 @@ class DatabaseManager:
         """Removes a vehicle from the whitelist."""
         if site_id:
             # Remove the site_id from the JSONB array
-            return self._execute_query(
+            res = self._execute_query(
                 "UPDATE plate_whitelist SET site_ids = site_ids - %s::text WHERE plate_number = %s",
                 (str(site_id), plate_number), commit=True) is not None
+            if res: self._trigger_ai_reload()
+            return res
         else:
-            return self.delete("plate_whitelist", {"plate_number": plate_number})
+            res = self.delete("plate_whitelist", {"plate_number": plate_number})
+            if res: self._trigger_ai_reload()
+            return res

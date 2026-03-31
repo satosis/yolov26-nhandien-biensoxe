@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS cameras (
     rtsp_url TEXT,
     site_ids INTEGER[],
     is_active BOOLEAN DEFAULT TRUE,
+    is_streaming BOOLEAN DEFAULT FALSE, -- Required by main.py
+    provider_keys JSONB DEFAULT '{}', -- Required for provider-specific settings (mk, email, etc.)
+    camera_ip VARCHAR(50),
+    camera_port INTEGER DEFAULT 554,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP
 );
@@ -59,6 +63,17 @@ CREATE TABLE IF NOT EXISTS users (
     note TEXT,
     remember_token VARCHAR(64) UNIQUE,
     remember_token_expires TIMESTAMP,
+    person_identity VARCHAR(100), -- Linked face identity (for face recognition)
+    -- KYC Fields
+    kyc_level INTEGER DEFAULT 0, -- 0=unverified, 1=basic_info, 2=id_submitted, 3=face_verified, 4=approved, -1=rejected
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    date_of_birth DATE,
+    id_number VARCHAR(20),
+    kyc_submitted_at TIMESTAMP,
+    kyc_reviewed_at TIMESTAMP,
+    kyc_reviewed_by VARCHAR(50),
+    kyc_reject_reason TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -127,7 +142,8 @@ CREATE TABLE IF NOT EXISTS pending_plates (
     status VARCHAR(20) DEFAULT 'pending',
     confirmed_at_utc TIMESTAMP,
     confirmed_by VARCHAR(50),
-    site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL
+    site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+    image_path TEXT
 );
 
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -372,3 +388,26 @@ CREATE TABLE IF NOT EXISTS ocr_training_samples (
 );
 CREATE INDEX IF NOT EXISTS idx_ocr_samples_status ON ocr_training_samples(status);
 CREATE INDEX IF NOT EXISTS idx_ocr_samples_conf ON ocr_training_samples(confidence);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- KYC (Know Your Customer) — Binance-style identity verification
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+
+
+-- KYC document storage
+CREATE TABLE IF NOT EXISTS kyc_documents (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    doc_type VARCHAR(30) NOT NULL,
+    -- doc_type: 'id_front', 'id_back', 'selfie_with_id',
+    --           'face_front', 'face_left', 'face_right', 'face_up', 'face_down'
+    file_path TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending',
+    uploaded_at TIMESTAMP DEFAULT NOW(),
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(50),
+    note TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_kyc_docs_user ON kyc_documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_kyc_docs_status ON kyc_documents(status);

@@ -13,7 +13,8 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "strangers"
     active_site_id = ctx.get("active_site_id")
-    ctx["strangers"] = get_db().get_stranger_logs(status=None, limit=50, site_id=active_site_id if active_site_id and active_site_id > 0 else None)
+    ctx["strangers"] = get_db().get_stranger_logs(status="new", limit=50, site_id=active_site_id if active_site_id and active_site_id > 0 else None)
+    ctx["all_users"] = get_db().get_all_users()
     return templates.TemplateResponse("pages/strangers.html", {"request": request, **ctx})
 
 @router.post("/{stranger_id}/review")

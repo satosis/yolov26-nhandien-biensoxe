@@ -34,18 +34,110 @@
     </div>
   </form>
 
-  <div id="bots-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    {% for b in bots %}
-    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-3">
-      <div class="flex items-center justify-between">
-        <span class="text-[15px] font-semibold text-white">{{ b.bot_name }}</span>
-        <button class="text-txt-sec hover:text-status-red text-sm" hx-delete="/telegram/{{ b.bot_name }}" hx-target="closest div.bg-bg-card" hx-swap="outerHTML" hx-confirm="Xóa bot {{ b.bot_name }}?">🗑</button>
-      </div>
-      <div class="text-[11px] font-mono text-txt-ter">Token: {{ b.bot_token[:10] }}...{{ b.bot_token[-4:] }}</div>
-      <div class="text-[11px] font-mono text-txt-ter">Chat ID: {{ b.chat_id }}</div>
+  <div class="bg-bg-card rounded-lg overflow-hidden">
+    <!-- Header Row -->
+    <div class="flex items-center gap-4 px-6 py-3 bg-bg-inset text-[11px] font-bold text-txt-ter uppercase tracking-[1.5px]">
+      <div class="w-[200px]">TÊN CẤU HÌNH (BOT)</div>
+      <div class="flex-1">TOKEN (MÃ BOT)</div>
+      <div class="w-[180px]">CHAT ID (NHÓM/NGƯỜI NHẬN)</div>
+      <div class="w-[120px] text-center">HÀNH ĐỘNG</div>
     </div>
-    {% endfor %}
-    {% if not bots %}<div class="col-span-full text-center text-txt-ter text-sm py-8 bg-bg-card rounded-lg">Chưa có bot nào.</div>{% endif %}
+
+    <!-- Bots List -->
+    <div id="bots-list">
+      {% for b in bots %}
+      <div class="flex flex-col border-b border-divider last:border-0">
+        <div class="flex items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-all group">
+          <div class="w-[200px]">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">🤖</span>
+              <span class="text-[14px] font-semibold text-white">{{ b.bot_name }}</span>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div class="text-[12px] font-mono text-txt-sec bg-bg-inset px-2 py-1 rounded border border-white/5 truncate max-w-[300px]" title="{{ b.token }}">
+              {{ b.token[:12] }}••••••••{{ b.token[-6:] }}
+            </div>
+          </div>
+          <div class="w-[180px]">
+            <div class="text-[13px] font-mono text-accent bg-accent/5 px-2 py-1 rounded border border-accent/10 inline-block">
+              {{ b.chat_id }}
+            </div>
+          </div>
+          <div class="w-[120px] flex items-center justify-center gap-3">
+            <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                      detail: {
+                        title: 'Thử nghiệm Bot',
+                        message: 'Gửi tin nhắn thử nghiệm tới {{ b.bot_name }}?',
+                        confirmText: 'Gửi ngay',
+                        confirmUrl: '/telegram/{{ b.bot_name }}/test',
+                        confirmMethod: 'POST',
+                        reload: false
+                      }
+                    }))"
+                    class="w-8 h-8 rounded-full bg-status-green/10 text-status-green flex items-center justify-center hover:bg-status-green hover:text-bg-inset transition-all cursor-pointer" 
+                    title="Gửi tin nhắn thử">⚡</button>
+            <button onclick="document.getElementById('edit-bot-form-{{ loop.index }}').classList.toggle('hidden')" 
+                    class="w-8 h-8 rounded-full bg-white/5 text-txt-sec flex items-center justify-center hover:bg-accent hover:text-bg-inset transition-all cursor-pointer" 
+                    title="Chỉnh sửa">✏️</button>
+            <button type="button" 
+                    @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                      detail: {
+                        title: 'Xóa Bot',
+                        message: 'Bạn chắc chắn muốn xóa cấu hình bot {{ b.bot_name }}?',
+                        confirmText: 'Xác nhận xóa',
+                        confirmUrl: '/telegram/{{ b.bot_name }}',
+                        confirmMethod: 'DELETE',
+                        reload: true
+                      }
+                    }))"
+                    class="w-8 h-8 rounded-full bg-status-red/10 text-status-red flex items-center justify-center hover:bg-status-red hover:text-white transition-all cursor-pointer" title="Xóa">🗑</button>
+          </div>
+        </div>
+
+        <!-- Inline Edit Form (Hidden by default) -->
+        <form id="edit-bot-form-{{ loop.index }}" method="POST" action="/telegram" 
+              class="hidden bg-bg-inset/50 p-6 border-t border-divider grid grid-cols-4 gap-4 items-end">
+          <input type="hidden" name="bot_name" value="{{ b.bot_name }}">
+          <div class="col-span-1">
+            <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Tên cấu hình (Không đổi)</label>
+            <input value="{{ b.bot_name }}" disabled class="w-full bg-bg-inset/50 border border-white/5 rounded-md px-3 py-2 text-sm text-txt-ter cursor-not-allowed">
+          </div>
+          <div class="col-span-1">
+            <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Mã Token mới</label>
+            <input name="token" value="{{ b.token }}" required class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent/50 outline-none">
+          </div>
+          <div class="col-span-1">
+            <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Chat ID mới</label>
+            <input name="chat_id" value="{{ b.chat_id }}" required class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent/50 outline-none">
+          </div>
+          <div class="col-span-1 flex gap-2">
+            <button type="submit" class="flex-1 bg-accent text-bg-inset font-bold text-[12px] py-2 rounded-md hover:opacity-90">CẬP NHẬT</button>
+            <button type="button" onclick="this.closest('form').classList.add('hidden')" class="px-3 py-2 bg-white/5 text-txt-sec rounded-md hover:bg-white/10">✕</button>
+          </div>
+        </form>
+      </div>
+      {% endfor %}
+      {% if not bots %}
+      <div class="py-20 text-center flex flex-col items-center gap-4">
+        <span class="text-6xl opacity-20">📡</span>
+        <div class="flex flex-col gap-1">
+          <p class="text-txt-sec font-medium">Chưa có cấu hình Telegram nào.</p>
+          <p class="text-[12px] text-txt-ter">Hãy kết nối Bot của bạn để nhận thông báo tức thì.</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
   </div>
 </div>
+
+<script>
+async function testBot(botName) {
+  if(!confirm(`Gửi tin nhắn thử nghiệm tới ${botName}?`)) return;
+  const res = await fetch(`/telegram/${botName}/test`, { method: 'POST' });
+  const data = await res.json();
+  if(data.ok) alert("✅ Đã gửi tin nhắn thử nghiệm thành công!");
+  else alert("❌ Lỗi: " + data.message);
+}
+</script>
 {% endblock %}

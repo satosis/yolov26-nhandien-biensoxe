@@ -11,6 +11,7 @@ Responsibilities:
 
 Runs as a standalone multiprocessing.Process — no imports from inference.py or ui_server.py.
 """
+import os
 import time
 import logging
 import signal
@@ -169,20 +170,29 @@ class CameraReader:
         logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        """Open RTSP with FFmpeg backend + hardware-friendly flags."""
-        # Prefer FFmpeg backend; fall back to default
+        """Open RTSP with FFmpeg backend + forced TCP transport for stability."""
+        # Force TCP transport globally for this process
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+        
+        masked_url = self.rtsp_url
+        if "@" in self.rtsp_url:
+            parts = self.rtsp_url.split("@")
+            prefix = parts[0].split(":")
+            if len(prefix) > 2:
+                masked_url = f"{prefix[0]}:***@{parts[1]}"
+        
+        logger.info("[%s] Attempting to open: %s", self.cam_id, masked_url)
+        
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         if not cap.isOpened():
             cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
-            logger.error("[%s] Cannot open stream: %s", self.cam_id, self.rtsp_url)
+            logger.error("[%s] Connection FAILED to: %s", self.cam_id, masked_url)
             return None
 
-        cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY)
+        # Force CPU-only decoding for stability and to avoid GPU context polling
+        cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_NONE)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, cfg.RTSP_BUFFER_SIZE)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.GRAB_WIDTH)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.GRAB_HEIGHT)
-        cap.set(cv2.CAP_PROP_FPS, cfg.GRAB_FPS_CAP)
         return cap
 
 

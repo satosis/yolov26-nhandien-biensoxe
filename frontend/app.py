@@ -16,7 +16,9 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
+import jinja2
 
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -46,6 +48,12 @@ app.add_middleware(
 # Static files
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
+from backend.core import config as cfg
+os.makedirs(cfg.KNOWN_FACES_DIR, exist_ok=True)
+os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
+app.mount("/known_faces", StaticFiles(directory=cfg.KNOWN_FACES_DIR), name="known_faces")
+app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots")
+
 # Templates
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
@@ -74,6 +82,16 @@ for r in [auth_router, detection_router, cameras_router, sites_router,
           ocr_review_router, telegram_router, rbac_router, users_router,
           config_router, hpc_router, dori_router]:
     app.include_router(r)
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return templates.TemplateResponse("pages/404.html", {"request": request}, status_code=404)
+    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc}, status_code=500)
+
+@app.exception_handler(jinja2.exceptions.TemplateNotFound)
+async def template_not_found_handler(request: Request, exc: jinja2.exceptions.TemplateNotFound):
+    return templates.TemplateResponse("pages/404.html", {"request": request}, status_code=404)
 
 
 @app.get("/")

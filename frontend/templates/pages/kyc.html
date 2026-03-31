@@ -1,0 +1,452 @@
+{% extends "layout.html" %}
+{% block title %}KYC — Xác minh danh tính{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-[720px] mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <span class="text-accent text-[28px]">🪪</span>
+    <div>
+      <h1 class="text-2xl font-bold text-white">Xác minh danh tính (KYC)</h1>
+      <p class="text-txt-ter text-[12px]">Hoàn thành 3 bước để được cấp quyền truy cập đầy đủ</p>
+    </div>
+  </div>
+
+  <!-- KYC Status Banner -->
+  {% set level = kyc.kyc_level or 0 %}
+  {% if level == 4 %}
+  <div class="bg-status-green/10 border border-status-green/30 rounded-xl p-5 flex items-center gap-4">
+    <span class="text-4xl">✅</span>
+    <div>
+      <p class="text-status-green font-bold text-[15px]">Đã xác minh thành công</p>
+      <p class="text-txt-sec text-[12px]">Duyệt bởi {{ kyc.kyc_reviewed_by }} lúc {{ kyc.kyc_reviewed_at.strftime('%d/%m/%Y %H:%M') if kyc.kyc_reviewed_at else '—' }}</p>
+    </div>
+  </div>
+  {% elif level == -1 %}
+  <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-5">
+    <div class="flex items-center gap-4 mb-3">
+      <span class="text-4xl">❌</span>
+      <div>
+        <p class="text-red-400 font-bold text-[15px]">Xác minh bị từ chối</p>
+        <p class="text-txt-sec text-[12px]">Lý do: {{ kyc.kyc_reject_reason or 'Không rõ' }}</p>
+      </div>
+    </div>
+    <form method="POST" action="/kyc/reset">
+      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-lg hover:bg-cyan-300 transition-colors">🔄 Thử lại từ đầu</button>
+    </form>
+  </div>
+  {% elif level == 3 %}
+  <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 flex items-center gap-4">
+    <div class="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+    <div>
+      <p class="text-blue-400 font-bold text-[15px]">Đang chờ Admin duyệt</p>
+      <p class="text-txt-sec text-[12px]">Bạn đã hoàn thành tất cả các bước. Vui lòng chờ phê duyệt.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Progress Steps -->
+  <div class="flex items-center justify-between bg-bg-card rounded-xl p-5">
+    {% set steps = [
+      ('1', 'Thông tin', level >= 1),
+      ('2', 'Giấy tờ', level >= 2),
+      ('3', 'Khuôn mặt', level >= 3)
+    ] %}
+    {% for num, label, done in steps %}
+    <div class="flex items-center gap-3 {% if not loop.first %}flex-1{% endif %}">
+      {% if not loop.first %}
+      <div class="flex-1 h-0.5 {{ 'bg-accent' if done else 'bg-white/10' }} rounded-full transition-colors"></div>
+      {% endif %}
+      <div class="flex flex-col items-center gap-1">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                    {{ 'bg-accent text-bg-inset' if done else 'bg-white/5 text-txt-ter border border-white/10' }}">
+          {% if done %}✓{% else %}{{ num }}{% endif %}
+        </div>
+        <span class="text-[11px] font-semibold {{ 'text-accent' if done else 'text-txt-ter' }} uppercase tracking-wider">{{ label }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- ═══════════ STEP 1: Basic Info ═══════════ -->
+  {% if level < 1 %}
+  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
+    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
+      <h2 class="text-white font-bold text-[15px]">Bước 1 — Thông tin cá nhân</h2>
+      <p class="text-txt-ter text-[11px] mt-0.5">Nhập đầy đủ thông tin cơ bản của bạn</p>
+    </div>
+    <form method="POST" action="/kyc/basic-info" class="p-6 flex flex-col gap-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Họ và tên *</label>
+          <input name="full_name" required value="{{ kyc.full_name or '' }}" placeholder="Nguyễn Văn A"
+                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Ngày sinh *</label>
+          <input name="date_of_birth" type="date" required value="{{ kyc.date_of_birth or '' }}"
+                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Số điện thoại *</label>
+          <input name="phone" required value="{{ kyc.phone or '' }}" placeholder="0912345678" pattern="[0-9]{10,11}"
+                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Email *</label>
+          <input name="email" type="email" required value="{{ kyc.email or '' }}" placeholder="email@example.com"
+                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        </div>
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Số CMND/CCCD *</label>
+        <input name="id_number" required value="{{ kyc.id_number or '' }}" placeholder="001234567890" pattern="[0-9]{9,12}"
+               class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors max-w-[360px]">
+        <p class="text-txt-ter text-[10px] mt-1">CMND: 9 số | CCCD: 12 số</p>
+      </div>
+      <button type="submit" class="bg-accent text-bg-inset font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-cyan-300 transition-all w-fit shadow-lg shadow-accent/20">
+        Tiếp tục →
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <!-- ═══════════ STEP 2: ID Document Upload ═══════════ -->
+  {% if level >= 1 and level < 2 %}
+  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
+    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
+      <h2 class="text-white font-bold text-[15px]">Bước 2 — Xác minh giấy tờ</h2>
+      <p class="text-txt-ter text-[11px] mt-0.5">Chụp ảnh CMND/CCCD rõ ràng, đặt trên nền trắng</p>
+    </div>
+    <div class="p-6 flex flex-col gap-5">
+      <!-- ID Front -->
+      <div class="flex flex-col gap-2">
+        <label class="text-txt-sec text-[12px] font-semibold">Mặt trước CMND/CCCD *</label>
+        <div id="drop-id-front" class="relative border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer"
+             onclick="document.getElementById('file-id-front').click()">
+          <input type="file" id="file-id-front" accept="image/*" class="hidden" onchange="uploadIdDoc('id_front', this)">
+          <div id="preview-id-front" class="{% if docs.get('id_front') %}{% else %}hidden{% endif %}">
+            {% if docs.get('id_front') %}
+            <img src="/kyc/uploads/{{ kyc.id }}/id_front.jpg" class="max-h-40 mx-auto rounded-lg">
+            <p class="text-status-green text-[11px] font-bold mt-2">✅ Đã tải lên</p>
+            {% endif %}
+          </div>
+          <div id="placeholder-id-front" class="{% if docs.get('id_front') %}hidden{% endif %}">
+            <span class="text-3xl">🪪</span>
+            <p class="text-txt-ter text-[12px] mt-2">Kéo thả hoặc nhấn để chọn ảnh</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ID Back -->
+      <div class="flex flex-col gap-2">
+        <label class="text-txt-sec text-[12px] font-semibold">Mặt sau CMND/CCCD *</label>
+        <div id="drop-id-back" class="relative border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer"
+             onclick="document.getElementById('file-id-back').click()">
+          <input type="file" id="file-id-back" accept="image/*" class="hidden" onchange="uploadIdDoc('id_back', this)">
+          <div id="preview-id-back" class="{% if docs.get('id_back') %}{% else %}hidden{% endif %}">
+            {% if docs.get('id_back') %}
+            <img src="/kyc/uploads/{{ kyc.id }}/id_back.jpg" class="max-h-40 mx-auto rounded-lg">
+            <p class="text-status-green text-[11px] font-bold mt-2">✅ Đã tải lên</p>
+            {% endif %}
+          </div>
+          <div id="placeholder-id-back" class="{% if docs.get('id_back') %}hidden{% endif %}">
+            <span class="text-3xl">🪪</span>
+            <p class="text-txt-ter text-[12px] mt-2">Kéo thả hoặc nhấn để chọn ảnh</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ═══════════ STEP 3: Face Verification ═══════════ -->
+  {% if level >= 2 and level < 3 %}
+  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
+    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
+      <h2 class="text-white font-bold text-[15px]">Bước 3 — Xác minh khuôn mặt</h2>
+      <p class="text-txt-ter text-[11px] mt-0.5">Quay mặt theo 5 hướng để AI xác minh danh tính</p>
+    </div>
+    <div class="p-6 flex flex-col items-center gap-5">
+
+      <!-- Face progress indicators -->
+      <div class="flex gap-3">
+        {% set face_angles = ['front','left','right','up','down'] %}
+        {% set face_labels = {'front':'Thẳng','left':'Trái','right':'Phải','up':'Lên','down':'Xuống'} %}
+        {% for angle in face_angles %}
+        <div id="face-badge-{{ angle }}" class="flex flex-col items-center gap-1">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                      {{ 'bg-status-green/20 text-status-green border border-status-green/30' if docs.get('face_' + angle) else 'bg-white/5 text-txt-ter border border-white/10' }}">
+            {% if docs.get('face_' + angle) %}✓{% else %}📷{% endif %}
+          </div>
+          <span class="text-[9px] font-bold uppercase text-txt-ter tracking-wider">{{ face_labels[angle] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Video ring -->
+      <div class="flex flex-col items-center gap-4">
+        <div id="video-ring" class="relative w-56 h-56 bg-bg-inset rounded-full border-4 border-white/10 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all duration-300">
+          <video id="webcam-video" autoplay playsinline class="w-full h-full object-cover"></video>
+          <canvas id="capture-canvas" class="hidden"></canvas>
+          <div id="capture-flash" class="absolute inset-0 bg-white z-40 opacity-0 pointer-events-none transition-opacity duration-150"></div>
+          <div id="camera-loading" class="absolute inset-0 flex items-center justify-center bg-bg-card z-30">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+              <p class="text-[9px] text-txt-ter uppercase font-black tracking-widest">Đang tải AI...</p>
+            </div>
+          </div>
+          <div id="success-overlay" class="absolute inset-0 flex items-center justify-center bg-status-green/80 z-30 hidden">
+            <span class="text-white text-5xl">✓</span>
+          </div>
+        </div>
+
+        <!-- Hold progress bar -->
+        <div class="w-56 h-1.5 bg-white/5 rounded-full overflow-hidden">
+          <div id="hold-bar" class="h-full bg-status-green rounded-full transition-all duration-100" style="width:0%"></div>
+        </div>
+        <p id="kyc-status-text" class="text-txt-ter text-[12px] text-center font-medium"></p>
+      </div>
+
+      <p id="kyc-instruction" class="text-white text-[15px] font-semibold">Nhấn bắt đầu để xác minh</p>
+
+      <button id="btn-start-camera" onclick="startKYC()"
+              class="bg-accent text-bg-inset font-bold text-[13px] py-3.5 px-8 rounded-2xl shadow-lg shadow-accent/20 hover:scale-[1.02] active:scale-95 transition-all">
+        📷 Bắt đầu xác minh khuôn mặt
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Face verification JS (only loaded when needed) -->
+{% if level >= 2 and level < 3 %}
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+let stream = null;
+let currentStep = 0;
+let kycRunning = false;
+let detectInterval = null;
+let holdStart = 0;
+const HOLD_TIME = 1500;
+let modelsLoaded = false;
+let dirHistory = [];
+const HISTORY_SIZE = 5;
+
+// Check which angles are already done
+const doneFaces = new Set([
+  {% for angle in face_angles %}{% if docs.get('face_' + angle) %}'{{ angle }}',{% endif %}{% endfor %}
+]);
+
+const kycSteps = [
+    { id: 'front', instruction: 'Nhìn thẳng vào camera' },
+    { id: 'left',  instruction: 'Quay đầu sang trái' },
+    { id: 'right', instruction: 'Quay đầu sang phải' },
+    { id: 'up',    instruction: 'Ngước đầu lên trên' },
+    { id: 'down',  instruction: 'Cúi đầu xuống dưới' }
+].filter(s => !doneFaces.has(s.id));
+
+async function loadModels() {
+    if (modelsLoaded) return;
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
+    modelsLoaded = true;
+}
+
+function estimateDirection(landmarks) {
+    const jaw = landmarks.getJawOutline();
+    const nose = landmarks.getNose();
+    const faceLeft = jaw[0], faceRight = jaw[16], chin = jaw[8];
+    const faceW = faceRight.x - faceLeft.x;
+    const faceCX = (faceLeft.x + faceRight.x) / 2;
+    const noseTip = nose[6];
+    const yaw = (noseTip.x - faceCX) / faceW;
+    const brows = [...landmarks.getLeftEyeBrow(), ...landmarks.getRightEyeBrow()];
+    const browCenter = brows.reduce((s, p) => s + p.y, 0) / brows.length;
+    const noseToBrow = noseTip.y - browCenter;
+    const noseToChin = chin.y - noseTip.y;
+    const pitchRatio = noseToBrow / (noseToChin + 0.001);
+    dirHistory.push({ yaw, pitchRatio });
+    if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
+    const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
+    const avgPR = dirHistory.reduce((s, d) => s + d.pitchRatio, 0) / dirHistory.length;
+    if (avgPR < 0.9) return 'up';
+    if (avgPR > 2.2) return 'down';
+    if (avgYaw > 0.15) return 'left';
+    if (avgYaw < -0.15) return 'right';
+    return 'front';
+}
+
+async function startKYC() {
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang tải AI nhận diện...';
+    document.getElementById('btn-start-camera').classList.add('hidden');
+    await loadModels();
+    if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: {ideal:640}, height: {ideal:640}, facingMode: "user" }
+        });
+        document.getElementById('webcam-video').srcObject = stream;
+    }
+    document.getElementById('camera-loading').classList.add('hidden');
+    kycRunning = true;
+    currentStep = 0;
+    runStep();
+}
+
+function runStep() {
+    if (currentStep >= kycSteps.length) { kycComplete(); return; }
+    const step = kycSteps[currentStep];
+    document.getElementById('kyc-instruction').textContent = step.instruction;
+    document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,0.1)';
+    document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
+    holdStart = 0;
+    dirHistory = [];
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = setInterval(() => detectFace(step.id), 300);
+}
+
+async function detectFace(expectedDir) {
+    if (!kycRunning) return;
+    const video = document.getElementById('webcam-video');
+    if (video.readyState < 2) return;
+    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+        .withFaceLandmarks(true);
+    const ring = document.getElementById('video-ring');
+    const bar = document.getElementById('hold-bar');
+    const status = document.getElementById('kyc-status-text');
+    if (!detection) {
+        ring.style.borderColor = 'rgba(255,100,100,0.5)';
+        ring.style.boxShadow = 'none';
+        bar.style.width = '0%';
+        holdStart = 0;
+        status.textContent = '❌ Không phát hiện khuôn mặt';
+        return;
+    }
+    const dir = estimateDirection(detection.landmarks);
+    if (dir === expectedDir) {
+        ring.style.borderColor = 'rgba(100,255,150,0.8)';
+        ring.style.boxShadow = '0 0 20px rgba(100,255,150,0.3)';
+        if (holdStart === 0) holdStart = Date.now();
+        const elapsed = Date.now() - holdStart;
+        const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
+        bar.style.width = pct + '%';
+        status.textContent = `✅ Đúng hướng! Giữ yên... ${Math.ceil((HOLD_TIME - elapsed) / 1000)}s`;
+        if (elapsed >= HOLD_TIME) {
+            clearInterval(detectInterval);
+            autoCaptureAndUpload();
+        }
+    } else {
+        ring.style.borderColor = 'rgba(255,200,50,0.5)';
+        ring.style.boxShadow = '0 0 20px rgba(255,200,50,0.1)';
+        bar.style.width = '0%';
+        holdStart = 0;
+        const dirNames = {front:'thẳng', left:'trái', right:'phải', up:'lên', down:'xuống'};
+        status.textContent = `⚠️ Hướng hiện tại: ${dirNames[dir] || dir} — Hãy ${kycSteps[currentStep].instruction.toLowerCase()}`;
+    }
+}
+
+async function autoCaptureAndUpload() {
+    const video = document.getElementById('webcam-video');
+    const canvas = document.getElementById('capture-canvas');
+    const flash = document.getElementById('capture-flash');
+    const step = kycSteps[currentStep];
+    flash.style.opacity = '1';
+    setTimeout(() => flash.style.opacity = '0', 150);
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang lưu...';
+    document.getElementById('hold-bar').style.width = '100%';
+    canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append('face_image', blob, `${step.id}.jpg`);
+        const res = await fetch(`/kyc/face/${step.id}?t=${Date.now()}`, {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' }
+        });
+        
+        if (!res.ok) {
+            let detail = "Đã xảy ra lỗi hệ thống.";
+            let rawTxt = "";
+            rawTxt = await res.text();
+            const errData = JSON.parse(rawTxt);
+            if (errData.message) detail = errData.message;
+            else if (errData.error) detail = `Lỗi: ${errData.error}`;
+            else if (errData.detail) detail = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+            document.getElementById('kyc-status-text').textContent = `❌ ${detail}`;
+            setTimeout(() => runStep(), 3000);
+            return;
+        }
+
+        const data = await res.json();
+        if (data.ok) {
+            document.getElementById('success-overlay').classList.remove('hidden');
+            document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+            document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
+            // Update badge
+            const badge = document.getElementById(`face-badge-${step.id}`);
+            if (badge) {
+                const circle = badge.querySelector('div');
+                circle.className = 'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-status-green/20 text-status-green border border-status-green/30';
+                circle.textContent = '✓';
+            }
+            setTimeout(() => { currentStep++; runStep(); }, 1000);
+        } else {
+            document.getElementById('kyc-status-text').textContent = '❌ Đang thử lại...';
+            setTimeout(() => runStep(), 2000);
+        }
+    }, 'image/jpeg', 0.95);
+}
+
+function kycComplete() {
+    if (detectInterval) clearInterval(detectInterval);
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    document.getElementById('kyc-instruction').textContent = '🎉 Hoàn tất xác minh khuôn mặt!';
+    document.getElementById('kyc-status-text').textContent = 'Đang tải lại trang...';
+    document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+    setTimeout(() => window.location.reload(), 1500);
+}
+</script>
+{% endif %}
+
+<!-- ID Upload JS (only loaded when needed) -->
+{% if level >= 1 and level < 2 %}
+<script>
+async function uploadIdDoc(docType, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('doc_type', docType);
+    formData.append('file', file);
+
+    const preview = document.getElementById('preview-' + docType);
+    const placeholder = document.getElementById('placeholder-' + docType);
+
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        preview.innerHTML = `<img src="${e.target.result}" class="max-h-40 mx-auto rounded-lg"><p class="text-yellow-400 text-[11px] font-bold mt-2 animate-pulse">⏳ Đang tải lên...</p>`;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+    };
+    reader.readAsDataURL(file);
+
+    const res = await fetch('/kyc/upload-id', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.ok) {
+        preview.querySelector('p').textContent = '✅ Đã tải lên';
+        preview.querySelector('p').className = 'text-status-green text-[11px] font-bold mt-2';
+        // Check if both done -> reload
+        setTimeout(() => window.location.reload(), 500);
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

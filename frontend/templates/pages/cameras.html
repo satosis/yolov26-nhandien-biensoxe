@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block title %}Camera — Parking Camera{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5" x-data="{}">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -14,9 +14,14 @@
         class="bg-bg-card border border-white/5 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/5 transition-colors flex items-center gap-2">
         <span>🔑</span> Quản lý Key
       </a>
-      <button
-        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
-        onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">+ Thêm Camera</button>
+      <button onclick="discoverCameras()" id="discover-btn"
+              class="bg-white/5 border border-white/10 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-2">
+        <span id="discover-icon">🔍</span> <span id="discover-text">Dò tìm Camera</span>
+      </button>
+      <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
+              onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
+        <span>+</span> Thêm Camera
+      </button>
     </div>
   </div>
 
@@ -78,16 +83,26 @@
           class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Mã an toàn (MK) / Password</label>
+        <input name="imou_mk" placeholder="Mã an toàn của camera"
+          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Cổng RTSP</label>
         <input name="camera_port" type="number" value="554"
           class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
+      <div class="flex items-end">
+        <span class="text-[11px] text-txt-ter italic">Để trống MK nếu dùng cấu hình chung trong "Quản lý Key"</span>
+      </div>
     </div>
-    <div>
+    <div class="mt-2">
       <label class="block text-txt-sec text-[13px] font-medium mb-1">RTSP URL</label>
-      <input name="rtsp_url"
-        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
-        placeholder="rtsp://...">
+      <input name="rtsp_url" readonly
+        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none"
+        placeholder="vui lòng điền thông tin trên để tạo URL...">
     </div>
     <div class="flex gap-3">
       <button type="submit"
@@ -99,126 +114,262 @@
 
   <!-- Table card -->
   <div class="bg-bg-card rounded-lg overflow-x-auto">
-    <div
-      class="flex items-center gap-3 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] min-w-[900px]">
-      <div class="w-[50px] text-center">TT</div>
-      <div class="w-[180px]">TÊN CAMERA</div>
-      <div class="w-[110px]">NHÀ CUNG CẤP</div>
-      <div class="w-[140px]">ĐỊA ĐIỂM</div>
-      <div class="w-[170px]">DEVICE ID</div>
-      <div class="flex-1">RTSP URL</div>
-      <div class="w-[80px]">CẬP NHẬT</div>
-      <div class="w-[70px] text-center">HÀNH ĐỘNG</div>
-    </div>
-    {% for cam in cameras %}
-    <div
-      class="flex items-center gap-3 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors min-w-[900px] {% if not cam.is_active %}opacity-50{% endif %}">
-      <div class="w-[50px] text-center">{% if cam.is_active %}🟢{% else %}⚫{% endif %}</div>
-      <div class="w-[180px] text-[13px] font-semibold text-white">{{ cam.camera_name }}</div>
-      <div class="w-[110px]">
-        <span
-          class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-accent/10 text-accent border border-accent/20">{{
-          cam.camera_type }}</span>
-      </div>
-      <div class="w-[140px] text-[12px] text-txt-sec">
-        {% for s in (cam.site_names or []) %}<span
-          class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-bg-inset border border-white/5 text-txt-sec mr-1">{{
-          s }}</span>{% endfor %}
-        {% if not cam.site_names %}—{% endif %}
-      </div>
-      <div class="w-[170px] text-[11px] font-mono text-txt-ter">{{ cam.imou_device_id or '—' }}</div>
-      <div class="flex-1 text-[11px] font-mono text-txt-ter truncate" title="{{ cam.rtsp_url or '' }}">{{ (cam.rtsp_url
-        or '—')[:40] }}{% if cam.rtsp_url and cam.rtsp_url|length > 40 %}...{% endif %}</div>
-      <div class="w-[80px] text-[11px] text-txt-ter">{{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else
-        '—' }}</div>
-      <div class="w-[70px] flex items-center justify-center gap-3">
-        <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
-          class="hover:text-accent transition-colors text-[13px]" title="Sửa">✏️</button>
-        <form method="POST" action="/cameras/{{ cam.id }}"
-          onsubmit="event.preventDefault(); if(confirm('Xóa camera này?')){ fetch(this.action, {method:'DELETE'}).then(()=>window.location.reload()); }"
-          class="inline">
-          <button type="submit" class="hover:text-red-400 transition-colors text-[13px]" title="Xóa">🗑️</button>
-        </form>
-      </div>
-    </div>
-    <!-- Edit form -->
-    <form id="edit-cam-form-{{ cam.id }}" method="POST" action="/cameras/{{ cam.id }}/edit"
-      class="hidden bg-white/5 p-5 border-b border-divider flex flex-col gap-4 min-w-[900px]">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên camera *</label>
-          <input name="camera_name" value="{{ cam.camera_name }}" required
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Nhà cung cấp</label>
-          <select name="camera_type"
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-            {% for p in providers %}
-            <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name
-              }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Device ID</label>
-          <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}"
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
-          <select name="site_ids"
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-            <option value="">— Chọn địa điểm —</option>
-            {% for s in sites %}
-            <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name
-              }}</option>
-            {% endfor %}
-          </select>
-        </div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ IP</label>
-          <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100"
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cổng RTSP</label>
-          <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}"
-            class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL</label>
-        <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}"
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
-          placeholder="rtsp://...">
-      </div>
-      <div class="flex gap-3 mt-1">
-        <button type="submit"
-          class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập
-          nhật</button>
-        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-          onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
-      </div>
-    </form>
-    {% endfor %}
-    {% if not cameras %}
-    <div class="px-5 py-12 text-center flex flex-col items-center gap-3">
-      <span class="text-4xl opacity-20">📽️</span>
-      <div class="flex flex-col gap-1">
-        <div class="text-txt-sec font-medium">Chưa có camera nào được tìm thấy</div>
-        {% if active_site_id and active_site_id > 0 %}
-        <div class="text-[12px] text-txt-ter">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b> trong sidebar.</div>
-        {% else %}
-        <div class="text-[12px] text-txt-ter">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
+    <table class="w-full text-left border-collapse min-w-[1000px]">
+      <!-- Header -->
+      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
+        <tr>
+          <th class="px-5 py-3 font-semibold w-[60px] text-center">TT</th>
+          <th class="px-5 py-3 font-semibold w-[180px]">TÊN CAMERA</th>
+          <th class="px-5 py-3 font-semibold w-[120px]">NHÀ CUNG CẤP</th>
+          <th class="px-5 py-3 font-semibold w-[140px]">ĐỊA ĐIỂM</th>
+          <th class="px-5 py-3 font-semibold w-[170px]">DEVICE ID</th>
+          <th class="px-5 py-3 font-semibold">RTSP URL</th>
+          <th class="px-5 py-3 font-semibold w-[100px]">CẬP NHẬT</th>
+          <th class="px-5 py-3 font-semibold w-[100px] text-right">HÀNH ĐỘNG</th>
+        </tr>
+      </thead>
+
+      <!-- Body -->
+      <tbody>
+        {% for cam in cameras %}
+        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors {% if not cam.is_active %}opacity-60{% endif %}" id="cam-row-{{ cam.id }}">
+          <td class="px-5 py-3.5 text-center text-[14px]">
+            {% if cam.is_active %}🟢{% else %}⚫{% endif %}
+          </td>
+          <td class="px-5 py-3.5">
+            <div class="text-[13px] font-semibold text-white">{{ cam.camera_name }}</div>
+          </td>
+          <td class="px-5 py-3.5">
+            <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 uppercase tracking-wider">
+              {{ cam.camera_type }}
+            </span>
+          </td>
+          <td class="px-5 py-3.5 text-[12px] text-txt-sec">
+            <div class="flex flex-wrap gap-1">
+              {% for s in (cam.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[10px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
+              {% if not cam.site_names %}—{% endif %}
+            </div>
+          </td>
+          <td class="px-5 py-3.5 text-[11px] font-mono text-txt-ter">
+            {{ cam.imou_device_id or '—' }}
+          </td>
+          <td class="px-5 py-3.5">
+            <div class="text-[11px] font-mono text-txt-ter truncate max-w-[200px]" title="{{ cam.rtsp_url or '' }}">
+              {{ cam.rtsp_url or '—' }}
+            </div>
+          </td>
+          <td class="px-5 py-3.5 text-[11px] text-txt-ter">
+            {{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else '—' }}
+          </td>
+          <td class="px-5 py-3.5 text-right">
+            <div class="flex justify-end gap-3">
+              <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
+                class="text-txt-sec hover:text-accent transition-colors text-[16px]" title="Sửa">✏️</button>
+              <button type="button" class="text-txt-sec hover:text-status-red transition-colors text-[16px] cursor-pointer" 
+                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                        detail: {
+                          title: 'Xóa camera',
+                          message: 'Bạn chắc chắn muốn xóa camera {{ cam.camera_name }}?',
+                          confirmText: 'Xác nhận xóa',
+                          confirmUrl: '/cameras/{{ cam.id }}',
+                          confirmMethod: 'DELETE',
+                          reload: true
+                        }
+                      }))" title="Xóa">🗑️</button>
+            </div>
+          </td>
+        </tr>
+        
+        <!-- Inline Edit Form Row -->
+        <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
+          <td colspan="8" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
+            <form method="POST" action="/cameras/{{ cam.id }}/edit" class="flex flex-col gap-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên camera *</label>
+                  <input name="camera_name" value="{{ cam.camera_name }}" required
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Nhà cung cấp</label>
+                  <select name="camera_type"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                    {% for p in providers %}
+                    <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Device ID</label>
+                  <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
+                  <select name="site_ids"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                    <option value="">— Chọn địa điểm —</option>
+                    {% for s in sites %}
+                    <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ IP</label>
+                  <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Mã an toàn (MK) / Password</label>
+                  <input name="imou_mk" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}" 
+                    placeholder="Mã an toàn của camera"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cổng RTSP</label>
+                  <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}"
+                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                </div>
+                <div class="flex items-end">
+                   <span class="text-[10px] text-txt-ter italic">Sử dụng để tạo RTSP URL tự động.</span>
+                </div>
+              </div>
+              <div class="mt-1">
+                <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL</label>
+                <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
+                  class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none"
+                  placeholder="rtsp://...">
+              </div>
+              <div class="flex gap-3 mt-1">
+                <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
+                <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
+                  onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        
+        {% if not cameras %}
+        <tr>
+          <td colspan="8" class="px-5 py-12 text-center">
+            <div class="flex flex-col items-center gap-3">
+              <span class="text-4xl opacity-20">📽️</span>
+              <div class="flex flex-col gap-1">
+                <div class="text-txt-sec font-medium">Chưa có camera nào được tìm thấy</div>
+                {% if active_site_id and active_site_id > 0 %}
+                <div class="text-[12px] text-txt-ter">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b>.</div>
+                {% else %}
+                <div class="text-[12px] text-txt-ter">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+        </tr>
         {% endif %}
-      </div>
-    </div>
-    {% endif %}
+      </tbody>
+    </table>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+/**
+ * Auto-generates RTSP URL from form fields
+ */
+function autoFillRtsp(form) {
+    const type = form.querySelector('[name="camera_type"]').value;
+    const ip = form.querySelector('[name="camera_ip"]').value || '192.168.1.100';
+    const port = form.querySelector('[name="camera_port"]').value || '554';
+    const rtspInput = form.querySelector('[name="rtsp_url"]');
+    let mk = form.querySelector('[name="imou_mk"]').value;
+    
+    if (!mk && rtspInput.value && rtspInput.value.includes(':') && rtspInput.value.includes('@')) {
+        // rtsp://admin:PASSWORD@IP...
+        const match = rtspInput.value.match(/rtsp:\/\/admin:([^@]+)@/);
+        if (match && match[1]) {
+            // Keep it encoded if it's already in the URL
+            mk = decodeURIComponent(match[1]);
+            console.log("Extracted password from URL:", "****");
+        }
+    }
+
+    if (mk) {
+        const encodedMk = encodeURIComponent(mk);
+        if (type === 'imou') {
+          // Imou Dahua Consumer: Channel 1, Subtype 1
+          rtspInput.value = `rtsp://admin:${encodedMk}@${ip}:${port}/cam/realmonitor?channel=1&subtype=1`;
+        } else {
+          // Standard Dahua/Hikv: Channel 1, Subtype 0
+          rtspInput.value = `rtsp://admin:${encodedMk}@${ip}:${port}/cam/realmonitor?channel=1&subtype=0`;
+        }
+        console.log("Generated RTSP URL:", rtspInput.value);
+    } else {
+        alert("Vui lòng điền 'Mã an toàn / Password' trước để tự động tạo URL.");
+    }
+}
+
+/**
+ * Triggers cloud + local camera discovery
+ */
+async function discoverCameras() {
+    const btn = document.getElementById('discover-btn');
+    const icon = document.getElementById('discover-icon');
+    const text = document.getElementById('discover-text');
+    
+    // Loading state
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    icon.classList.add('animate-spin');
+    text.innerText = "Đang dò tìm...";
+    
+    const resp = await fetch('/cameras/discover', { method: 'POST' });
+    const data = await resp.json();
+    
+    if (data.error) {
+        alert("Lỗi: " + data.error);
+    } else {
+        const msg = `Hoàn tất!\n- Tổng số camera: ${data.total}\n- Tìm thấy tại Cloud: ${data.found_cloud}\n- Tìm thấy tại Local: ${data.found_local}\n- Đã cập nhật IP mới: ${data.updated}`;
+        alert(msg);
+        if (data.updated > 0) {
+            window.location.reload();
+        }
+    }
+
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    icon.classList.remove('animate-spin');
+    text.innerText = "Dò tìm Camera";
+}
+
+// Proactive filling: Update RTSP URL automatically when credentials change
+document.addEventListener('input', (e) => {
+    const form = e.target.closest('form');
+    if (!form || !form.id?.includes('cam') && !form.action?.includes('edit')) return; 
+    
+    const relevantNames = ['camera_ip', 'camera_port', 'imou_mk', 'camera_type'];
+    if (relevantNames.includes(e.target.name)) {
+        autoFillRtsp(form);
+    }
+});
+
+// Fix for Add form submission (it didn't have an action/method)
+document.getElementById('add-cam-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const res = await fetch('/cameras', { method: 'POST', body: fd });
+    if (res.ok) {
+        window.location.reload();
+    } else {
+        const err = await res.text();
+        alert("Lỗi khi thêm camera: " + err);
+    }
+});
+</script>
 {% endblock %}

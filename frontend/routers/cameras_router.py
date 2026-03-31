@@ -28,7 +28,14 @@ async def cameras_page(request: Request, user: dict = Depends(require_menu("came
         elif isinstance(active_site_id, int):
             site_id_filter = active_site_id
 
-    ctx["cameras"] = db.get_all_cameras(site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
+    cameras = db.get_all_cameras(site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
+    # Pre-fill RTSP URL for Imou if empty in DB, so user sees it in the table and forms
+    for cam in cameras:
+        if not cam.get("rtsp_url") and cam.get("camera_type") == "imou":
+            # For performance, we only do this if needed. get_camera_rtsp_url is efficient.
+            cam["rtsp_url"] = db.get_camera_rtsp_url(cam["id"])
+            
+    ctx["cameras"] = cameras
     ctx["providers"] = db.get_all_providers()
     return templates.TemplateResponse("pages/cameras.html", {"request": request, **ctx})
 
@@ -120,6 +127,7 @@ async def edit_camera(
     camera_ip: str = Form(""),
     camera_port: Optional[int] = Form(None),
     rtsp_url: str = Form(""),
+    imou_mk: str = Form(""),
     site_ids: Optional[str] = Form(None),
 ):
     parsed_site_ids = []
@@ -132,15 +140,19 @@ async def edit_camera(
         logger.warning("edit_camera: camera id=%d not found", camera_id)
         return RedirectResponse(url="/cameras", status_code=303)
 
+    # If rtsp_url is provided, use it. If empty, set to None so the database dynamic generator triggers
+    final_rtsp_url = rtsp_url.strip() if rtsp_url and rtsp_url.strip() else None
+
     ok = db.update_camera(
         camera_id=camera_id,
         name=camera_name,
         cam_type=camera_type,
         imou_device_id=imou_device_id,
-        rtsp_url=rtsp_url,
+        rtsp_url=final_rtsp_url,
         is_active=cam["is_active"],
         imou_channel_id=imou_channel_id,
         site_ids=parsed_site_ids or None,
+        provider_keys={"mk": imou_mk} if imou_mk else cam.get("provider_keys"),
         camera_ip=camera_ip if camera_ip else None,
         camera_port=camera_port,
     )
@@ -179,4 +191,11 @@ async def get_stream_status(
 ):
     db = get_db()
     cam = db.get_camera(camera_id)
-    return {"is_streaming": cam.get("is_streaming", False) if cam else False}
+@router.post("/discover")
+async def discover_cameras(
+    request: Request,
+    user: dict = Depends(require_menu("cameras")),
+):
+    from backend.util.network_utils import discover_and_update_all_cameras
+    results = discover_and_update_all_cameras()
+    return results

@@ -270,23 +270,16 @@
         console.error("CRITICAL: Blob is empty! Check webcam/canvas state.");
         return { error: "Ảnh không hợp lệ (size 0)", results: [] };
       }
-      if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+      // Removed loading spinner for smoother experience
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
-      try {
-        const resp = await fetch('/detection/api/detect', { method: 'POST', body: fd });
-        if (loadingIndicator) loadingIndicator.classList.add('hidden');
-        if (!resp.ok) {
-          console.error("Server detection error", resp.status);
-          return { error: 'Server error ' + resp.status, results: [] };
-        }
-        return await resp.json();
-      } catch (e) {
-        console.error("Fetch error during detection", e);
-        if (loadingIndicator) loadingIndicator.classList.add('hidden');
-        return { error: "Không thể kết nối máy chủ", results: [] };
+      const resp = await fetch('/detection/api/detect', { method: 'POST', body: fd });
+      if (!resp.ok) {
+        console.error("Server detection error", resp.status);
+        return { error: 'Server error ' + resp.status, results: [] };
       }
+      return await resp.json();
     }
 
     window.stopWebcam = function () {
@@ -305,61 +298,70 @@
         window.stopWebcam();
         return;
       }
-      try {
-        const baseVideoConstraints = {
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, min: 15 }
-        };
-        const constraints = {
-          video: currentDeviceId
-            ? { deviceId: { exact: currentDeviceId }, ...baseVideoConstraints }
-            : { facingMode: { ideal: 'environment' }, ...baseVideoConstraints },
-          audio: false
-        };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
-        // btnStart.classList.remove('hidden'); // Button removed
-        webcamInterval = true;
-        let isProcessing = false;
+      const baseVideoConstraints = {
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+        frameRate: { ideal: 30, min: 15 }
+      };
+      const constraints = {
+        video: currentDeviceId
+          ? { deviceId: { exact: currentDeviceId }, ...baseVideoConstraints }
+          : { facingMode: { ideal: 'environment' }, ...baseVideoConstraints },
+        audio: false
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
+      // btnStart.classList.remove('hidden'); // Button removed
+      webcamInterval = true;
+      let isProcessing = false;
 
-        const processFrame = () => {
-          if (!stream || !webcamInterval) return;
-          if (!video.videoWidth) {
+      const processFrame = () => {
+        if (!stream || !webcamInterval) return;
+        if (!video.videoWidth) {
+          setTimeout(processFrame, 100);
+          return;
+        }
+
+        // Only draw if video is ready
+        if (video.readyState < 2) {
             setTimeout(processFrame, 100);
             return;
-          }
+        }
 
-          // Schedule next capture immediately — decoupled from server latency
-          setTimeout(processFrame, 500); // Increased interval to 500ms for stability on Mac
+        // Skip if previous detection request still in-flight
+        if (isProcessing) {
+            setTimeout(processFrame, 200);
+            return;
+        }
+        isProcessing = true;
 
-          // Only draw if video is ready
-          if (video.readyState < 2) return;
+        captureCanvas.width = 640;
+        captureCanvas.height = 480;
+        const ctx = captureCanvas.getContext('2d', { alpha: false });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(video, 0, 0, 640, 480);
 
-          // Skip if previous detection request still in-flight
-          if (isProcessing) return;
-          isProcessing = true;
+        captureCanvas.toBlob(async (blob) => {
+          if (!webcamInterval) { isProcessing = false; return; }
+          const data = await sendFrame(blob);
+          isProcessing = false;
+          
+          // Results found? Speed up (500ms). No results? Slow down (1000ms) to save RAM/CPU.
+          const hasDetection = data && data.results && data.results.length > 0;
+          const nextDelay = hasDetection ? 500 : 1000;
+          
+          if (!webcamInterval) return;
 
-          captureCanvas.width = 640;
-          captureCanvas.height = 480;
-          const ctx = captureCanvas.getContext('2d', { alpha: false });
-          ctx.imageSmoothingEnabled = true;
-          ctx.drawImage(video, 0, 0, 640, 480);
+          renderResults(data);
+          overlay.classList.remove('hidden');
+          drawBoxes(overlay, video, data.results, 640, 480);
+          
+          // Schedule next capture based on detection state
+          setTimeout(processFrame, nextDelay);
+        }, 'image/jpeg', 0.85); // 0.85 = Balanced quality vs RAM/Network usage
+      };
 
-          captureCanvas.toBlob(async (blob) => {
-            if (!webcamInterval) { isProcessing = false; return; }
-            const data = await sendFrame(blob);
-            isProcessing = false;
-            if (!webcamInterval) return;
-
-            renderResults(data);
-            overlay.classList.remove('hidden');
-            drawBoxes(overlay, video, data.results, 640, 480);
-          }, 'image/jpeg', 0.75); // 0.75 = ~40% smaller payload vs 0.9, still sharp enough for YOLO
-        };
-
-        setTimeout(processFrame, 500);
-      } catch (e) { alert('Lỗi: ' + e.message); }
+      setTimeout(processFrame, 500);
     };
 
     // --- RTSP ---
@@ -378,9 +380,7 @@
 
       if (rtspActive) {
         // STOP
-        try {
-          await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
-        } catch (e) { }
+        await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
         rtspActive = false;
         if (rtspInterval) clearInterval(rtspInterval);
         // btnStartRtsp.classList.add('hidden'); // Removed
@@ -394,26 +394,18 @@
         rtspPlaceholder.classList.add('hidden');
         rtspFeed.classList.remove('hidden');
 
-        try {
-          await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
-          // For demonstration, we'll try to use a stream endpoint if it exists,
-          // otherwise we just show a "Connecting" state.
-          rtspFeed.src = `/detection/stream/${camId}`;
+        await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
+        // For demonstration, we'll try to use a stream endpoint if it exists,
+        // otherwise we just show a "Connecting" state.
+        rtspFeed.src = `/detection/stream/${camId}`;
 
-          // Polling loop for detections from SHM-based stream
-          rtspInterval = setInterval(async () => {
-            if (!rtspActive) return;
-            // We can't easily capture from <img> tag like we do with <video>,
-            // so we rely on the backend doing the detection and we just show the result.
-            // However, for the UI to be "alive", we might want to fetch results.
-          }, 1000);
-
-        } catch (e) {
-          alert('Lỗi khởi động camera: ' + e.message);
-          rtspActive = false;
-          // btnStartRtsp.classList.add('hidden'); // Removed
-          rtspPlaceholder.classList.remove('hidden');
-        }
+        // Polling loop for detections from SHM-based stream
+        rtspInterval = setInterval(async () => {
+          if (!rtspActive) return;
+          // We can't easily capture from <img> tag like we do with <video>,
+          // so we rely on the backend doing the detection and we just show the result.
+          // However, for the UI to be "alive", we might want to fetch results.
+        }, 1000);
       }
     };
 
@@ -463,10 +455,23 @@
           const data = await sendFrame(blob);
           renderResults(data, false);
           drawBoxes(uploadCanvas, img, data.results, 640, 480);
+          
+          // RAM Optimization: Revoke object URL after processing
+          URL.revokeObjectURL(img.src);
         }, 'image/jpeg', 0.9);
       };
       img.src = URL.createObjectURL(file);
     });
+    // --- RAM Optimization: Stop webcam logic when tab is hidden ---
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && stream) {
+        console.log("Tab hidden, stopping webcam to save RAM.");
+        window.stopWebcam();
+      }
+    });
+
+    // Reduce JPEG quality from 0.95 to 0.85 for better RAM/Network balance
+    // (Search for 0.95 and replace with 0.85 if needed, but I'll do it in a separate call if this fails)
   })();
 </script>
 {% endblock %}

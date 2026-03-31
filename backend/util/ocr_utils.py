@@ -30,25 +30,18 @@ class VNPlateOCR:
         # 1. Base Alignment (Deskew the original for the best shot)
         deskewed = self._deskew(crop)
         
-        # 2. Variants based on the deskewed image
+        # 2. Variants based on the deskewed image (Reduced for RAM/CPU optimization)
         variants = [
             deskewed,
-            self._adjust_gamma(deskewed, 1.6), # High contrast
-            self._adjust_gamma(deskewed, 0.7), # Low contrast for highlights
-            self._sharpen(deskewed), 
-            self._v_sharpen(deskewed),         # Specialized vertical sharpening
-            self._laplacian(deskewed),         # Laplacian for small details (. and -)
+            self._adjust_gamma(deskewed, 1.4), # Increased contrast variant
+            self._sharpen(deskewed),           # Sharpen variant
         ]
         
-        # 3. Add CLAHE (Better than Gamma for uneven light)
-        gray = cv2.cvtColor(deskewed, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        clahe_img = clahe.apply(gray)
-        variants.append(cv2.cvtColor(clahe_img, cv2.COLOR_GRAY2BGR))
-        
-        # 4. Adaptive Threshold
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-        variants.append(cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
+        # 3. Skip heavy processing if plate is likely clear/large
+        if crop.shape[0] > 60:
+             # For high res plates, original deskewed is often enough. 
+             # We just use original and sharpen.
+             variants = [deskewed, self._sharpen(deskewed)]
         
         best_text, best_conf = "", 0.0
         best_score = 0.0
@@ -89,7 +82,49 @@ class VNPlateOCR:
                 best_text, best_conf = combined, avg_conf
                 best_score = score
                 
-        return best_text, best_conf
+        return self._cleanup_plate(best_text), best_conf
+
+    def _cleanup_plate(self, text: str) -> str:
+        """
+        Post-processes OCR result to fix common misreads and formatting errors.
+        Handles '88C0073.04' -> '88C073.04' by enforcing Vietnamese 5-digit rules.
+        """
+        if not text or len(text) < 5:
+            return text
+            
+        # 1. Separate prefix (Region + Category, e.g. 88C, 29K1) from number part
+        if '-' in text:
+            parts = text.split('-', 1)
+            prefix, num_part = parts[0] + '-', parts[1]
+        else:
+            # Fallback to non-greedy regex for plates without hyphens (common in OCR hallucinations)
+            match = re.search(r"^([0-9]{2}[A-Z]{1,2}[0-9]??)(.*)", text)
+            if not match:
+                return text
+            prefix, num_part = match.group(1), match.group(2)
+        
+        # 2. Clean numeric part: replace common misreads and keep only valid digits/dots
+        clean_num = num_part.replace('O', '0').replace('I', '1').replace('S', '5').replace('Z', '2')
+        
+        # 3. Handle redundant leading zeros (The '88C0073.04' case)
+        only_digits = re.sub(r"[^0-9]", "", clean_num)
+        
+        if len(only_digits) == 6:
+            # If 6 digits and starts with 00, it's likely a hallucination of one 0
+            if only_digits.startswith("00"):
+                # Remove the first 0
+                clean_num = clean_num.replace("00", "0", 1)
+        
+        # 4. Standardize Dot positioning for 5-digit number parts (XXX.XX)
+        final_digits = re.sub(r"[^0-9]", "", clean_num)
+        if len(final_digits) == 5:
+            # Reconstruct as XXX.XX only if it wasn't a 4-digit plate with junk
+            clean_num = f"{final_digits[:3]}.{final_digits[3:]}"
+        elif len(final_digits) == 4:
+            # Reconstruct as XXXX
+            clean_num = final_digits
+            
+        return f"{prefix}{clean_num}"
 
     def _deskew(self, image):
         """Automatically corrects plate rotation/skew."""

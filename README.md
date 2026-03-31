@@ -180,7 +180,3 @@ python3 backend/main.py
 | OCR sample range | Confidence 0.3–0.7 |
 | Remember token | `secrets.token_urlsafe(32)` |
 | Data retention | 30 ngày (legal hold không xóa) |
-
-## 📄 License
-
-[MIT License](LICENSE) © 2025 Hoang Quoc Phuong

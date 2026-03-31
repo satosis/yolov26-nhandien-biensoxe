@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/css/output.css?v=2.1">
   <link rel="stylesheet" href="/static/css/tom-select.css?v=2.1">
   <link rel="stylesheet" href="/static/css/fonts.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="/static/js/htmx.min.js?v=2.1"></script>
   <script src="/static/js/alpine.min.js?v=2.1" defer></script>
   {% block head %}{% endblock %}
@@ -15,6 +16,129 @@
 <body class="bg-bg-page text-white font-sans antialiased">
   {% block body %}{% endblock %}
 
+
+  <!-- Global Image Preview Modal (Alpine.js) -->
+  <div x-data="{ 
+    open: false, 
+    imgSrc: '',
+    showImage(e) {
+      this.imgSrc = e.detail.src;
+      this.open = true;
+    }
+  }"
+  @show-image.window="showImage($event)"
+  x-show="open" 
+  class="fixed inset-0 z-[10001] flex items-center justify-center p-4"
+  style="display: none;">
+    <!-- Backdrop -->
+    <div x-show="open" 
+         x-transition:enter="ease-out duration-300" 
+         x-transition:enter-start="opacity-0" 
+         x-transition:enter-end="opacity-100" 
+         x-transition:leave="ease-in duration-200" 
+         x-transition:leave-start="opacity-100" 
+         x-transition:leave-end="opacity-0" 
+         class="absolute inset-0 bg-black/80 backdrop-blur-md" 
+         @click="open = false"></div>
+    
+    <!-- Large Image Content -->
+    <div x-show="open" 
+         x-transition:enter="ease-out duration-300" 
+         x-transition:enter-start="opacity-0 scale-90" 
+         x-transition:enter-end="opacity-100 scale-100" 
+         x-transition:leave="ease-in duration-200" 
+         x-transition:leave-start="opacity-100 scale-100" 
+         x-transition:leave-end="opacity-0 scale-90" 
+         class="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
+      <button @click="open = false" 
+              class="absolute -top-12 right-0 text-white/60 hover:text-white text-3xl cursor-pointer">✕</button>
+      <img :src="imgSrc" class="rounded-xl shadow-2xl border border-white/10 max-w-full max-h-full object-contain">
+    </div>
+  </div>
+
+  <!-- Global Confirmation Modal (Alpine.js) -->
+  <div x-data="{ 
+    open: false, 
+    title: '', 
+    message: '', 
+    confirmText: 'Xác nhận', 
+    cancelText: 'Hủy', 
+    confirmUrl: '',
+    confirmTarget: '',
+    confirmMethod: 'POST',
+    confirmSwap: 'outerHTML',
+    reload: false,
+    showConfirm(e) {
+      const d = e.detail || {};
+      this.title = d.title || 'Xác nhận';
+      this.message = d.message || 'Bạn có chắc chắn muốn thực hiện hành động này?';
+      this.confirmText = d.confirmText || 'Xác nhận';
+      this.cancelText = d.cancelText || 'Hủy';
+      this.confirmUrl = d.confirmUrl || '';
+      this.confirmTarget = d.confirmTarget || '';
+      this.confirmMethod = d.confirmMethod || 'POST';
+      this.confirmSwap = d.confirmSwap || 'outerHTML';
+      this.reload = d.reload || false;
+      this.open = true;
+    },
+    confirm() {
+      if (this.confirmUrl) {
+        if (this.reload) {
+          fetch(this.confirmUrl, { 
+            method: this.confirmMethod,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+          }).then(() => window.location.reload());
+        } else if (typeof htmx !== 'undefined') {
+          const url = this.confirmUrl + (this.confirmUrl.includes('?') ? '&' : '?') + 'hx=1';
+          htmx.ajax(this.confirmMethod, url, { 
+            target: this.confirmTarget, 
+            swap: this.confirmSwap,
+            headers: { 'X-HTMX-Action': 'true' }
+          });
+        }
+      }
+      this.open = false;
+    }
+  }"
+  @show-confirm.window="showConfirm($event)"
+  x-show="open" 
+  class="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+  style="display: none;">
+    <!-- Backdrop (with glassmorphism) -->
+    <div x-show="open" 
+         x-transition:enter="ease-out duration-300" 
+         x-transition:enter-start="opacity-0" 
+         x-transition:enter-end="opacity-100" 
+         x-transition:leave="ease-in duration-200" 
+         x-transition:leave-start="opacity-100" 
+         x-transition:leave-end="opacity-0" 
+         class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+         @click="open = false"></div>
+    
+    <!-- Modal Content -->
+    <div x-show="open" 
+         x-transition:enter="ease-out duration-300" 
+         x-transition:enter-start="opacity-0 scale-95" 
+         x-transition:enter-end="opacity-100 scale-100" 
+         x-transition:leave="ease-in duration-200" 
+         x-transition:leave-start="opacity-100 scale-100" 
+         x-transition:leave-end="opacity-0 scale-95" 
+         class="relative bg-bg-card border border-white/10 rounded-xl shadow-2xl p-5 w-[340px] flex flex-col gap-3">
+      <div class="flex items-center gap-2.5">
+        <span class="text-xl">⚠️</span>
+        <h3 class="text-base font-bold text-white" x-text="title"></h3>
+      </div>
+      <p class="text-[13px] text-txt-sec leading-relaxed" x-text="message"></p>
+      <div class="flex gap-2.5 mt-2">
+        <button @click="confirm()" 
+                class="flex-1 bg-status-red text-white text-[13px] font-semibold py-2 rounded-lg hover:bg-rose-600 transition-colors cursor-pointer"
+                x-text="confirmText"></button>
+        <button @click="open = false" 
+                class="flex-1 bg-white/5 text-txt-sec text-[13px] font-semibold py-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                x-text="cancelText"></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Toast container -->
   <div id="toast-container" class="fixed top-6 right-6 z-[9999] flex flex-col gap-2"></div>

@@ -72,10 +72,17 @@
           <input type="text" name="username" placeholder="Nhập username..." required autofocus
                  class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
         </div>
-        <div class="flex flex-col gap-1.5">
+        <div class="flex flex-col gap-1.5" x-data="{ show: false }">
           <label class="text-[13px] font-medium text-txt-sec">Mật khẩu</label>
-          <input type="password" name="password" placeholder="••••••••" required
-                 class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
+          <div class="relative w-full group">
+            <input :type="show ? 'text' : 'password'" name="password" placeholder="••••••••" required
+                   class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg pl-3.5 pr-11 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
+            <button type="button" @click="show = !show" 
+                    class="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-txt-ter hover:text-accent transition-colors cursor-pointer outline-none">
+              <i class="fa-regular fa-eye text-base" x-show="!show"></i>
+              <i class="fa-regular fa-eye-slash text-base" x-show="show" style="display: none;"></i>
+            </button>
+          </div>
         </div>
 
         <div class="flex items-center justify-between mt-1">
