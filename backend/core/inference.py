@@ -327,9 +327,10 @@ class InferenceWorker:
         self.result_queue = result_queue
         self.stop_event = stop_event
 
-        self._plate_detector = PlateDetector()
-        self._ocr = OCRReader()
-        self._face_recog = FaceRecognizer()
+        # Defer model loading until needed (Lazy Loading)
+        self._plate_detector = None
+        self._ocr = None
+        self._face_recog = None
         self._db = DatabaseManager()
 
         self._voters: dict[str, PlateVoter] = {}
@@ -340,15 +341,53 @@ class InferenceWorker:
         
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._last_face_reload = 0
+        self._last_active_ts = time.time()
+        self._idle_timeout = 300 # 5 minutes
+
+    def _ensure_models_loaded(self):
+        """Lazy load AI models only when a frame is received."""
+        if self._plate_detector is not None:
+            return
+
+        logger.info("--- Lazy Loading AI Models (PlateDetector, OCR, FaceRecognizer) ---")
+        st = time.time()
+        try:
+            self._plate_detector = PlateDetector()
+            self._ocr = OCRReader()
+            self._face_recog = FaceRecognizer()
+            logger.info("--- AI Models Loaded successfully in %.2fs ---", time.time() - st)
+        except Exception as e:
+            logger.error("CRITICAL ERROR loading AI models: %s", e, exc_info=True)
+
+    def _unload_models(self):
+        """Release AI models to free system memory during idle periods."""
+        if self._plate_detector is None:
+            return
+            
+        logger.info("--- Idle Timeout: Releasing AI Models to free memory ---")
+        try:
+            if hasattr(self._plate_detector, 'close'):
+                self._plate_detector.close()
+            if hasattr(self._face_recog, 'close'):
+                self._face_recog.close()
+            
+            self._plate_detector = None
+            self._ocr = None
+            self._face_recog = None
+            logger.info("--- AI Models Unloaded and resources released. ---")
+        except Exception as e:
+            logger.warning("Error during model unloading: %s", e)
 
     def cleanup(self):
         """Explicitly release all AI resources."""
         logger.info("InferenceWorker cleaning up...")
-        if hasattr(self._plate_detector, 'close'):
-            self._plate_detector.close()
-        if hasattr(self._face_recog, 'close'):
-            self._face_recog.close()
+        self._unload_models() # Release models if loaded
         self._executor.shutdown(wait=True)
+        # Close SHM clients
+        for name, shm in list(self._shm_clients.items()):
+            try:
+                shm.close()
+            except: pass
         logger.info("InferenceWorker cleanup complete")
 
     def _get_voter(self, cam_id: str) -> PlateVoter:
@@ -369,9 +408,23 @@ class InferenceWorker:
         reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
         
         while not self.stop_event.is_set():
+            now = time.time()
+
+            if self.infer_queue.empty():
+                # Check for idle timeout (e.g. 5 mins) to unload models
+                if (now - self._last_active_ts > self._idle_timeout) and self._plate_detector is not None:
+                    self._unload_models()
+
+                time.sleep(0.1)
+                continue
+
+            # Frame received! Update activity and ensure models are loaded
+            self._last_active_ts = now
+            self._ensure_models_loaded()
+
             # Check for face model reload trigger
             # Check for face model reload trigger via mtime sync
-            if self._frame_counter % 25 == 0 and os.path.exists(reload_trigger):
+            if self._frame_counter % 25 == 0 and os.path.exists(reload_trigger) and self._face_recog is not None:
                 mtime = os.path.getmtime(reload_trigger)
                 if mtime > self._last_face_reload:
                     self._face_recog.reload()
@@ -379,10 +432,6 @@ class InferenceWorker:
                     self._recent_strangers.clear()
                     self._last_face_reload = mtime
                     logger.info("InferenceWorker: AI index synchronized via mtime: %s", mtime)
-
-            if self.infer_queue.empty():
-                time.sleep(0.1)
-                continue
             token = self.infer_queue.get(timeout=0.5)
             
             cam_id, shm_name, ts = token["cam_id"], token["shm_name"], token["ts"]
@@ -439,6 +488,8 @@ class InferenceWorker:
                 self.result_queue.put_nowait(result)
 
     def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult):
+        if self._face_recog is None:
+            return
         name, sim, f_bbox, emb, direction = self._face_recog.identify(frame)
         result.face_name, result.face_conf = name, sim
         if name:
@@ -472,6 +523,8 @@ class InferenceWorker:
                     logger.info("New stranger logged for cam %s (sim: %f)", cam_id, sim)
 
     def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame):
+        if self._ocr is None:
+            return
         h, w = crop.shape[:2]
         # Increase threshold to 120px to capture medium-sized blurry plates
         processed = enhance_plate(crop) if h < 120 else crop

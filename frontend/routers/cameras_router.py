@@ -199,3 +199,14 @@ async def discover_cameras(
     from backend.util.network_utils import discover_and_update_all_cameras
     results = discover_and_update_all_cameras()
     return results
+
+
+@router.post("/discover/subnet")
+async def discover_subnet(
+    request: Request,
+    subnet: str = Form("192.168.1"),
+    user: dict = Depends(require_menu("cameras")),
+):
+    from backend.util.network_utils import scan_subnet_for_cameras
+    found_ips = scan_subnet_for_cameras(subnet)
+    return {"found_ips": found_ips}

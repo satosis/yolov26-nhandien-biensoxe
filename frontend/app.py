@@ -24,11 +24,16 @@ import jinja2
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from frontend.auth import try_remember_token
-from frontend.deps import get_current_user, get_optional_user
+from frontend.deps import get_current_user, get_optional_user, get_menu_context
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Professional Startup Logo
+    print("====================================================")
+    print("   🅿  PARKING AI - FRONTEND WEB UI                 ")
+    print("   Starting server on: http://localhost:8000       ")
+    print("====================================================")
     # Warm AI models at startup (non-blocking for dev)
     # from frontend.models_loader import preload_models
     # preload_models()
@@ -85,13 +90,29 @@ for r in [auth_router, detection_router, cameras_router, sites_router,
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    user = get_optional_user(request)
+    # Default context if no user is logged in
+    ctx = {
+        "user": user,
+        "menu_groups": {},
+        "sites": [],
+        "active_site_id": 0,
+        "current_menu": ""
+    }
+    if user:
+        ctx = get_menu_context(request, user)
+
     if exc.status_code == 404:
-        return templates.TemplateResponse("pages/404.html", {"request": request}, status_code=404)
-    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc}, status_code=500)
+        return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
+    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=500)
 
 @app.exception_handler(jinja2.exceptions.TemplateNotFound)
 async def template_not_found_handler(request: Request, exc: jinja2.exceptions.TemplateNotFound):
-    return templates.TemplateResponse("pages/404.html", {"request": request}, status_code=404)
+    user = get_optional_user(request)
+    ctx = get_menu_context(request, user) if user else {
+        "user": None, "menu_groups": {}, "sites": [], "active_site_id": 0, "current_menu": ""
+    }
+    return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
 
 
 @app.get("/")

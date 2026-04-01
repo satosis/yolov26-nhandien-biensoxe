@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="/static/js/htmx.min.js?v=2.1"></script>
   <script src="/static/js/alpine.min.js?v=2.1" defer></script>
+  <script src="/static/js/tom-select.complete.min.js?v=2.4.1"></script>
   {% block head %}{% endblock %}
 </head>
 <body class="bg-bg-page text-white font-sans antialiased">
@@ -68,6 +69,7 @@
     confirmMethod: 'POST',
     confirmSwap: 'outerHTML',
     reload: false,
+    isAlert: false,
     showConfirm(e) {
       const d = e.detail || {};
       this.title = d.title || 'Xác nhận';
@@ -79,6 +81,7 @@
       this.confirmMethod = d.confirmMethod || 'POST';
       this.confirmSwap = d.confirmSwap || 'outerHTML';
       this.reload = d.reload || false;
+      this.isAlert = d.isAlert || false;
       this.open = true;
     },
     confirm() {
@@ -131,11 +134,14 @@
       <p class="text-[13px] text-txt-sec leading-relaxed" x-text="message"></p>
       <div class="flex gap-2.5 mt-2">
         <button @click="confirm()" 
-                class="flex-1 bg-status-red text-white text-[13px] font-semibold py-2 rounded-lg hover:bg-rose-600 transition-colors cursor-pointer"
+                class="flex-1 bg-accent text-bg-inset text-[13px] font-semibold py-2 rounded-lg hover:bg-cyan-300 transition-colors cursor-pointer"
+                :class="{ 'bg-status-red text-white hover:bg-rose-600': !isAlert }"
                 x-text="confirmText"></button>
-        <button @click="open = false" 
-                class="flex-1 bg-white/5 text-txt-sec text-[13px] font-semibold py-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                x-text="cancelText"></button>
+        <template x-if="!isAlert">
+          <button @click="open = false" 
+                  class="flex-1 bg-white/5 text-txt-sec text-[13px] font-semibold py-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                  x-text="cancelText"></button>
+        </template>
       </div>
     </div>
   </div>

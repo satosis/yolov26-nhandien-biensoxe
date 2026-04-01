@@ -31,24 +31,15 @@ class CameraOrchestrator:
         self.result_queue = mp.Queue(maxsize=200)
         self.db = DatabaseManager()
         self.processes = []
-        self.core_processes = []
+        self.core_processes = [] # Tracks Inference worker
         self.grabbers = {} # cam_id -> mp.Process mapping
 
-    def reset_streaming_flags(self):
-        """Reset all is_streaming flags to False at startup."""
-        logger.info("Resetting all camera streaming flags to FALSE for a clean start...")
-        self.db._execute_query("UPDATE cameras SET is_streaming = FALSE")
+    def start_inference(self):
+        """Dynamic: Start the heavy inference process ONLY when needed."""
+        if self.core_processes:
+            return
 
-    def start(self):
-        logger.info("--- AI Core Orchestrator Starting ---")
-        self.reset_streaming_flags()
-        
-        # 1. Automatic IP Discovery (Optional but helpful for dynamic IPs)
-        updated = update_camera_ips_by_discovery()
-        if updated > 0:
-            logger.info(f"Auto-discovery updated {updated} camera IPs in DB.")
-            
-        # 2. Spawn Inference Worker (Core Process)
+        logger.info("--- AI Core Orchestrator Starting (Triggered by active camera) ---")
         logger.info("Spawning InferenceWorker process...")
         p_infer = mp.Process(
             target=inference_process,
@@ -56,8 +47,20 @@ class CameraOrchestrator:
             name="InferenceWorker"
         )
         p_infer.start()
-        self.processes.append(p_infer)
         self.core_processes.append(p_infer)
+
+    def stop_inference(self):
+        """Dynamic: Stop the heavy inference process when idle."""
+        if not self.core_processes:
+            return
+
+        logger.info("--- No active cameras. Stopping InferenceWorker to save memory ---")
+        for p in self.core_processes:
+            if p.is_alive():
+                p.terminate()
+                p.join(timeout=3)
+        self.core_processes = []
+        logger.info("InferenceWorker terminated. Orchestrator returned to SILENT IDLE state.")
 
     def spawn_grabber(self, cam):
         """Start a grabber process for a specific camera."""
@@ -98,9 +101,17 @@ class CameraOrchestrator:
             del self.grabbers[cam_id]
 
     def run(self):
-        self.start()
+        # We NO LONGER call self.start() here. It will be triggered dynamically.
+        # Track what we have already started in THIS session to prevent auto-connect at boot
+        self.session_stale_cams = set()
+        initial_streaming = self.db._execute_query("SELECT id FROM cameras WHERE is_streaming = TRUE", fetchall=True)
+        if initial_streaming:
+            self.session_stale_cams = {str(c['id']) for c in initial_streaming}
+            # Only log if there's something to report
+            logger.info(f"Boot: {len(self.session_stale_cams)} camera(s) marked as STALE (will not auto-connect).")
+
         while not self.stop_event.is_set():
-            # 1. Health check for core processes
+            # 1. Sync core process health (if running)
             for p in self.core_processes:
                 if not p.is_alive():
                     logger.error(f"Core process {p.name} (PID {p.pid}) has exited unexpectedly!")
@@ -110,18 +121,36 @@ class CameraOrchestrator:
             if self.stop_event.is_set():
                 break
 
-            # 2. Sync grabbers with database state
-            # Fetch cameras that SHOULD be streaming
+            # 2. Fetch cameras that SHOULD be streaming
             streaming_cams = self.db._execute_query(
                 "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
             ) or []
             streaming_ids = {str(c['id']) for c in streaming_cams}
 
+            # --- DYNAMIC LIFECYCLE MANAGEMENT ---
+            # If at least one camera is TRUE, ensure InferenceWorker is running
+            if streaming_ids and not self.core_processes:
+                 self.start_inference()
+            
+            # If NO cameras are TRUE, stop InferenceWorker to save memory
+            elif not streaming_ids and self.core_processes:
+                 self.stop_inference()
+            # ------------------------------------
+
             # Start missing grabbers
             for cam in streaming_cams:
                 cid = str(cam['id'])
+                # Manual start only: bypass auto-start of stale cameras
+                if cid in self.session_stale_cams:
+                    continue
+
                 if cid not in self.grabbers or not self.grabbers[cid].is_alive():
                     self.spawn_grabber(cam)
+
+            # Cleanup stale flag if user manually stopped it
+            for cid in list(self.session_stale_cams):
+                if cid not in streaming_ids:
+                    self.session_stale_cams.remove(cid)
 
             # Stop grabbers no longer requested
             active_cid_list = list(self.grabbers.keys())
@@ -129,14 +158,10 @@ class CameraOrchestrator:
                 if cid not in streaming_ids:
                     self.stop_grabber(cid)
             
-            # Check for any dead grabbers that should be running and cleanup the mapping
+            # Check for any dead grabbers cleanup
             dead_cids = [cid for cid, p in self.grabbers.items() if not p.is_alive()]
             for cid in dead_cids:
-                logger.warning(f"Grabber for camera {cid} died. It will be restarted in next sync if still marked as streaming.")
                 if cid in self.grabbers:
-                    p = self.grabbers[cid]
-                    if p in self.processes:
-                        self.processes.remove(p)
                     del self.grabbers[cid]
 
             time.sleep(3) # Sync interval (seconds)
@@ -156,6 +181,11 @@ class CameraOrchestrator:
 if __name__ == "__main__":
     # Ensure we use 'spawn' for clear memory separation on Mac/Linux
     mp.set_start_method('spawn', force=True)
+
+    logger.info("================================================")
+    logger.info("   Backend Orchestrator is starting...         ")
+    logger.info("   Connect to UI at: http://localhost:8000    ")
+    logger.info("================================================")
 
     while True:
         orch = CameraOrchestrator()

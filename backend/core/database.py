@@ -859,7 +859,8 @@ class DatabaseManager:
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         '''
         pk_json = json.dumps(provider_keys) if provider_keys else '{}'
-        params = (name, cam_type, imou_device_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
+        dev_id = imou_device_id.strip() if imou_device_id else None
+        params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
         return self._execute_query(query, params, commit=True) is not None
 
     def update_camera(self, camera_id, name, cam_type, imou_device_id, rtsp_url, is_active, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=None) -> bool:
@@ -870,7 +871,8 @@ class DatabaseManager:
             WHERE id=%s
         '''
         pk_json = json.dumps(provider_keys) if provider_keys else '{}'
-        params = (name, cam_type, imou_device_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port, camera_id)
+        dev_id = imou_device_id.strip() if imou_device_id else None
+        params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port, camera_id)
         return self._execute_query(query, params, commit=True) is not None
 
     def set_camera_streaming(self, camera_id: int, is_streaming: bool) -> bool:
@@ -883,16 +885,16 @@ class DatabaseManager:
     def get_imou_api_keys(self) -> dict:
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_OPEN_APP_ID', 'IMOU_OPEN_APP_SECRET')")
+                cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_APP_ID', 'IMOU_APP_SECRET')")
                 res = {k: v for k, v in cursor.fetchall()}
                 return {
-                    'app_id': res.get('IMOU_OPEN_APP_ID', ''),
-                    'app_secret': res.get('IMOU_OPEN_APP_SECRET', '')
+                    'app_id': res.get('IMOU_APP_ID', ''),
+                    'app_secret': res.get('IMOU_APP_SECRET', '')
                 }
     def update_imou_api_keys(self, app_id: str, app_secret: str) -> bool:
-        q1 = '''INSERT INTO app_settings (key, value) VALUES ('IMOU_OPEN_APP_ID', %s)
+        q1 = '''INSERT INTO app_settings (key, value) VALUES ('IMOU_APP_ID', %s)
                 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()'''
-        q2 = '''INSERT INTO app_settings (key, value) VALUES ('IMOU_OPEN_APP_SECRET', %s)
+        q2 = '''INSERT INTO app_settings (key, value) VALUES ('IMOU_APP_SECRET', %s)
                 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()'''
         
         ok1 = self._execute_query(q1, (app_id,), commit=True) is not None

@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- Seeder: default API key placeholders for each camera provider
 -- Imou (cloud API)
 INSERT INTO app_settings (key, value) VALUES
-('IMOU_APP_ID', 'lc9f9e2d2dcc094a61'), ('IMOU_APP_SECRET', 'lc9f9e2d2dcc094a61'), ('IMOU_MK', 'bB123456789@'), ('IMOU_DEVICE_ID', '5552ABJPSFFB063'), ('IMOU_EMAIL', 'hungnmk5@gmail.com')
+('IMOU_APP_ID', 'lc9f9e2d2dcc094a61'), ('IMOU_APP_SECRET', '8676588d325b496c9e3171ba32744f'), ('IMOU_MK', 'bB123456789@'), ('IMOU_DEVICE_ID', '5552ABJPSFFB063'), ('IMOU_EMAIL', 'hungnmk5@gmail.com')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 -- Hikvision (local + optional cloud)
