@@ -386,76 +386,7 @@ def _guess_provider_type(manufacturer: str, model: str) -> str:
         return 'bosch'
     return 'onvif'
 
-def get_local_ip() -> str:
-    """Get the local IP of the machine."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except:
-        return "127.0.0.1"
-
-def get_local_subnet() -> str:
-    """Get the local subnet (e.g., 192.168.1)."""
-    ip = get_local_ip()
-    return ".".join(ip.split(".")[:3])
-
-def probe_sn_from_ip(ip: str, timeout: float = 2.0) -> str:
-    """Try to fetch the Device Serial Number (deviceId) from a Dahua/Imou IP via UDP 37810."""
-    import uuid
-    # Standard Dahua/Imou discovery packet
-    # This is a simplified version of the ConfigTool probe
-    search_xml = f'<?xml version="1.0" encoding="utf-8"?><Envelope><Header><Action>Probe</Action><MessageID>{uuid.uuid4()}</MessageID></Header><Body><Probe><DeviceType>All</DeviceType></Probe></Body></Envelope>'
-    
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(timeout)
-    try:
-        sock.sendto(search_xml.encode(), (ip, 37810))
-        data, addr = sock.recvfrom(4096)
-        resp = data.decode('utf-8', errors='ignore')
-        # Simple regex for deviceId
-        match = re.search(r'<deviceId>(.*?)</deviceId>', resp)
-        if match:
-            return match.group(1).strip()
-    except:
-        pass
-    finally:
-        sock.close()
-    return None
-
-def probe_ip(ip: str, ports: List[int] = [37810, 554, 80], timeout: float = 0.5) -> bool:
-    """Check if any of the specified ports are open on an IP."""
-    for port in ports:
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(timeout)
-                if s.connect_ex((ip, port)) == 0:
-                    return True
-        except:
-            continue
-    return False
-
-def scan_subnet_for_cameras(subnet: str = "192.168.1", max_workers: int = 50) -> List[str]:
-    """Scan a subnet for active IPs on common camera ports."""
-    active_ips = []
-    ips = [f"{subnet}.{i}" for i in range(1, 255)]
-    
-    logger.info(f"Scanning subnet {subnet}.0/24 for cameras...")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_ip = {executor.submit(probe_ip, ip): ip for ip in ips}
-        for future in concurrent.futures.as_completed(future_to_ip):
-            ip = future_to_ip[future]
-            try:
-                if future.result():
-                    active_ips.append(ip)
-            except Exception:
-                pass
-    logger.info(f"Subnet scan found {len(active_ips)} active IP(s).")
-    return active_ips
-
-def discover_and_update_all_cameras(scan_subnet: bool = False):
+def discover_and_update_all_cameras():
     """
     Combine ONVIF (local) scan and Imou Cloud (AppID/Secret) scan to find camera IPs.
     ONVIF is the PRIMARY source for IP and status.
