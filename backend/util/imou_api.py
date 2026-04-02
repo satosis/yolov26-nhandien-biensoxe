@@ -111,20 +111,32 @@ class ImouClient:
         base_list = data.get("deviceList", [])
         full_list = full_data.get("deviceList", [])
         
-        # Create a map for easy lookup
-        full_map = {d.get('deviceId'): d for d in full_list}
+        # Create a case-insensitive map for easy lookup
+        full_map = {str(d.get('deviceId', '')).strip().lower(): d for d in full_list}
         
         # Merge: prefer base_list structure but complement with full_data (like IP)
         final_list = []
         for dev in base_list:
-            did = dev.get('deviceId')
+            did_raw = dev.get('deviceId', '')
+            did = str(did_raw).strip().lower()
+            logger.info(f"Imou Discovery: Processing device {did}")
+            
             if did in full_map:
+                fdev = full_map[did]
                 # Imou often uses 'lanIp' instead of 'deviceLocalIp' in some API versions
                 # Some versions also use 'channelList' or 'channels' to report status
-                possible_ips = [fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'), dev.get('lanIp')]
-                possible_status = [fdev.get('status'), fdev.get('deviceOnline'), fdev.get('online'), dev.get('status')]
+                possible_ips = [
+                    fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'), 
+                    dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
+                ]
+                possible_status = [
+                    fdev.get('status'), fdev.get('deviceOnline'), fdev.get('online'), 
+                    fdev.get('deviceStatus'), fdev.get('state'),
+                    dev.get('status'), dev.get('deviceOnline'), dev.get('deviceStatus')
+                ]
                 
                 resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
+                # Resolved status: prefer numeric (1/0) or explicit 'online'/'offline' strings
                 resolved_status = next((st for st in possible_status if st is not None), None)
                 
                 if resolved_ip:
@@ -132,16 +144,28 @@ class ImouClient:
                 if resolved_status is not None:
                     dev['status'] = resolved_status
                 
-                # Merge the rest
+                # Merge the rest from full_map entry
                 dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
             
-            # Final check for IP in the device object itself (it might be in 'lanIp')
+            # Final check for IP in the device object itself (it might be in 'lanIp' or others)
             if not dev.get('deviceLocalIp') or dev.get('deviceLocalIp') == "0.0.0.0":
-                alt_ip = dev.get('lanIp') or dev.get('deviceIp')
+                alt_ip = dev.get('lanIp') or dev.get('deviceIp') or dev.get('ipAddress')
                 if alt_ip and alt_ip != "0.0.0.0":
                     dev['deviceLocalIp'] = alt_ip
 
             final_list.append(dev)
+            
+        # --- Diagnostic Dump ---
+        try:
+            debug_path = "/tmp/imou_debug.json"
+            with open(debug_path, "w") as f:
+                json.dump({"base": base_list, "full": full_list, "merged": final_list}, f, indent=2)
+            logger.info(f"Imou Discovery: Debug data dumped to {debug_path}")
+        except:
+            pass
+
+        logger.info(f"Merged Imou device list: {len(final_list)} entries.")
+        return final_list
             
         logger.info(f"Merged Imou device list: {len(final_list)} entries.")
         return final_list

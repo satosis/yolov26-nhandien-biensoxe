@@ -235,19 +235,18 @@ def discover_and_update_all_cameras(scan_subnet: bool = False):
                         # More robust online status check
                         # Imou Cloud often uses 'status' (1: online, 0: offline)
                         # or 'deviceOnline' (same) or string 'online'/'offline'
-                        # We use a helper list for all possible status-like keys
-                        status_keys = ['status', 'deviceOnline', 'online']
-                        raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), '')
-                        status_val = str(raw_status).lower()
+                        # or 'deviceStatus' (online/offline)
+                        status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
+                        raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
                         
-                        is_online = False
-                        if status_val in ['1', 'online', 'run', 'on', 'true']:
-                            is_online = True
-                        elif status_val in ['0', 'offline', 'sleep', 'off', 'false', '']:
-                            is_online = False
-                        else:
-                            # Default to online if it's not explicitly a known offline value
-                            is_online = True
+                        is_online = True # Default to True for Cloud devices unless explicitly offline
+                        if raw_status is not None:
+                            status_val = str(raw_status).lower()
+                            if status_val in ['0', 'offline', 'sleep', 'off', 'false']:
+                                is_online = False
+                            elif status_val in ['1', 'online', 'run', 'on', 'true']:
+                                is_online = True
+                        # If raw_status is None, we stay at True for Cloud devices
 
                         cloud_new_devices.append({
                             'id': did,

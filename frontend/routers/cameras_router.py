@@ -197,7 +197,7 @@ async def discover_cameras(
     user: dict = Depends(require_menu("cameras")),
 ):
     from backend.util.network_utils import discover_and_update_all_cameras
-    results = discover_and_update_all_cameras()
+    results = discover_and_update_all_cameras(scan_subnet=True)
     return results
 
 

@@ -22,6 +22,10 @@
         <input name="name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
+        <label class="block text-txt-sec text-[13px] font-medium mb-1">Logo URL (Local Asset Path)</label>
+        <input name="logo_url" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="/static/assets/providers/door_generic.png">
+      </div>
+      <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Loại kết nối</label>
         <select name="connection_type" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
           <option value="gpio">🔌 GPIO</option>
@@ -52,6 +56,7 @@
       <!-- Header -->
       <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
         <tr>
+          <th class="px-5 py-3 font-semibold w-[60px] text-center">AVATAR</th>
           <th class="px-5 py-3 font-semibold w-[200px]">TÊN NCC</th>
           <th class="px-5 py-3 font-semibold w-[140px]">LOẠI</th>
           <th class="px-5 py-3 font-semibold">MÔ TẢ</th>
@@ -66,6 +71,15 @@
         {% for p in providers %}
         {% set badge = conn_badges.get(p.connection_type, ('🔧 '+p.connection_type, '#94a3b8')) %}
         <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors">
+          <td class="px-5 py-3.5 text-center">
+            {% if p.logo_url %}
+              <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center p-1 mx-auto">
+                <img src="{{ p.logo_url }}" alt="{{ p.name }}" style="max-height: 28px; max-width: 80%; width: auto;" class="object-contain">
+              </div>
+            {% else %}
+              <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg mx-auto">🚪</div>
+            {% endif %}
+          </td>
           <td class="px-5 py-3.5">
             <div class="text-[13px] font-semibold text-white">{{ p.name }}</div>
             <div class="text-[11px] text-txt-ter font-mono tracking-tighter">{{ p.provider_key }}</div>
@@ -107,7 +121,7 @@
 
         <!-- Edit Form Row -->
         <tr id="edit-door-form-{{ p.provider_key }}" class="hidden">
-          <td colspan="5" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
+          <td colspan="6" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
             <form method="POST" action="/door_providers" class="flex flex-col gap-4">
               <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
               <div class="grid grid-cols-2 gap-4">
@@ -123,6 +137,10 @@
                     <option value="tuya_local" {% if p.connection_type == 'tuya_local' %}selected{% endif %}>☁️ Local SDK</option>
                     <option value="mqtt" {% if p.connection_type == 'mqtt' %}selected{% endif %}>📡 MQTT</option>
                   </select>
+                </div>
+                <div>
+                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Logo URL (Local Path)</label>
+                  <input name="logo_url" value="{{ p.logo_url or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="/static/assets/providers/door_generic.png">
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-4">
@@ -149,13 +167,11 @@
         {% endfor %}
         {% if not providers %}
         <tr>
-          <td colspan="5" class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</td>
+          <td colspan="6" class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</td>
         </tr>
         {% endif %}
       </tbody>
     </table>
-  </div> endfor %}
-    {% if not providers %}<div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</div>{% endif %}
   </div>
 </div>
 {% endblock %}

@@ -1074,18 +1074,18 @@ class DatabaseManager:
                 row = cursor.fetchone()
                 return dict(row) if row else None
     def upsert_door_provider(self, provider_key, name, connection_type=None, api_doc_url=None,
-                              config_template=None, notes=None, is_active=True) -> bool:
+                              config_template=None, notes=None, logo_url=None, is_active=True) -> bool:
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO door_providers
-                        (provider_key, name, connection_type, api_doc_url, config_template, notes, is_active, updated_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,NOW())
+                        (provider_key, name, connection_type, api_doc_url, config_template, notes, logo_url, is_active, updated_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                     ON CONFLICT (provider_key) DO UPDATE SET
                         name=EXCLUDED.name, connection_type=EXCLUDED.connection_type,
                         api_doc_url=EXCLUDED.api_doc_url, config_template=EXCLUDED.config_template,
-                        notes=EXCLUDED.notes, is_active=EXCLUDED.is_active, updated_at=NOW()
-                """, (provider_key, name, connection_type, api_doc_url, config_template, notes, is_active))
+                        notes=EXCLUDED.notes, logo_url=EXCLUDED.logo_url, is_active=EXCLUDED.is_active, updated_at=NOW()
+                """, (provider_key, name, connection_type, api_doc_url, config_template, notes, logo_url, is_active))
                 conn.commit()
                 return True
     def delete_door_provider(self, provider_key: str) -> bool:

@@ -27,6 +27,7 @@ async def upsert_door_provider(
     api_doc_url: Optional[str] = Form(None),
     config_template: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
+    logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form("on"),
     user: dict = Depends(require_menu("door_providers")),
 ):
@@ -38,6 +39,7 @@ async def upsert_door_provider(
         api_doc_url=api_doc_url or None,
         config_template=config_template or None,
         notes=notes or None,
+        logo_url=logo_url or None,
         is_active=active,
     )
     return RedirectResponse(url="/door_providers", status_code=303)
@@ -68,6 +70,7 @@ async def toggle_door_provider(
             api_doc_url=provider.get("api_doc_url"),
             config_template=provider.get("config_template"),
             notes=provider.get("notes"),
+            logo_url=provider.get("logo_url"),
             is_active=not provider.get("is_active", True),
         )
     return RedirectResponse(url="/door_providers", status_code=303)

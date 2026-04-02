@@ -85,6 +85,7 @@ async def upsert_provider(
     default_rtsp_port: int = Form(554),
     default_http_port: int = Form(80),
     notes: Optional[str] = Form(None),
+    logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form(None),
 ):
     get_db().upsert_provider(
@@ -97,6 +98,7 @@ async def upsert_provider(
         default_rtsp_port=default_rtsp_port,
         default_http_port=default_http_port,
         notes=notes or None,
+        logo_url=logo_url or None,
         is_active=is_active == "on" or is_active == "1" or is_active == "true",
     )
     return RedirectResponse("/providers", status_code=303)
@@ -131,6 +133,7 @@ async def toggle_provider(
             default_rtsp_port=provider.get("default_rtsp_port", 554),
             default_http_port=provider.get("default_http_port", 80),
             notes=provider.get("notes"),
+            logo_url=provider.get("logo_url"),
             is_active=not provider.get("is_active", True),
         )
     return RedirectResponse("/providers", status_code=303)

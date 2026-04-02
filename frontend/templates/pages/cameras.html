@@ -319,107 +319,111 @@
     </table>
   </div>
 
-  <!-- Discovery Results Modal: Stabilized and Premium -->
+  <!-- Discovery Results Modal: More focused and premium -->
   <template x-if="showDiscoveryModal">
-    <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" @click.self="showDiscoveryModal = false">
+    <div class="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl" @click.self="showDiscoveryModal = false">
       <div x-show="showDiscoveryModal"
            x-transition:enter="ease-out duration-300"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
-           class="bg-bg-card border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+           class="bg-bg-card border border-white/20 w-full max-w-2xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col max-h-[85vh] overflow-hidden">
         
-        <!-- Modal Header -->
-        <div class="p-6 border-b border-white/5 flex flex-col items-center gap-4 relative">
+        <!-- Modal Header: Centered & Clean -->
+        <div class="px-8 pt-8 pb-4 flex flex-col items-center gap-2 relative">
           <button @click="showDiscoveryModal = false" 
-                  class="absolute right-4 top-4 p-2 rounded-lg text-txt-ter hover:bg-white/5 transition-all">✕</button>
-          
-          <div class="w-16 h-16 bg-accent/10 rounded-xl flex items-center justify-center text-3xl shadow-lg border border-accent/20">⚡</div>
-          
-          <div class="text-center">
-            <h3 class="text-white font-bold text-xl tracking-tight">Kết quả dò tìm</h3>
-            <p class="text-[14px] text-txt-sec mt-1">
-              Hệ thống phát hiện <span x-text="discoveredDevices.length" class="text-white font-bold"></span> thiết bị mới.
-              <span class="text-accent font-bold" x-show="discoveredDevices.some(d => d.auto_found)">⚡ Đã khớp IP!</span>
-            </p>
-          </div>
+                  class="absolute right-6 top-6 p-2 rounded-full text-txt-ter hover:bg-white/5 hover:text-white transition-all">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+          <div class="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-accent/5 border border-accent/20 mb-2">⚡</div>
+          <h3 class="text-white font-extrabold text-2xl tracking-tight">Kết quả dò tìm</h3>
+          <p class="text-[14px] text-txt-sec text-center max-w-[80%] leading-relaxed">
+            Hệ thống phát hiện <span x-text="discoveredDevices.length" class="text-white font-bold"></span> thiết bị mới.
+            <span class="text-accent font-bold" x-show="discoveredDevices.some(d => d.auto_found)">Đã tự động khớp IP!</span>
+          </p>
         </div>
           
         <!-- Subnet Scanner Section -->
-        <div class="p-6 bg-bg-inset border-b border-divider">
-          <div class="flex flex-col gap-4">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] text-txt-ter uppercase font-bold tracking-wider">Dải mạng dò tìm (Subnet)</span>
-              <span class="text-[10px] text-txt-mut font-mono">192.168.1.0/24</span>
+        <div class="px-8 py-4">
+          <div class="bg-bg-inset border border-white/10 p-5 rounded-2xl flex flex-col gap-4 shadow-inner">
+            <div class="flex items-center justify-between px-1">
+              <span class="text-[11px] text-txt-ter uppercase font-extrabold tracking-widest">Dải mạng dò tìm (Subnet)</span>
+              <span class="text-[10px] text-accent font-mono opacity-60">Dạng: 192.168.1</span>
             </div>
-            <div class="flex items-stretch gap-3">
-              <div class="relative flex-1">
-                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-txt-mut">🔎</span>
+            <div class="flex items-center gap-3">
+              <div class="relative flex-1 group">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-txt-mut group-focus-within:text-accent transition-colors">🔎</span>
                 <input type="text" x-model="subnetToScan" 
-                       class="bg-bg-card border border-white/10 text-white text-sm pl-11 pr-4 py-3 rounded-lg w-full focus:border-accent/40 outline-none transition-all" 
+                       class="bg-white/5 border border-white/10 text-white text-sm pl-11 pr-4 py-3.5 rounded-xl w-full focus:border-accent/40 focus:ring-1 focus:ring-accent/20 outline-none transition-all placeholder-white/20" 
                        placeholder="192.168.1">
               </div>
               <button @click="deepScan()" :disabled="scanningSubnet"
-                      class="bg-accent text-bg-inset hover:bg-cyan-300 disabled:opacity-50 px-6 py-3 rounded-lg text-[13px] font-bold transition-all flex items-center gap-2 shadow-lg">
-                <span x-show="scanningSubnet" class="animate-spin">🌀</span>
+                      class="bg-accent text-bg-inset hover:bg-cyan-300 disabled:opacity-50 px-6 py-3.5 rounded-xl text-[13px] font-extrabold transition-all flex items-center gap-2.5 shadow-lg shadow-accent/10">
+                <span x-show="scanningSubnet" class="animate-spin text-sm">🌀</span>
                 <span x-text="scanningSubnet ? 'Đang quét...' : 'Dò tìm ngay'"></span>
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Modal Body: Results Table -->
-        <div class="flex-1 overflow-y-auto p-4 custom-scrollbar bg-bg-inset/30">
+        <!-- Modal Body & Results Table -->
+        <div class="px-8 py-2 overflow-y-auto flex-1 custom-scrollbar">
           <div class="w-full">
-            <table class="w-full text-left">
-              <thead class="text-[10px] text-txt-ter uppercase tracking-widest font-bold border-b border-white/5">
+            <table class="w-full text-left border-separate border-spacing-y-3">
+              <thead class="text-[10px] text-txt-ter uppercase tracking-widest font-extrabold">
                 <tr>
-                  <th class="px-4 py-3">Thiết bị</th>
-                  <th class="px-4 py-3">Serial / ID</th>
-                  <th class="px-4 py-3">IP / Trạng thái</th>
-                  <th class="px-4 py-3 text-right"></th>
+                  <th class="px-4 py-2">Thiết bị</th>
+                  <th class="px-4 py-2 opacity-60">Serial / ID</th>
+                  <th class="px-4 py-2">Địa chỉ IP / Nguồn</th>
+                  <th class="px-4 py-2 text-right"></th>
                 </tr>
               </thead>
               <tbody>
                 <template x-for="dev in discoveredDevices" :key="dev.id">
-                  <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                    <td class="px-4 py-5">
+                  <tr class="bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all group overflow-hidden">
+                    <td class="px-4 py-5 rounded-l-2xl">
                       <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-bg-card rounded-lg flex items-center justify-center text-xl border border-white/5">📹</div>
+                        <div class="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+                          <template x-if="dev.type === 'imou'">🏭</template>
+                          <template x-if="dev.type !== 'imou'">📹</template>
+                        </div>
                         <div class="flex flex-col">
-                          <span class="text-[13px] font-bold text-white uppercase" x-text="dev.type"></span>
-                          <span class="text-[10px] text-txt-ter font-bold uppercase tracking-widest" x-text="dev.source === 'cloud' ? 'Cloud' : 'Local'"></span>
+                          <span class="text-[13px] font-bold text-white uppercase tracking-tighter" x-text="dev.type"></span>
+                          <span class="text-[10px] text-txt-ter font-bold uppercase tracking-widest opacity-60" x-text="dev.source === 'cloud' ? '🌐 Cloud' : '🏠 Local'"></span>
                         </div>
                       </div>
                     </td>
                     <td class="px-4 py-5">
-                      <code class="text-[11px] text-accent font-mono bg-bg-card px-2 py-1 rounded border border-white/10" x-text="dev.id.toUpperCase()"></code>
+                      <code class="text-[11px] text-accent/80 font-mono bg-accent/5 px-2 py-1 rounded-md border border-accent/10" x-text="dev.id.toUpperCase()"></code>
                     </td>
                     <td class="px-4 py-5">
                       <div class="flex flex-col gap-1.5">
                         <div class="flex items-center gap-2">
-                          <span class="text-[14px] font-bold text-white font-mono tabular-nums" x-text="dev.ip || 'Unknown IP'"></span>
+                          <span class="text-[15px] font-extrabold text-white font-mono tabular-nums tracking-tighter" x-text="dev.ip || 'Unknown IP'"></span>
+                          <template x-if="dev.auto_found">
+                            <span class="bg-accent text-bg-inset text-[9px] px-1.5 py-0.5 rounded-lg border border-accent/30 font-extrabold uppercase shadow-sm">Auto</span>
+                          </template>
                           <template x-if="dev.is_online">
-                            <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-status-green/10 text-status-green border border-status-green/20 uppercase tracking-widest">Online</span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-status-green/10 text-status-green border border-status-green/20 uppercase tracking-widest shadow-sm">Online</span>
                           </template>
                           <template x-if="!dev.is_online">
-                            <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-status-red/10 text-status-red border border-status-red/20 uppercase tracking-widest">Offline</span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-status-red/10 text-status-red border border-status-red/20 uppercase tracking-widest shadow-sm">Offline</span>
                           </template>
                         </div>
                       </div>
                     </td>
-                    <td class="px-4 py-5 text-right">
+                    <td class="px-4 py-5 text-right rounded-r-2xl">
                       <button @click="selectDiscovered(dev)"
-                        class="bg-accent text-bg-inset hover:bg-cyan-300 text-[12px] font-bold px-5 py-2.5 rounded-lg transition-all shadow-md active:scale-95">
-                        Thêm
+                        class="bg-accent text-bg-inset hover:bg-cyan-300 text-[12px] font-extrabold px-6 py-3 rounded-xl transition-all shadow-lg shadow-accent/10 hover:shadow-cyan-400/20 active:scale-95">
+                        Thêm ngay
                       </button>
                     </td>
                   </tr>
                 </template>
                 <template x-if="discoveredDevices.length === 0">
                   <tr>
-                    <td colspan="4" class="px-4 py-16 text-center">
+                    <td colspan="4" class="px-4 py-20 text-center">
                       <div class="flex flex-col items-center gap-4 opacity-30">
-                        <span class="text-4xl">📡</span>
+                        <span class="text-5xl">📡</span>
                         <p class="text-sm font-medium">Chưa phát hiện thiết bị mới nào...</p>
                       </div>
                     </td>
@@ -431,9 +435,9 @@
         </div>
 
         <!-- Modal Footer -->
-        <div class="p-4 border-t border-white/5 flex justify-center bg-bg-card">
+        <div class="px-8 py-6 border-t border-white/5 flex justify-center bg-white/[0.02]">
           <button @click="showDiscoveryModal = false" 
-                  class="text-txt-sec hover:text-white px-8 py-2 rounded-lg transition-all text-[13px] font-bold uppercase tracking-widest">
+                  class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-10 py-3 rounded-xl transition-all text-[13px] font-extrabold uppercase tracking-widest">
             Đóng cửa sổ
           </button>
         </div>
