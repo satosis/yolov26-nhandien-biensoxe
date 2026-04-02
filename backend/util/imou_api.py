@@ -166,6 +166,3 @@ class ImouClient:
 
         logger.info(f"Merged Imou device list: {len(final_list)} entries.")
         return final_list
-            
-        logger.info(f"Merged Imou device list: {len(final_list)} entries.")
-        return final_list

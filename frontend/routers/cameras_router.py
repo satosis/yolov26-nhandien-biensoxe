@@ -210,3 +210,6 @@ async def discover_subnet(
     from backend.util.network_utils import scan_subnet_for_cameras
     found_ips = scan_subnet_for_cameras(subnet)
     return {"found_ips": found_ips}
+
+
+
