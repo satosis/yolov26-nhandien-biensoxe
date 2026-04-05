@@ -1,0 +1,186 @@
+{% extends "layout.html" %}
+{% block title %}Đăng ký phương tiện — Minimalist Studio{% endblock %}
+
+{% block head %}
+<link href="/static/css/tom-select.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+  body { font-family: 'Inter', sans-serif; background: #0A0F1C; color: #FFFFFF; }
+  
+  /* Minimalist TomSelect - Global Dark Theme */
+  .ts-wrapper .ts-control { 
+    background: #0D1117 !important; 
+    border: 1px solid rgba(255, 255, 255, 0.1) !important; 
+    border-radius: 8px !important; 
+    padding: 10px 14px !important; 
+    color: #FFFFFF !important;
+    transition: all 0.2s ease;
+  }
+  .ts-wrapper .ts-control input {
+    color: #FFFFFF !important;
+    background: transparent !important;
+  }
+  .ts-wrapper.focus .ts-control { 
+    border-color: #22D3EE !important; 
+    box-shadow: none !important;
+  }
+  
+  /* Dropdown Styles */
+  .ts-dropdown { 
+    background: #111827 !important; /* Slightly lighter than page bg */
+    border: 1px solid rgba(255, 255, 255, 0.1) !important; 
+    border-radius: 8px !important; 
+    margin-top: 4px !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+  }
+  .ts-dropdown .option {
+    padding: 10px 14px !important;
+    color: #94A3B8 !important;
+    transition: all 0.1s ease;
+  }
+  .ts-dropdown .active {
+    background: rgba(34, 211, 238, 0.1) !important;
+    color: #22D3EE !important;
+  }
+  .ts-dropdown .create {
+    color: #22D3EE !important;
+    font-weight: 600 !important;
+  }
+
+  /* Multi-Select Item Styles (Special case for site selection) */
+  .ts-wrapper.multi .ts-control .item { 
+    background: #1e293b !important; 
+    color: #fff !important; 
+    border: 1px solid rgba(255, 255, 255, 0.1) !important; 
+    border-radius: 4px !important; 
+    font-size: 11px !important;
+    padding: 1px 6px !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-12 px-6 animate-in fade-in duration-500">
+  
+  <!-- Content Header -->
+  <div class="flex items-center justify-between mb-12">
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-2 mb-2">
+        <a href="/pending_plates" class="text-txt-ter hover:text-white transition-colors text-[13px] flex items-center gap-1">
+          <i class="fa-solid fa-arrow-left text-[10px]"></i>
+          QUAY LẠI
+        </a>
+      </div>
+      <h1 class="text-3xl font-extrabold text-white tracking-tight">Đăng ký phương tiện</h1>
+    </div>
+    <div class="px-4 py-1.5 rounded-lg border border-white/10 bg-white/5 text-[11px] font-bold text-txt-ter uppercase tracking-widest">
+      STATION #{{ plate.pending_id[:8].upper() }}
+    </div>
+  </div>
+
+  <form action="/pending_plates/{{ plate.pending_id }}/register" method="post" class="grid grid-cols-1 md:grid-cols-12 gap-12">
+    
+    <!-- Left Column: Visual Source -->
+    <div class="md:col-span-5 flex flex-col gap-8">
+      <div class="bg-white/[0.03] border border-white/5 rounded-2xl p-3 shadow-2xl">
+        <div class="rounded-xl overflow-hidden aspect-[4/3] bg-bg-inset relative">
+          {% if plate.image_path %}
+          <img src="/snapshots/{{ plate.image_path.split('/')[-1] }}" 
+               class="w-full h-full object-cover transition-opacity hover:opacity-90"
+               onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-4xl">🚘</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Plate Component (Now a regular readonly input as requested) -->
+      <div class="flex flex-col gap-3">
+        <label class="text-[12px] font-bold text-txt-sec uppercase tracking-[1px] ml-1">Biển số nhận diện *</label>
+        <input type="text" name="plate_number" value="{{ plate.plate_norm }}" readonly
+               class="bg-[#0D1117] border border-accent/30 rounded-lg px-6 py-4 text-2xl font-mono font-bold text-accent shadow-lg focus:outline-none">
+        <div class="flex items-center gap-2 px-1">
+           <i class="fa-solid fa-circle-exclamation text-amber-500/80 text-[10px]"></i>
+           <p class="text-[11px] text-txt-ter leading-relaxed font-medium">Biển số đã xác thực. Không thể thay đổi trong quá trình đăng ký.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Registration Logic -->
+    <div class="md:col-span-7 flex flex-col gap-8 bg-white/[0.02] border border-white/5 rounded-3xl p-8 lg:p-10">
+      
+      <div class="space-y-8">
+        <!-- Field 1: Owner -->
+        <div class="flex flex-col gap-3">
+          <label class="text-[12px] font-bold text-txt-sec uppercase tracking-[1px]">Tên chủ xe *</label>
+          <select id="reg-owner" name="owner_name" required autofocus placeholder="Chọn hoặc nhập tên mới...">
+            <option value=""></option>
+            {% for u in users %}
+            <option value="{{ u.full_name or u.username }}">{{ u.full_name or u.username }} {% if u.full_name and u.username %}({{ u.username }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          <!-- Field 2: Sites -->
+          <div class="flex flex-col gap-3">
+            <label class="text-[12px] font-bold text-txt-sec uppercase tracking-[1px]">Phạm vi địa điểm</label>
+            <select id="reg-site" name="site_ids" multiple>
+              {% for s in sites %}
+              <option value="{{ s.id }}" {% if s.id == active_site_id %}selected{% endif %}>{{ s.site_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <!-- Field 3: Status Info -->
+          <div class="flex flex-col gap-3">
+            <label class="text-[12px] font-bold text-txt-sec uppercase tracking-[1px]">Phân loại AI</label>
+            <div class="bg-white/5 border border-white/5 rounded-lg px-4 py-2.5 text-txt-ter text-sm flex items-center justify-between">
+               <span>{{ plate.plate_type|upper or 'MẶC ĐỊNH' }}</span>
+               <i class="fa-solid fa-lock text-[10px] opacity-20"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Field 4: Note -->
+        <div class="flex flex-col gap-3">
+          <label class="text-[12px] font-bold text-txt-sec uppercase tracking-[1px]">Ghi chú</label>
+          <textarea name="note" rows="3" placeholder="Ghi chú nội bộ cho xe này..."
+                    class="minimalist-input resize-none"></textarea>
+        </div>
+      </div>
+
+      <!-- Action Studio -->
+      <footer class="flex items-center justify-end gap-5 mt-4 pt-10 border-t border-white/5">
+        <a href="/pending_plates" class="text-[13px] font-semibold text-txt-ter hover:text-white transition-colors">Hủy</a>
+        <button type="submit" 
+                class="minimalist-btn-primary px-10 py-3 shadow-lg hover:shadow-cyan-500/10">
+          XÁC NHẬN & LƯU
+        </button>
+      </footer>
+    </div>
+
+  </form>
+</div>
+
+<script src="/static/js/tom-select.complete.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  new TomSelect("#reg-site", {
+    plugins: ['remove_button'],
+    placeholder: "Tất cả địa điểm",
+    maxItems: null
+  });
+  
+  new TomSelect("#reg-owner", {
+    create: true,
+    placeholder: "Tìm hoặc nhập tên...",
+    onOptionAdd: function(value, data) {
+      this.control.classList.add('neon-glow-cyan');
+      setTimeout(() => this.control.classList.remove('neon-glow-cyan'), 500);
+    }
+  });
+});
+</script>
+{% endblock %}

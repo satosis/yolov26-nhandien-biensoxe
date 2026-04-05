@@ -27,7 +27,6 @@
   --radius-lg: 12px;
 }
 
-/* Custom styles from base.html */
 @layer base {
   [x-cloak] { display: none !important; }
   
@@ -39,12 +38,68 @@
     @apply bg-bg-page text-white font-sans antialiased;
   }
 
-  /* Global cursor pointer for interactive elements */
   a, button, [role="button"], select, 
   input[type="checkbox"], input[type="radio"], 
   input[type="file"]::file-selector-button,
   [hx-get], [hx-post], [hx-put], [hx-delete], [hx-patch],
   [x-on\:click], [\@click] {
     cursor: pointer;
+  }
+}
+
+@layer components {
+  /* Ultra-Minimalist Utility Classes */
+  .minimalist-card {
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  
+  .minimalist-input {
+    background: #0D1117;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #fff;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .minimalist-input:focus {
+    outline: none;
+    border-color: #22D3EE;
+    border-width: 1px;
+    box-shadow: none;
+  }
+
+  .minimalist-plate {
+    background: #FFFFFF;
+    border: 2px solid #334155;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+  .minimalist-plate-text {
+    @apply font-mono font-bold text-slate-900 tracking-tight;
+    font-size: 36px;
+    line-height: normal;
+  }
+
+  .minimalist-btn-primary {
+    background: #22D3EE;
+    color: #07090F;
+    font-weight: 700;
+    border-radius: 8px;
+    padding: 10px 24px;
+    transition: all 0.2s ease;
+  }
+  .minimalist-btn-primary:hover {
+    background: #67e8f9;
+    transform: none;
+  }
+  .minimalist-btn-primary:active {
+    background: #0891b2;
   }
 }

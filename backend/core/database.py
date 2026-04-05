@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import json
 import logging
 import re
+import time
 import secrets
 import urllib.parse
 from dotenv import load_dotenv
@@ -56,31 +57,35 @@ class DatabaseManager:
 
     def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
         """Core method to execute queries safely with centralized error handling."""
-        with self._get_connection() as conn:
-            cursor_factory = RealDictCursor if fetch or fetchall else None
-            with conn.cursor(cursor_factory=cursor_factory) as cursor:
-                cursor.execute(query, params)
-                result = True
-                if fetch:
-                    result = cursor.fetchone()
-                    if result and cursor_factory:
-                        result = dict(result)
-                elif fetchall:
-                    result = cursor.fetchall()
-                    if result and cursor_factory:
-                        result = [dict(r) for r in result]
-                elif return_id:
-                    result = cursor.fetchone()[0]
-                if commit:
-                    conn.commit()
-                return result
+        try:
+            with self._get_connection() as conn:
+                cursor_factory = RealDictCursor if fetch or fetchall else None
+                with conn.cursor(cursor_factory=cursor_factory) as cursor:
+                    cursor.execute(query, params)
+                    result = True
+                    if fetch:
+                        result = cursor.fetchone()
+                        if result and cursor_factory:
+                            result = dict(result)
+                    elif fetchall:
+                        result = cursor.fetchall()
+                        if result and cursor_factory:
+                            result = [dict(r) for r in result]
+                    elif return_id:
+                        result = cursor.fetchone()[0]
+                    if commit:
+                        conn.commit()
+                    return result
+        except (psycopg2.Error, Exception) as e:
+            logger.error("Database query failed: %s\nQuery: %s\nParams: %s", str(e), query, params, exc_info=True)
+            raise DatabaseError(f"Database query failed: {str(e)}") from e
     # Whitelist of allowed table/column names for generic ORM methods
     _ALLOWED_TABLES = frozenset({
         'users', 'roles', 'cameras', 'sites', 'plate_events',
         'vehicle_sessions', 'plate_whitelist', 'pending_plates',
         'app_settings', 'camera_status_log', 'legal_hold',
         'monthly_reports', 'telegram_bots', 'cameras_asset',
-        'stranger_logs',
+        'stranger_logs', 'rolling_doors',
     })
 
     @staticmethod
@@ -210,17 +215,17 @@ class DatabaseManager:
                 "note": row['note']
             }
         return None
-    def add_pending_plate(self, pending_id, event_id, plate_raw, plate_norm, first_seen_utc, site_id=None):
+    def add_pending_plate(self, pending_id, event_id, plate_raw, plate_norm, first_seen_utc, site_id=None, plate_type="white"):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
                     INSERT INTO pending_plates (
-                        pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status, site_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        pending_id, event_id, plate_raw, plate_norm, first_seen_utc, status, site_id, plate_type
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (pending_id) DO NOTHING
                     ''',
-                    (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending", site_id)
+                    (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending", site_id, plate_type)
                 )
     def upsert_vehicle_whitelist(self, plate_norm, label, added_by, site_ids=None, note=None):
         with self._get_connection() as conn:
@@ -301,12 +306,24 @@ class DatabaseManager:
 
     def _trigger_ai_reload(self):
         """Touch the .reload signal file to force AI processes to refresh their caches."""
+        import time
         from backend.core import config as cfg
         rt = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
         os.makedirs(os.path.dirname(rt), exist_ok=True)
         with open(rt, "w") as f:
             f.write(str(time.time()))
         logger.info("AI Reload trigger sent successfully")
+
+    def get_pending_plate_by_id(self, pending_id) -> dict | None:
+        """Fetch details for a specific pending plate by its ID."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(
+                    "SELECT pending_id, plate_raw, plate_norm, image_path, plate_type, site_id, first_seen_utc FROM pending_plates WHERE pending_id = %s",
+                    (pending_id,)
+                )
+                row = cursor.fetchone()
+                return dict(row) if row else None
 
     def delete_pending_plate_by_id(self, pending_id) -> bool:
         """Permanently delete a pending plate record, any duplicate pending tasks for the same plate, and associated logs."""
@@ -370,10 +387,10 @@ class DatabaseManager:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
-                    INSERT INTO plate_events (event_time, camera_id, vehicle_type, plate_number) 
-                    VALUES (NOW(), %s, %s, %s) RETURNING id
+                    INSERT INTO plate_events (event_time, camera_id, vehicle_type, plate_number, plate_type) 
+                    VALUES (NOW(), %s, %s, %s, %s) RETURNING id
                     ''',
-                    ("default", event_type, "unknown")
+                    ("default", event_type, "unknown", "white")
                 )
                 return cursor.fetchone()[0]
     def get_stats(self):
@@ -1097,7 +1114,7 @@ class DatabaseManager:
     # PENDING PLATES (simple)
     # ==========================================
 
-    def add_pending_plate_simple(self, plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None):
+    def add_pending_plate_simple(self, plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None, plate_type: str = "white"):
         """Quick-add unknown plate to pending list with auto-generated ID, with deduplication."""
         # 1. Deduplication: Don't add if already in pending list (Separator-insensitive)
         # Normalize input to alphanumeric only for lookup
@@ -1122,10 +1139,10 @@ class DatabaseManager:
                 pid = str(uuid.uuid4())[:8]
                 logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
                 cursor.execute(
-                    """INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path)
-                       VALUES (%s, %s, %s, NOW(), 'pending', %s, %s)
+                    """INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
+                       VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
                        ON CONFLICT (pending_id) DO NOTHING""",
-                    (pid, plate_raw, plate_norm, site_id, image_path)
+                    (pid, plate_raw, plate_norm, site_id, image_path, plate_type)
                 )
                 conn.commit()
                 if cursor.rowcount > 0:
@@ -1265,7 +1282,7 @@ class DatabaseManager:
     # ==========================================
     # SMART PARKING ENGINE
     # ==========================================
-    def record_vehicle_entry(self, plate_norm, vehicle_type, camera_id, image_path, site_id=None) -> bool:
+    def record_vehicle_entry(self, plate_norm, vehicle_type, camera_id, image_path, site_id=None, plate_type="white") -> bool:
         """Records a vehicle entering the parking site."""
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -1413,3 +1430,27 @@ class DatabaseManager:
             res = self.delete("plate_whitelist", {"plate_number": plate_number})
             if res: self._trigger_ai_reload()
             return res
+
+    # --- Rolling Doors ---
+
+    def get_all_rolling_doors(self) -> list:
+        query = """
+            SELECT rd.*, dp.name as supplier_name, s.site_name 
+            FROM rolling_doors rd
+            LEFT JOIN door_providers dp ON rd.supplier_key = dp.provider_key
+            LEFT JOIN sites s ON rd.site_id = s.id
+            ORDER BY dp.name ASC, rd.name ASC
+        """
+        return self._execute_query(query, fetchall=True, commit=False)
+
+    def get_rolling_door(self, door_id: int) -> dict:
+        return self.select('rolling_doors', conditions={'id': door_id}, fetchall=False)
+
+    def upsert_rolling_door(self, **data):
+        door_id = data.pop('id', None)
+        if door_id:
+            return self.update('rolling_doors', data, {'id': door_id})
+        return self.insert('rolling_doors', data)
+
+    def delete_rolling_door(self, door_id: int):
+        return self.delete('rolling_doors', {'id': door_id})

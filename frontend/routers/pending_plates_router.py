@@ -11,6 +11,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pending_plates")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
+@router.get("/{pending_id}/register")
+async def register_page(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
+    try:
+        db = get_db()
+        plate = db.get_pending_plate_by_id(pending_id)
+        if not plate:
+            logger.warning(f"Registration attempt for non-existent pending_id: {pending_id}")
+            return RedirectResponse("/pending_plates", status_code=303)
+            
+        ctx = get_menu_context(request, user)
+        ctx["current_menu"] = "pending_plates"
+        ctx["plate"] = plate
+        
+        # Fetch users for the owner combobox
+        users_list = db.select('users', columns=['id', 'full_name', 'username'], order_by='full_name ASC')
+        ctx["users"] = users_list
+        
+        return templates.TemplateResponse("pages/pending_plate_register.html", {"request": request, **ctx})
+    except Exception as e:
+        logger.exception(f"Error rendering registration page for {pending_id}: {e}")
+        raise
+
 @router.post("/{pending_id}/register")
 async def register_plate(
     pending_id: str,

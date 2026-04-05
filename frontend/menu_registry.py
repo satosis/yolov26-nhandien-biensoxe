@@ -18,6 +18,7 @@ MENU_GROUPS = {
         "cameras": "📹 Camera",
         "providers": "🏭 Quản lý Key",
         "door_providers": "🚪 NCC Cửa cuốn",
+        "rolling_doors": "🚗 Quản lý Cửa cuốn",
         "vehicles": "🚗 Phương tiện",
         "strangers": "👤 Người lạ",
         "pending_plates": "🚘 Xe lạ",

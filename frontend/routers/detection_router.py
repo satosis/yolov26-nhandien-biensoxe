@@ -144,23 +144,21 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
             db = get_db()  # Get once — not per-detection
             for x1, y1, x2, y2, conf, cls_id in detections:
                 if cls_id == 0: # Plate
-                    # Add 5% padding to improve OCR context
+                    # Add 15% padding + 10px buffer to improve OCR context (Synced with inference.py)
                     h_img, w_img = frame_bgr.shape[:2]
-                    pad_w = int((x2 - x1) * 0.05)
-                    pad_h = int((y2 - y1) * 0.05)
-                    x1_p = max(0, x1 - pad_w)
-                    y1_p = max(0, y1 - pad_h)
-                    x2_p = min(w_img, x2 + pad_w)
-                    y2_p = min(h_img, y2 + pad_h)
+                    px = int((x2 - x1) * 0.15) + 10
+                    py = int((y2 - y1) * 0.15) + 5
+                    x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
+                    x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
                     
                     crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
-                    text, ocr_conf = "", 0.0
+                    text, ocr_conf, p_type = "", 0.0, "white"
                     if ocr and crop.size > 0:
                         # Auto-enhance small or blurry crops (improved threshold to 120px)
                         h, w = crop.shape[:2]
                         processed = enhance_plate(crop) if h < 120 else crop
-                        text, ocr_conf = ocr.read(processed)
-                        logger.info(f"DEBUG: OCR Result for {w}x{h} crop: '{text}' (conf: {ocr_conf})")
+                        text, ocr_conf, p_type = ocr.read(processed)
+                        logger.info(f"API OCR Result [{w}x{h}]: '{text}' (conf: {ocr_conf:.2f}, type: {p_type})")
 
                     status = "unknown"
                     owner_name = "unknown"
@@ -178,15 +176,20 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                         snap_path = save_snapshot(frame_bgr, "webcam", normalized)
                         # Propagate active site from session so it shows up in dashboards
                         active_site_id = request.session.get("active_site_id")
-                        s_id = int(active_site_id) if active_site_id and int(active_site_id) > 0 else None
+                        s_id = None
+                        if active_site_id and str(active_site_id).isdigit():
+                            s_int = int(active_site_id)
+                            if s_int > 0:
+                                s_id = s_int
 
-                        logger.info(f"Adding unknown plate to pending list: {normalized} (site: {s_id})")
-                        db.add_pending_plate_simple(normalized, normalized, "webcam", site_id=s_id, image_path=snap_path)
-                        logger.info(f"Stranger plate '{normalized}' logged from manual detection at site {s_id}")
+                        logger.info(f"Adding unknown plate to pending list: {text} (normalized: {normalized}, site: {s_id})")
+                        db.add_pending_plate_simple(normalized, text, "webcam", site_id=s_id, image_path=snap_path, plate_type=p_type)
+                        logger.info(f"Stranger plate '{text}' logged from manual detection at site {s_id}")
 
                     res.append({
                         "type": "plate",
                         "text": text if text else "(BIỂN SỐ ?)",
+                        "plate_type": p_type,
                         "confidence": round(conf * 100, 1),
                         "ocr_confidence": round(ocr_conf * 100, 1),
                         "status": status,

@@ -6,10 +6,25 @@
   discoveredDevices: [],
   subnetToScan: '192.168.1',
   scanningSubnet: false,
+  async init() {
+     try {
+         const resp = await fetch('/system/network-info');
+         const data = await resp.json();
+         if (data.subnet) {
+             this.subnetToScan = data.subnet;
+             this.serverIP = data.ip;
+         }
+     } catch (e) {
+         console.error('Failed to get network info', e);
+     }
+  },
+  serverIP: '',
   selectDiscovered(dev) {
     document.getElementById('add-cam-form').classList.remove('hidden');
     document.getElementById('add-camera-name').value = (dev.source === 'cloud' ? (dev.name || 'Imou Cloud Camera') : 'Local Camera');
-    document.getElementById('add-camera-device-id').value = dev.id.toUpperCase();
+    // Clear ID if it's an unidentified network device
+    const cleanId = dev.id.startsWith('unidentified_') ? '' : dev.id.toUpperCase();
+    document.getElementById('add-camera-device-id').value = cleanId;
     document.getElementById('add-camera-ip').value = dev.ip || '';
     if (typeof autoFillRtsp === 'function') {
         autoFillRtsp(document.getElementById('add-cam-form'));
@@ -347,7 +362,7 @@
           <div class="bg-bg-inset border border-white/10 p-5 rounded-2xl flex flex-col gap-4 shadow-inner">
             <div class="flex items-center justify-between px-1">
               <span class="text-[11px] text-txt-ter uppercase font-extrabold tracking-widest">Dải mạng dò tìm (Subnet)</span>
-              <span class="text-[10px] text-accent font-mono opacity-60">Dạng: 192.168.1</span>
+              <span class="text-[10px] text-accent font-mono opacity-60" x-text="serverIP ? 'IP máy tính: ' + serverIP : 'Dạng: 192.168.1'"></span>
             </div>
             <div class="flex items-center gap-3">
               <div class="relative flex-1 group">
@@ -384,17 +399,15 @@
                     <td class="px-4 py-4 rounded-l-2xl">
                       <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform"
-                             :class="dev.source === 'onvif' ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-blue-500/10 border border-blue-500/20'">
-                          <template x-if="dev.source === 'onvif'">📡</template>
-                          <template x-if="dev.source === 'cloud'">☁️</template>
-                          <template x-if="dev.source !== 'onvif' && dev.source !== 'cloud'">📹</template>
+                             :class="dev.source === 'onvif' ? 'bg-emerald-500/10 border border-emerald-500/20' : (dev.source === 'cloud' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-amber-500/10 border border-amber-500/20')">
+                          <span x-text="dev.source === 'onvif' ? '📡' : (dev.source === 'cloud' ? '☁️' : '🔍')"></span>
                         </div>
                         <div class="flex flex-col gap-0.5">
                           <span class="text-[13px] font-bold text-white" x-text="dev.name || dev.type"></span>
                           <div class="flex items-center gap-1.5">
                             <span class="text-[9px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded-md"
-                                  :class="dev.source === 'onvif' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'"
-                                  x-text="dev.source === 'onvif' ? '📡 ONVIF' : '☁️ Cloud'"></span>
+                                  :class="dev.source === 'onvif' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (dev.source === 'cloud' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20')"
+                                  x-text="dev.source === 'onvif' ? '📡 ONVIF' : (dev.source === 'cloud' ? '☁️ Cloud' : '🔍 Subnet')"></span>
                             <span class="text-[9px] text-txt-ter font-bold uppercase tracking-wider opacity-60" x-text="dev.type"></span>
                           </div>
                         </div>
@@ -404,36 +417,25 @@
                       <div class="flex flex-col gap-1">
                         <span class="text-[12px] font-semibold text-white/80" x-text="dev.manufacturer || '—'"></span>
                         <span class="text-[10px] text-txt-ter font-mono" x-text="dev.model || ''"></span>
-                        <template x-if="dev.serial">
-                          <code class="text-[9px] text-accent/60 font-mono" x-text="'S/N: ' + dev.serial"></code>
-                        </template>
-                        <template x-if="!dev.serial && dev.id">
-                          <code class="text-[9px] text-accent/60 font-mono truncate max-w-[140px]" x-text="'ID: ' + dev.id.toUpperCase()"></code>
-                        </template>
+                        <span class="text-[9px] text-accent/60 font-mono" x-show="dev.serial" x-text="'S/N: ' + dev.serial"></span>
+                        <span class="text-[9px] text-accent/60 font-mono truncate max-w-[140px]" x-show="!dev.serial && dev.id && !dev.id.startsWith('unidentified_')" x-text="'ID: ' + dev.id.toUpperCase()"></span>
+                        <span class="text-[9px] text-amber-500/60 font-mono italic" x-show="dev.id && dev.id.startsWith('unidentified_')">Cần gán ID thủ công</span>
                       </div>
                     </td>
                     <td class="px-4 py-4">
                       <div class="flex flex-col gap-1">
                         <span class="text-[15px] font-extrabold text-white font-mono tabular-nums tracking-tighter" x-text="dev.ip || 'Không xác định'"></span>
-                        <template x-if="dev.onvif_port && dev.onvif_port !== 80">
-                          <span class="text-[9px] text-txt-ter font-mono" x-text="'ONVIF Port: ' + dev.onvif_port"></span>
-                        </template>
-                        <template x-if="dev.firmware">
-                          <span class="text-[9px] text-txt-ter font-mono opacity-60" x-text="'FW: ' + dev.firmware"></span>
-                        </template>
+                        <span class="text-[9px] text-txt-ter font-mono" x-show="dev.onvif_port && dev.onvif_port !== 80" x-text="'ONVIF Port: ' + dev.onvif_port"></span>
+                        <span class="text-[9px] text-txt-ter font-mono opacity-60" x-show="dev.firmware" x-text="'FW: ' + dev.firmware"></span>
                       </div>
                     </td>
                     <td class="px-4 py-4">
-                      <template x-if="dev.is_online">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-green/10 text-status-green border border-status-green/20 uppercase tracking-widest shadow-sm">
-                          <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
-                        </span>
-                      </template>
-                      <template x-if="!dev.is_online">
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-red/10 text-status-red border border-status-red/20 uppercase tracking-widest shadow-sm">
-                          <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
-                        </span>
-                      </template>
+                      <span x-show="dev.is_online" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-green/10 text-status-green border border-status-green/20 uppercase tracking-widest shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
+                      </span>
+                      <span x-show="!dev.is_online" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-red/10 text-status-red border border-status-red/20 uppercase tracking-widest shadow-sm">
+                        <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
+                      </span>
                     </td>
                     <td class="px-4 py-4 text-right rounded-r-2xl">
                       <button @click="selectDiscovered(dev)"

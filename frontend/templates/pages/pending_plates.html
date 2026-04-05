@@ -27,45 +27,6 @@
     <span class="text-2xl font-semibold text-white">Biển số chờ duyệt (Xe lạ)</span>
   </div>
 
-  <!-- Registration Form (Sync with Vehicles Add Form) -->
-  <form id="reg-vehicle-form" style="display:none" class="bg-bg-card rounded-lg p-5 flex flex-col gap-4 border border-accent/20 shadow-[0_0_20px_rgba(34,211,238,0.05)]"
-        method="post" action="/pending_plates/0/register">
-    <div class="text-accent font-semibold text-[14px] flex items-center gap-2">
-      <span>📝 Đăng ký phương tiện mới từ danh sách chờ</span>
-      <div class="h-[1px] flex-1 bg-accent/20"></div>
-    </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Biển số *</label>
-        <input id="reg-plate" name="plate_number" required readonly
-               class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2 text-sm text-accent font-mono font-bold focus:outline-none" 
-               placeholder="88A-12345">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe *</label>
-        <input name="owner_name" required 
-               class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" 
-               placeholder="Nguyễn Văn A">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
-        <select id="reg-site" name="site_ids" multiple class="w-full">
-          {% for s in sites %}<option value="{{ s.id }}" {% if s.id == active_site_id %}selected{% endif %}>{{ s.site_name }}</option>{% endfor %}
-        </select>
-      </div>
-    </div>
-    <div>
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú</label>
-      <input name="note" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" 
-             placeholder="Cư dân, khách vãng lai...">
-    </div>
-    <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-6 py-2 rounded-md hover:bg-cyan-300 transition-colors cursor-pointer">💾 Lưu & Phê duyệt</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5 cursor-pointer" onclick="hideRegForm()">Hủy</button>
-    </div>
-  </form>
-
   <!-- Table List (Identical to Vehicles) -->
   <div class="bg-bg-card rounded-xl border border-divider shadow-sm overflow-hidden flex flex-col min-h-[400px]" id="pending-list" x-data="{}">
     <table class="w-full text-left border-collapse">
@@ -100,8 +61,18 @@
 
           <!-- Combined Plate Section -->
           <td class="px-5 py-4">
-            <span class="bg-status-yellow/10 text-status-yellow px-2.5 py-1 rounded-md text-[15px] font-mono font-bold border border-status-yellow/20 inline-block w-fit">
-              {{ p.plate_norm or p.plate_raw or '???' }}
+            {% set plate_cls = "bg-status-yellow/10 text-white border-status-yellow/30" %}
+            {% if p.plate_type == 'white' %}
+              {% set plate_cls = "bg-white/10 text-white border-white/40 font-bold" %}
+            {% elif p.plate_type == 'yellow' %}
+              {% set plate_cls = "bg-amber-400/20 text-white border-amber-400/50 font-bold" %}
+            {% elif p.plate_type == 'blue' %}
+              {% set plate_cls = "bg-blue-600/20 text-white border-blue-400/40" %}
+            {% elif p.plate_type == 'red' %}
+              {% set plate_cls = "bg-rose-600/20 text-white border-rose-400/40" %}
+            {% endif %}
+            <span class="{{ plate_cls }} px-2.5 py-1 rounded-md text-[15px] font-mono border inline-block w-fit shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+              {{ p.plate_raw or p.plate_norm or '???' }}
             </span>
           </td>
 
@@ -113,12 +84,12 @@
           <!-- Actions -->
           <td class="px-5 py-4 text-right">
             <div class="flex justify-end gap-2">
-              <button class="text-accent hover:text-cyan-300 text-[18px] transition-colors cursor-pointer p-1" 
-                      title="Đăng ký phương tiện"
-                      onclick="showRegForm('{{ p.pending_id }}', '{{ p.plate_norm }}')">📝</button>
+              <a href="/pending_plates/{{ p.pending_id }}/register" 
+                 class="text-accent hover:text-cyan-300 text-[18px] transition-colors cursor-pointer p-1" 
+                 title="Đăng ký phương tiện">📝</a>
               <button class="text-status-red/60 hover:text-status-red text-[18px] transition-colors cursor-pointer p-1" 
                       title="Từ chối"
-                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                      @click.stop="window.dispatchEvent(new CustomEvent('show-confirm', {
                         detail: {
                           title: 'Từ chối biển số',
                           message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
@@ -139,28 +110,4 @@
     </div>
   </div>
 </div>
-
-<script src="/static/js/tom-select.complete.min.js"></script>
-<script>
-var tsReg;
-document.addEventListener("DOMContentLoaded", function() {
-  tsReg = new TomSelect("#reg-site", {
-    plugins: ['remove_button'],
-    placeholder: "— Chọn địa điểm —",
-    maxItems: null,
-  });
-});
-
-function showRegForm(pendingId, plate) {
-  const form = document.getElementById('reg-vehicle-form');
-  form.action = `/pending_plates/${pendingId}/register`;
-  document.getElementById('reg-plate').value = plate;
-  form.style.display = 'flex';
-  form.scrollIntoView({behavior:'smooth'});
-}
-
-function hideRegForm() {
-  document.getElementById('reg-vehicle-form').style.display = 'none';
-}
-</script>
 {% endblock %}

@@ -110,63 +110,68 @@ class CameraOrchestrator:
             # Only log if there's something to report
             logger.info(f"Boot: {len(self.session_stale_cams)} camera(s) marked as STALE (will not auto-connect).")
 
-        while not self.stop_event.is_set():
-            # 1. Sync core process health (if running)
-            for p in self.core_processes:
-                if not p.is_alive():
-                    logger.error(f"Core process {p.name} (PID {p.pid}) has exited unexpectedly!")
-                    self.stop_event.set()
+        try:
+            while not self.stop_event.is_set():
+                # 1. Sync core process health (if running)
+                for p in self.core_processes:
+                    if not p.is_alive():
+                        logger.error(f"Core process {p.name} (PID {p.pid}) has exited unexpectedly!")
+                        # Log exit code if possible
+                        logger.error(f"Exit code: {p.exitcode}")
+                        self.stop_event.set()
+                        break
+                
+                if self.stop_event.is_set():
                     break
-            
-            if self.stop_event.is_set():
-                break
 
-            # 2. Fetch cameras that SHOULD be streaming
-            streaming_cams = self.db._execute_query(
-                "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
-            ) or []
-            streaming_ids = {str(c['id']) for c in streaming_cams}
+                # 2. Fetch cameras that SHOULD be streaming
+                streaming_cams = self.db._execute_query(
+                    "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
+                ) or []
+                streaming_ids = {str(c['id']) for c in streaming_cams}
 
-            # --- DYNAMIC LIFECYCLE MANAGEMENT ---
-            # If at least one camera is TRUE, ensure InferenceWorker is running
-            if streaming_ids and not self.core_processes:
-                 self.start_inference()
-            
-            # If NO cameras are TRUE, stop InferenceWorker to save memory
-            elif not streaming_ids and self.core_processes:
-                 self.stop_inference()
-            # ------------------------------------
+                # --- DYNAMIC LIFECYCLE MANAGEMENT ---
+                # If at least one camera is TRUE, ensure InferenceWorker is running
+                if streaming_ids and not self.core_processes:
+                     self.start_inference()
+                
+                # If NO cameras are TRUE, stop InferenceWorker to save memory
+                elif not streaming_ids and self.core_processes:
+                     self.stop_inference()
+                # ------------------------------------
 
-            # Start missing grabbers
-            for cam in streaming_cams:
-                cid = str(cam['id'])
-                # Manual start only: bypass auto-start of stale cameras
-                if cid in self.session_stale_cams:
-                    continue
+                # Start missing grabbers
+                for cam in streaming_cams:
+                    cid = str(cam['id'])
+                    # Manual start only: bypass auto-start of stale cameras
+                    if cid in self.session_stale_cams:
+                        continue
 
-                if cid not in self.grabbers or not self.grabbers[cid].is_alive():
-                    self.spawn_grabber(cam)
+                    if cid not in self.grabbers or not self.grabbers[cid].is_alive():
+                        self.spawn_grabber(cam)
 
-            # Cleanup stale flag if user manually stopped it
-            for cid in list(self.session_stale_cams):
-                if cid not in streaming_ids:
-                    self.session_stale_cams.remove(cid)
+                # Cleanup stale flag if user manually stopped it
+                for cid in list(self.session_stale_cams):
+                    if cid not in streaming_ids:
+                        self.session_stale_cams.remove(cid)
 
-            # Stop grabbers no longer requested
-            active_cid_list = list(self.grabbers.keys())
-            for cid in active_cid_list:
-                if cid not in streaming_ids:
-                    self.stop_grabber(cid)
-            
-            # Check for any dead grabbers cleanup
-            dead_cids = [cid for cid, p in self.grabbers.items() if not p.is_alive()]
-            for cid in dead_cids:
-                if cid in self.grabbers:
-                    del self.grabbers[cid]
+                # Stop grabbers no longer requested
+                active_cid_list = list(self.grabbers.keys())
+                for cid in active_cid_list:
+                    if cid not in streaming_ids:
+                        self.stop_grabber(cid)
+                
+                # Check for any dead grabbers cleanup
+                dead_cids = [cid for cid, p in self.grabbers.items() if not p.is_alive()]
+                for cid in dead_cids:
+                    if cid in self.grabbers:
+                        del self.grabbers[cid]
 
-            time.sleep(3) # Sync interval (seconds)
-        
-        self.cleanup()
+                time.sleep(3) # Sync interval (seconds)
+        except Exception as e:
+            logger.critical("Orchestrator encountered a FATAL error: %s", str(e), exc_info=True)
+            self.stop_event.set()
+            raise
 
     def cleanup(self):
         logger.info("Cleaning up processes...")

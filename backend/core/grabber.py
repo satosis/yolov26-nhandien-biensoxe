@@ -98,72 +98,76 @@ class CameraReader:
         prev_gray: Optional[np.ndarray] = None
         frame_idx = 0
 
-        while not self.stop_event.is_set():
-            cap = self._open_capture()
-            if cap is None:
-                time.sleep(cfg.RTSP_RECONNECT_DELAY)
-                continue
-
-            logger.info("[%s] Stream opened", self.cam_id)
-            t_last = time.monotonic()
-
+        try:
             while not self.stop_event.is_set():
-                ret, frame = cap.read()
-                if not ret or frame is None:
-                    logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
-                    break
+                cap = self._open_capture()
+                if cap is None:
+                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    continue
 
-                # Expert Optimization: Use high-precision sleep for smoother 15 FPS stream
-                t_now = time.monotonic()
-                if t_now < t_last + frame_interval:
-                    time.sleep(max(0, (t_last + frame_interval) - t_now))
+                logger.info("[%s] Stream opened", self.cam_id)
                 t_last = time.monotonic()
 
-                # Resize to target resolution - NEAREST is 3x faster than LINEAR on CPU
-                if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
-                    frame = cv2.resize(
-                        frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
-                    )
+                while not self.stop_event.is_set():
+                    ret, frame = cap.read()
+                    if not ret or frame is None:
+                        logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
+                        break
 
-                # Optional temporal denoising (Disabled by default if alpha=1.0)
-                alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
-                if alpha < 1.0:
-                    if hasattr(self, '_prev_f32'):
-                        cv2.accumulateWeighted(frame, self._prev_f32, alpha)
-                        frame = cv2.convertScaleAbs(self._prev_f32)
-                    else:
-                        self._prev_f32 = frame.astype(np.float32)
+                    # Expert Optimization: Use high-precision sleep for smoother 15 FPS stream
+                    t_now = time.monotonic()
+                    if t_now < t_last + frame_interval:
+                        time.sleep(max(0, (t_last + frame_interval) - t_now))
+                    t_last = time.monotonic()
 
-                # Write frame to shared memory (zero-copy for inference process)
-                np.copyto(self._buf, frame)
-                self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+                    # Resize to target resolution - NEAREST is 3x faster than LINEAR on CPU
+                    if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
+                        frame = cv2.resize(
+                            frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
+                        )
 
-                # Motion detection - optimized by downscaling to 1/4
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
-                    small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                    if roi_mask is None:
-                        roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
-                    
-                    if _motion_in_roi(prev_gray, small_gray, roi_mask):
-                        token = {
-                            "cam_id": self.cam_id,
-                            "shm_name": self.shm_name,
-                            "frame_idx": frame_idx,
-                            "ts": time.time(),
-                            "site_id": self.site_id,
-                        }
-                        if not self.infer_queue.full():
-                            self.infer_queue.put_nowait(token)
-                    prev_gray = small_gray
-                elif prev_gray is None:
-                    prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
-                frame_idx += 1
+                    # Optional temporal denoising (Disabled by default if alpha=1.0)
+                    alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
+                    if alpha < 1.0:
+                        if hasattr(self, '_prev_f32'):
+                            cv2.accumulateWeighted(frame, self._prev_f32, alpha)
+                            frame = cv2.convertScaleAbs(self._prev_f32)
+                        else:
+                            self._prev_f32 = frame.astype(np.float32)
 
-            cap.release()
-            if not self.stop_event.is_set():
-                logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
-                time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    # Write frame to shared memory (zero-copy for inference process)
+                    np.copyto(self._buf, frame)
+                    self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+
+                    # Motion detection - optimized by downscaling to 1/4
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
+                        small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                        if roi_mask is None:
+                            roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
+                        
+                        if _motion_in_roi(prev_gray, small_gray, roi_mask):
+                            token = {
+                                "cam_id": self.cam_id,
+                                "shm_name": self.shm_name,
+                                "frame_idx": frame_idx,
+                                "ts": time.time(),
+                                "site_id": self.site_id,
+                            }
+                            if not self.infer_queue.full():
+                                self.infer_queue.put_nowait(token)
+                        prev_gray = small_gray
+                    elif prev_gray is None:
+                        prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
+                    frame_idx += 1
+
+                cap.release()
+                if not self.stop_event.is_set():
+                    logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
+                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+        except Exception as e:
+            logger.critical("[%s] Grabber CRASHED: %s", self.cam_id, str(e), exc_info=True)
+            raise
 
         self._shm.close()
         self._shm.unlink()

@@ -61,6 +61,7 @@ app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots
 
 # Templates
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+templates.env.add_extension('jinja2.ext.do')
 
 # --- Import and register routers ---
 from frontend.routers.auth_router import router as auth_router
@@ -69,6 +70,7 @@ from frontend.routers.cameras_router import router as cameras_router
 from frontend.routers.sites_router import router as sites_router
 from frontend.routers.providers_router import router as providers_router
 from frontend.routers.door_providers_router import router as door_providers_router
+from frontend.routers.rolling_doors_router import router as rolling_doors_router
 from frontend.routers.vehicles_router import router as vehicles_router
 from frontend.routers.strangers_router import router as strangers_router
 from frontend.routers.pending_plates_router import router as pending_plates_router
@@ -80,12 +82,13 @@ from frontend.routers.users_router import router as users_router
 from frontend.routers.config_router import router as config_router
 from frontend.routers.hpc_router import router as hpc_router
 from frontend.routers.dori_router import router as dori_router
+from frontend.routers.system_router import router as system_router
 
 for r in [auth_router, detection_router, cameras_router, sites_router,
-          providers_router, door_providers_router, vehicles_router,
-          strangers_router, pending_plates_router, parking_router,
-          ocr_review_router, telegram_router, rbac_router, users_router,
-          config_router, hpc_router, dori_router]:
+          providers_router, door_providers_router, rolling_doors_router,
+          vehicles_router, strangers_router, pending_plates_router,
+          parking_router, ocr_review_router, telegram_router, rbac_router,
+          users_router, config_router, hpc_router, dori_router, system_router]:
     app.include_router(r)
 
 @app.exception_handler(StarletteHTTPException)
@@ -113,6 +116,11 @@ async def template_not_found_handler(request: Request, exc: jinja2.exceptions.Te
         "user": None, "menu_groups": {}, "sites": [], "active_site_id": 0, "current_menu": ""
     }
     return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
+
+
+@app.get("/.well-known/appspecific/com.chrome.devtools.json")
+async def devtools_json():
+    return {}
 
 
 @app.get("/")

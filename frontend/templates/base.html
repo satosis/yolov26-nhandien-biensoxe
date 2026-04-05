@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Parking Camera{% endblock %}</title>
   <link rel="shortcut icon" href="{{ url_for('static', path='/favicon.png') }}" type="image/x-icon">
-  <link rel="stylesheet" href="/static/css/output.css?v=2.1">
-  <link rel="stylesheet" href="/static/css/tom-select.css?v=2.1">
+  <link rel="stylesheet" href="/static/css/output.css?v=5.0">
+  <link rel="stylesheet" href="/static/css/tom-select.css?v=5.0">
   <link rel="stylesheet" href="/static/css/fonts.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <script src="/static/js/htmx.min.js?v=2.1"></script>
@@ -100,7 +100,8 @@
           });
         }
       }
-      this.open = false;
+      // Added a tiny delay to ensure HTMX/Fetch is successfully initiated before Alpine hides the element
+      setTimeout(() => { this.open = false; }, 10);
     }
   }"
   @show-confirm.window="showConfirm($event)"

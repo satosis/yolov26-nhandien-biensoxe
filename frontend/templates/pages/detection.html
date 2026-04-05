@@ -172,6 +172,15 @@
       const html = finalResults.map(r => {
         const colors = { whitelist: 'bg-emerald-500', unknown: 'bg-amber-500', known: 'bg-blue-600', stranger: 'bg-rose-500' };
         const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ' };
+        
+        // Define plate color styles
+        const plateStyles = {
+          white: 'bg-white/10 text-white border-white/40',
+          yellow: 'bg-amber-400/20 text-white border-amber-400/50',
+          blue: 'bg-blue-600/20 text-white border-blue-400/40',
+          red: 'bg-rose-600/20 text-white border-rose-400/40'
+        };
+
         const bg = colors[r.status] || 'bg-slate-500';
 
         let badgeText = '—';
@@ -197,8 +206,13 @@
           }
         }
 
+        let badgeClass = `${bg} text-white`;
+        if (r.type === 'plate' && r.plate_type && plateStyles[r.plate_type]) {
+          badgeClass = plateStyles[r.plate_type];
+        }
+
         return `<div class="bg-bg-card rounded-md p-3 flex items-center gap-3 border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
-        <span class="${bg} text-white text-[11px] font-bold px-2 py-1 rounded min-w-[60px] text-center uppercase">${icon} ${badgeText}</span>
+        <span class="${badgeClass} text-[11px] font-bold px-2 py-1 rounded min-w-[60px] text-center uppercase border border-white/10 transition-colors">${icon} ${badgeText}</span>
         <div class="flex flex-col gap-0.5 flex-1 min-w-0">
           <span class="text-white text-[13px] font-medium break-words">${mainLabel}</span>
           <span class="text-txt-ter text-[11px]">${r.confidence}% tin cậy</span>

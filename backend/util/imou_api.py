@@ -86,72 +86,59 @@ class ImouClient:
         self._token_expires = now + expires_in
         return self._token
 
+    def get_device_detail(self, device_id: str) -> dict:
+        """Fetch full details for a single device, including local IP."""
+        token = self.get_access_token()
+        data = self._call("listDeviceDetailsByIds", {
+            "token": token,
+            "deviceList": [{"deviceId": device_id}]
+        })
+        # Returns a list of devices usually
+        dev_list = data.get("deviceList", [])
+        return dev_list[0] if dev_list else {}
+
     def list_devices(self, limit: int = 50) -> list:
         """
         Fetch devices associated with the account.
-        Uses deviceBaseList to catch devices added via Imou Life App.
+        Uses deviceBaseList and merges with detail-level info to ensure local IP.
         """
         token = self.get_access_token()
         
-        # deviceBaseList is more comprehensive than deviceList for mobile-added devices
+        # 1. Base list (fast)
         data = self._call("deviceBaseList", {
             "token": token,
             "bindId": -1,
             "limit": limit,
             "type": "bindAndShare",
-            "needApInfo": True # Try getting more info
+            "needApInfo": True
         })
-        
-        # Merge with deviceList to ensure we get IPs
-        full_data = self._call("deviceList", {
-            "token": token,
-            "queryRange": f"1-{limit}"
-        })
-        
         base_list = data.get("deviceList", [])
-        full_list = full_data.get("deviceList", [])
         
-        # Create a case-insensitive map for easy lookup
-        full_map = {str(d.get('deviceId', '')).strip().lower(): d for d in full_list}
-        
-        # Merge: prefer base_list structure but complement with full_data (like IP)
+        # 2. Parallel deep-dive for each online device to find the IP
         final_list = []
         for dev in base_list:
             did_raw = dev.get('deviceId', '')
             did = str(did_raw).strip().lower()
             logger.info(f"Imou Discovery: Processing device {did}")
             
-            if did in full_map:
-                fdev = full_map[did]
-                # Imou often uses 'lanIp' instead of 'deviceLocalIp' in some API versions
-                # Some versions also use 'channelList' or 'channels' to report status
-                possible_ips = [
-                    fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'), 
-                    dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
-                ]
-                possible_status = [
-                    fdev.get('status'), fdev.get('deviceOnline'), fdev.get('online'), 
-                    fdev.get('deviceStatus'), fdev.get('state'),
-                    dev.get('status'), dev.get('deviceOnline'), dev.get('deviceStatus')
-                ]
-                
-                resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
-                # Resolved status: prefer numeric (1/0) or explicit 'online'/'offline' strings
-                resolved_status = next((st for st in possible_status if st is not None), None)
-                
-                if resolved_ip:
-                    dev['deviceLocalIp'] = resolved_ip
-                if resolved_status is not None:
-                    dev['status'] = resolved_status
-                
-                # Merge the rest from full_map entry
-                dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
-            
-            # Final check for IP in the device object itself (it might be in 'lanIp' or others)
-            if not dev.get('deviceLocalIp') or dev.get('deviceLocalIp') == "0.0.0.0":
-                alt_ip = dev.get('lanIp') or dev.get('deviceIp') or dev.get('ipAddress')
-                if alt_ip and alt_ip != "0.0.0.0":
-                    dev['deviceLocalIp'] = alt_ip
+            # Try listDeviceDetailsByIds for this specific device
+            try:
+                fdev = self.get_device_detail(did_raw)
+                if fdev:
+                    # Update with detail info (especially localIp)
+                    possible_ips = [
+                        fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'), 
+                        dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
+                    ]
+                    resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
+                    if resolved_ip:
+                        dev['deviceLocalIp'] = resolved_ip
+                        logger.info(f"  [DEEP-DIVE] Found IP {resolved_ip} for {did}")
+                    
+                    # Merge other fields
+                    dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
+            except Exception as e:
+                logger.warning(f"  [DEEP-DIVE] Failed detailed info for {did}: {e}")
 
             final_list.append(dev)
             
@@ -159,7 +146,7 @@ class ImouClient:
         try:
             debug_path = "/tmp/imou_debug.json"
             with open(debug_path, "w") as f:
-                json.dump({"base": base_list, "full": full_list, "merged": final_list}, f, indent=2)
+                json.dump({"merged": final_list}, f, indent=2)
             logger.info(f"Imou Discovery: Debug data dumped to {debug_path}")
         except:
             pass

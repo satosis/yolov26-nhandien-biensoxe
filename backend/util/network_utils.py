@@ -7,8 +7,9 @@ import xml.etree.ElementTree as ET
 import re
 import uuid as uuid_mod
 import concurrent.futures
-from typing import List, Dict
+from typing import List, Dict, Optional
 from urllib.parse import urlparse
+import struct
 
 logger = logging.getLogger("network_utils")
 
@@ -56,6 +57,115 @@ def _parse_scopes(scope_text: str) -> dict:
             profiles.append(token.split('/profile/')[-1])
             info['profiles'] = profiles
     return info
+
+
+# ─── Dahua / Imou Discovery ──────────────────────────────────
+def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
+    """
+    Discover Dahua/Imou devices using their proprietary UDP protocol (Port 37810).
+    This is extremely reliable for getting the Serial Number (deviceId).
+    """
+    import json
+    devices = []
+    DAHUA_DISCOVERY_PORT = 37810
+    
+    # Modern Dahua JSON-based discovery probe
+    probe = {
+        "method": "client.index",
+        "params": {"index": 1},
+        "id": 1,
+        "session": 0
+    }
+    probe_str = json.dumps(probe)
+    
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock.settimeout(timeout)
+    
+    try:
+        # Dual-broadcast for better Wi-Fi reach
+        logger.info(f"Dahua Discovery: Sending 37810 probes to 255.255.255.255 and <broadcast>...")
+        sock.sendto(probe_str.encode(), ('255.255.255.255', DAHUA_DISCOVERY_PORT))
+        sock.sendto(probe_str.encode(), ('<broadcast>', DAHUA_DISCOVERY_PORT))
+        
+        # Add common subnet-specific broadcast for Wi-Fi routers that block 255
+        try:
+            sock.sendto(probe_str.encode(), ('192.168.1.255', DAHUA_DISCOVERY_PORT))
+            sock.sendto(probe_str.encode(), ('192.168.0.255', DAHUA_DISCOVERY_PORT))
+        except:
+            pass
+        
+        start_time = time.time()
+        seen_serials = set()
+        
+        while time.time() - start_time < timeout:
+            try:
+                data, addr = sock.recvfrom(4096)
+                resp_str = data.decode('utf-8', errors='ignore')
+                if '"result"' in resp_str and '"sn"' in resp_str:
+                    resp = json.loads(resp_str)
+                    res = resp.get('result', {})
+                    sn = res.get('sn', '').lower()
+                    if sn and sn not in seen_serials:
+                        devices.append({
+                            'id': sn,
+                            'ip': addr[0],
+                            'port': res.get('port', 37777),
+                            'model': res.get('deviceType', ''),
+                            'manufacturer': 'Dahua/Imou',
+                            'serial': sn,
+                            'source': 'dahua_udp'
+                        })
+                        seen_serials.add(sn)
+                        logger.info(f"Dahua Discovery: Found {sn} @ {addr[0]}")
+            except socket.timeout:
+                break
+            except Exception as e:
+                logger.debug(f"Dahua Discovery parse error: {e}")
+    finally:
+        sock.close()
+    
+    return devices
+
+def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) -> bool:
+    """Check if any of the target ports are open on the given IP. Higher timeout for Wi-Fi."""
+    for port in ports:
+        try:
+            with socket.create_connection((ip, port), timeout=timeout) as sock:
+                return True
+        except:
+            continue
+    return False
+
+def scan_subnet_for_cameras(subnet_prefixes: List[str], max_workers: int = 150) -> List[str]:
+    """
+    Scans multiple /24 subnets for active devices on common camera ports.
+    subnet_prefixes should be like ['192.168.1', '192.168.0']
+    """
+    if isinstance(subnet_prefixes, str):
+        subnet_prefixes = [subnet_prefixes]
+        
+    logger.info(f"Subnet Scan: Scanning {len(subnet_prefixes)} subnet(s)...")
+    found_ips = []
+    
+    def check_ip(ip):
+        if probe_ip(ip):
+            return ip
+        return None
+
+    ips_to_check = []
+    for prefix in subnet_prefixes:
+        ips_to_check.extend([f"{prefix}.{i}" for i in range(1, 255)])
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_ip = {executor.submit(check_ip, ip): ip for ip in ips_to_check}
+        for future in concurrent.futures.as_completed(future_to_ip):
+            ip = future.result()
+            if ip:
+                found_ips.append(ip)
+                
+    logger.info(f"Subnet Scan: Found {len(found_ips)} active IP(s) across all subnets")
+    return found_ips
 
 
 def discover_onvif_cameras(timeout=4):
@@ -408,27 +518,57 @@ def discover_and_update_all_cameras():
     
     found_ips = {}  # device_id -> ip
     
-    # --- METHOD A: LOCAL ONVIF SCAN (PRIMARY) ---
-    logger.info("Starting ONVIF WS-Discovery scan...")
-    local_found = discover_onvif_only(timeout=5, probe_details=False)
-    logger.info(f"ONVIF scan found {len(local_found)} device(s).")
-    results['found_local'] = len(local_found)
+    # 1. LOCAL DISCOVERY (Dahua UDP + ONVIF)
+    logger.info("Starting local discovery (Dahua UDP + ONVIF)...")
     
-    # Match ONVIF results with existing DB cameras
+    # METHOD A: Dahua Proprietary Discovery (Primary for Imou)
+    dahua_found = discover_dahua_cameras(timeout=5.0)
+    logger.info(f"Dahua UDP scan found {len(dahua_found)} device(s).")
+    results['found_local'] += len(dahua_found)
+    for dev in dahua_found:
+        found_ips[dev['serial'].lower()] = dev['ip']
+    
+    # METHOD B: ONVIF Discovery (Standard)
+    logger.info("Starting ONVIF WS-Discovery scan...")
+    local_found = discover_onvif_only(timeout=5.0, probe_details=False)
+    logger.info(f"ONVIF scan found {len(local_found)} device(s).")
+    results['found_local'] += len(local_found)
+    
+    # NEW METHOD C: Deep Subnet Scan (Catch-all)
+    # If we are missing IPs for cloud devices, let's proactively scan the subnet
+    unidentified_ips = []
+    if any(cam.get('imou_device_id') for cam in all_cams if not cam.get('camera_ip')):
+        # Get current subnet
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            my_ip = s.getsockname()[0]
+            s.close()
+            my_subnet = ".".join(my_ip.split('.')[:3])
+            # Scan primary and related subnets (Enterprise/IoT)
+            subnets_to_scan = [my_subnet]
+            if my_subnet.startswith("10."):
+                parts = my_subnet.split('.')
+                three = int(parts[2])
+                subnets_to_scan += [".".join(parts[:2]) + f".{three-1}", ".".join(parts[:2]) + f".{three+1}"]
+            
+            active_ips = scan_subnet_for_cameras(subnets_to_scan)
+            # Filter out IPs already matched by Dahua or ONVIF
+            matched_ips = set(found_ips.values())
+            unidentified_ips = [ip for ip in active_ips if ip not in matched_ips and ip != my_ip]
+            logger.info(f"Subnet check found {len(unidentified_ips)} unidentified IPs: {unidentified_ips}")
+        except Exception as e:
+            logger.error(f"Failed catch-all subnet scan: {e}")
+    
+    # Merge ONVIF into found_ips if not already there
+    onvif_ip_map = {} # serial/id -> ip
     for dev in local_found:
         ip = dev['ip']
         dev_id = (dev.get('id') or dev.get('serial') or '').lower()
-        
-        for cam in all_cams:
-            did_raw = cam.get('imou_device_id')
-            if not did_raw:
-                continue
-            did = did_raw.strip().lower()
-            # Match: device_id in URN/serial, or IP matches
-            if (did_raw and (did in dev_id or dev_id in did)) or cam.get('camera_ip') == ip:
-                logger.info(f"  [MATCH ONVIF] Camera '{cam['camera_name']}' matches {ip}")
-                found_ips[did] = ip
-                break
+        if dev_id:
+            onvif_ip_map[dev_id] = ip
+            if dev_id not in found_ips:
+                found_ips[dev_id] = ip
     
     # --- METHOD B: IMOU CLOUD API SYNC (SECONDARY) ---
     imou_keys = db.get_imou_api_keys()
@@ -539,6 +679,34 @@ def discover_and_update_all_cameras():
             seen_ids.add(dev['id'])
             if ip:
                 seen_ips.add(ip)
+    
+    # Add unidentified local subnet IPs
+    for ip in unidentified_ips:
+        if ip not in seen_ips:
+            new_devices.append({
+                'id': f"unidentified_{ip}",
+                'name': "Local Device",
+                'ip': ip,
+                'type': 'network',
+                'source': 'subnet',
+                'manufacturer': 'Unknown (Potential Camera)',
+                'model': 'Network Device',
+                'is_online': True,
+                'auto_found': False
+            })
+            seen_ips.add(ip)
+    
+    # --- ENTERPRISE HEURISTIC: "MAGIC MATCH" ---
+    # If exactly one Cloud device is missing an IP and exactly one Subnet device was found, link them!
+    cloud_missing_ip = [d for d in new_devices if d['source'] == 'cloud' and (not d.get('ip') or d['ip'] == '0.0.0.0')]
+    subnet_potentials = [d for d in new_devices if d['source'] == 'subnet']
+    
+    if len(cloud_missing_ip) == 1 and len(subnet_potentials) == 1:
+        target_ip = subnet_potentials[0]['ip']
+        logger.info(f"MAGIC MATCH: Mapping {target_ip} to Cloud Device {cloud_missing_ip[0]['id']}")
+        cloud_missing_ip[0]['ip'] = target_ip
+        cloud_missing_ip[0]['auto_found'] = True
+        # Keep the subnet entry just in case, but the Cloud entry is now "Complete"
     
     results['new_devices'] = new_devices
     
