@@ -14,6 +14,7 @@ load_dotenv()
 
 from backend.core.grabber import grabber_process
 from backend.core.inference import inference_process
+from backend.core.recorder import recorder_worker
 from backend.core.database import DatabaseManager
 from backend.util.network_utils import update_camera_ips_by_discovery
 
@@ -27,8 +28,10 @@ logger = logging.getLogger("orchestrator")
 class CameraOrchestrator:
     def __init__(self):
         self.stop_event = mp.Event()
-        self.infer_queue = mp.Queue(maxsize=200)
-        self.result_queue = mp.Queue(maxsize=200)
+        self.infer_queue = mp.Queue(maxsize=100)
+        self.result_queue = mp.Queue(maxsize=100)
+        self.recorder_queue = mp.Queue(maxsize=500) # Large buffer for history
+        self.recorder_control_queue = mp.Queue(maxsize=50)
         self.db = DatabaseManager()
         self.processes = []
         self.core_processes = [] # Tracks Inference worker
@@ -40,14 +43,24 @@ class CameraOrchestrator:
             return
 
         logger.info("--- AI Core Orchestrator Starting (Triggered by active camera) ---")
-        logger.info("Spawning InferenceWorker process...")
+        logger.info("Spawning InferenceWorker and RecorderWorker processes...")
+        # Start Inference
         p_infer = mp.Process(
             target=inference_process,
-            args=(self.infer_queue, self.result_queue, self.stop_event),
+            args=(self.infer_queue, self.result_queue, self.recorder_control_queue, self.stop_event),
             name="InferenceWorker"
         )
         p_infer.start()
         self.core_processes.append(p_infer)
+
+        # Start Recorder
+        p_record = mp.Process(
+            target=recorder_worker,
+            args=(self.recorder_queue, self.recorder_control_queue, self.stop_event),
+            name="RecorderWorker"
+        )
+        p_record.start()
+        self.core_processes.append(p_record)
 
     def stop_inference(self):
         """Dynamic: Stop the heavy inference process when idle."""
@@ -81,7 +94,7 @@ class CameraOrchestrator:
         
         p_grab = mp.Process(
             target=grabber_process,
-            args=(cam_id, rtsp_url, shm_name, self.infer_queue, self.stop_event, site_id),
+            args=(cam_id, rtsp_url, shm_name, self.infer_queue, self.recorder_queue, self.stop_event, site_id),
             name=f"Grabber_{cam_id}"
         )
         p_grab.start()

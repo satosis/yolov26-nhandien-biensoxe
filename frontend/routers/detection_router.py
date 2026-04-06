@@ -15,6 +15,7 @@ from frontend.deps import get_db, get_menu_context, require_menu
 from backend.util.image_utils import save_face_snapshot, save_snapshot
 from backend.core.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate
 from backend.core import config as cfg
+from backend.util.bbox_utils import merge_plate_boxes
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/detection")
@@ -138,7 +139,9 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
         res = []
         if detector:
             detections = detector.detect(frame_bgr)
-            logger.info(f"DEBUG: Found {len(detections)} potential detections")
+            # Merge 2-line plate detections into single bounding boxes
+            detections = merge_plate_boxes(detections)
+            logger.info(f"DEBUG: Found {len(detections)} detections (after merge)")
             has_person = any(d[5] == 1 for d in detections)
 
             db = get_db()  # Get once — not per-detection
@@ -158,7 +161,7 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                         h, w = crop.shape[:2]
                         processed = enhance_plate(crop) if h < 120 else crop
                         text, ocr_conf, p_type = ocr.read(processed)
-                        logger.info(f"API OCR Result [{w}x{h}]: '{text}' (conf: {ocr_conf:.2f}, type: {p_type})")
+                        logger.info(f"API OCR Result [{w}x{h} for {text}]: (conf: {ocr_conf:.2f}, type: {p_type})")
 
                     status = "unknown"
                     owner_name = "unknown"

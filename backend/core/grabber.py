@@ -71,6 +71,7 @@ class CameraReader:
         rtsp_url: str,
         shm_name: str,
         infer_queue: Queue,
+        recorder_queue: Queue,
         stop_event: Event,
         site_id: int = None,
     ):
@@ -78,6 +79,7 @@ class CameraReader:
         self.rtsp_url = rtsp_url
         self.shm_name = shm_name
         self.infer_queue = infer_queue
+        self.recorder_queue = recorder_queue
         self.stop_event = stop_event
         self.site_id = site_id
 
@@ -138,6 +140,16 @@ class CameraReader:
                     # Write frame to shared memory (zero-copy for inference process)
                     np.copyto(self._buf, frame)
                     self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+
+                    # Feed recorder queue (JPEG history buffer)
+                    if self.recorder_queue and not self.recorder_queue.full():
+                        # We send a copy to the recorder process. 
+                        # Recorder handles JPEG compression in its own process.
+                        self.recorder_queue.put_nowait({
+                            "cam_id": self.cam_id,
+                            "frame": frame.copy(),
+                            "ts": time.time()
+                        })
 
                     # Motion detection - optimized by downscaling to 1/4
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -207,6 +219,7 @@ def grabber_process(
     rtsp_url: str,
     shm_name: str,
     infer_queue: Queue,
+    recorder_queue: Queue,
     stop_event: Event,
     site_id: int = None,
 ):
@@ -215,5 +228,5 @@ def grabber_process(
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
-    reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, stop_event, site_id)
+    reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, recorder_queue, stop_event, site_id)
     reader.run()

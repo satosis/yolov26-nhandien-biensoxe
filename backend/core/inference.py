@@ -21,9 +21,11 @@ from ultralytics import YOLO
 
 from backend.core import config as cfg
 from backend.core.database import DatabaseManager
-from backend.util import ocr_utils, image_utils
+from backend.util import ocr_utils, image_utils, texture_utils
 from backend.util.ocr_utils import VNPlateOCR
 from backend.util.image_utils import save_face_snapshot, save_snapshot
+from backend.util.texture_utils import check_plate_authenticity
+from backend.util.bbox_utils import merge_plate_boxes
 
 """
 parking_hpc/inference.py
@@ -50,35 +52,37 @@ class InferenceResult:
 # ── Plate enhancement ─────────────────────────────────────────────────────────
 
 def enhance_plate(crop):
-    """Deep enhancement for small/blurry plates: Light Denoise + Inter-Cubic + Detail Boost + Sharpen."""
+    """Enhance small/blurry plate crops for better OCR.
+    
+    Strategy: Light denoise → moderate upscale → CLAHE → sharpen.
+    Avoid over-processing which creates artifacts that confuse OCR.
+    """
     if crop is None or crop.size == 0:
         return crop
     
     h, w = crop.shape[:2]
     
-    # 1. Very Light Denoising (Preserve character edges for tiny text)
+    # 1. Light bilateral denoising (preserve edges)
     denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
     
-    # 2. Detail Enhancement
-    detail = cv2.detailEnhance(denoised, sigma_s=12, sigma_r=0.20)
+    # 2. Moderate upscaling (3x max — larger causes OCR hallucination)
+    scale = 3 if h < 40 else 2
+    upscaled = cv2.resize(denoised, (w * scale, h * scale),
+                          interpolation=cv2.INTER_LANCZOS4)
     
-    # 3. Adaptive Upscaling (LANCZOS4 is sharper for high-magnification of text)
-    scale = 6 if h < 40 else 4
-    upscaled = cv2.resize(detail, (w * scale, h * scale), interpolation=cv2.INTER_LANCZOS4)
-    
-    # 4. CLAHE on Lab format (Balanced for gap preservation and detail)
+    # 3. CLAHE on L channel for contrast normalization
     lab = cv2.cvtColor(upscaled, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8)) 
-    cl = clahe.apply(l)
-    limg = cv2.merge((cl, a, b))
-    enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+    l_ch, a_ch, b_ch = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
+    cl = clahe.apply(l_ch)
+    enhanced = cv2.cvtColor(cv2.merge((cl, a_ch, b_ch)), cv2.COLOR_LAB2BGR)
     
-    # 5. Controlled Sharpness
+    # 4. Controlled sharpening
     gaussian = cv2.GaussianBlur(enhanced, (0, 0), 1.0)
-    sharpened = cv2.addWeighted(enhanced, 1.7, gaussian, -0.7, 0)
+    sharpened = cv2.addWeighted(enhanced, 1.5, gaussian, -0.5, 0)
     
     return sharpened
+
 
 # ── Plate buffer / voting ─────────────────────────────────────────────────────
 
@@ -118,93 +122,139 @@ class PlateVoter:
 
 class PlateDetector:
     def __init__(self):
-        path = cfg.PLATE_MODEL_PATH
-        onnx_path = path.replace(".pt", ".onnx")
-        if os.path.exists(onnx_path):
-            path = onnx_path
-        
-        self._path = path
-        self._is_onnx = path.endswith(".onnx")
+        self._rknn = None
         self._ort_session = None
+        self._model = None
+        self._engine_type = "cpu"
 
-        if self._is_onnx:
-            # Strictly use CPU to avoid GPU driver context leaks
-            preferred = ["CPUExecutionProvider"]
-            sess_opt = ort.SessionOptions()
-            sess_opt.enable_mem_pattern = False
-            self._ort_session = ort.InferenceSession(path, sess_opt, providers=preferred)
-            logger.info("PlateDetector loaded via ONNXRuntime (CPU-ONLY): %s", path)
+        # 1. Try RKNN (Rockchip NPU)
+        rknn_path = getattr(cfg, 'RKNN_MODEL_PATH', None)
+        if rknn_path and os.path.exists(rknn_path):
+            try:
+                from rknnlite.api import RKNNLite
+                self._rknn = RKNNLite()
+                ret = self._rknn.load_rknn(rknn_path)
+                if ret == 0:
+                    ret = self._rknn.init_runtime()
+                if ret == 0:
+                    self._engine_type = "rknn"
+                    logger.info("PlateDetector: Successfully loaded RKNN (NPU) engine: %s", rknn_path)
+                else:
+                    logger.warning("PlateDetector: RKNN load/init failed (code: %d)", ret)
+                    self._rknn = None
+            except ImportError:
+                pass # rknnlite not installed - normal for development machines
+            except Exception as e:
+                logger.warning("PlateDetector: RKNN initialization error: %s", e)
 
-        if self._is_onnx and self._ort_session:
-            self._model = None
-        else:
-            # Force CPU for YOLO fallback to avoid GPU context leaks
-            self._model = YOLO(path, task="detect")
-            self._model.to("cpu")
-            logger.info("PlateDetector initialized via YOLO (FORCED CPU): %s", path)
+        # 2. Try ONNX with Hardware Acceleration (CoreML / TensorRT)
+        if self._engine_type == "cpu":
+            path = cfg.PLATE_MODEL_PATH
+            onnx_path = path.replace(".pt", ".onnx")
+            if os.path.exists(onnx_path):
+                path = onnx_path
+            
+            is_onnx = path.endswith(".onnx")
+            if is_onnx:
+                try:
+                    # Preference: CoreML (Mac), CUDA (NVIDIA), CPU (Fallback)
+                    providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
+                    
+                    sess_opt = ort.SessionOptions()
+                    sess_opt.enable_mem_pattern = False # Helps stability on some edge devices
+                    self._ort_session = ort.InferenceSession(path, sess_opt, providers=providers)
+                    
+                    active_providers = self._ort_session.get_providers()
+                    if "CoreMLExecutionProvider" in active_providers:
+                        self._engine_type = "coreml"
+                        logger.info("PlateDetector: Hardware Acceleration ENABLED (CoreML): %s", path)
+                    else:
+                        self._engine_type = "onnx_cpu"
+                        logger.info("PlateDetector: ONNX loaded using CPU: %s", path)
+                except Exception as e:
+                    logger.warning("PlateDetector: ONNX init failed: %s", e)
+
+        # 3. Fallback to Ultralytics YOLO (CPU)
+        if self._engine_type == "cpu":
+            try:
+                self._model = YOLO(cfg.PLATE_MODEL_PATH, task="detect")
+                self._model.to("cpu")
+                self._engine_type = "yolo_cpu"
+                logger.info("PlateDetector: Fallback to YOLO CPU: %s", cfg.PLATE_MODEL_PATH)
+            except Exception as e:
+                logger.critical("PlateDetector: CRITICAL FAILURE - No inference engine available: %s", e)
 
     def detect(self, frame):
-        """Perform plate detection using ONNX (preferred) or YOLO (fallback)."""
-        if self._ort_session:
-            input_name = self._ort_session.get_inputs()[0].name
-            # Input is 640x640 for this model
-            blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
-            outputs = self._ort_session.run(None, {input_name: blob})
-            
-            # E2E format detection: [1, 300, 6] -> [x1, y1, x2, y2, score, cls_id]
-            pred = outputs[0][0]
-            
-            h, w = frame.shape[:2]
-            sx, sy = w / 640, h / 640
-            
-            boxes = []
-            for row in pred:
-                conf = float(row[4])
-                if conf < 0.25: continue
-                
-                cls_id = int(row[5])
-                b = row[:4]
-                # Robust coordinate handling for different YOLO export formats
-                # Check if it's likely [cx, cy, w, h] by seeing if width/height are smaller than min/max
-                if b[2] < b[0] or b[3] < b[1]: 
-                    cx, cy, w_box, h_box = b
-                    x1, y1, x2, y2 = cx - w_box/2, cy - h_box/2, cx + w_box/2, cy + h_box/2
-                else: # Assume [x1, y1, x2, y2]
-                    x1, y1, x2, y2 = b
-
-                # If coordinates are normalized (0-1), scale to 640 (model input size)
-                if x2 <= 1.05 and y2 <= 1.05: # A small buffer for floating point inaccuracies
-                    x1, y1, x2, y2 = x1 * 640, y1 * 640, x2 * 640, y2 * 640
-
-                # Scale to source image resolution
-                x1 = int(x1 * sx)
-                y1 = int(y1 * sy)
-                x2 = int(x2 * sx)
-                y2 = int(y2 * sy)
-                
-                boxes.append((x1, y1, x2, y2, conf, cls_id))
-            return boxes
-
-        # Fallback to YOLO if ONNX is missing or failed
-        if self._model:
-            imgsz = 640 if self._is_onnx else 416
-            results = self._model(frame, imgsz=imgsz, conf=0.25, verbose=False)
-            boxes = []
-            for r in results:
-                if not r.boxes: continue
-                for b in r.boxes:
-                    x1, y1, x2, y2 = map(int, b.xyxy[0])
-                    conf = float(b.conf[0])
-                    cls_id = int(b.cls[0])
-                    boxes.append((x1, y1, x2, y2, conf, cls_id))
-            return boxes
+        """Perform detection using the fastest available engine."""
+        if self._engine_type == "rknn":
+            return self._detect_rknn(frame)
+        elif self._ort_session:
+            return self._detect_onnx(frame)
+        elif self._model:
+            return self._detect_yolo(frame)
         return []
 
+    def _detect_rknn(self, frame):
+        """RKNN NPU Inference (Rockchip)."""
+        # RKNN expects [640, 640, 3] usually
+        blob = cv2.resize(frame, (640, 640))
+        outputs = self._rknn.inference(inputs=[blob])
+        # Format [1, 300, 6] -> [x1, y1, x2, y2, score, cls_id]
+        pred = outputs[0][0]
+        return self._process_pred(pred, frame.shape[:2])
+
+    def _detect_onnx(self, frame):
+        """ONNX Inference (CPU/CoreML)."""
+        input_name = self._ort_session.get_inputs()[0].name
+        # blob size is usually 640x640 for this project
+        blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
+        outputs = self._ort_session.run(None, {input_name: blob})
+        pred = outputs[0][0]
+        return self._process_pred(pred, frame.shape[:2])
+
+    def _detect_yolo(self, frame):
+        """Fallback YOLO CPU Inference."""
+        results = self._model(frame, imgsz=640, conf=0.25, verbose=False)
+        boxes = []
+        for r in results:
+            if not r.boxes: continue
+            for b in r.boxes:
+                x1, y1, x2, y2 = map(int, b.xyxy[0])
+                conf = float(b.conf[0])
+                cls_id = int(b.cls[0])
+                boxes.append((x1, y1, x2, y2, conf, cls_id))
+        return boxes
+
+    def _process_pred(self, pred, img_shape):
+        """Shared post-processing for ONNX/RKNN outputs."""
+        h, w = img_shape
+        sx, sy = w / 640, h / 640
+        boxes = []
+        for row in pred:
+            conf = float(row[4])
+            if conf < 0.25: continue
+            
+            cls_id = int(row[5])
+            b = row[:4]
+            # Standard YOLO output scaling
+            if b[2] < b[0] or b[3] < b[1]: # cx,cy,w,h
+                cx, cy, wb, hb = b
+                x1, y1, x2, y2 = cx - wb/2, cy - hb/2, cx + wb/2, cy + hb/2
+            else: # x1,y1,x2,y2
+                x1, y1, x2, y2 = b
+
+            # Scale to frame
+            if x2 <= 1.05 and y2 <= 1.05: # Normalized
+                x1, y1, x2, y2 = x1 * 640, y1 * 640, x2 * 640, y2 * 640
+
+            boxes.append((int(x1 * sx), int(y1 * sy), int(x2 * sx), int(y2 * sy), conf, cls_id))
+        return boxes
+
     def close(self):
-        """Explicitly release all resources."""
-        if self._ort_session:
-            self._ort_session = None
-            logger.info("PlateDetector session released")
+        if self._rknn:
+            self._rknn.release()
+            logger.info("PlateDetector: RKNN released")
+        self._ort_session = None
         self._model = None
 
 class OCRReader:
@@ -324,9 +374,10 @@ class FaceRecognizer:
 # ── Inference worker ──────────────────────────────────────────────────────────
 
 class InferenceWorker:
-    def __init__(self, infer_queue: Queue, result_queue: Queue, stop_event: Event):
+    def __init__(self, infer_queue: Queue, result_queue: Queue, recorder_control_queue: Queue, stop_event: Event):
         self.infer_queue = infer_queue
         self.result_queue = result_queue
+        self.recorder_control_queue = recorder_control_queue
         self.stop_event = stop_event
 
         # Defer model loading until needed (Lazy Loading)
@@ -446,6 +497,8 @@ class InferenceWorker:
                 result.annotated_frame = frame 
 
                 detections = self._plate_detector.detect(frame)
+                # Merge 2-line plate detections into single bounding boxes
+                detections = merge_plate_boxes(detections)
                 voter = self._get_voter(cam_id)
                 
                 for x1, y1, x2, y2, det_conf, cls_id in detections:
@@ -459,7 +512,7 @@ class InferenceWorker:
                         
                         crop = frame[py1:py2, px1:px2].copy()
                         if crop.size > 0:
-                            self._executor.submit(self._async_ocr, crop, det_conf, voter, cam_id, frame)
+                            self._executor.submit(self._async_ocr, crop, det_conf, voter, cam_id, frame, result)
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
                         cv2.putText(result.annotated_frame, "PLATE", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
                     elif cls_id == 1: # Person
@@ -480,6 +533,15 @@ class InferenceWorker:
                         if (time.time() - self._seen_plates.get(best_text, 0)) > 15:
                             self._seen_plates[best_text] = time.time()
                             result.snapshot_path = save_snapshot(frame, cam_id, best_text)
+                            
+                            # Trigger Smart Recording
+                            if self.recorder_control_queue and not self.recorder_control_queue.full():
+                                self.recorder_control_queue.put_nowait({
+                                    "cam_id": cam_id,
+                                    "plate_text": best_text,
+                                    "ts": time.time()
+                                })
+
                             self._executor.submit(self._db.record_vehicle_entry, best_text, "car", cam_id, result.snapshot_path, site_id)
                             if not self._db.is_plate_whitelisted(best_text, site_id):
                                 logger.info(f"UNKNOWN PLATE DETECTED: {best_text}. Adding to pending list...")
@@ -532,7 +594,7 @@ class InferenceWorker:
                         self._recent_strangers[cam_id].append({'emb': emb, 'ts': now})
                     logger.info("New stranger logged for cam %s (sim: %f)", cam_id, sim)
 
-    def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame):
+    def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame, result: InferenceResult):
         if self._ocr is None:
             return
         h, w = crop.shape[:2]
@@ -541,14 +603,20 @@ class InferenceWorker:
         text, ocr_conf, p_type = self._ocr.read(processed)
         if text: 
             voter.add(text, ocr_conf * det_conf)
-            result.plate_type = p_type # Update shared result object
+            result.plate_type = p_type
+            
+            # Check for Fake / Obstructed Plate
+            is_suspicious, susp_conf, reason = check_plate_authenticity(crop)
+            if is_suspicious:
+                logger.warning("SUSPICIOUS PLATE DETECTED on %s: %s (Reason: %s, Conf: %.2f)", cam_id, text, reason, susp_conf)
+                # We could add this metadata to the result or trigger a specific alert
 
-def inference_process(infer_queue: Queue, result_queue: Queue, stop_event: Event):
+def inference_process(infer_queue: Queue, result_queue: Queue, recorder_control_queue: Queue, stop_event: Event):
     ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
-    worker = InferenceWorker(infer_queue, result_queue, stop_event)
+    worker = InferenceWorker(infer_queue, result_queue, recorder_control_queue, stop_event)
     worker.run()
     worker.cleanup()

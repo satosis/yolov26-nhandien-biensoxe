@@ -3,16 +3,21 @@ import os
 # --- Model Paths ---
 # verified path from orchestrator.log
 PLATE_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door_int8.onnx"
+RKNN_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door.rknn"
 # Buffalo_sc directory must contain 'models/buffalo_sc'
 FACE_MODEL_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/insightface"
 KNOWN_FACES_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/config/faces"
 SNAPSHOT_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/data/snapshots"
+RECORDING_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/data/recordings"
 
 # --- Recognition Settings ---
 FRAME_BUFFER_SIZE = 5
 VOTE_MIN_CONF = 0.70
 FACE_RECOG_EVERY_N = 10
 PLATE_DETECT_EVERY_N = 3
+FAKE_PLATE_THRESHOLD = 0.65  # 0.0 to 1.0 (Higher = more sensitive)
+SMART_RECORD_PRE_SEC = 5
+SMART_RECORD_POST_SEC = 10
 
 # --- SHM / Streaming Settings ---
 GRAB_WIDTH = 1280
