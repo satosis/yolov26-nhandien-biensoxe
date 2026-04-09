@@ -8,6 +8,7 @@ import json
 import logging
 import re
 import time
+import uuid
 import secrets
 import urllib.parse
 from dotenv import load_dotenv
@@ -46,14 +47,19 @@ class DatabaseManager:
             conn = self._pool.getconn()
         else:
             conn = psycopg2.connect(self.dsn, connect_timeout=3)
-        
-        yield conn
 
-        if conn:
-            if self._pool:
-                self._pool.putconn(conn)
-            else:
-                conn.close()
+        try:
+            yield conn
+        except Exception:
+            if conn:
+                conn.rollback()
+            raise
+        finally:
+            if conn:
+                if self._pool:
+                    self._pool.putconn(conn)
+                else:
+                    conn.close()
 
     def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
         """Core method to execute queries safely with centralized error handling."""
@@ -227,6 +233,7 @@ class DatabaseManager:
                     ''',
                     (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending", site_id, plate_type)
                 )
+                conn.commit()
     def upsert_vehicle_whitelist(self, plate_norm, label, added_by, site_ids=None, note=None):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -306,7 +313,6 @@ class DatabaseManager:
 
     def _trigger_ai_reload(self):
         """Touch the .reload signal file to force AI processes to refresh their caches."""
-        import time
         from backend.core import config as cfg
         rt = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
         os.makedirs(os.path.dirname(rt), exist_ok=True)
@@ -359,14 +365,6 @@ class DatabaseManager:
                 logger.info(f"Cascading Plate Delete: Removed {deleted_pending_count} pending entries for {plate_norm} and {deleted_logs_count} activity logs.")
                 return True
 
-    def delete_stranger_log(self, stranger_id: int) -> bool:
-        """Directly delete a stranger log entry by its ID."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("DELETE FROM stranger_logs WHERE id = %s", (stranger_id,))
-                conn.commit()
-                return cursor.rowcount > 0
-
 
     def update_pending_status(self, plate_norm, status, confirmed_by):
         with self._get_connection() as conn:
@@ -387,11 +385,12 @@ class DatabaseManager:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
-                    INSERT INTO plate_events (event_time, camera_id, vehicle_type, plate_number, plate_type) 
+                    INSERT INTO plate_events (event_time, camera_id, vehicle_type, plate_number, confidence)
                     VALUES (NOW(), %s, %s, %s, %s) RETURNING id
                     ''',
-                    ("default", event_type, "unknown", "white")
+                    ("default", event_type, description or "unknown", 0.0)
                 )
+                conn.commit()
                 return cursor.fetchone()[0]
     def get_stats(self):
         with self._get_connection() as conn:
@@ -430,19 +429,6 @@ class DatabaseManager:
                 """, (gemini_result, is_mismatch, event_id))
             conn.commit()
             return True
-    def get_app_setting(self, key):
-        """Get a single app setting value."""
-        row = self.select("app_settings", columns=["value"], conditions={"key": key}, fetchall=False)
-        return row['value'] if row else None
-
-    def set_app_setting(self, key, value):
-        """Upsert a single app setting."""
-        query = '''
-            INSERT INTO app_settings (key, value) VALUES (%s, %s)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-        '''
-        return self._execute_query(query, (key, value), commit=True) is not None
-
     def get_all_app_settings(self):
         """Get all app settings as a dictionary."""
         rows = self.select("app_settings", columns=["key", "value"])
@@ -450,23 +436,9 @@ class DatabaseManager:
             return {row['key']: row['value'] or "" for row in rows}
         return {}
 
-    def set_many_app_settings(self, data: dict):
-        """Upsert multiple app settings."""
-        if not data: return True
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                for key, value in data.items():
-                    cursor.execute("""
-                        INSERT INTO app_settings (key, value, updated_at) 
-                        VALUES (%s, %s, NOW())
-                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-                    """, (key, value))
-            conn.commit()
-        return True
     # ───────────────── END AI AUDITOR ──────────────
 
     def get_pending_plates(self, site_id=None):
-        from psycopg2.extras import RealDictCursor
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 query = "SELECT p.*, p.first_seen_utc AS first_seen, s.site_name FROM pending_plates p LEFT JOIN sites s ON p.site_id = s.id WHERE LOWER(TRIM(p.status)) = 'pending'"
@@ -519,8 +491,10 @@ class DatabaseManager:
         return self._execute_query(query, (file_path,), commit=True) is not None
 
     def is_legal_hold(self, file_path: str) -> bool:
-        row = self.select("legal_hold", columns=["1"], conditions={"file_path": file_path, "released_at": None}, fetchall=False)
-        return row is not None if row else self._execute_query("SELECT 1 FROM legal_hold WHERE file_path = %s AND released_at IS NULL LIMIT 1", (file_path,), fetch=True) is not None
+        return self._execute_query(
+            "SELECT 1 FROM legal_hold WHERE file_path = %s AND released_at IS NULL LIMIT 1",
+            (file_path,), fetch=True
+        ) is not None
 
     def get_user(self, username: str) -> dict:
         with self._get_connection() as conn:
@@ -899,6 +873,23 @@ class DatabaseManager:
     def delete_camera(self, camera_id: int) -> bool:
         return self.delete("cameras", {"id": camera_id})
 
+    def upsert_camera_asset(self, cam_id: str, name: str, ip: str = None,
+                             serial: str = None, model: str = None,
+                             firmware: str = None) -> bool:
+        """Upsert a discovered camera into the cameras_asset CMDB table."""
+        query = """
+            INSERT INTO cameras_asset (cam_id, name, ip, serial, model, firmware, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (cam_id) DO UPDATE SET
+                ip = COALESCE(EXCLUDED.ip, cameras_asset.ip),
+                serial = COALESCE(EXCLUDED.serial, cameras_asset.serial),
+                model = COALESCE(EXCLUDED.model, cameras_asset.model),
+                firmware = COALESCE(EXCLUDED.firmware, cameras_asset.firmware),
+                name = COALESCE(EXCLUDED.name, cameras_asset.name),
+                updated_at = NOW()
+        """
+        return self._execute_query(query, (cam_id, name, ip, serial, model, firmware), commit=True) is not None
+
     def get_imou_api_keys(self) -> dict:
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -959,6 +950,10 @@ class DatabaseManager:
         """Get a single setting from app_settings."""
         row = self._execute_query("SELECT value FROM app_settings WHERE key = %s", (key,), fetch=True)
         return row['value'] if row else default
+
+    def set_app_setting(self, key: str, value: str) -> bool:
+        """Upsert a single setting into app_settings."""
+        return self.set_many_app_settings({key: value})
 
     def set_many_app_settings(self, settings: dict) -> bool:
         """Upsert multiple settings into app_settings."""
@@ -1135,7 +1130,6 @@ class DatabaseManager:
                     return
 
                 # 2. Insert new record
-                import uuid
                 pid = str(uuid.uuid4())[:8]
                 logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
                 cursor.execute(
@@ -1264,7 +1258,6 @@ class DatabaseManager:
 
     def generate_unique_username(self, prefix: str = "user") -> str:
         """Return the next available username in the form prefix_001, prefix_002, …"""
-        import time
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(

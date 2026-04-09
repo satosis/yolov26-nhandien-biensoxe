@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS pending_plates (
     event_id VARCHAR(50),
     plate_raw VARCHAR(20),
     plate_norm VARCHAR(20),
+    plate_type VARCHAR(20) DEFAULT 'white',
     first_seen_utc TIMESTAMP,
     status VARCHAR(20) DEFAULT 'pending',
     confirmed_at_utc TIMESTAMP,
@@ -145,6 +146,8 @@ CREATE TABLE IF NOT EXISTS pending_plates (
     site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
     image_path TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_pending_plates_status ON pending_plates (status);
+CREATE INDEX IF NOT EXISTS idx_pending_plates_norm ON pending_plates (plate_norm);
 
 CREATE TABLE IF NOT EXISTS app_settings (
     key VARCHAR(100) PRIMARY KEY,
@@ -155,8 +158,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
 -- Seeder: default API key placeholders for each camera provider
 -- Imou (cloud API)
 INSERT INTO app_settings (key, value) VALUES
-('IMOU_APP_ID', 'lc9f9e2d2dcc094a61'), ('IMOU_APP_SECRET', '8676588d325b496c9e3171ba32744f'), ('IMOU_MK', 'bB123456789@'), ('IMOU_DEVICE_ID', '5552ABJPSFFB063'), ('IMOU_EMAIL', 'hungnmk5@gmail.com')
-ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+('IMOU_APP_ID', ''), ('IMOU_APP_SECRET', ''), ('IMOU_MK', ''), ('IMOU_DEVICE_ID', ''), ('IMOU_EMAIL', '')
+ON CONFLICT (key) DO NOTHING;
 
 -- Hikvision (local + optional cloud)
 INSERT INTO app_settings (key, value) VALUES
@@ -261,7 +264,7 @@ CREATE TABLE IF NOT EXISTS cameras_asset (
     model           VARCHAR(100),
     firmware        VARCHAR(100),
     rtsp_url        TEXT,
-    install_date    TEXT,
+    install_date    DATE,
     location_lat    REAL,
     location_lon    REAL,
     mount_height_m  REAL,
@@ -279,6 +282,14 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_sessions_entered ON vehicle_sessions (ent
 CREATE INDEX IF NOT EXISTS idx_plate_events_time_conf ON plate_events (event_time, confidence);
 CREATE INDEX IF NOT EXISTS idx_users_site_ids ON users USING GIN (site_ids);
 CREATE INDEX IF NOT EXISTS idx_cameras_site_ids ON cameras USING GIN (site_ids);
+CREATE INDEX IF NOT EXISTS idx_plate_events_plate ON plate_events (plate_norm);
+CREATE INDEX IF NOT EXISTS idx_plate_events_camera ON plate_events (camera_id);
+
+-- Discovery settings
+INSERT INTO app_settings (key, value) VALUES
+('DISCOVERY_INTERVAL_SEC', '300'),
+('LAST_DISCOVERY_AT', '')
+ON CONFLICT (key) DO NOTHING;
 
 -- WebRTC TURN server config
 INSERT INTO app_settings (key, value) VALUES
@@ -338,6 +349,7 @@ CREATE TABLE IF NOT EXISTS stranger_logs (
     site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'new',  -- new, reviewed, converted (da tao user)
     converted_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    direction VARCHAR(50),
     note TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_stranger_logs_time ON stranger_logs(event_time DESC);
@@ -372,6 +384,19 @@ ON CONFLICT (provider_key) DO UPDATE SET
     api_doc_url = EXCLUDED.api_doc_url,
     notes = EXCLUDED.notes,
     updated_at = NOW();
+
+-- Rolling doors / gates
+CREATE TABLE IF NOT EXISTS rolling_doors (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    supplier_key VARCHAR(50) REFERENCES door_providers(provider_key) ON DELETE SET NULL,
+    site_id INTEGER REFERENCES sites(id) ON DELETE SET NULL,
+    relay_type VARCHAR(50) DEFAULT 'http',
+    relay_config JSONB DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
 
 -- OCR Active Learning samples
 CREATE TABLE IF NOT EXISTS ocr_training_samples (

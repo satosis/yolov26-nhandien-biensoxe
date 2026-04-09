@@ -461,14 +461,22 @@
         uploadCanvas.style.width = Math.round(img.naturalWidth * scale) + 'px';
         uploadCanvas.style.height = Math.round(img.naturalHeight * scale) + 'px';
 
-        // Resize to 640x480 before sending — same as webcam, ensures correct bbox coordinates
+        // Upload: send higher resolution (max 1920px) for better OCR accuracy
+        // Unlike webcam (640x480 real-time), uploads can afford larger images
+        const MAX_UPLOAD = 1920;
+        let sendW = img.naturalWidth, sendH = img.naturalHeight;
+        if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
+          const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
+          sendW = Math.round(sendW * ratio);
+          sendH = Math.round(sendH * ratio);
+        }
         const detectCanvas = document.createElement('canvas');
-        detectCanvas.width = 640; detectCanvas.height = 480;
-        detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, 640, 480);
+        detectCanvas.width = sendW; detectCanvas.height = sendH;
+        detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
         detectCanvas.toBlob(async (blob) => {
           const data = await sendFrame(blob);
           renderResults(data, false);
-          drawBoxes(uploadCanvas, img, data.results, 640, 480);
+          drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
           
           // RAM Optimization: Revoke object URL after processing
           URL.revokeObjectURL(img.src);

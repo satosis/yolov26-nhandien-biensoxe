@@ -92,9 +92,13 @@ def try_remember_token(request: Request) -> dict | None:
 
 
 def logout_user(request: Request, response: Response):
-    """Clear session and cookies."""
+    """Clear session and cookies. Save username for login form prefill."""
     user = request.session.get("user")
-    if user and "id" in user:
-        get_db().delete_remember_tokens(user["id"])
+    if user:
+        if "id" in user:
+            get_db().delete_remember_tokens(user["id"])
+        # Save last username so login form can prefill it
+        if user.get("username"):
+            response.set_cookie("last_username", user["username"], max_age=60*60*24*30, httponly=False, samesite="lax")
     request.session.clear()
     response.delete_cookie("remember_token")

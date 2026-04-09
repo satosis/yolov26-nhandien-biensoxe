@@ -29,6 +29,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": f"Tài khoản bị khóa tạm. Thử lại sau {secs}s.",
+            "last_username": username,
         })
 
     db = get_db()
@@ -43,6 +44,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     return templates.TemplateResponse("login.html", {
         "request": request,
         "error": "Sai tài khoản hoặc mật khẩu.",
+        "last_username": username,
     })
 
 

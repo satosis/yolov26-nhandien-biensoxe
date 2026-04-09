@@ -23,6 +23,12 @@ MENU_GROUPS = {
         "strangers": "👤 Người lạ",
         "pending_plates": "🚘 Xe lạ",
     },
+    "⚙️ Hệ thống": {
+        "users": "👥 Người dùng",
+        "rbac": "🔐 Phân quyền",
+        "telegram": "📱 Telegram",
+        "config": "⚙️ Cấu hình",
+    },
 }
 
 # Flat dict of all menus for RBAC and lookups

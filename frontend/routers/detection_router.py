@@ -13,7 +13,7 @@ from pathlib import Path
 
 from frontend.deps import get_db, get_menu_context, require_menu
 from backend.util.image_utils import save_face_snapshot, save_snapshot
-from backend.core.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate
+from backend.core.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
 from backend.core import config as cfg
 from backend.util.bbox_utils import merge_plate_boxes
 
@@ -50,6 +50,32 @@ async def _cleanup_models_loop():
 
 # Start the cleanup loop when the module is loaded
 asyncio.create_task(_cleanup_models_loop())
+
+def _dedupe_detections(detections, iou_threshold=0.5):
+    """Remove duplicate detections from multi-scale passes using IoU."""
+    if len(detections) <= 1:
+        return detections
+    # Sort by confidence descending
+    dets = sorted(detections, key=lambda d: d[4], reverse=True)
+    keep = []
+    for d in dets:
+        x1, y1, x2, y2 = d[0], d[1], d[2], d[3]
+        is_dup = False
+        for k in keep:
+            kx1, ky1, kx2, ky2 = k[0], k[1], k[2], k[3]
+            # IoU
+            ix1, iy1 = max(x1, kx1), max(y1, ky1)
+            ix2, iy2 = min(x2, kx2), min(y2, ky2)
+            inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+            area_a = (x2 - x1) * (y2 - y1)
+            area_b = (kx2 - kx1) * (ky2 - ky1)
+            union = area_a + area_b - inter
+            if union > 0 and inter / union > iou_threshold:
+                is_dup = True
+                break
+        if not is_dup:
+            keep.append(d)
+    return keep
 
 def _get_models():
     global _plate_detector, _ocr_reader, _face_recognizer, _last_request_time
@@ -129,18 +155,44 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
         # Save frame for debugging if /tmp/debug_frames exists
         debug_dir = "/tmp/debug_frames"
         if os.path.exists(debug_dir):
-            # Use a simple counter to save only the first few frames
-            # This is a very basic implementation and not thread-safe or persistent across calls
-            # For a robust solution, a shared counter or more sophisticated logic would be needed.
-            # For now, it will just save every frame if the directory exists.
             curr_time = int(time.time())
             cv2.imwrite(f"{debug_dir}/frame_{curr_time}.jpg", frame_bgr)
 
         res = []
         if detector:
+            orig_h, orig_w = frame_bgr.shape[:2]
+
+            # Multi-scale detection for uploaded images:
+            # High-res images lose small plates when resized to 640x640.
+            # Strategy: detect on full image first, then on cropped regions.
             detections = detector.detect(frame_bgr)
-            # Merge 2-line plate detections into single bounding boxes
             detections = merge_plate_boxes(detections)
+
+            # If image is large and few/no plates found, try detecting on
+            # bottom half and center crop where plates are typically located
+            plate_count = sum(1 for d in detections if d[5] == 0)
+            if orig_h > 800 and plate_count == 0:
+                # Bottom 50% — plates are usually at vehicle rear/bottom
+                bottom_crop = frame_bgr[orig_h // 2:, :]
+                bottom_dets = detector.detect(bottom_crop)
+                bottom_dets = merge_plate_boxes(bottom_dets)
+                # Offset y coordinates back to full image space
+                for x1, y1, x2, y2, conf, cls_id in bottom_dets:
+                    detections.append((x1, y1 + orig_h // 2, x2, y2 + orig_h // 2, conf, cls_id))
+
+                # Center 60% crop — catches plates in the middle area
+                cx, cy = orig_w // 2, orig_h // 2
+                cw, ch = int(orig_w * 0.6), int(orig_h * 0.6)
+                cx1, cy1 = cx - cw // 2, cy - ch // 2
+                center_crop = frame_bgr[cy1:cy1 + ch, cx1:cx1 + cw]
+                center_dets = detector.detect(center_crop)
+                center_dets = merge_plate_boxes(center_dets)
+                for x1, y1, x2, y2, conf, cls_id in center_dets:
+                    detections.append((x1 + cx1, y1 + cy1, x2 + cx1, y2 + cy1, conf, cls_id))
+
+                # Deduplicate overlapping detections (IoU > 0.5)
+                detections = _dedupe_detections(detections)
+
             logger.info(f"DEBUG: Found {len(detections)} detections (after merge)")
             has_person = any(d[5] == 1 for d in detections)
 
@@ -156,12 +208,11 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                     
                     crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
                     text, ocr_conf, p_type = "", 0.0, "white"
-                    if ocr and crop.size > 0:
-                        # Auto-enhance small or blurry crops (improved threshold to 120px)
-                        h, w = crop.shape[:2]
-                        processed = enhance_plate(crop) if h < 120 else crop
+                    if ocr and crop.size > 0 and validate_plate_crop(crop):
+                        # Smart zoom: always enhance (scale adapts to crop size)
+                        processed = enhance_plate(crop)
                         text, ocr_conf, p_type = ocr.read(processed)
-                        logger.info(f"API OCR Result [{w}x{h} for {text}]: (conf: {ocr_conf:.2f}, type: {p_type})")
+                        logger.info(f"API OCR Result [{w_img}x{crop.shape[0]} for {text}]: (conf: {ocr_conf:.2f}, type: {p_type})")
 
                     status = "unknown"
                     owner_name = "unknown"
@@ -289,12 +340,24 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
     async def frame_generator():
         shm = None
         # Wait for SHM to be available (orchestrator might still be starting it)
-        for _ in range(20): 
-            shm = sm.SharedMemory(name=shm_name)
-            break
-        
+        for attempt in range(10):
+            try:
+                shm = sm.SharedMemory(name=shm_name)
+                break
+            except FileNotFoundError:
+                await asyncio.sleep(0.5)
+
         if not shm:
-            logger.error(f"SHM {shm_name} not found after retries")
+            logger.error(f"SHM {shm_name} not found — backend AI (main.py) chưa chạy?")
+            # Send a single error frame so the browser doesn't hang
+            error_img = np.zeros((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8)
+            cv2.putText(error_img, "Camera stream unavailable", (40, cfg.GRAB_HEIGHT // 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 100, 255), 2)
+            cv2.putText(error_img, "Backend AI (main.py) is not running", (40, cfg.GRAB_HEIGHT // 2 + 35),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
+            _, jpeg = cv2.imencode('.jpg', error_img)
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
             return
 
         last_counter = -1

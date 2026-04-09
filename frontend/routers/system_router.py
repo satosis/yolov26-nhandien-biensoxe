@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
+from frontend.deps import get_current_user
 import socket
 import logging
 
@@ -7,7 +8,7 @@ router = APIRouter(prefix="/system", tags=["System"])
 logger = logging.getLogger("system_router")
 
 @router.get("/network-info")
-async def get_network_info():
+async def get_network_info(user: dict = Depends(get_current_user)):
     """Returns the server's current IP and guessed subnet prefix."""
     try:
         # Get primary IP by connecting to a public DNS (doesn't actually send data)

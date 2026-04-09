@@ -1,9 +1,10 @@
 {% extends "layout.html" %}
 {% block title %}Camera — Parking Camera{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{ 
-  showDiscoveryModal: false, 
+<div class="flex flex-col gap-5" x-data="{
+  showDiscoveryModal: false,
   discoveredDevices: [],
+  updatedCameras: [],
   subnetToScan: '192.168.1',
   scanningSubnet: false,
   async init() {
@@ -19,10 +20,11 @@
      }
   },
   serverIP: '',
+  get newDevices() { return this.discoveredDevices.filter(d => !d._added); },
+  get addedDevices() { return this.discoveredDevices.filter(d => d._added); },
   selectDiscovered(dev) {
     document.getElementById('add-cam-form').classList.remove('hidden');
     document.getElementById('add-camera-name').value = (dev.source === 'cloud' ? (dev.name || 'Imou Cloud Camera') : 'Local Camera');
-    // Clear ID if it's an unidentified network device
     const cleanId = dev.id.startsWith('unidentified_') ? '' : dev.id.toUpperCase();
     document.getElementById('add-camera-device-id').value = cleanId;
     document.getElementById('add-camera-ip').value = dev.ip || '';
@@ -30,8 +32,35 @@
         autoFillRtsp(document.getElementById('add-cam-form'));
     }
     this.showDiscoveryModal = false;
-    // Scroll to form
     document.getElementById('add-cam-form').scrollIntoView({ behavior: 'smooth' });
+  },
+  async autoAddDevice(dev) {
+    try {
+        const resp = await fetch('/cameras/auto-add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dev)
+        });
+        const result = await resp.json();
+        if (result.ok) {
+            dev._added = true;
+        }
+        return result.ok;
+    } catch (e) {
+        console.error('Auto-add failed:', e);
+        return false;
+    }
+  },
+  async addAllDevices() {
+    const toAdd = this.discoveredDevices.filter(d => !d._added);
+    let added = 0;
+    for (const dev of toAdd) {
+        const ok = await this.autoAddDevice(dev);
+        if (ok) added++;
+    }
+    if (added > 0) {
+        window.location.reload();
+    }
   },
   async deepScan() {
     this.scanningSubnet = true;
@@ -44,23 +73,26 @@
             data.found_ips.forEach(ip => {
                 if (!this.discoveredDevices.find(d => d.ip === ip)) {
                     this.discoveredDevices.push({
-                        id: 'Scanning...',
+                        id: 'unidentified_' + ip,
+                        name: 'Local Device',
                         ip: ip,
-                        type: 'generic',
+                        type: 'network',
                         source: 'subnet',
+                        manufacturer: 'Unknown',
+                        model: '',
                         is_online: true
                     });
                 }
             });
-            alert('Tìm thấy ' + data.found_ips.length + ' địa chỉ IP có khả năng là camera!');
+            alert('Tim thay ' + data.found_ips.length + ' dia chi IP co kha nang la camera!');
         } else {
-            alert('Không tìm thấy thiết bị nào trong dải mạng ' + this.subnetToScan + '.0/24');
+            alert('Khong tim thay thiet bi nao trong dai mang ' + this.subnetToScan + '.0/24');
         }
     } finally {
         this.scanningSubnet = false;
     }
   }
-}" @show-discovery.window="console.log('Alpine received event:', $event.detail); discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; showDiscoveryModal = true;">
+}" @show-discovery.window="console.log('Alpine received event:', $event.detail); discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; showDiscoveryModal = true;">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -75,7 +107,7 @@
       </a>
       <button onclick="discoverCameras()" id="discover-btn"
               class="bg-white/5 border border-white/10 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-2">
-        <span id="discover-icon">🔍</span> <span id="discover-text">Dò tìm Camera</span>
+        <span id="discover-icon">🔍</span> <span id="discover-text">Do tim Camera</span>
       </button>
       <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
               onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
@@ -179,6 +211,7 @@
           <th class="px-5 py-3 font-semibold w-[180px]">TÊN CAMERA</th>
           <th class="px-5 py-3 font-semibold w-[120px]">NHÀ CUNG CẤP</th>
           <th class="px-5 py-3 font-semibold w-[140px]">ĐỊA ĐIỂM</th>
+          <th class="px-5 py-3 font-semibold w-[120px]">ĐỊA CHỈ IP</th>
           <th class="px-5 py-3 font-semibold w-[170px]">DEVICE ID</th>
           <th class="px-5 py-3 font-semibold">RTSP URL</th>
           <th class="px-5 py-3 font-semibold w-[100px]">CẬP NHẬT</th>
@@ -206,6 +239,13 @@
               {% for s in (cam.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[10px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
               {% if not cam.site_names %}—{% endif %}
             </div>
+          </td>
+          <td class="px-5 py-3.5 text-[12px] font-mono">
+            {% if cam.camera_ip %}
+            <span class="text-white">{{ cam.camera_ip }}</span>
+            {% else %}
+            <span class="text-amber-400/70 text-[10px]">Chưa có IP</span>
+            {% endif %}
           </td>
           <td class="px-5 py-3.5 text-[11px] font-mono text-txt-ter">
             {{ cam.imou_device_id or '—' }}
@@ -239,7 +279,7 @@
         
         <!-- Inline Edit Form Row -->
         <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
-          <td colspan="8" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
+          <td colspan="9" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
             <form method="POST" action="/cameras/{{ cam.id }}/edit" class="flex flex-col gap-4">
               <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -265,9 +305,8 @@
                 </div>
                 <div>
                   <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
-                  <select name="site_ids"
+                  <select name="site_ids" multiple
                     class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                    <option value="">— Chọn địa điểm —</option>
                     {% for s in sites %}
                     <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
                     {% endfor %}
@@ -315,7 +354,7 @@
         
         {% if not cameras %}
         <tr>
-          <td colspan="8" class="px-5 py-12 text-center">
+          <td colspan="9" class="px-5 py-12 text-center">
             <div class="flex flex-col items-center gap-3">
               <span class="text-4xl opacity-20">📽️</span>
               <div class="flex flex-col gap-1">
@@ -334,138 +373,177 @@
     </table>
   </div>
 
-  <!-- Discovery Results Modal: More focused and premium -->
+  <!-- Discovery Results Modal -->
   <template x-if="showDiscoveryModal">
-    <div class="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl" @click.self="showDiscoveryModal = false">
+    <div class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl" @click.self="showDiscoveryModal = false">
       <div x-show="showDiscoveryModal"
            x-transition:enter="ease-out duration-300"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
-           class="bg-bg-card border border-white/20 w-full max-w-2xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col max-h-[85vh] overflow-hidden">
-        
-        <!-- Modal Header: Centered & Clean -->
-        <div class="px-8 pt-8 pb-4 flex flex-col items-center gap-2 relative">
-          <button @click="showDiscoveryModal = false" 
-                  class="absolute right-6 top-6 p-2 rounded-full text-txt-ter hover:bg-white/5 hover:text-white transition-all">
-            <i class="fa-solid fa-xmark text-lg"></i>
+           class="bg-bg-card border border-white/10 w-full rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
+           :class="discoveredDevices.length > 0 ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
+
+        <!-- Modal Header -->
+        <div class="px-5 pt-5 pb-3 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center text-lg border border-accent/20">⚡</div>
+            <div>
+              <h3 class="text-white font-bold text-[15px]">Kết quả dò tìm</h3>
+              <p class="text-[11px] text-txt-sec">
+                <template x-if="discoveredDevices.length > 0">
+                  <span>Phát hiện <span x-text="discoveredDevices.length" class="text-accent font-bold"></span> thiết bị</span>
+                </template>
+                <template x-if="discoveredDevices.length === 0">
+                  <span>Không tìm thấy thiết bị mới</span>
+                </template>
+                <template x-if="updatedCameras.length > 0">
+                  <span> · Cập nhật <span x-text="updatedCameras.length" class="text-blue-400 font-bold"></span> IP</span>
+                </template>
+              </p>
+            </div>
+          </div>
+          <button @click="showDiscoveryModal = false"
+                  class="p-1.5 rounded-lg text-txt-ter hover:bg-white/5 hover:text-white transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-          <div class="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-accent/5 border border-accent/20 mb-2">⚡</div>
-          <h3 class="text-white font-extrabold text-2xl tracking-tight">Kết quả dò tìm</h3>
-          <p class="text-[14px] text-txt-sec text-center max-w-[80%] leading-relaxed">
-            Hệ thống phát hiện <span x-text="discoveredDevices.length" class="text-white font-bold"></span> thiết bị mới.
-            <span class="text-accent font-bold" x-show="discoveredDevices.some(d => d.auto_found)">Đã tự động khớp IP!</span>
-          </p>
         </div>
-          
-        <!-- Subnet Scanner Section -->
-        <div class="px-8 py-4">
-          <div class="bg-bg-inset border border-white/10 p-5 rounded-2xl flex flex-col gap-4 shadow-inner">
-            <div class="flex items-center justify-between px-1">
-              <span class="text-[11px] text-txt-ter uppercase font-extrabold tracking-widest">Dải mạng dò tìm (Subnet)</span>
-              <span class="text-[10px] text-accent font-mono opacity-60" x-text="serverIP ? 'IP máy tính: ' + serverIP : 'Dạng: 192.168.1'"></span>
+
+        <!-- Subnet Scanner -->
+        <div class="px-5 py-2.5 border-y border-white/5 bg-white/[0.02]">
+          <div class="flex items-center gap-2.5">
+            <div class="relative flex-1" :class="discoveredDevices.length > 0 ? 'max-w-[220px]' : ''">
+              <input type="text" x-model="subnetToScan"
+                     class="bg-bg-inset border border-white/10 text-white text-[12px] pl-3 pr-3 py-1.5 rounded-lg w-full focus:border-accent/40 outline-none transition-all font-mono"
+                     placeholder="192.168.1">
             </div>
-            <div class="flex items-center gap-3">
-              <div class="relative flex-1 group">
-                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-txt-mut group-focus-within:text-accent transition-colors">🔎</span>
-                <input type="text" x-model="subnetToScan" 
-                       class="bg-white/5 border border-white/10 text-white text-sm pl-11 pr-4 py-3.5 rounded-xl w-full focus:border-accent/40 focus:ring-1 focus:ring-accent/20 outline-none transition-all placeholder-white/20" 
-                       placeholder="192.168.1">
-              </div>
-              <button @click="deepScan()" :disabled="scanningSubnet"
-                      class="bg-accent text-bg-inset hover:bg-cyan-300 disabled:opacity-50 px-6 py-3.5 rounded-xl text-[13px] font-extrabold transition-all flex items-center gap-2.5 shadow-lg shadow-accent/10">
-                <span x-show="scanningSubnet" class="animate-spin text-sm">🌀</span>
-                <span x-text="scanningSubnet ? 'Đang quét...' : 'Dò tìm ngay'"></span>
-              </button>
-            </div>
+            <button @click="deepScan()" :disabled="scanningSubnet"
+                    class="bg-accent text-bg-inset hover:bg-cyan-300 disabled:opacity-50 px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 whitespace-nowrap">
+              <span x-show="scanningSubnet" class="animate-spin text-xs">🌀</span>
+              <span x-text="scanningSubnet ? 'Đang quét...' : 'Quét mạng'"></span>
+            </button>
+            <span class="text-[10px] text-txt-ter font-mono ml-auto" x-show="serverIP" x-text="serverIP"></span>
           </div>
         </div>
 
-        <!-- Modal Body & Results Table -->
-        <div class="px-8 py-2 overflow-y-auto flex-1 custom-scrollbar">
-          <div class="w-full">
-            <table class="w-full text-left border-separate border-spacing-y-3">
-              <thead class="text-[10px] text-txt-ter uppercase tracking-widest font-extrabold">
-                <tr>
-                  <th class="px-4 py-2">Thiết bị</th>
-                  <th class="px-4 py-2">Model / Hãng</th>
-                  <th class="px-4 py-2">Địa chỉ IP</th>
-                  <th class="px-4 py-2">Trạng thái</th>
-                  <th class="px-4 py-2 text-right"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <template x-for="dev in discoveredDevices" :key="dev.id + dev.ip">
-                  <tr class="bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 transition-all group overflow-hidden">
-                    <td class="px-4 py-4 rounded-l-2xl">
-                      <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl group-hover:scale-110 transition-transform"
-                             :class="dev.source === 'onvif' ? 'bg-emerald-500/10 border border-emerald-500/20' : (dev.source === 'cloud' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-amber-500/10 border border-amber-500/20')">
-                          <span x-text="dev.source === 'onvif' ? '📡' : (dev.source === 'cloud' ? '☁️' : '🔍')"></span>
-                        </div>
-                        <div class="flex flex-col gap-0.5">
-                          <span class="text-[13px] font-bold text-white" x-text="dev.name || dev.type"></span>
-                          <div class="flex items-center gap-1.5">
-                            <span class="text-[9px] font-extrabold uppercase tracking-widest px-1.5 py-0.5 rounded-md"
-                                  :class="dev.source === 'onvif' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : (dev.source === 'cloud' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20')"
-                                  x-text="dev.source === 'onvif' ? '📡 ONVIF' : (dev.source === 'cloud' ? '☁️ Cloud' : '🔍 Subnet')"></span>
-                            <span class="text-[9px] text-txt-ter font-bold uppercase tracking-wider opacity-60" x-text="dev.type"></span>
+        <!-- Modal Body -->
+        <div class="overflow-y-auto flex-1 custom-scrollbar">
+          <!-- Updated cameras (IP changed) -->
+          <template x-if="updatedCameras.length > 0">
+            <div class="px-5 pt-3 pb-1">
+              <div class="text-[10px] text-blue-400 uppercase font-bold tracking-wider mb-1.5">IP đã cập nhật</div>
+              <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-2.5 flex flex-col gap-0.5">
+                <template x-for="cam in updatedCameras" :key="cam.name">
+                  <div class="flex items-center justify-between text-[11px] py-0.5">
+                    <span class="text-white font-medium truncate mr-2" x-text="cam.name"></span>
+                    <div class="flex items-center gap-1.5 font-mono text-[10px] flex-shrink-0">
+                      <span class="text-txt-ter" x-text="cam.old_ip || '?'"></span>
+                      <span class="text-blue-400">→</span>
+                      <span class="text-white font-bold" x-text="cam.new_ip"></span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Devices table (only when has results) -->
+          <template x-if="discoveredDevices.length > 0">
+            <div class="px-5 py-3">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Thiết bị phát hiện</span>
+                <span class="text-[10px] text-txt-ter" x-text="newDevices.length + ' mới · ' + addedDevices.length + ' đã thêm'"></span>
+              </div>
+              <table class="w-full text-left">
+                <thead class="text-[10px] text-txt-ter uppercase tracking-wider font-bold border-b border-white/5">
+                  <tr>
+                    <th class="px-3 py-1.5">Thiết bị</th>
+                    <th class="px-3 py-1.5">Model</th>
+                    <th class="px-3 py-1.5">IP</th>
+                    <th class="px-3 py-1.5 w-[70px]">TT</th>
+                    <th class="px-3 py-1.5 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="dev in discoveredDevices" :key="dev.id + dev.ip">
+                    <tr class="border-b border-white/[0.03] transition-all group"
+                        :class="dev._added ? 'bg-emerald-500/5' : 'hover:bg-white/[0.03]'">
+                      <td class="px-3 py-2">
+                        <div class="flex items-center gap-2">
+                          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                               :class="dev._added ? 'bg-emerald-500/20' : (dev.source === 'onvif' ? 'bg-emerald-500/10' : (dev.source === 'cloud' ? 'bg-blue-500/10' : (dev.source === 'dahua_udp' ? 'bg-orange-500/10' : 'bg-amber-500/10')))">
+                            <span x-text="dev._added ? '✅' : (dev.source === 'onvif' ? '📡' : (dev.source === 'cloud' ? '☁️' : (dev.source === 'dahua_udp' ? '📹' : '🔍')))"></span>
+                          </div>
+                          <div class="min-w-0">
+                            <div class="text-[11px] font-semibold text-white truncate max-w-[180px]" x-text="dev.name || dev.type"></div>
+                            <span class="text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded"
+                                  :class="dev.source === 'onvif' ? 'bg-emerald-500/10 text-emerald-400' : (dev.source === 'cloud' ? 'bg-blue-500/10 text-blue-400' : (dev.source === 'dahua_udp' ? 'bg-orange-500/10 text-orange-400' : 'bg-amber-500/10 text-amber-400'))"
+                                  x-text="dev.source === 'onvif' ? 'ONVIF' : (dev.source === 'cloud' ? 'Cloud' : (dev.source === 'dahua_udp' ? 'Dahua' : 'Subnet'))"></span>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <div class="flex flex-col gap-1">
-                        <span class="text-[12px] font-semibold text-white/80" x-text="dev.manufacturer || '—'"></span>
-                        <span class="text-[10px] text-txt-ter font-mono" x-text="dev.model || ''"></span>
-                        <span class="text-[9px] text-accent/60 font-mono" x-show="dev.serial" x-text="'S/N: ' + dev.serial"></span>
-                        <span class="text-[9px] text-accent/60 font-mono truncate max-w-[140px]" x-show="!dev.serial && dev.id && !dev.id.startsWith('unidentified_')" x-text="'ID: ' + dev.id.toUpperCase()"></span>
-                        <span class="text-[9px] text-amber-500/60 font-mono italic" x-show="dev.id && dev.id.startsWith('unidentified_')">Cần gán ID thủ công</span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <div class="flex flex-col gap-1">
-                        <span class="text-[15px] font-extrabold text-white font-mono tabular-nums tracking-tighter" x-text="dev.ip || 'Không xác định'"></span>
-                        <span class="text-[9px] text-txt-ter font-mono" x-show="dev.onvif_port && dev.onvif_port !== 80" x-text="'ONVIF Port: ' + dev.onvif_port"></span>
-                        <span class="text-[9px] text-txt-ter font-mono opacity-60" x-show="dev.firmware" x-text="'FW: ' + dev.firmware"></span>
-                      </div>
-                    </td>
-                    <td class="px-4 py-4">
-                      <span x-show="dev.is_online" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-green/10 text-status-green border border-status-green/20 uppercase tracking-widest shadow-sm">
-                        <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
-                      </span>
-                      <span x-show="!dev.is_online" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-status-red/10 text-status-red border border-status-red/20 uppercase tracking-widest shadow-sm">
-                        <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
-                      </span>
-                    </td>
-                    <td class="px-4 py-4 text-right rounded-r-2xl">
-                      <button @click="selectDiscovered(dev)"
-                        class="bg-accent text-bg-inset hover:bg-cyan-300 text-[12px] font-extrabold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-accent/10 hover:shadow-cyan-400/20 active:scale-95">
-                        Thêm ngay
-                      </button>
-                    </td>
-                  </tr>
-                </template>
-                <template x-if="discoveredDevices.length === 0">
-                  <tr>
-                    <td colspan="5" class="px-4 py-20 text-center">
-                      <div class="flex flex-col items-center gap-4 opacity-30">
-                        <span class="text-5xl">📡</span>
-                        <p class="text-sm font-medium">Chưa phát hiện thiết bị mới nào...</p>
-                        <p class="text-xs">Hãy thử quét ONVIF hoặc kiểm tra kết nối mạng</p>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
+                      </td>
+                      <td class="px-3 py-2">
+                        <div class="text-[11px] text-white/80" x-text="dev.manufacturer || '—'"></div>
+                        <div class="text-[9px] text-txt-ter font-mono truncate max-w-[120px]" x-text="dev.model || dev.serial || ''"></div>
+                      </td>
+                      <td class="px-3 py-2">
+                        <span class="text-[12px] font-bold text-white font-mono" x-text="dev.ip || '—'"></span>
+                      </td>
+                      <td class="px-3 py-2">
+                        <template x-if="dev._added">
+                          <span class="text-[9px] font-bold text-emerald-400">Đã thêm</span>
+                        </template>
+                        <template x-if="!dev._added && dev.is_online">
+                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-green">
+                            <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
+                          </span>
+                        </template>
+                        <template x-if="!dev._added && !dev.is_online">
+                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-red">
+                            <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
+                          </span>
+                        </template>
+                      </td>
+                      <td class="px-3 py-2 text-right">
+                        <template x-if="!dev._added">
+                          <div class="flex gap-1 justify-end">
+                            <button @click="autoAddDevice(dev)"
+                              class="bg-accent text-bg-inset hover:bg-cyan-300 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all active:scale-95">
+                              + Thêm
+                            </button>
+                            <button @click="selectDiscovered(dev)"
+                              class="bg-white/5 text-txt-sec hover:text-white text-[10px] px-2 py-1 rounded-md transition-all"
+                              title="Tùy chỉnh">✏️</button>
+                          </div>
+                        </template>
+                        <template x-if="dev._added">
+                          <span class="text-emerald-400 text-sm">✅</span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <!-- Empty state: compact -->
+          <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
+            <div class="flex flex-col items-center gap-2">
+              <span class="text-3xl opacity-20">📡</span>
+              <p class="text-[12px] text-txt-sec">Thử nhập subnet và nhấn "Quét mạng"</p>
+            </div>
           </div>
         </div>
 
         <!-- Modal Footer -->
-        <div class="px-8 py-6 border-t border-white/5 flex justify-center bg-white/[0.02]">
-          <button @click="showDiscoveryModal = false" 
-                  class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-10 py-3 rounded-xl transition-all text-[13px] font-extrabold uppercase tracking-widest">
-            Đóng cửa sổ
+        <div class="px-5 py-2.5 border-t border-white/5 flex justify-end items-center gap-2 bg-white/[0.02]">
+          <button @click="addAllDevices()" x-show="newDevices.length > 1"
+                  class="bg-accent text-bg-inset hover:bg-cyan-300 px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold flex items-center gap-1.5">
+            ⚡ <span x-text="'Thêm tất cả ' + newDevices.length"></span>
+          </button>
+          <button @click="showDiscoveryModal = false"
+                  class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold">
+            Đóng
           </button>
         </div>
       </div>
@@ -539,7 +617,10 @@ async function discoverCameras() {
     } else {
         console.log("Discovery successful:", data);
         window.dispatchEvent(new CustomEvent('show-discovery', {
-            detail: { devices: data.new_devices || [] }
+            detail: {
+                devices: data.new_devices || [],
+                updated_cameras: data.updated_cameras || []
+            }
         }));
         
         if (data.updated > 0) {

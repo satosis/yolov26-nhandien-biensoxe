@@ -3,6 +3,8 @@ import os
 import sys
 import ssl
 import certifi
+import asyncio
+import logging
 
 # Fix for SSL certificate verification on macOS
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
@@ -26,6 +28,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from frontend.auth import try_remember_token
 from frontend.deps import get_current_user, get_optional_user, get_menu_context
 
+_discovery_logger = logging.getLogger("discovery")
+
+
+def _run_background_discovery():
+    """Synchronous wrapper for background discovery — only updates IPs, never auto-inserts."""
+    try:
+        from backend.util.network_utils import discover_and_update_all_cameras
+        result = discover_and_update_all_cameras()
+        updated = result.get('updated', 0)
+        if updated > 0:
+            _discovery_logger.info(f"Background discovery: updated {updated} camera IP(s)")
+    except Exception as e:
+        _discovery_logger.error(f"Background discovery error: {e}")
+
+
+async def _periodic_discovery():
+    """Run lightweight camera discovery periodically in background."""
+    await asyncio.sleep(30)  # Wait for app to fully start
+    while True:
+        try:
+            from backend.core.database import DatabaseManager
+            db = DatabaseManager()
+            interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
+        except Exception:
+            interval = 300
+
+        try:
+            await asyncio.to_thread(_run_background_discovery)
+        except Exception as e:
+            _discovery_logger.error(f"Periodic discovery error: {e}")
+
+        await asyncio.sleep(interval)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,10 +69,14 @@ async def lifespan(app: FastAPI):
     print("   🅿  PARKING AI - FRONTEND WEB UI                 ")
     print("   Starting server on: http://localhost:8000       ")
     print("====================================================")
-    # Warm AI models at startup (non-blocking for dev)
-    # from frontend.models_loader import preload_models
-    # preload_models()
+    # Start background periodic camera discovery
+    discovery_task = asyncio.create_task(_periodic_discovery())
     yield
+    discovery_task.cancel()
+    try:
+        await discovery_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="Parking Camera", lifespan=lifespan)
@@ -132,7 +171,6 @@ async def root(request: Request):
         user = try_remember_token(request)
     if not user:
         return RedirectResponse("/login")
-    from frontend.deps import get_menu_context
     ctx = get_menu_context(request, user)
     first_key = ""
     for items in ctx["menu_groups"].values():

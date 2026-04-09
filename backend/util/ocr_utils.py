@@ -74,6 +74,19 @@ class VNPlateOCR:
 
     def _read_two_line(self, plate_img: np.ndarray) -> tuple[str, float]:
         """Split a 2-line plate into top/bottom and OCR each separately."""
+        h, w = plate_img.shape[:2]
+
+        # Trim ~5% border to remove plate frame/edge noise that upscaling amplifies
+        bx, by = max(2, int(w * 0.05)), max(2, int(h * 0.05))
+        plate_img = plate_img[by:h - by, bx:w - bx]
+        h, w = plate_img.shape[:2]
+
+        # Upscale small 2-line plates before splitting so each line has enough pixels
+        if h < 120:
+            scale = max(2, min(4, 120 // max(h, 1)))
+            plate_img = cv2.resize(plate_img, (w * scale, h * scale),
+                                   interpolation=cv2.INTER_LANCZOS4)
+
         top, bottom = self._split_two_lines(plate_img)
 
         if top is None or bottom is None:
@@ -197,6 +210,10 @@ class VNPlateOCR:
         cl = clahe.apply(gray)
         variants.append(cv2.cvtColor(cl, cv2.COLOR_GRAY2BGR))
 
+        # Otsu threshold — good for yellow/white plates with clear foreground
+        _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        variants.append(cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR))
+
         return variants
 
     def _pick_best(self, variants: list[np.ndarray]) -> tuple[str, float]:
@@ -319,6 +336,16 @@ class VNPlateOCR:
         text = text.upper().replace(" ", "").replace("-", "").replace(".", "").strip()
         if len(text) < 4:
             return text
+
+        # Vietnamese plates are 7-9 chars (e.g. 88C07304, 51F12345).
+        # If text is too long, OCR likely picked up border noise.
+        # Try to find the best VN plate pattern within the text.
+        if len(text) > 9:
+            # Search for the standard pattern: 2digits + 1-2letters + 3-5digits
+            candidates = re.findall(r"[0-9]{2}[A-Z]{1,2}[0-9]{3,5}", text)
+            if candidates:
+                # Pick longest match (most complete plate)
+                text = max(candidates, key=len)
 
         # Extract prefix: 2 digits + 1-2 letters
         match = re.match(r"^([0-9]{2}[A-Z]{1,2})(.*)", text)

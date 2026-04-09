@@ -49,38 +49,89 @@ class InferenceResult:
     snapshot_path: str = ""
     annotated_frame: Optional[object] = field(default=None, repr=False)
 
+# ── Plate validation ──────────────────────────────────────────────────────────
+
+def validate_plate_crop(crop) -> bool:
+    """Quick validation: is this crop likely a license plate?
+
+    Checks aspect ratio, minimum size, brightness, and edge structure
+    to filter out false-positive YOLO detections before OCR.
+    """
+    if crop is None or crop.size == 0:
+        return False
+
+    h, w = crop.shape[:2]
+    aspect = w / max(h, 1)
+
+    # 1. Aspect ratio: VN plates range ~1.0-5.5 (2-line: ~1.2-2.0, 1-line: ~2.5-5.0)
+    if aspect < 0.8 or aspect > 6.0:
+        return False
+
+    # 2. Minimum size: too small = noise
+    if w < 25 or h < 12:
+        return False
+
+    # 3. Brightness: very dark crops are unlikely plates
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    if gray.mean() < 40:
+        return False
+
+    # 4. Edge structure: plates have text → edge density in a reasonable range
+    edges = cv2.Canny(gray, 50, 150)
+    edge_ratio = np.count_nonzero(edges) / (h * w)
+    if edge_ratio < 0.03 or edge_ratio > 0.60:
+        return False
+
+    return True
+
 # ── Plate enhancement ─────────────────────────────────────────────────────────
 
 def enhance_plate(crop):
-    """Enhance small/blurry plate crops for better OCR.
-    
-    Strategy: Light denoise → moderate upscale → CLAHE → sharpen.
-    Avoid over-processing which creates artifacts that confuse OCR.
+    """Smart zoom + enhance plate crop for better OCR.
+
+    Always ensures the plate reaches a minimum height for reliable OCR.
+    Small plates get aggressive upscale + full pipeline.
+    Medium plates get moderate upscale + enhance.
+    Large plates get CLAHE + sharpen only (no upscale).
     """
     if crop is None or crop.size == 0:
         return crop
-    
+
     h, w = crop.shape[:2]
-    
-    # 1. Light bilateral denoising (preserve edges)
-    denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
-    
-    # 2. Moderate upscaling (3x max — larger causes OCR hallucination)
-    scale = 3 if h < 40 else 2
-    upscaled = cv2.resize(denoised, (w * scale, h * scale),
-                          interpolation=cv2.INTER_LANCZOS4)
-    
-    # 3. CLAHE on L channel for contrast normalization
+    MIN_OCR_HEIGHT = 100  # Target minimum height for reliable OCR
+
+    if h < 40:
+        # Very small: aggressive upscale (3-4x) + full pipeline
+        scale = max(3, min(4, MIN_OCR_HEIGHT // max(h, 1)))
+        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
+        upscaled = cv2.resize(denoised, (w * scale, h * scale),
+                              interpolation=cv2.INTER_LANCZOS4)
+    elif h < MIN_OCR_HEIGHT:
+        # Small: moderate upscale (2-3x) to reach target
+        scale = max(2, min(3, MIN_OCR_HEIGHT // max(h, 1)))
+        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
+        upscaled = cv2.resize(denoised, (w * scale, h * scale),
+                              interpolation=cv2.INTER_LANCZOS4)
+    elif h < 200:
+        # Medium: light upscale (2x) for clarity
+        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
+        upscaled = cv2.resize(denoised, (w * 2, h * 2),
+                              interpolation=cv2.INTER_LANCZOS4)
+    else:
+        # Large (>= 200px): no upscale needed
+        upscaled = crop
+
+    # CLAHE on L channel for contrast normalization
     lab = cv2.cvtColor(upscaled, cv2.COLOR_BGR2LAB)
     l_ch, a_ch, b_ch = cv2.split(lab)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
     cl = clahe.apply(l_ch)
     enhanced = cv2.cvtColor(cv2.merge((cl, a_ch, b_ch)), cv2.COLOR_LAB2BGR)
-    
-    # 4. Controlled sharpening
+
+    # Controlled sharpening
     gaussian = cv2.GaussianBlur(enhanced, (0, 0), 1.0)
     sharpened = cv2.addWeighted(enhanced, 1.5, gaussian, -0.5, 0)
-    
+
     return sharpened
 
 
@@ -597,19 +648,21 @@ class InferenceWorker:
     def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame, result: InferenceResult):
         if self._ocr is None:
             return
-        h, w = crop.shape[:2]
-        # Increase threshold to 120px to capture medium-sized blurry plates
-        processed = enhance_plate(crop) if h < 120 else crop
+        # Validate: is this crop actually a license plate?
+        if not validate_plate_crop(crop):
+            logger.debug("Crop rejected by plate validation (cam: %s)", cam_id)
+            return
+        # Smart zoom: always enhance (scale adapts to crop size)
+        processed = enhance_plate(crop)
         text, ocr_conf, p_type = self._ocr.read(processed)
-        if text: 
+        if text:
             voter.add(text, ocr_conf * det_conf)
             result.plate_type = p_type
-            
+
             # Check for Fake / Obstructed Plate
             is_suspicious, susp_conf, reason = check_plate_authenticity(crop)
             if is_suspicious:
                 logger.warning("SUSPICIOUS PLATE DETECTED on %s: %s (Reason: %s, Conf: %.2f)", cam_id, text, reason, susp_conf)
-                # We could add this metadata to the result or trigger a specific alert
 
 def inference_process(infer_queue: Queue, result_queue: Queue, recorder_control_queue: Queue, stop_event: Event):
     ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())

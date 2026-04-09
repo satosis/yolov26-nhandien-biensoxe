@@ -37,6 +37,7 @@ async def cameras_page(request: Request, user: dict = Depends(require_menu("came
             
     ctx["cameras"] = cameras
     ctx["providers"] = db.get_all_providers()
+    ctx["last_discovery"] = db.get_app_setting("LAST_DISCOVERY_AT", "")
     return templates.TemplateResponse("pages/cameras.html", {"request": request, **ctx})
 
 
@@ -191,6 +192,11 @@ async def get_stream_status(
 ):
     db = get_db()
     cam = db.get_camera(camera_id)
+    if not cam:
+        return {"ok": False, "streaming": False}
+    return {"ok": True, "streaming": cam.get("is_streaming", False)}
+
+
 @router.post("/discover")
 async def discover_cameras(
     request: Request,
@@ -210,6 +216,44 @@ async def discover_subnet(
     from backend.util.network_utils import scan_subnet_for_cameras
     found_ips = scan_subnet_for_cameras(subnet)
     return {"found_ips": found_ips}
+
+
+@router.post("/auto-add")
+async def auto_add_camera(
+    request: Request,
+    user: dict = Depends(require_menu("cameras")),
+):
+    """Auto-insert a discovered device into cameras table using global credentials."""
+    data = await request.json()
+    db = get_db()
+
+    device_id = (data.get("id") or "").strip()
+    ip = data.get("ip") or ""
+    cam_type = data.get("type") or "onvif"
+    model = data.get("model") or ""
+    manufacturer = data.get("manufacturer") or ""
+    name = data.get("name") or f"{manufacturer} {model}".strip() or f"Camera @ {ip}"
+    onvif_port = data.get("onvif_port") or 554
+
+    # Strip unidentified_ prefix
+    if device_id.startswith("unidentified_"):
+        device_id = ""
+
+    # Use global password from app_settings
+    mk = db.get_app_setting("IMOU_MK", "")
+
+    ok = db.add_camera(
+        name=name,
+        cam_type=cam_type,
+        imou_device_id=device_id.upper() if device_id else None,
+        rtsp_url=None,
+        imou_channel_id="0",
+        site_ids=None,
+        camera_ip=ip if ip else None,
+        camera_port=onvif_port or 554,
+        provider_keys={"mk": mk} if mk else None,
+    )
+    return {"ok": ok, "name": name}
 
 
 

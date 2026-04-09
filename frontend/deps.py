@@ -41,12 +41,20 @@ def require_menu(menu_key: str):
 
 
 def get_menu_context(request: Request, user: dict) -> dict:
-    """Build sidebar menu context filtered by RBAC."""
+    """Build sidebar menu context filtered by RBAC.
+    Also refreshes session allowed_menus from DB to handle role changes."""
     from frontend.menu_registry import MENU_GROUPS
 
     roles = get_db().get_roles()
     role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
     allowed_str = role_info.get("allowed_menus", "") if role_info else ""
+
+    # Refresh session if role permissions changed (fix stale session)
+    session_allowed = user.get("allowed_menus", "")
+    if allowed_str != session_allowed:
+        user["allowed_menus"] = allowed_str
+        request.session["user"] = user
+
     allowed = allowed_str.split(",") if allowed_str and allowed_str != "*" else ("*" if allowed_str == "*" else [])
 
     filtered = {}

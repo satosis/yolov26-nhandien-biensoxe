@@ -66,18 +66,23 @@
       <div class="bg-status-red/10 border border-status-red/30 text-status-red text-sm rounded-md px-4 py-3 mb-5">{{ error }}</div>
       {% endif %}
 
-      <form method="post" action="/login" class="flex flex-col gap-[18px]">
+      <form method="post" action="/login" class="flex flex-col gap-[18px]" x-data="{
+        lastUser: '{{ last_username|default("", true) }}' || document.cookie.match(/last_username=([^;]+)/)?.[1] || '',
+        show: false
+      }" x-init="if(lastUser) $nextTick(() => $el.querySelector('[name=password]').focus())">
         <div class="flex flex-col gap-1.5">
           <label class="text-[13px] font-medium text-txt-sec">Tài khoản</label>
-          <input type="text" name="username" placeholder="Nhập username..." required autofocus
+          <input type="text" name="username" placeholder="Nhập username..." required
+                 :autofocus="!lastUser"
+                 :value="lastUser"
                  class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
         </div>
-        <div class="flex flex-col gap-1.5" x-data="{ show: false }">
+        <div class="flex flex-col gap-1.5">
           <label class="text-[13px] font-medium text-txt-sec">Mật khẩu</label>
           <div class="relative w-full group">
             <input :type="show ? 'text' : 'password'" name="password" placeholder="••••••••" required
                    class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg pl-3.5 pr-11 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
-            <button type="button" @click="show = !show" 
+            <button type="button" @click="show = !show"
                     class="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-txt-ter hover:text-accent transition-colors cursor-pointer outline-none">
               <i class="fa-regular fa-eye text-base" x-show="!show"></i>
               <i class="fa-regular fa-eye-slash text-base" x-show="show" style="display: none;"></i>
@@ -87,7 +92,7 @@
 
         <div class="flex items-center justify-between mt-1">
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="remember" class="accent-accent w-[18px] h-[18px] rounded">
+            <input type="checkbox" name="remember" class="accent-accent w-[18px] h-[18px] rounded" :checked="!!lastUser">
             <span class="text-[12px] text-txt-sec">Ghi nhớ đăng nhập</span>
           </label>
         </div>

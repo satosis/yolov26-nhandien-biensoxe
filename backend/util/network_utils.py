@@ -7,24 +7,13 @@ import xml.etree.ElementTree as ET
 import re
 import uuid as uuid_mod
 import concurrent.futures
-from typing import List, Dict, Optional
+from typing import List, Dict
 from urllib.parse import urlparse
-import struct
 
 logger = logging.getLogger("network_utils")
 
 WS_DISCOVERY_MCAST_ADDR = "239.255.255.250"
 WS_DISCOVERY_PORT = 3702
-WS_DISCOVERY_PROBE = (
-    '<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope" '
-    'xmlns:dn="http://www.onvif.org/ver10/network/wsdl">'
-    '<Header><MessageID xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">'
-    f'uuid:{uuid_mod.uuid4()}</MessageID>'
-    '<To xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">urn:schemas-xmlsoap-org:ws:2004:08:addressing:discovery</To>'
-    '<Action xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">http://schemas.xmlsoap.org/ws/2004/08/discovery/Probe</Action>'
-    '</Header><Body><Probe xmlns="http://schemas.xmlsoap.org/ws/2004/08/discovery">'
-    '<Types>dn:NetworkVideoTransmitter</Types></Probe></Body></Envelope>'
-)
 
 # ─── ONVIF Scope Parsers ─────────────────────────────────────────────
 def _parse_scopes(scope_text: str) -> dict:
@@ -92,7 +81,7 @@ def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
         try:
             sock.sendto(probe_str.encode(), ('192.168.1.255', DAHUA_DISCOVERY_PORT))
             sock.sendto(probe_str.encode(), ('192.168.0.255', DAHUA_DISCOVERY_PORT))
-        except:
+        except OSError:
             pass
         
         start_time = time.time()
@@ -133,7 +122,7 @@ def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) ->
         try:
             with socket.create_connection((ip, port), timeout=timeout) as sock:
                 return True
-        except:
+        except OSError:
             continue
     return False
 
@@ -280,9 +269,9 @@ def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
                         ip = parsed.hostname
                         onvif_port = parsed.port or 80
                         break
-                except:
+                except Exception:
                     pass
-        
+
         # Extract Scopes
         scopes_text = ""
         scopes_el = probe_match.find('d:Scopes', ns) or probe_match.find('d04:Scopes', ns)
@@ -358,7 +347,7 @@ def _parse_probe_match_regex(xml_str: str, fallback_ip: str) -> dict | None:
             if parsed.hostname:
                 ip = parsed.hostname
                 onvif_port = parsed.port or 80
-        except:
+        except Exception:
             pass
     
     # Extract scopes
@@ -506,7 +495,7 @@ def discover_and_update_all_cameras():
     from backend.util.imou_api import ImouClient
     db = DatabaseManager()
     
-    results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'error': None, 'new_devices': []}
+    results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'error': None, 'new_devices': [], 'updated_cameras': []}
     
     # 1. Get all cameras from DB
     all_cams = db._execute_query("SELECT id, camera_name, imou_device_id, camera_ip FROM cameras", fetchall=True)
@@ -529,10 +518,33 @@ def discover_and_update_all_cameras():
         found_ips[dev['serial'].lower()] = dev['ip']
     
     # METHOD B: ONVIF Discovery (Standard)
+    # Enable serial probe ONLY for Dahua/Imou cameras (they share credentials)
     logger.info("Starting ONVIF WS-Discovery scan...")
     local_found = discover_onvif_only(timeout=5.0, probe_details=False)
     logger.info(f"ONVIF scan found {len(local_found)} device(s).")
     results['found_local'] += len(local_found)
+
+    # Phase 2.1: Probe serial for Dahua/Imou ONVIF cameras using global IMOU_MK
+    imou_mk = db.get_app_setting("IMOU_MK", "")
+    if imou_mk:
+        for dev in local_found:
+            mfr = (dev.get('manufacturer') or '').lower()
+            if any(k in mfr for k in ['dahua', 'imou']) and dev.get('is_online') and not dev.get('serial'):
+                try:
+                    dev_info = get_onvif_device_info(
+                        dev['ip'], dev.get('onvif_port', 80),
+                        username='admin', password=imou_mk, timeout=3
+                    )
+                    if dev_info and dev_info.get('serial'):
+                        dev['serial'] = dev_info['serial']
+                        dev['id'] = dev_info['serial'].lower()
+                        if dev_info.get('model'):
+                            dev['model'] = dev_info['model']
+                        if dev_info.get('firmware'):
+                            dev['firmware'] = dev_info['firmware']
+                        logger.info(f"  ONVIF serial probe: {dev['ip']} → S/N={dev['serial']}")
+                except Exception as e:
+                    logger.debug(f"ONVIF serial probe failed for {dev['ip']}: {e}")
     
     # NEW METHOD C: Deep Subnet Scan (Catch-all)
     # If we are missing IPs for cloud devices, let's proactively scan the subnet
@@ -579,23 +591,31 @@ def discover_and_update_all_cameras():
             client = ImouClient(imou_keys['app_id'], imou_keys['app_secret'])
             cloud_devices = client.list_devices()
             logger.info(f"Cloud API found {len(cloud_devices)} device(s).")
-            
-            # Auto-match IPs from ONVIF for cloud devices missing IP
-            onvif_ip_map = {d.get('id', '').lower(): d['ip'] for d in local_found if d.get('id')}
-            
+
+            # Build combined IP map from BOTH Dahua UDP and ONVIF (Phase 1.2 fix)
+            # Do NOT re-assign — use combined_ip_map built from all sources
+            combined_ip_map = {}
+            for dev in dahua_found:
+                if dev.get('serial'):
+                    combined_ip_map[dev['serial'].lower()] = dev['ip']
+            for dev in local_found:
+                dev_id = (dev.get('id') or dev.get('serial') or '').lower()
+                if dev_id:
+                    combined_ip_map[dev_id] = dev['ip']
+
             for dev in cloud_devices:
                 did_raw = dev.get('deviceId')
                 lip = dev.get('deviceLocalIp')
-                
+
                 if did_raw:
                     did = did_raw.strip().lower()
-                    
-                    # Try to match IP from ONVIF results
+
+                    # Phase 2.2: Normalized serial matching (exact uppercase compare)
                     if (not lip or lip == "0.0.0.0"):
-                        for onvif_id, onvif_ip in onvif_ip_map.items():
-                            if did in onvif_id or onvif_id in did:
-                                lip = onvif_ip
-                                logger.info(f"  [ONVIF→CLOUD] Matched {did} to {lip} via ONVIF")
+                        for local_id, local_ip in combined_ip_map.items():
+                            if did.upper() == local_id.upper():
+                                lip = local_ip
+                                logger.info(f"  [LOCAL→CLOUD] Matched {did} to {lip} via serial match")
                                 break
                     
                     results['found_cloud'] += 1
@@ -640,16 +660,16 @@ def discover_and_update_all_cameras():
     for dev in local_found:
         dev_id = (dev.get('id') or dev.get('serial') or dev.get('urn', '')).lower()
         ip = dev['ip']
-        
+
         # Check if this device is already in DB (by ID or IP match)
         in_db = False
         for cam in all_cams:
             cam_did = (cam.get('imou_device_id') or '').strip().lower()
             cam_ip = cam.get('camera_ip', '')
-            if (cam_did and (cam_did in dev_id or dev_id in cam_did)) or cam_ip == ip:
+            if (cam_did and cam_did.upper() == dev_id.upper()) or cam_ip == ip:
                 in_db = True
                 break
-        
+
         if not in_db and dev_id not in seen_ids and ip not in seen_ips:
             new_devices.append({
                 'id': dev_id or ip,
@@ -664,6 +684,36 @@ def discover_and_update_all_cameras():
                 'serial': dev.get('serial', ''),
                 'is_online': dev.get('is_online', True),
                 'profiles': dev.get('profiles', []),
+                'auto_found': False
+            })
+            seen_ids.add(dev_id)
+            seen_ips.add(ip)
+
+    # Phase 1.3: Add Dahua UDP devices that are NOT in DB and not already seen
+    for dev in dahua_found:
+        dev_id = dev.get('serial', '').lower()
+        ip = dev['ip']
+
+        in_db = False
+        for cam in all_cams:
+            cam_did = (cam.get('imou_device_id') or '').strip().lower()
+            cam_ip = cam.get('camera_ip', '')
+            if (cam_did and cam_did.upper() == dev_id.upper()) or cam_ip == ip:
+                in_db = True
+                break
+
+        if not in_db and dev_id not in seen_ids and ip not in seen_ips:
+            new_devices.append({
+                'id': dev_id or ip,
+                'name': f"{dev.get('manufacturer', 'Dahua/Imou')} {dev.get('model', '')}".strip() or f"Camera @ {ip}",
+                'ip': ip,
+                'onvif_port': dev.get('port', 37777),
+                'type': 'imou',
+                'source': 'dahua_udp',
+                'manufacturer': dev.get('manufacturer', 'Dahua/Imou'),
+                'model': dev.get('model', ''),
+                'serial': dev.get('serial', ''),
+                'is_online': True,
                 'auto_found': False
             })
             seen_ids.add(dev_id)
@@ -713,13 +763,40 @@ def discover_and_update_all_cameras():
     # --- APPLY UPDATES TO DB ---
     for cam in all_cams:
         did = cam.get('imou_device_id')
-        if did and did in found_ips:
-            new_ip = found_ips[did]
-            if cam['camera_ip'] != new_ip:
-                logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
-                db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']))
-                results['updated'] += 1
-    
+        if did:
+            did_lower = did.strip().lower()
+            if did_lower in found_ips:
+                new_ip = found_ips[did_lower]
+                if cam['camera_ip'] != new_ip:
+                    logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
+                    db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']))
+                    results['updated_cameras'].append({
+                        'name': cam['camera_name'],
+                        'old_ip': cam['camera_ip'] or '',
+                        'new_ip': new_ip
+                    })
+                    results['updated'] += 1
+
+    # Phase 2.3: Cache all discovered devices into cameras_asset
+    try:
+        all_discovered = list(local_found) + list(dahua_found) + list(cloud_new_devices)
+        for dev in all_discovered:
+            cam_id = (dev.get('serial') or dev.get('id') or dev.get('ip', '')).strip()
+            if cam_id and not cam_id.startswith('unidentified_'):
+                db.upsert_camera_asset(
+                    cam_id=cam_id,
+                    name=dev.get('name', dev.get('manufacturer', '')),
+                    ip=dev.get('ip'),
+                    serial=dev.get('serial', ''),
+                    model=dev.get('model', ''),
+                    firmware=dev.get('firmware', ''),
+                )
+    except Exception as e:
+        logger.debug(f"Asset cache error: {e}")
+
+    # Save last discovery timestamp
+    db.set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
+
     return results
 
 
