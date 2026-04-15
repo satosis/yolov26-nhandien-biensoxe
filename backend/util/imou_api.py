@@ -55,7 +55,9 @@ class ImouClient:
             
             if code != "0":
                 err_msg = result.get("msg", "Unknown error")
-                logger.error(f"Imou API error [{code}]: {err_msg}")
+                # Suppress noisy errors for optional fallback API calls (e.g. methods not supported in all regions)
+                lvl = logging.DEBUG if code in ("OP1005", "OP1002") else logging.ERROR
+                logger.log(lvl, f"Imou API error [{code}]: {err_msg}")
                 # If token expired, clear cache
                 if code == "TK1002":
                     self._token = None
@@ -97,6 +99,81 @@ class ImouClient:
         dev_list = data.get("deviceList", [])
         return dev_list[0] if dev_list else {}
 
+    def get_camera_status(self, device_id: str, enable_type: str, channel_id: str = "0") -> dict:
+        """Get device switch status (e.g. closeCamera, motionDetect)."""
+        token = self.get_access_token()
+        return self._call("getDeviceCameraStatus", {
+            "token": token,
+            "deviceId": device_id,
+            "enableType": enable_type,
+            "channelId": channel_id,
+        })
+
+    def set_camera_status(self, device_id: str, enable_type: str, enable: bool, channel_id: str = "0") -> dict:
+        """Set device switch (e.g. closeCamera=False to open lens). Uses 'enable' param per Imou API spec."""
+        token = self.get_access_token()
+        return self._call("setDeviceCameraStatus", {
+            "token": token,
+            "deviceId": device_id,
+            "enableType": enable_type,
+            "enable": enable,
+            "channelId": channel_id,
+        })
+
+    def get_device_online(self, device_id: str) -> dict:
+        """Check if device is online."""
+        token = self.get_access_token()
+        return self._call("deviceOnline", {
+            "token": token,
+            "deviceId": device_id,
+        })
+
+    def get_snapshot(self, device_id: str, channel_id: str = "0") -> dict:
+        """Capture a snapshot from device. Returns dict with 'url' key."""
+        token = self.get_access_token()
+        return self._call("setDeviceSnapEnhanced", {
+            "token": token,
+            "deviceId": device_id,
+            "channelId": channel_id,
+        })
+
+    def get_device_network_info(self, device_id: str, channel_id: str = "0") -> dict | None:
+        """Try multiple Imou APIs to resolve the device's local IP."""
+        token = self.get_access_token()
+
+        # Method 1: getDeviceCameraStatus — often returns network info
+        try:
+            data = self._call("getDeviceCameraStatus", {
+                "token": token,
+                "deviceId": device_id,
+                "enableType": "closeCamera", # Required parameter to avoid OP1002
+                "channelId": channel_id
+            })
+            ip = data.get("localIp") or data.get("lanIp") or data.get("ip")
+            if ip and ip != "0.0.0.0":
+                logger.info(f"  [CameraStatus] Found IP {ip} for {device_id}")
+                return {"ip": ip, "source": "cameraStatus"}
+        except Exception as e:
+            # OP1002 often means channelId must be integer, or mandatory parameter missing
+            # OP1005 means invalid request URL (method not supported for this region)
+            logger.debug(f"  getDeviceCameraStatus fallback failed for {device_id}: {e}")
+
+        # Method 2: getDeviceNetInfo — newer API for network details
+        try:
+            data = self._call("getDeviceNetInfo", {
+                "token": token,
+                "deviceId": device_id
+            })
+            ip = data.get("lanIp") or data.get("localIp") or data.get("ip")
+            if ip and ip != "0.0.0.0":
+                logger.info(f"  [NetInfo] Found IP {ip} for {device_id}")
+                return {"ip": ip, "source": "netInfo"}
+        except Exception as e:
+            # OP1005 means invalid request URL (method not supported for this region)
+            logger.debug(f"  getDeviceNetInfo fallback failed for {device_id}: {e}")
+
+        return None
+
     def list_devices(self, limit: int = 50) -> list:
         """
         Fetch devices associated with the account.
@@ -127,18 +204,29 @@ class ImouClient:
                 if fdev:
                     # Update with detail info (especially localIp)
                     possible_ips = [
-                        fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'), 
+                        fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'),
                         dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
                     ]
                     resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
                     if resolved_ip:
                         dev['deviceLocalIp'] = resolved_ip
                         logger.info(f"  [DEEP-DIVE] Found IP {resolved_ip} for {did}")
-                    
+
                     # Merge other fields
                     dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
             except Exception as e:
                 logger.warning(f"  [DEEP-DIVE] Failed detailed info for {did}: {e}")
+
+            # Fallback: try network info APIs if still no IP
+            current_ip = dev.get('deviceLocalIp')
+            if not current_ip or current_ip == "0.0.0.0":
+                try:
+                    net_info = self.get_device_network_info(did_raw)
+                    if net_info and net_info.get('ip'):
+                        dev['deviceLocalIp'] = net_info['ip']
+                        logger.info(f"  [NET-FALLBACK] Found IP {net_info['ip']} for {did} via {net_info['source']}")
+                except Exception as e:
+                    logger.debug(f"  [NET-FALLBACK] Failed for {did}: {e}")
 
             final_list.append(dev)
             

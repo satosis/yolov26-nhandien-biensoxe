@@ -182,12 +182,14 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 RTSP Camera (Imou 2K)
     │
     ├─► main.py (AI core: YOLO track + OCR + TripwireTracker)
-    │       └─► core/database.py (PostgreSQL)
-    │       └─► services/telegram_service.py (cảnh báo)
+    │       ├─► core/database.py (PostgreSQL)
+    │       ├─► core/telegram_service.py (cảnh báo)
+    │       ├─► core/door_auto_close.py (tự đóng cửa khi không có người)
+    │       └─► core/door_controller.py (điều khiển relay: Tuya/Tasmota/GPIO/HTTP/Hunonic)
     │
     └─► frontend/ (FastAPI app — quản lý toàn bộ hệ thống)
-            └─► frontend/menu_registry.py (single source of truth cho menus)
-            └─► frontend/routers/ (17 route handlers)
+            ├─► frontend/menu_registry.py (single source of truth cho menus)
+            ├─► frontend/routers/ (21 route handlers)
             └─► frontend/templates/ (Jinja2 HTML templates)
 ```
 
@@ -211,20 +213,20 @@ RTSP Camera (Imou 2K)
 
 ```
 yolov26-nhandien-biensoxe/
-├── main.py                    # Entry point: AI loop chính
+├── main.py                    # Entry point backup (legacy)
 ├── CLAUDE.md                  # File này — CẬP NHẬT khi release tính năng mới
 ├── init.sql                   # PostgreSQL schema (source of truth)
 ├── requirements.txt           # Python deps
-├── docker-compose.yml         # Stack: ai_core, postgres
+├── docker-compose.yml         # Stack: ai_core (context: .), postgres
 │
-├── backend/core/                      # Business logic thuần Python
+├── backend/                    # Core logic and services
+│   ├── main.py                # Entry point chính cho container & script
+│   ├── core/                  # Business logic thuần Python
 │   ├── config.py              # Constants + env loading
 │   ├── database.py            # PostgreSQL DatabaseManager (connection pool)
-│   ├── asset_registry.py      # CMDB camera assets
-│   ├── door_controller.py     # Tuya door control
-│   ├── settings_store.py      # App settings
-│   └── tripwire.py            # Vạch ảo đếm người/xe
-│
+│   ├── docker/                # Dockerfiles
+│   │   └── Dockerfile.ai_core # Build với context root (.)
+│   └── ...
 ├── frontend/                    # FastAPI UI (Jinja2 + HTMX + Tailwind)
 │   ├── app.py                 # FastAPI entry, routing
 │   ├── deps.py                # Dependencies, auth, RBAC
@@ -276,6 +278,13 @@ IMOU_OPEN_DEVICE_ID=
 - **Mobile WebRTC Camera View**: TURN server config (env + app_settings), facingMode environment cho camera sau, `?mobile=1` ẩn tab RTSP, responsive CSS cho video player
 - **Dynamic Provider API Keys**: mỗi nhà cung cấp camera có bộ key kết nối riêng (PROVIDER_DEFAULT_KEYS), UI tự render dynamic inputs
 - **Frontend**: FastAPI + Jinja2 + HTMX + Tailwind CSS (frontend/, port 8000)
+- **Auto-Discovery Pipeline**: ARP scan (zero-cost) + MAC OUI vendor ID + ONVIF unicast probe + auto-register. Two-speed: fast (60s ARP) + slow (300s full ONVIF/Dahua/Cloud)
+- **Circuit Breaker cho Grabber**: exponential backoff (5s→300s), 3 states (CLOSED→OPEN→HALF_OPEN), health events ghi camera_status_log
+- **RTSP URL Auto-Refresh**: grabber tự đọc URL mới từ DB mỗi lần reconnect, xử lý IP thay đổi tự động
+- **Auto-Register Cameras**: setting `AUTO_REGISTER_NEW_CAMERAS`, nút toggle trên UI, camera mới tự thêm vào DB
+- **Door Auto-Close**: cửa cuốn tự đóng khi không còn người — YOLO person detect + CentroidTracker + TripwireTracker + countdown timer (configurable), Telegram notify khi đóng
+- **Camera Health Monitoring**: real-time status indicator (online/offline) trên trang Camera, Telegram alert khi camera offline (circuit breaker opens), API `/cameras/health` trả event log
+- **Security**: xóa hardcode Telegram token khỏi source code, secrets chỉ qua `.env`, config qua DB `app_settings`
 
 ## Schema DB (init.sql)
 
@@ -297,8 +306,10 @@ IMOU_OPEN_DEVICE_ID=
 | `cameras_asset` | CMDB camera assets |
 | `camera_providers` | Nhà cung cấp camera |
 | `door_providers` | Nhà cung cấp cửa cuốn |
+| `rolling_doors` | Cửa cuốn: relay config, camera_id, auto_close settings |
 | `stranger_logs` | Face stranger detection |
 | `ocr_training_samples` | OCR active learning samples |
+| `kyc_documents` | CCCD/selfie/face cho KYC |
 
 ## Thông tin kỹ thuật
 
@@ -311,4 +322,10 @@ IMOU_OPEN_DEVICE_ID=
 - **OCR sample range**: confidence 0.3-0.7
 - **Remember token**: , `secrets.token_urlsafe(32)`
 - **Retention**: 30 ngày, legal hold không xóa
-- **Door control**: Tuya local (tinytuya), Tasmota, HTTP, GPIO
+- **Door control**: Tuya local (tinytuya), Tasmota, HTTP, GPIO, Hunonic Cloud (MQTT)
+- **Door auto-close**: CentroidTracker (IoU) + TripwireTracker, default 300s delay, configurable per door
+- **YOLO model classes**: 0=plate, 1=person, 2=door (`yolo26_plate_people_door_int8.onnx`)
+- **Circuit breaker**: 5 fails → OPEN 120s → HALF_OPEN test, backoff 5s→300s
+- **Camera health**: grabber ghi stream_up/stream_down/crashed vào camera_status_log, Telegram alert on offline
+- **Env vars**: chỉ secrets (DATABASE_URL, SESSION_SECRET, TELEGRAM_TOKEN), config qua DB app_settings
+- **Discovery intervals**: ARP 60s (fast), ONVIF+Dahua 300s (slow), configurable via app_settings

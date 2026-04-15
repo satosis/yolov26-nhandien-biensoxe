@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 venv
 models/yolo26_plate_people_door.onnx
+training/

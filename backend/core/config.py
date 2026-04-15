@@ -22,7 +22,7 @@ SMART_RECORD_POST_SEC = 10
 # --- SHM / Streaming Settings ---
 GRAB_WIDTH = 1280
 GRAB_HEIGHT = 720
-GRAB_FPS_CAP = 15
+GRAB_FPS_CAP = 10
 SHM_FRAME_BYTES = GRAB_WIDTH * GRAB_HEIGHT * 3
 RTSP_BUFFER_SIZE = 4
 RTSP_RECONNECT_DELAY = 5
@@ -36,13 +36,13 @@ MOTION_DILATE_ITER = 2
 
 # --- Additional Optimization ---
 DENOISE_TEMPORAL_ALPHA = 1.0 # 1.0 = Off
-DENOISE_SPATIAL_KSIZE = 3
+DENOISE_SPATIAL_KSIZE = 0
 STREAM_JPEG_QUALITY_LIVE = 88
 
-# --- Telegram Bot Config (Restored) ---
-TOKEN = os.environ.get("TELEGRAM_TOKEN", "7525014385:AAFOoctmRZUNS8_xt6nRzVBs2gIuLSSlVDc")
-CHAT_IMPORTANT = os.environ.get("TELEGRAM_CHAT_IMPORTANT", "-5273529392")
-CHAT_REGULAR = os.environ.get("TELEGRAM_CHAT_REGULAR", "-5171619580")
+# --- Telegram Bot Config (fallback — ưu tiên từ DB bảng telegram_bots) ---
+TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
+CHAT_IMPORTANT = os.environ.get("TELEGRAM_CHAT_IMPORTANT", "")
+CHAT_REGULAR = os.environ.get("TELEGRAM_CHAT_REGULAR", "")
 FACES_DIR = os.environ.get("FACES_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "data/faces"))
 
 def normalize_plate(plate: str) -> str:

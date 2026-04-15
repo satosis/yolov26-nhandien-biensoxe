@@ -16,15 +16,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libgtk-3-dev libboost-python-dev libboost-thread-dev \
     && rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Layer 1: Heavy deps (rarely change — cached for weeks)
-COPY requirements-heavy.txt .
+# Layer: Dependencies (cached)
+# Note: Context is project root (via docker-compose.yml)
+COPY backend/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip wheel --wheel-dir /usr/src/app/wheels-heavy -r requirements-heavy.txt
-
-# Layer 2: Light deps (change more often)
-COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip wheel --wheel-dir /usr/src/app/wheels-light -r requirements.txt
+    pip wheel --wheel-dir /usr/src/app/wheels -r requirements.txt
 
 
 # ---- Final runtime image ----
@@ -35,7 +31,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TZ=Asia/Ho_Chi_Minh \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    PYTHONPATH=/app
 
 # Runtime C-libraries only
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -44,15 +41,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libgl1 libglib2.0-0 libgomp1 libopenblas0 libpq5 tzdata \
     && rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Install heavy wheels first (cached layer)
-COPY --from=builder /usr/src/app/wheels-heavy /wheels-heavy
-RUN pip install --no-cache /wheels-heavy/* --compile && rm -rf /wheels-heavy
-
-# Install light wheels (smaller, faster rebuild)
-COPY --from=builder /usr/src/app/wheels-light /wheels-light
-RUN pip install --no-cache /wheels-light/* --compile && rm -rf /wheels-light
+# Install wheels
+COPY --from=builder /usr/src/app/wheels /wheels
+RUN pip install --no-cache /wheels/* --compile && rm -rf /wheels
 
 # Copy application source
+# We copy everything from root to preserve the 'backend' package structure
 COPY . .
 
-CMD ["python", "-u", "main.py"]
+# Run from the root so that 'from backend.core...' imports work correctly
+CMD ["python", "-u", "backend/main.py"]

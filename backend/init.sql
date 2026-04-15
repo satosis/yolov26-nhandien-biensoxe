@@ -316,17 +316,17 @@ CREATE TABLE IF NOT EXISTS camera_providers (
 
 -- Seeder: popular camera providers
 INSERT INTO camera_providers (provider_key, name, api_base_url, api_doc_url, rtsp_template, onvif_port, default_rtsp_port, default_http_port, notes) VALUES
-('imou',       'Imou (Dahua Consumer)',    'https://open.imoulife.com',                 'https://open.imoulife.com/book/index.html',                          'rtsp://{user}:{pass}@{ip}:554/cam/realmonitor?channel=1&subtype=0', 80,   554, 80,   'Imou Open Platform: đăng ký App ID + App Secret tại https://open.imoulife.com'),
-('hikvision',  'Hikvision',               'https://open.hikvision.com',                'https://tpp.hikvision.com',                                          'rtsp://{user}:{pass}@{ip}:554/Streaming/Channels/101',              80,   554, 80,   'ISAPI local + HikConnect Cloud. Partner portal: https://tpp.hikvision.com'),
-('dahua',      'Dahua (Pro / DSS)',        'https://open.dahuasecurity.com',            'https://www.dahuasecurity.com/developer',                            'rtsp://{user}:{pass}@{ip}:554/cam/realmonitor?channel=1&subtype=0', 80,   554, 80,   'DSS Open Platform. Tài liệu SDK: https://www.dahuasecurity.com/developer'),
-('reolink',    'Reolink',                 NULL,                                        'https://community.reolink.com/topic/4196',                           'rtsp://{user}:{pass}@{ip}:554/h264Preview_01_main',                 8000, 554, 80,   'Local HTTP API (không cần đăng ký). Tài liệu: https://community.reolink.com/topic/4196'),
-('tapo',       'TP-Link Tapo / VIGI',     NULL,                                        'https://www.tp-link.com/en/support/download/tapo-c200/',             'rtsp://{user}:{pass}@{ip}:554/stream1',                             2020, 554, 80,   'Local API + ONVIF (VIGI). Không có cloud API công khai. ONVIF port 2020'),
-('axis',       'Axis Communications',     'https://developer.axis.com',               'https://developer.axis.com/vapix',                                   'rtsp://{user}:{pass}@{ip}:554/axis-media/media.amp',                80,   554, 80,   'VAPIX API tại https://developer.axis.com. Hỗ trợ ONVIF Profile S/T'),
-('uniview',    'Uniview (UNV)',            'https://global-open.uniview.com',           'https://global-open.uniview.com',                                    'rtsp://{user}:{pass}@{ip}:554/unicast/c1/s0/live',                  80,   554, 80,   'Unisee Open Platform tại https://global-open.uniview.com. Hỗ trợ ONVIF'),
-('hanwha',     'Hanwha Vision (Samsung)', 'https://step.hanwha-security.com',          'https://step.hanwha-security.com',                                   'rtsp://{user}:{pass}@{ip}:554/profile1/media.smp',                  80,   554, 80,   'SUNAPI + STEP Portal tại https://step.hanwha-security.com. Hỗ trợ ONVIF Profile S'),
-('bosch',      'Bosch Security',          'https://downloadstore.boschsecurity.com',   'https://community.boschsecurity.com',                                'rtsp://{user}:{pass}@{ip}:554/rtsp_tunnel',                         80,   554, 80,   'RCP+ SDK tại https://downloadstore.boschsecurity.com. Hỗ trợ ONVIF'),
-('rtsp',       'RTSP Generic',            NULL,                                        NULL,                                                                 'rtsp://{user}:{pass}@{ip}:554/stream',                              80,   554, 80,   'Camera RTSP bất kỳ, không cần API'),
-('onvif',      'ONVIF Generic',           'https://www.onvif.org',                     'https://www.onvif.org/profiles/specifications/',                      'rtsp://{user}:{pass}@{ip}:554/stream',                              80,   554, 80,   'Chuẩn ONVIF Profile S/T/G. Device Discovery qua WS-Discovery')
+('imou',       'Imou (Dahua Consumer)',    'https://open.imoulife.com',                 'https://open.imoulife.com/book/index.html',                          'rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}', 80,   554, 80,   'Imou Open Platform: đăng ký App ID + App Secret tại https://open.imoulife.com'),
+('hikvision',  'Hikvision',               'https://open.hikvision.com',                'https://tpp.hikvision.com',                                          'rtsp://{user}:{password}@{ip}:{port}/Streaming/Channels/{channel}01',              80,   554, 80,   'ISAPI local + HikConnect Cloud. Partner portal: https://tpp.hikvision.com'),
+('dahua',      'Dahua (Pro / DSS)',        'https://open.dahuasecurity.com',            'https://www.dahuasecurity.com/developer',                            'rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}', 80,   554, 80,   'DSS Open Platform. Tài liệu SDK: https://www.dahuasecurity.com/developer'),
+('reolink',    'Reolink',                 NULL,                                        'https://community.reolink.com/topic/4196',                           'rtsp://{user}:{password}@{ip}:{port}/h264Preview_01_main',                 8000, 554, 80,   'Local HTTP API (không cần đăng ký). Tài liệu: https://community.reolink.com/topic/4196'),
+('tapo',       'TP-Link Tapo / VIGI',     NULL,                                        'https://www.tp-link.com/en/support/download/tapo-c200/',             'rtsp://{user}:{password}@{ip}:{port}/stream1',                             2020, 554, 80,   'Local API + ONVIF (VIGI). Không có cloud API công khai. ONVIF port 2020'),
+('axis',       'Axis Communications',     'https://developer.axis.com',               'https://developer.axis.com/vapix',                                   'rtsp://{user}:{password}@{ip}:{port}/axis-media/media.amp',                80,   554, 80,   'VAPIX API tại https://developer.axis.com. Hỗ trợ ONVIF Profile S/T'),
+('uniview',    'Uniview (UNV)',            'https://global-open.uniview.com',           'https://global-open.uniview.com',                                    'rtsp://{user}:{password}@{ip}:{port}/unicast/c{channel}/s{subtype}/live',  80,   554, 80,   'Unisee Open Platform tại https://global-open.uniview.com. Hỗ trợ ONVIF'),
+('hanwha',     'Hanwha Vision (Samsung)', 'https://step.hanwha-security.com',          'https://step.hanwha-security.com',                                   'rtsp://{user}:{password}@{ip}:{port}/profile{channel}/media.smp',          80,   554, 80,   'SUNAPI + STEP Portal tại https://step.hanwha-security.com. Hỗ trợ ONVIF Profile S'),
+('bosch',      'Bosch Security',          'https://downloadstore.boschsecurity.com',   'https://community.boschsecurity.com',                                'rtsp://{user}:{password}@{ip}:{port}/rtsp_tunnel',                         80,   554, 80,   'RCP+ SDK tại https://downloadstore.boschsecurity.com. Hỗ trợ ONVIF'),
+('rtsp',       'RTSP Generic',            NULL,                                        NULL,                                                                 'rtsp://{user}:{password}@{ip}:{port}/stream',                              80,   554, 80,   'Camera RTSP bất kỳ, không cần API'),
+('onvif',      'ONVIF Generic',           'https://www.onvif.org',                     'https://www.onvif.org/profiles/specifications/',                      'rtsp://{user}:{password}@{ip}:{port}/stream',                              80,   554, 80,   'Chuẩn ONVIF Profile S/T/G. Device Discovery qua WS-Discovery')
 ON CONFLICT (provider_key) DO UPDATE SET
     name = EXCLUDED.name,
     api_base_url = EXCLUDED.api_base_url,
@@ -436,3 +436,42 @@ CREATE TABLE IF NOT EXISTS kyc_documents (
 );
 CREATE INDEX IF NOT EXISTS idx_kyc_docs_user ON kyc_documents(user_id);
 CREATE INDEX IF NOT EXISTS idx_kyc_docs_status ON kyc_documents(status);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ONVIF Discovery Enhancement — schema migrations
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Store ONVIF-detected RTSP URL separately (highest priority source for RTSP)
+ALTER TABLE cameras ADD COLUMN IF NOT EXISTS onvif_rtsp_detected TEXT;
+
+-- Store ONVIF port and media profiles in CMDB cache
+ALTER TABLE cameras_asset ADD COLUMN IF NOT EXISTS onvif_port INTEGER;
+ALTER TABLE cameras_asset ADD COLUMN IF NOT EXISTS onvif_profiles JSONB;
+
+-- Index on MAC for ARP-based camera lookup
+CREATE INDEX IF NOT EXISTS idx_asset_mac ON cameras_asset (mac);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Auto-Discovery Pipeline settings
+-- ═══════════════════════════════════════════════════════════════════════════════
+INSERT INTO app_settings (key, value) VALUES
+('AUTO_REGISTER_NEW_CAMERAS', 'true'),
+('ARP_SCAN_INTERVAL_SEC', '60'),
+('CIRCUIT_BREAKER_MAX_FAILS', '5'),
+('CIRCUIT_BREAKER_OPEN_SEC', '120')
+ON CONFLICT (key) DO NOTHING;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Auto-Close Door — schema migrations
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE rolling_doors ADD COLUMN IF NOT EXISTS camera_id INTEGER REFERENCES cameras(id) ON DELETE SET NULL;
+ALTER TABLE rolling_doors ADD COLUMN IF NOT EXISTS auto_close_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE rolling_doors ADD COLUMN IF NOT EXISTS auto_close_delay_sec INTEGER DEFAULT 300;
+
+INSERT INTO app_settings (key, value) VALUES
+('DOOR_TRIPWIRE_LINE_RATIO', '0.6')
+ON CONFLICT (key) DO NOTHING;
+
+-- Performance index for camera health status queries
+CREATE INDEX IF NOT EXISTS idx_camera_status_log_cam_ts
+ON camera_status_log (camera_id, logged_at DESC);

@@ -332,62 +332,89 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
 
 @router.get("/stream/{camera_id}")
 async def stream_camera(camera_id: int, request: Request, user: dict = Depends(require_menu("detection"))):
-    """MJPEG stream from shared memory."""
-    """MJPEG stream from shared memory."""
+    """MJPEG stream: try shared memory first, fallback to direct RTSP."""
     shm_name = f"shm_cam_{camera_id}"
-    total_size = 4 + cfg.SHM_FRAME_BYTES
-    
+
     async def frame_generator():
+        # --- Try SHM first (AI backend running) ---
         shm = None
-        # Wait for SHM to be available (orchestrator might still be starting it)
-        for attempt in range(10):
+        for attempt in range(5):
             try:
                 shm = sm.SharedMemory(name=shm_name)
                 break
             except FileNotFoundError:
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.3)
 
-        if not shm:
-            logger.error(f"SHM {shm_name} not found — backend AI (main.py) chưa chạy?")
-            # Send a single error frame so the browser doesn't hang
-            error_img = np.zeros((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8)
-            cv2.putText(error_img, "Camera stream unavailable", (40, cfg.GRAB_HEIGHT // 2),
+        if shm:
+            last_counter = -1
+            while True:
+                if await request.is_disconnected():
+                    break
+                counter = np.frombuffer(shm.buf[:4], dtype=np.uint32)[0]
+                if counter != last_counter:
+                    frame_raw = np.frombuffer(shm.buf[4:], dtype=np.uint8)
+                    frame = frame_raw[:cfg.SHM_FRAME_BYTES].reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3))
+                    
+                    # Optimization for Mac/Mobile: Resize to 480p for smoother MJPEG streaming
+                    frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_LINEAR)
+                    
+                    jpeg_quality = getattr(cfg, 'STREAM_JPEG_QUALITY_LIVE', 80)
+                    ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
+                    if ret:
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                    last_counter = counter
+                await asyncio.sleep(1.0 / cfg.GRAB_FPS_CAP)
+            shm.close()
+            return
+
+        # --- Fallback: direct RTSP → MJPEG (no AI backend needed) ---
+        db = get_db()
+        cam = db.get_camera(camera_id)
+        rtsp_url = cam.get("rtsp_url", "") if cam else ""
+        if not rtsp_url:
+            logger.error(f"Camera {camera_id}: no RTSP URL configured")
+            error_img = np.zeros((360, 640, 3), dtype=np.uint8)
+            cv2.putText(error_img, "No RTSP URL configured", (40, 180),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 100, 255), 2)
-            cv2.putText(error_img, "Backend AI (main.py) is not running", (40, cfg.GRAB_HEIGHT // 2 + 35),
+            _, jpeg = cv2.imencode('.jpg', error_img)
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            return
+
+        logger.info(f"Camera {camera_id}: SHM not available, falling back to direct RTSP")
+        cap = await asyncio.to_thread(cv2.VideoCapture, rtsp_url)
+        if not cap.isOpened():
+            logger.error(f"Camera {camera_id}: cannot open RTSP stream")
+            error_img = np.zeros((360, 640, 3), dtype=np.uint8)
+            cv2.putText(error_img, "Cannot connect to camera", (40, 170),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 100, 255), 2)
+            cv2.putText(error_img, rtsp_url.split("@")[-1] if "@" in rtsp_url else "", (40, 210),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
             _, jpeg = cv2.imencode('.jpg', error_img)
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
             return
 
-        last_counter = -1
-        while True:
-            if await request.is_disconnected():
-                break
-            
-            # Read counter and frame
-            # SHM layout: [0..3] counter, [4..] BGR frame
-            counter = np.frombuffer(shm.buf[:4], dtype=np.uint32)[0]
-            
-            if counter != last_counter:
-                # Use slicing to handle any extra padding in the buffer
-                frame_raw = np.frombuffer(shm.buf[4:], dtype=np.uint8)
-                frame = frame_raw[:cfg.SHM_FRAME_BYTES].reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3))
-
-                # Light spatial denoising for display quality
-                ksize = getattr(cfg, 'DENOISE_SPATIAL_KSIZE', 3)
-                if ksize > 0:
-                    frame = cv2.GaussianBlur(frame, (ksize, ksize), 0)
-
-                jpeg_quality = getattr(cfg, 'STREAM_JPEG_QUALITY_LIVE', 88)
-                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                ret, frame = await asyncio.to_thread(cap.read)
+                if not ret:
+                    await asyncio.sleep(0.5)
+                    continue
+                # Resize for web display
+                h, w = frame.shape[:2]
+                if w > 1280:
+                    scale = 1280 / w
+                    frame = cv2.resize(frame, (1280, int(h * scale)))
+                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 if ret:
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-                last_counter = counter
-            
-            await asyncio.sleep(1.0 / cfg.GRAB_FPS_CAP)
-        if shm:
-            shm.close()
+                await asyncio.sleep(1.0 / 15)  # ~15 FPS
+        finally:
+            cap.release()
 
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")

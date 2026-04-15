@@ -1,49 +1,84 @@
 {% extends "layout.html" %}
 {% block title %}Camera — Parking Camera{% endblock %}
+{% block head %}
+<style>
+  /* TomSelect Dark Theme for Cameras page */
+  .ts-wrapper .ts-control {
+    background: #0F172A !important;
+    border: 1px solid rgba(255,255,255,0.05) !important;
+    border-radius: 6px !important;
+    padding: 7px 12px !important;
+    color: #fff !important;
+    min-height: 38px !important;
+  }
+  .ts-wrapper .ts-control input { color: #fff !important; background: transparent !important; }
+  .ts-wrapper.focus .ts-control { border-color: rgba(34,211,238,0.5) !important; box-shadow: none !important; }
+  .ts-dropdown {
+    background: #111827 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 6px !important;
+    margin-top: 2px !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+  }
+  .ts-dropdown .option { padding: 8px 12px !important; color: #94A3B8 !important; font-size: 13px; }
+  .ts-dropdown .active { background: rgba(34,211,238,0.1) !important; color: #22D3EE !important; }
+  .ts-wrapper.multi .ts-control > div {
+    background: rgba(34,211,238,0.1) !important;
+    color: #22D3EE !important;
+    border: 1px solid rgba(34,211,238,0.2) !important;
+    border-radius: 4px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 2px 6px !important;
+  }
+  .ts-wrapper.multi .ts-control > div .remove { color: #22D3EE !important; }
+  .ts-wrapper .ts-control > .ts-input-fake { display: none; }
+</style>
+{% endblock %}
 {% block content %}
 <div class="flex flex-col gap-5" x-data="{
   showDiscoveryModal: false,
+  showDetails: false,
   discoveredDevices: [],
+  existingDevices: [],
   updatedCameras: [],
-  subnetToScan: '192.168.1',
-  scanningSubnet: false,
-  async init() {
-     try {
-         const resp = await fetch('/system/network-info');
-         const data = await resp.json();
-         if (data.subnet) {
-             this.subnetToScan = data.subnet;
-             this.serverIP = data.ip;
-         }
-     } catch (e) {
-         console.error('Failed to get network info', e);
-     }
-  },
-  serverIP: '',
+  discoverySummary: {},
+  async init() {},
   get newDevices() { return this.discoveredDevices.filter(d => !d._added); },
   get addedDevices() { return this.discoveredDevices.filter(d => d._added); },
   selectDiscovered(dev) {
     document.getElementById('add-cam-form').classList.remove('hidden');
-    document.getElementById('add-camera-name').value = (dev.source === 'cloud' ? (dev.name || 'Imou Cloud Camera') : 'Local Camera');
+    document.getElementById('add-camera-name').value = (dev.source === 'cloud' ? (dev.name || 'Imou Cloud Camera') : (dev.name || 'Local Camera'));
     const cleanId = dev.id.startsWith('unidentified_') ? '' : dev.id.toUpperCase();
     document.getElementById('add-camera-device-id').value = cleanId;
     document.getElementById('add-camera-ip').value = dev.ip || '';
+    // Auto-select provider type from discovery
+    const typeSelect = document.getElementById('add-camera-type');
+    if (dev.type && typeSelect) {
+        typeSelect.value = dev.type;
+    }
     if (typeof autoFillRtsp === 'function') {
         autoFillRtsp(document.getElementById('add-cam-form'));
     }
     this.showDiscoveryModal = false;
     document.getElementById('add-cam-form').scrollIntoView({ behavior: 'smooth' });
   },
-  async autoAddDevice(dev) {
+  async autoAddDevice(dev, skipReload = false) {
     try {
+        const payload = {...dev};
+        if (dev.rtsp_url_onvif) {
+            payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
+        }
         const resp = await fetch('/cameras/auto-add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dev)
+            body: JSON.stringify(payload)
         });
         const result = await resp.json();
         if (result.ok) {
             dev._added = true;
+            dev._updated = true;
+            if (!skipReload) setTimeout(() => window.location.reload(), 600);
         }
         return result.ok;
     } catch (e) {
@@ -53,46 +88,19 @@
   },
   async addAllDevices() {
     const toAdd = this.discoveredDevices.filter(d => !d._added);
-    let added = 0;
+    const toUpdate = this.existingDevices.filter(d => !d._updated);
+    let changed = 0;
     for (const dev of toAdd) {
-        const ok = await this.autoAddDevice(dev);
-        if (ok) added++;
+        const ok = await this.autoAddDevice(dev, true);
+        if (ok) changed++;
     }
-    if (added > 0) {
-        window.location.reload();
+    for (const dev of toUpdate) {
+        const ok = await this.autoAddDevice(dev, true);
+        if (ok) changed++;
     }
-  },
-  async deepScan() {
-    this.scanningSubnet = true;
-    try {
-        const formData = new FormData();
-        formData.append('subnet', this.subnetToScan);
-        const resp = await fetch('/cameras/discover/subnet', { method: 'POST', body: formData });
-        const data = await resp.json();
-        if (data.found_ips && data.found_ips.length > 0) {
-            data.found_ips.forEach(ip => {
-                if (!this.discoveredDevices.find(d => d.ip === ip)) {
-                    this.discoveredDevices.push({
-                        id: 'unidentified_' + ip,
-                        name: 'Local Device',
-                        ip: ip,
-                        type: 'network',
-                        source: 'subnet',
-                        manufacturer: 'Unknown',
-                        model: '',
-                        is_online: true
-                    });
-                }
-            });
-            alert('Tim thay ' + data.found_ips.length + ' dia chi IP co kha nang la camera!');
-        } else {
-            alert('Khong tim thay thiet bi nao trong dai mang ' + this.subnetToScan + '.0/24');
-        }
-    } finally {
-        this.scanningSubnet = false;
-    }
+    if (changed > 0) window.location.reload();
   }
-}" @show-discovery.window="console.log('Alpine received event:', $event.detail); discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; showDiscoveryModal = true;">
+}" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; existingDevices = ($event.detail && $event.detail.existing_devices) ? $event.detail.existing_devices : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -107,33 +115,13 @@
       </a>
       <button onclick="discoverCameras()" id="discover-btn"
               class="bg-white/5 border border-white/10 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-2">
-        <span id="discover-icon">🔍</span> <span id="discover-text">Do tim Camera</span>
+        <span id="discover-icon">🔍</span> <span id="discover-text">Dò tìm Camera</span>
       </button>
       <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
               onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
         <span>+</span> Thêm Camera
       </button>
     </div>
-  </div>
-
-  <!-- Metrics -->
-  <div class="grid grid-cols-4 gap-4">
-    {% set total = cameras|length %}
-    {% set active = cameras|selectattr('is_active')|list|length %}
-    {% set inactive = total - active %}
-    {% set prov_count = cameras|map(attribute='camera_type')|unique|list|length %}
-    {% for icon, label, val, color in [
-      ('📹','Tổng Camera',total,'#FFFFFF'),
-      ('🟢','Hoạt động',active,'#22C55E'),
-      ('⚫','Không hoạt động',inactive,'#64748B'),
-      ('🏭','Nhà cung cấp',prov_count,'#22D3EE')
-    ] %}
-    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
-      <span class="text-2xl">{{ icon }}</span>
-      <span class="font-mono text-[28px] font-bold" style="color:{{ color }}">{{ val }}</span>
-      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">{{ label }}</span>
-    </div>
-    {% endfor %}
   </div>
 
   <!-- Add form (hidden) -->
@@ -149,13 +137,13 @@
         <select name="camera_type" id="add-camera-type"
           class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
           {% for p in providers %}
-          <option value="{{ p.id }}">{{ p.provider_name }} ({{ p.provider_type }})</option>
+          <option value="{{ p.provider_key }}">{{ p.name }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">IP / Host *</label>
-        <input name="camera_ip" id="add-camera-ip" required
+        <input name="camera_ip" id="add-camera-ip"
           class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
           placeholder="192.168.1.100">
       </div>
@@ -172,13 +160,22 @@
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Mã an toàn / Password</label>
-        <input name="imou_mk" id="add-camera-pass" type="password"
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <div class="relative w-full">
+          <input name="imou_mk" id="add-camera-pass" type="password" value="{{ global_mk or '' }}"
+            class="w-full bg-bg-inset border border-white/5 rounded-md pl-3 pr-9 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
+            placeholder="Để trống nếu dùng cấu hình chung">
+          <button type="button" onclick="togglePassword(this)"
+            class="absolute inset-y-0 right-0 flex items-center pr-3 text-txt-ter hover:text-white transition-colors"
+            title="Hiện/ẩn mật khẩu">
+            <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+            <svg class="w-4 h-4 eye-on hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </button>
+        </div>
       </div>
       <div class="col-span-full">
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm (Sites)</label>
         <select name="site_ids" multiple id="add-sites-select" class="w-full text-sm">
-          {% for s in all_sites %}
+          {% for s in sites %}
           <option value="{{ s.id }}">{{ s.site_name }}</option>
           {% endfor %}
         </select>
@@ -188,10 +185,10 @@
       </div>
     </div>
     <div class="mt-2">
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">RTSP URL</label>
+      <label class="block text-txt-sec text-[13px] font-medium mb-1">RTSP URL <span class="text-txt-ter font-normal">(tự tạo từ thông tin trên)</span></label>
       <input name="rtsp_url" readonly
-        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none"
-        placeholder="vui lòng điền thông tin trên để tạo URL...">
+        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none cursor-default"
+        placeholder="Điền IP + Mã an toàn để tự tạo URL">
     </div>
     <div class="flex gap-3">
       <button type="submit"
@@ -224,7 +221,17 @@
         {% for cam in cameras %}
         <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors {% if not cam.is_active %}opacity-60{% endif %}" id="cam-row-{{ cam.id }}">
           <td class="px-5 py-3.5 text-center text-[14px]">
-            {% if cam.is_active %}🟢{% else %}⚫{% endif %}
+            {% set health = camera_status.get(cam.id|string, {}) %}
+            {% set status = health.get('status', '') %}
+            {% if not cam.is_active %}
+              <span title="Dừng hoạt động">⚫</span>
+            {% elif status == 'stream_up' %}
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" title="Online"></span>
+            {% elif status in ('stream_down', 'circuit_open', 'crashed') %}
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" title="{{ status }}"></span>
+            {% else %}
+              <span title="Chưa có dữ liệu">🟢</span>
+            {% endif %}
           </td>
           <td class="px-5 py-3.5">
             <div class="text-[13px] font-semibold text-white">{{ cam.camera_name }}</div>
@@ -305,7 +312,7 @@
                 </div>
                 <div>
                   <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
-                  <select name="site_ids" multiple
+                  <select name="site_ids" multiple id="edit-sites-{{ cam.id }}"
                     class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
                     {% for s in sites %}
                     <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
@@ -321,9 +328,17 @@
                 </div>
                 <div>
                   <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Mã an toàn (MK) / Password</label>
-                  <input name="imou_mk" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}" 
-                    placeholder="Mã an toàn của camera"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                  <div class="relative w-full">
+                    <input name="imou_mk" type="password" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}"
+                      placeholder="Mã an toàn của camera"
+                      class="w-full bg-bg-inset border border-white/5 rounded-md pl-3 pr-9 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+                    <button type="button" onclick="togglePassword(this)"
+                      class="absolute inset-y-0 right-0 flex items-center pr-3 text-txt-ter hover:text-white transition-colors"
+                      title="Hiện/ẩn mật khẩu">
+                      <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                      <svg class="w-4 h-4 eye-on hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-4">
@@ -337,9 +352,9 @@
                 </div>
               </div>
               <div class="mt-1">
-                <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL</label>
+                <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL <span class="font-normal normal-case text-txt-ter">(tự tạo)</span></label>
                 <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
-                  class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none"
+                  class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none cursor-default"
                   placeholder="rtsp://...">
               </div>
               <div class="flex gap-3 mt-1">
@@ -381,23 +396,32 @@
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
            class="bg-bg-card border border-white/10 w-full rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
-           :class="discoveredDevices.length > 0 ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
+           :class="(discoveredDevices.length > 0 || existingDevices.length > 0) ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
 
-        <!-- Modal Header -->
+        <!-- Modal Header + Summary -->
         <div class="px-5 pt-5 pb-3 flex items-center justify-between">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center text-lg border border-accent/20">⚡</div>
             <div>
               <h3 class="text-white font-bold text-[15px]">Kết quả dò tìm</h3>
-              <p class="text-[11px] text-txt-sec">
-                <template x-if="discoveredDevices.length > 0">
-                  <span>Phát hiện <span x-text="discoveredDevices.length" class="text-accent font-bold"></span> thiết bị</span>
+              <p class="text-[12px] text-txt-sec flex items-center gap-2 flex-wrap mt-0.5">
+                <template x-if="discoverySummary.updated > 0">
+                  <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-bold">
+                    IP cập nhật: <span x-text="discoverySummary.updated"></span>
+                  </span>
                 </template>
-                <template x-if="discoveredDevices.length === 0">
+                <template x-if="discoverySummary.registered > 0">
+                  <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">
+                    Thêm mới: <span x-text="discoverySummary.registered"></span>
+                  </span>
+                </template>
+                <template x-if="discoverySummary.onlineCount > 0">
+                  <span class="bg-white/5 text-txt-sec px-2 py-0.5 rounded">
+                    Online: <span x-text="discoverySummary.onlineCount"></span>
+                  </span>
+                </template>
+                <template x-if="!discoverySummary.updated && !discoverySummary.registered && discoveredDevices.length === 0 && existingDevices.length === 0">
                   <span>Không tìm thấy thiết bị mới</span>
-                </template>
-                <template x-if="updatedCameras.length > 0">
-                  <span> · Cập nhật <span x-text="updatedCameras.length" class="text-blue-400 font-bold"></span> IP</span>
                 </template>
               </p>
             </div>
@@ -406,23 +430,6 @@
                   class="p-1.5 rounded-lg text-txt-ter hover:bg-white/5 hover:text-white transition-all">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-        </div>
-
-        <!-- Subnet Scanner -->
-        <div class="px-5 py-2.5 border-y border-white/5 bg-white/[0.02]">
-          <div class="flex items-center gap-2.5">
-            <div class="relative flex-1" :class="discoveredDevices.length > 0 ? 'max-w-[220px]' : ''">
-              <input type="text" x-model="subnetToScan"
-                     class="bg-bg-inset border border-white/10 text-white text-[12px] pl-3 pr-3 py-1.5 rounded-lg w-full focus:border-accent/40 outline-none transition-all font-mono"
-                     placeholder="192.168.1">
-            </div>
-            <button @click="deepScan()" :disabled="scanningSubnet"
-                    class="bg-accent text-bg-inset hover:bg-cyan-300 disabled:opacity-50 px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 whitespace-nowrap">
-              <span x-show="scanningSubnet" class="animate-spin text-xs">🌀</span>
-              <span x-text="scanningSubnet ? 'Đang quét...' : 'Quét mạng'"></span>
-            </button>
-            <span class="text-[10px] text-txt-ter font-mono ml-auto" x-show="serverIP" x-text="serverIP"></span>
-          </div>
         </div>
 
         <!-- Modal Body -->
@@ -446,11 +453,11 @@
             </div>
           </template>
 
-          <!-- Devices table (only when has results) -->
+          <!-- Devices table — NEW (only when has results) -->
           <template x-if="discoveredDevices.length > 0">
             <div class="px-5 py-3">
               <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Thiết bị phát hiện</span>
+                <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Thiết bị mới</span>
                 <span class="text-[10px] text-txt-ter" x-text="newDevices.length + ' mới · ' + addedDevices.length + ' đã thêm'"></span>
               </div>
               <table class="w-full text-left">
@@ -483,7 +490,19 @@
                       </td>
                       <td class="px-3 py-2">
                         <div class="text-[11px] text-white/80" x-text="dev.manufacturer || '—'"></div>
-                        <div class="text-[9px] text-txt-ter font-mono truncate max-w-[120px]" x-text="dev.model || dev.serial || ''"></div>
+                        <div class="flex items-center gap-1 mt-0.5">
+                          <span class="text-[9px] text-txt-ter font-mono truncate max-w-[100px]" x-text="dev.model || dev.serial || ''"></span>
+                          <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
+                            <span class="text-[7px] font-bold bg-emerald-500/10 text-emerald-400 px-1 rounded"
+                                  x-text="dev.onvif_profiles.length + ' profiles'"></span>
+                          </template>
+                          <template x-if="dev.has_ptz">
+                            <span class="text-[7px] font-bold bg-purple-500/10 text-purple-400 px-1 rounded">PTZ</span>
+                          </template>
+                        </div>
+                        <template x-if="dev.rtsp_url_onvif">
+
+                        </template>
                       </td>
                       <td class="px-3 py-2">
                         <span class="text-[12px] font-bold text-white font-mono" x-text="dev.ip || '—'"></span>
@@ -526,20 +545,101 @@
             </div>
           </template>
 
+          <!-- Existing devices in DB -->
+          <template x-if="existingDevices.length > 0">
+            <div class="px-5 py-3">
+
+              <table class="w-full text-left">
+                <thead class="text-[10px] text-txt-ter uppercase tracking-wider font-bold border-b border-white/5">
+                  <tr>
+                    <th class="px-3 py-1.5">Tên trong DB</th>
+                    <th class="px-3 py-1.5">Phát hiện</th>
+                    <th class="px-3 py-1.5">IP</th>
+                    <th class="px-3 py-1.5 w-[70px]">TT</th>
+                    <th class="px-3 py-1.5 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="dev in existingDevices" :key="(dev.camera_id || dev.id) + dev.ip">
+                    <tr class="border-b border-white/[0.03] transition-all group"
+                        :class="dev._updated ? 'bg-amber-500/5' : 'hover:bg-white/[0.03]'">
+                      <td class="px-3 py-2">
+                        <div class="flex items-center gap-2">
+                          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 bg-amber-500/10">
+                            <span x-text="dev._updated ? '✅' : '📹'"></span>
+                          </div>
+                          <div class="min-w-0">
+                            <div class="text-[11px] font-semibold text-amber-300 truncate max-w-[180px]" x-text="dev.camera_name || dev.name"></div>
+                            <span class="text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded bg-amber-500/10 text-amber-400">DB #<span x-text="dev.camera_id"></span></span>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-3 py-2">
+                        <div class="text-[11px] text-white/80" x-text="dev.manufacturer || '—'"></div>
+                        <div class="flex items-center gap-1 mt-0.5">
+                          <span class="text-[9px] text-txt-ter font-mono truncate max-w-[100px]" x-text="dev.model || dev.serial || ''"></span>
+                          <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
+                            <span class="text-[7px] font-bold bg-emerald-500/10 text-emerald-400 px-1 rounded"
+                                  x-text="dev.onvif_profiles.length + ' profiles'"></span>
+                          </template>
+                          <template x-if="dev.has_ptz">
+                            <span class="text-[7px] font-bold bg-purple-500/10 text-purple-400 px-1 rounded">PTZ</span>
+                          </template>
+                        </div>
+                        <template x-if="dev.rtsp_url_onvif">
+
+                        </template>
+                      </td>
+                      <td class="px-3 py-2">
+                        <span class="text-[12px] font-bold text-white font-mono" x-text="dev.ip || '—'"></span>
+                      </td>
+                      <td class="px-3 py-2">
+                        <template x-if="dev._updated">
+                          <span class="text-[9px] font-bold text-amber-400">Đã cập nhật</span>
+                        </template>
+                        <template x-if="!dev._updated && dev.is_online">
+                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-green">
+                            <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
+                          </span>
+                        </template>
+                        <template x-if="!dev._updated && !dev.is_online">
+                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-red">
+                            <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
+                          </span>
+                        </template>
+                      </td>
+                      <td class="px-3 py-2 text-right">
+                        <template x-if="!dev._updated">
+                          <button @click="autoUpdateDevice(dev)"
+                            class="bg-amber-500 text-bg-inset hover:bg-amber-400 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all active:scale-95">
+                            Cập nhật
+                          </button>
+                        </template>
+                        <template x-if="dev._updated">
+                          <span class="text-amber-400 text-sm">✅</span>
+                        </template>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
           <!-- Empty state: compact -->
-          <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
+          <div x-show="discoveredDevices.length === 0 && existingDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
             <div class="flex flex-col items-center gap-2">
               <span class="text-3xl opacity-20">📡</span>
-              <p class="text-[12px] text-txt-sec">Thử nhập subnet và nhấn "Quét mạng"</p>
+              <p class="text-[12px] text-txt-sec">Không tìm thấy thiết bị mới</p>
             </div>
           </div>
         </div>
 
         <!-- Modal Footer -->
         <div class="px-5 py-2.5 border-t border-white/5 flex justify-end items-center gap-2 bg-white/[0.02]">
-          <button @click="addAllDevices()" x-show="newDevices.length > 1"
+          <button @click="addAllDevices()" x-show="newDevices.length + existingDevices.filter(d => !d._updated).length > 1"
                   class="bg-accent text-bg-inset hover:bg-cyan-300 px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold flex items-center gap-1.5">
-            ⚡ <span x-text="'Thêm tất cả ' + newDevices.length"></span>
+            <span x-text="'Xử lý tất cả (' + (newDevices.length + existingDevices.filter(d => !d._updated).length) + ')'"></span>
           </button>
           <button @click="showDiscoveryModal = false"
                   class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold">
@@ -554,43 +654,54 @@
 {% endblock %}
 {% block scripts %}
 <script>
-/**
- * Auto-generates RTSP URL from form fields
- */
-function autoFillRtsp(form) {
-    const type = form.querySelector('[name="camera_type"]').value;
-    const ip = form.querySelector('[name="camera_ip"]').value || '192.168.1.100';
-    const port = form.querySelector('[name="camera_port"]').value || '554';
-    const rtspInput = form.querySelector('[name="rtsp_url"]');
-    let mk = form.querySelector('[name="imou_mk"]').value;
-    
-    if (!mk && rtspInput.value && rtspInput.value.includes(':') && rtspInput.value.includes('@')) {
-        // rtsp://admin:PASSWORD@IP...
-        const match = rtspInput.value.match(/rtsp:\/\/admin:([^@]+)@/);
-        if (match && match[1]) {
-            // Keep it encoded if it's already in the URL
-            mk = decodeURIComponent(match[1]);
-            console.log("Extracted password from URL:", "****");
-        }
-    }
+// Provider RTSP templates from DB
+const PROVIDER_TEMPLATES = {{ provider_templates | tojson }};
+const GLOBAL_MK = {{ (global_mk or '') | tojson }};
 
-    if (mk) {
-        const encodedMk = encodeURIComponent(mk);
-        if (type === 'imou') {
-          // Imou Dahua Consumer: Channel 1, Subtype 1
-          rtspInput.value = `rtsp://admin:${encodedMk}@${ip}:${port}/cam/realmonitor?channel=1&subtype=1`;
-        } else {
-          // Standard Dahua/Hikv: Channel 1, Subtype 0
-          rtspInput.value = `rtsp://admin:${encodedMk}@${ip}:${port}/cam/realmonitor?channel=1&subtype=0`;
-        }
-        console.log("Generated RTSP URL:", rtspInput.value);
+function togglePassword(btn) {
+    const input = btn.parentElement.querySelector('input');
+    const eyeOff = btn.querySelector('.eye-off');
+    const eyeOn = btn.querySelector('.eye-on');
+    if (input.type === 'password') {
+        input.type = 'text';
+        eyeOff.classList.add('hidden');
+        eyeOn.classList.remove('hidden');
     } else {
-        alert("Vui lòng điền 'Mã an toàn / Password' trước để tự động tạo URL.");
+        input.type = 'password';
+        eyeOff.classList.remove('hidden');
+        eyeOn.classList.add('hidden');
     }
 }
 
 /**
- * Triggers cloud + local camera discovery
+ * Auto-generates RTSP URL from form fields using provider-specific templates
+ */
+function autoFillRtsp(form) {
+    const type = form.querySelector('[name="camera_type"]').value;
+    const ip = form.querySelector('[name="camera_ip"]').value;
+    const port = form.querySelector('[name="camera_port"]').value || '554';
+    const rtspInput = form.querySelector('[name="rtsp_url"]');
+    let mk = form.querySelector('[name="imou_mk"]').value;
+
+    // Fallback to global MK if form field is empty
+    if (!mk) mk = GLOBAL_MK;
+
+    if (!ip || !mk) return;  // Need at least IP + password
+
+    let template = PROVIDER_TEMPLATES[type];
+    if (!template) template = 'rtsp://{user}:{password}@{ip}:{port}/stream';
+
+    rtspInput.value = template
+        .replace('{user}', 'admin')
+        .replace('{password}', encodeURIComponent(mk))
+        .replace('{ip}', ip)
+        .replace('{port}', port)
+        .replace('{channel}', '1')
+        .replace('{subtype}', type === 'imou' ? '1' : '0');
+}
+
+/**
+ * Full discovery: ARP + ONVIF + Dahua UDP + Imou Cloud
  */
 async function discoverCameras() {
     const btn = document.getElementById('discover-btn');
@@ -600,40 +711,52 @@ async function discoverCameras() {
     btn.disabled = true;
     btn.classList.add('opacity-50', 'cursor-not-allowed');
     icon.classList.add('animate-spin');
-    text.innerText = "Đang dò tìm...";
-    
-    const resp = await fetch('/cameras/discover', { method: 'POST' });
-    const data = await resp.json();
-    
-    if (data.error) {
-        window.dispatchEvent(new CustomEvent('show-confirm', {
-            detail: {
-                title: 'Lỗi dò tìm',
-                message: 'Không thể thực hiện dò tìm: ' + data.error,
-                confirmText: 'Đóng',
-                isAlert: true
-            }
-        }));
-    } else {
-        console.log("Discovery successful:", data);
-        window.dispatchEvent(new CustomEvent('show-discovery', {
-            detail: {
-                devices: data.new_devices || [],
-                updated_cameras: data.updated_cameras || []
-            }
-        }));
-        
-        if (data.updated > 0) {
+    text.innerText = "Quét Dahua...";
+
+    // Progress text updates while waiting
+    const progressSteps = [
+        { delay: 5000, text: "Quét ONVIF..." },
+        { delay: 12000, text: "Đồng bộ kết quả..." },
+        { delay: 20000, text: "Đang xử lý..." },
+    ];
+    const timers = progressSteps.map(s => setTimeout(() => { text.innerText = s.text; }, s.delay));
+
+    try {
+        const resp = await fetch('/cameras/discover', { method: 'POST' });
+        const data = await resp.json();
+        timers.forEach(clearTimeout);
+
+        if (data.error) {
             window.dispatchEvent(new CustomEvent('show-confirm', {
+                detail: { title: 'Lỗi dò tìm', message: data.error, confirmText: 'Đóng', isAlert: true }
+            }));
+        } else {
+            // Build summary
+            const updated = data.updated || 0;
+            const registered = data.auto_registered || 0;
+            const newDevs = (data.new_devices || []).length;
+            const onlineCount = (data.existing_devices || []).filter(d => d.is_online).length;
+
+            // Dispatch to modal
+            window.dispatchEvent(new CustomEvent('show-discovery', {
                 detail: {
-                    title: 'Đã cập nhật IP',
-                    message: `Hệ thống đã tự động cập nhật địa chỉ IP mới cho ${data.updated} camera.`,
-                    confirmText: 'Tuyệt vời',
-                    isAlert: true,
-                    reload: true
+                    devices: data.new_devices || [],
+                    updated_cameras: data.updated_cameras || [],
+                    existing_devices: data.existing_devices || [],
+                    summary: { updated, registered, newDevs, onlineCount }
                 }
             }));
+
+            // Auto-reload if anything changed in DB
+            if (updated > 0 || registered > 0) {
+                setTimeout(() => window.location.reload(), 1500);
+            }
         }
+    } catch (e) {
+        timers.forEach(clearTimeout);
+        text.innerText = "Lỗi mạng";
+        setTimeout(() => { text.innerText = "Dò tìm Camera"; }, 2000);
+        return;
     }
 
     btn.disabled = false;
@@ -656,20 +779,29 @@ document.addEventListener('input', (e) => {
 // Fix for Add form submission (it didn't have an action/method)
 document.getElementById('add-cam-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const res = await fetch('/cameras', { method: 'POST', body: fd });
-    if (res.ok) {
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang lưu...'; }
+    try {
+        const fd = new FormData(e.target);
+        const res = await fetch('/cameras', { method: 'POST', body: fd, redirect: 'follow' });
+        // POST returns 303 redirect → fetch follows to GET /cameras → res.ok = true
+        if (res.ok || res.redirected) {
+            window.location.reload();
+        } else {
+            const err = await res.text();
+            window.dispatchEvent(new CustomEvent('show-confirm', {
+                detail: {
+                    title: 'Lỗi thêm camera',
+                    message: 'Không thể thêm camera mới: ' + err,
+                    confirmText: 'Đóng',
+                    isAlert: true
+                }
+            }));
+            if (btn) { btn.disabled = false; btn.textContent = '💾 Lưu'; }
+        }
+    } catch (err) {
+        console.error('Add camera error:', err);
         window.location.reload();
-    } else {
-        const err = await res.text();
-        window.dispatchEvent(new CustomEvent('show-confirm', {
-            detail: {
-                title: 'Lỗi thêm camera',
-                message: 'Không thể thêm camera mới: ' + err,
-                confirmText: 'Đóng',
-                isAlert: true
-            }
-        }));
     }
 });
 
@@ -678,6 +810,37 @@ document.addEventListener('change', (e) => {
     if (e.target.name === 'imou_device_id') {
         e.target.value = e.target.value.trim();
     }
+});
+
+// TomSelect for site multi-selects + auto-fill RTSP on load
+document.addEventListener('DOMContentLoaded', () => {
+    // TomSelect: Add form
+    const addSites = document.getElementById('add-sites-select');
+    if (addSites) {
+        new TomSelect(addSites, {
+            plugins: ['remove_button'],
+            placeholder: '— Chọn địa điểm —',
+            maxItems: null,
+        });
+    }
+    // TomSelect: Edit forms
+    document.querySelectorAll('[id^="edit-sites-"]').forEach(el => {
+        new TomSelect(el, {
+            plugins: ['remove_button'],
+            placeholder: '— Chọn địa điểm —',
+            maxItems: null,
+        });
+    });
+
+    // Auto-fill RTSP URL on page load for add form (if IP + MK available)
+    const addForm = document.getElementById('add-cam-form');
+    if (addForm) autoFillRtsp(addForm);
+
+    // Auto-fill RTSP URL on page load for all edit forms
+    document.querySelectorAll('[id^="edit-cam-form-"]').forEach(form => {
+        const f = form.querySelector('form');
+        if (f) autoFillRtsp(f);
+    });
 });
 </script>
 {% endblock %}

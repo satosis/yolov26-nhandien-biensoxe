@@ -207,14 +207,24 @@ class PlateDetector:
             
             is_onnx = path.endswith(".onnx")
             if is_onnx:
+                self._model_path = path
+                # Optimization: AI models (especially INT8 quantized) are often incompatible with Apple's ANE.
+                # To avoid initialization delays and noisy logs, we detect INT8 models and default to CPU on Mac.
+                is_int8 = "int8" in path.lower()
+                providers = ['CPUExecutionProvider']
+                provider_options = [{}]
+                
+                if not is_int8:
+                    # For FP16/FP32 models, try CoreML but avoid the Neural Engine (ANE) which can be unstable
+                    providers.insert(0, 'CoreMLExecutionProvider')
+                    provider_options.insert(0, {"MLComputeUnits": "CPUAndGPU"})
+
                 try:
-                    # Preference: CoreML (Mac), CUDA (NVIDIA), CPU (Fallback)
-                    providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
-                    
-                    sess_opt = ort.SessionOptions()
-                    sess_opt.enable_mem_pattern = False # Helps stability on some edge devices
-                    self._ort_session = ort.InferenceSession(path, sess_opt, providers=providers)
-                    
+                    self._ort_session = ort.InferenceSession(
+                        path, 
+                        providers=providers,
+                        provider_options=provider_options
+                    )
                     active_providers = self._ort_session.get_providers()
                     if "CoreMLExecutionProvider" in active_providers:
                         self._engine_type = "coreml"
@@ -223,7 +233,12 @@ class PlateDetector:
                         self._engine_type = "onnx_cpu"
                         logger.info("PlateDetector: ONNX loaded using CPU: %s", path)
                 except Exception as e:
-                    logger.warning("PlateDetector: ONNX init failed: %s", e)
+                    logger.warning("PlateDetector: ONNX init failed, trying CPU fallback: %s", e)
+                    try:
+                        self._ort_session = ort.InferenceSession(path, providers=['CPUExecutionProvider'])
+                        self._engine_type = "onnx_cpu"
+                    except Exception as e2:
+                        logger.error("PlateDetector: ONNX CPU fallback failed: %s", e2)
 
         # 3. Fallback to Ultralytics YOLO (CPU)
         if self._engine_type == "cpu":
@@ -255,13 +270,28 @@ class PlateDetector:
         return self._process_pred(pred, frame.shape[:2])
 
     def _detect_onnx(self, frame):
-        """ONNX Inference (CPU/CoreML)."""
-        input_name = self._ort_session.get_inputs()[0].name
-        # blob size is usually 640x640 for this project
-        blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
-        outputs = self._ort_session.run(None, {input_name: blob})
-        pred = outputs[0][0]
-        return self._process_pred(pred, frame.shape[:2])
+        """ONNX Inference (CPU/CoreML) with automatic fallback."""
+        try:
+            input_name = self._ort_session.get_inputs()[0].name
+            # blob size is usually 640x640 for this project
+            blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
+            outputs = self._ort_session.run(None, {input_name: blob})
+            pred = outputs[0][0]
+            return self._process_pred(pred, frame.shape[:2])
+        except Exception as e:
+            if self._engine_type == "coreml":
+                logger.error("CoreML execution failed (likely INT8 incompatibility), falling back to CPU: %s", e)
+                self._engine_type = "onnx_cpu"
+                try:
+                    # Clear session and reload with CPU only
+                    self._ort_session = ort.InferenceSession(self._model_path, providers=["CPUExecutionProvider"])
+                    return self._detect_onnx(frame) # Retry
+                except Exception as e2:
+                    logger.critical("Critical error: CPU fallback failed: %s", e2)
+                    return []
+            else:
+                logger.error("ONNX inference error: %s", e)
+                return []
 
     def _detect_yolo(self, frame):
         """Fallback YOLO CPU Inference."""
@@ -440,6 +470,16 @@ class InferenceWorker:
         self._voters: dict[str, PlateVoter] = {}
         self._shm_clients: dict[str, shared_memory.SharedMemory] = {}
         self._seen_plates: dict[str, float] = {}
+
+        # Door auto-close manager (lazy init)
+        self._door_manager = None
+        try:
+            from backend.core.door_auto_close import DoorAutoCloseManager
+            self._door_manager = DoorAutoCloseManager()
+            self._door_manager.reload_config(self._db)
+            logger.info("DoorAutoCloseManager initialized")
+        except Exception as e:
+            logger.debug(f"DoorAutoCloseManager not available: {e}")
         self._recent_strangers: dict[str, list] = {} # cam_id -> list of {'emb': np.ndarray, 'ts': float}
         self._frame_counter = 0
         
@@ -572,6 +612,15 @@ class InferenceWorker:
                     elif cls_id == 2: # Door
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 0), 2) # Blue
                         cv2.putText(result.annotated_frame, "DOOR", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+
+                # Feed detections to door auto-close manager
+                if self._door_manager:
+                    self._door_manager.on_frame(
+                        camera_id=cam_id,
+                        detections=detections,
+                        frame_height=frame.shape[0],
+                        db=self._db,
+                    )
 
                 if voter.is_ready():
                     best_text, best_conf = voter.best()

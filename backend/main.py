@@ -94,7 +94,8 @@ class CameraOrchestrator:
         
         p_grab = mp.Process(
             target=grabber_process,
-            args=(cam_id, rtsp_url, shm_name, self.infer_queue, self.recorder_queue, self.stop_event, site_id),
+            args=(cam_id, rtsp_url, shm_name, self.infer_queue, self.recorder_queue,
+                  self.stop_event, site_id, cam['id']),
             name=f"Grabber_{cam_id}"
         )
         p_grab.start()

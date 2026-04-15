@@ -258,6 +258,30 @@
           <label for="door-active" class="text-sm text-txt-sec">Đang hoạt động</label>
         </div>
 
+        <!-- Auto-Close Section -->
+        <div class="mt-4 pt-4 border-t border-white/5">
+          <div class="flex items-center gap-3 mb-3">
+            <input type="checkbox" id="door-auto-close" name="auto_close_enabled" class="w-4 h-4 rounded border-white/10 bg-white/5 text-emerald-400 focus:ring-emerald-400">
+            <label for="door-auto-close" class="text-sm text-txt-sec font-bold">Tự đóng khi không có người</label>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-[11px] text-txt-ter font-bold uppercase tracking-wider mb-1">Camera giám sát</label>
+              <select id="door-camera" name="camera_id" class="minimalist-input appearance-none">
+                <option value="">-- Chọn camera --</option>
+                {% for cam in cameras %}
+                <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] text-txt-ter font-bold uppercase tracking-wider mb-1">Thời gian chờ (giây)</label>
+              <input type="number" id="door-delay" name="auto_close_delay_sec" value="300" min="30" max="3600" class="minimalist-input">
+              <span class="text-[9px] text-txt-ter mt-1 block">Mặc định: 300 giây (5 phút)</span>
+            </div>
+          </div>
+        </div>
+
         <div class="flex items-center justify-end gap-4 mt-8 pt-6 border-t border-white/5">
           <button type="button" onclick="closeModal('add-door-modal')" class="text-[13px] font-semibold text-txt-ter hover:text-white transition-colors">HỦY</button>
           <button type="submit" class="minimalist-btn-primary px-10 py-3 shadow-lg hover:shadow-cyan-500/10 uppercase tracking-widest font-bold">LƯU CẤU HÌNH</button>
@@ -384,6 +408,12 @@
       document.getElementById('hunonic-password').value = door.relay_config.password || '';
       document.getElementById('hunonic-device-id').value = door.relay_config.device_id || '';
     }
+
+    // Auto-close fields
+    document.getElementById('door-auto-close').checked = door.auto_close_enabled || false;
+    document.getElementById('door-camera').value = door.camera_id || '';
+    document.getElementById('door-delay').value = door.auto_close_delay_sec || 300;
+
     toggleRelayFields();
   }
 

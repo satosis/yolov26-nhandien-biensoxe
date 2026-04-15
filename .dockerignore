@@ -11,6 +11,8 @@ __pycache__/
 # Data and models — mount via volumes
 data/
 logs/
+training/
+uploads/
 
 # IDE / AI tools
 .claude/

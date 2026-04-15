@@ -14,7 +14,7 @@ bcrypt
 OPi.GPIO                # Orange Pi GPIO control
 
 # --- AI & Detection (YOLO, Face) ---
-ultralytics==8.3.160
+ultralytics==8.4.36
 face-recognition
 insightface>=0.7.3
 onnx==1.17.0

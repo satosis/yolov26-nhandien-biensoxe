@@ -32,34 +32,77 @@ _discovery_logger = logging.getLogger("discovery")
 
 
 def _run_background_discovery():
-    """Synchronous wrapper for background discovery — only updates IPs, never auto-inserts."""
+    """Synchronous wrapper — full ONVIF + Dahua + Cloud discovery (slow path)."""
     try:
         from backend.util.network_utils import discover_and_update_all_cameras
         result = discover_and_update_all_cameras()
         updated = result.get('updated', 0)
-        if updated > 0:
-            _discovery_logger.info(f"Background discovery: updated {updated} camera IP(s)")
+        registered = result.get('auto_registered', 0)
+        if updated > 0 or registered > 0:
+            _discovery_logger.info(
+                f"Full discovery: updated={updated} IP(s), auto_registered={registered}"
+            )
     except Exception as e:
-        _discovery_logger.error(f"Background discovery error: {e}")
+        _discovery_logger.error(f"Full discovery error: {e}")
+
+
+def _run_arp_discovery():
+    """Synchronous wrapper — ARP table scan only (fast path, zero network cost)."""
+    try:
+        from backend.util.network_utils import discover_from_arp, auto_register_discovered_cameras
+        from backend.core.database import DatabaseManager
+        db = DatabaseManager()
+        candidates = discover_from_arp()
+        if candidates:
+            result = auto_register_discovered_cameras(candidates, db)
+            if result['updated'] > 0 or result['registered'] > 0:
+                _discovery_logger.info(
+                    f"ARP scan: updated={result['updated']}, registered={result['registered']}"
+                )
+    except Exception as e:
+        _discovery_logger.error(f"ARP discovery error: {e}")
 
 
 async def _periodic_discovery():
-    """Run lightweight camera discovery periodically in background."""
+    """Two-speed camera discovery loop.
+    Fast (every 60s): ARP table scan — zero network cost, instant.
+    Slow (every 300s): Full ONVIF + Dahua UDP + Cloud API — multicast/TCP.
+    """
     await asyncio.sleep(30)  # Wait for app to fully start
+    fast_cycle = 0
+    fast_interval, slow_interval = 60, 300
+
+    # Read intervals from DB once at startup
+    try:
+        from backend.core.database import DatabaseManager
+        db = DatabaseManager()
+        fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
+        slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
+    except Exception:
+        pass
+
     while True:
-        try:
-            from backend.core.database import DatabaseManager
-            db = DatabaseManager()
-            interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
-        except Exception:
-            interval = 300
+        slow_every_n = max(1, slow_interval // fast_interval)
 
         try:
-            await asyncio.to_thread(_run_background_discovery)
+            if fast_cycle % slow_every_n == 0:
+                _discovery_logger.info("Running full discovery (slow path)...")
+                await asyncio.to_thread(_run_background_discovery)
+                # Refresh intervals on slow cycle (settings may have changed)
+                try:
+                    from backend.core.database import DatabaseManager
+                    db = DatabaseManager()
+                    fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
+                    slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
+                except Exception:
+                    pass
+            else:
+                await asyncio.to_thread(_run_arp_discovery)
         except Exception as e:
-            _discovery_logger.error(f"Periodic discovery error: {e}")
+            _discovery_logger.error(f"Discovery cycle error: {e}")
 
-        await asyncio.sleep(interval)
+        fast_cycle += 1
+        await asyncio.sleep(fast_interval)
 
 
 @asynccontextmanager

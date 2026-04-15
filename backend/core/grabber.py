@@ -25,6 +25,13 @@ from backend.core import config as cfg
 
 logger = logging.getLogger("grabber")
 
+# ── Circuit Breaker Configuration ────────────────────────────────────────────
+# Circuit breaker configuration (hardcoded — override via app_settings in DB)
+_CB_MAX_FAILS = 5
+_CB_OPEN_SECONDS = 120
+_CB_BACKOFF_BASE = 5      # seconds, doubles each failure
+_CB_BACKOFF_MAX = 300      # cap at 5 minutes
+
 
 # ── ROI helpers ───────────────────────────────────────────────────────────────
 
@@ -74,6 +81,7 @@ class CameraReader:
         recorder_queue: Queue,
         stop_event: Event,
         site_id: int = None,
+        camera_db_id: int = None,
     ):
         self.cam_id = cam_id
         self.rtsp_url = rtsp_url
@@ -82,8 +90,22 @@ class CameraReader:
         self.recorder_queue = recorder_queue
         self.stop_event = stop_event
         self.site_id = site_id
+        self._camera_db_id = camera_db_id
+
+        # Circuit breaker state
+        self._fail_count = 0
+        self._cb_state = 'CLOSED'    # CLOSED | OPEN | HALF_OPEN
+        self._cb_opened_at = 0.0
 
         total = self.HEADER_BYTES + cfg.SHM_FRAME_BYTES
+        # Clean up stale SHM from previous crash before creating fresh one
+        try:
+            stale = shared_memory.SharedMemory(name=shm_name, create=False)
+            stale.close()
+            stale.unlink()
+            logger.info("[%s] Cleaned stale SHM '%s'", cam_id, shm_name)
+        except FileNotFoundError:
+            pass
         self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
         self._buf = np.ndarray(
             (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3),
@@ -102,10 +124,44 @@ class CameraReader:
 
         try:
             while not self.stop_event.is_set():
+                # ── Circuit Breaker Check ────────────────────────────
+                if self._cb_state == 'OPEN':
+                    elapsed = time.monotonic() - self._cb_opened_at
+                    if elapsed < _CB_OPEN_SECONDS:
+                        wait_remaining = _CB_OPEN_SECONDS - elapsed
+                        logger.warning("[%s] Circuit OPEN — waiting %.0fs",
+                                       self.cam_id, wait_remaining)
+                        self.stop_event.wait(min(wait_remaining, 30))
+                        continue
+                    else:
+                        self._cb_state = 'HALF_OPEN'
+                        logger.info("[%s] Circuit HALF_OPEN — testing", self.cam_id)
+                # ─────────────────────────────────────────────────────
+
                 cap = self._open_capture()
                 if cap is None:
-                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    self._fail_count += 1
+                    backoff = min(_CB_BACKOFF_BASE * (2 ** (self._fail_count - 1)),
+                                  _CB_BACKOFF_MAX)
+
+                    if self._fail_count >= _CB_MAX_FAILS:
+                        self._cb_state = 'OPEN'
+                        self._cb_opened_at = time.monotonic()
+                        logger.error("[%s] Circuit OPENED after %d failures",
+                                     self.cam_id, self._fail_count)
+                        self._write_health_event('stream_down')
+                    else:
+                        logger.warning("[%s] Connect failed (%d/%d), backoff %ds",
+                                       self.cam_id, self._fail_count, _CB_MAX_FAILS, backoff)
+                    self.stop_event.wait(backoff)
                     continue
+
+                # ── Connection succeeded ─────────────────────────────
+                if self._fail_count > 0 or self._cb_state == 'HALF_OPEN':
+                    self._write_health_event('stream_up')
+                self._fail_count = 0
+                self._cb_state = 'CLOSED'
+                # ─────────────────────────────────────────────────────
 
                 logger.info("[%s] Stream opened", self.cam_id)
                 t_last = time.monotonic()
@@ -116,19 +172,16 @@ class CameraReader:
                         logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
                         break
 
-                    # Expert Optimization: Use high-precision sleep for smoother 15 FPS stream
                     t_now = time.monotonic()
                     if t_now < t_last + frame_interval:
-                        time.sleep(max(0, (t_last + frame_interval) - t_now))
+                        self.stop_event.wait(max(0, (t_last + frame_interval) - t_now))
                     t_last = time.monotonic()
 
-                    # Resize to target resolution - NEAREST is 3x faster than LINEAR on CPU
                     if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
                         frame = cv2.resize(
                             frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
                         )
 
-                    # Optional temporal denoising (Disabled by default if alpha=1.0)
                     alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
                     if alpha < 1.0:
                         if hasattr(self, '_prev_f32'):
@@ -137,27 +190,22 @@ class CameraReader:
                         else:
                             self._prev_f32 = frame.astype(np.float32)
 
-                    # Write frame to shared memory (zero-copy for inference process)
                     np.copyto(self._buf, frame)
                     self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
 
-                    # Feed recorder queue (JPEG history buffer)
                     if self.recorder_queue and not self.recorder_queue.full():
-                        # We send a copy to the recorder process. 
-                        # Recorder handles JPEG compression in its own process.
                         self.recorder_queue.put_nowait({
                             "cam_id": self.cam_id,
                             "frame": frame.copy(),
                             "ts": time.time()
                         })
 
-                    # Motion detection - optimized by downscaling to 1/4
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
                         small_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
                         if roi_mask is None:
                             roi_mask = _build_roi_mask(cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, scale=0.25)
-                        
+
                         if _motion_in_roi(prev_gray, small_gray, roi_mask):
                             token = {
                                 "cam_id": self.cam_id,
@@ -176,17 +224,60 @@ class CameraReader:
                 cap.release()
                 if not self.stop_event.is_set():
                     logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
-                    time.sleep(cfg.RTSP_RECONNECT_DELAY)
+                    self.stop_event.wait(cfg.RTSP_RECONNECT_DELAY)
         except Exception as e:
             logger.critical("[%s] Grabber CRASHED: %s", self.cam_id, str(e), exc_info=True)
+            self._write_health_event('crashed')
             raise
 
         self._shm.close()
         self._shm.unlink()
         logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
+    def _get_db(self):
+        """Lazy DatabaseManager — shared pool, created once."""
+        if not hasattr(self, '_db_instance'):
+            from backend.core.database import DatabaseManager
+            self._db_instance = DatabaseManager()
+        return self._db_instance
+
+    def _write_health_event(self, event_type: str):
+        """Write a health event to camera_status_log + Telegram alert on stream_down."""
+        try:
+            db = self._get_db()
+            db.log_camera_event(
+                cam_id=str(self.cam_id),
+                event_type=event_type,
+                started_at=time.strftime("%Y-%m-%d %H:%M:%S"),
+            )
+        except Exception as e:
+            logger.debug("[%s] Health event write failed: %s", self.cam_id, e)
+
+        # Telegram alert khi camera offline (stream_down hoặc crashed)
+        if event_type in ('stream_down', 'crashed'):
+            try:
+                from backend.core.telegram_service import notify_telegram
+                notify_telegram(
+                    f"Camera {self.cam_id} OFFLINE — {event_type} sau {self._fail_count} failures",
+                    important=True,
+                )
+            except Exception:
+                pass
+
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        """Open RTSP with FFmpeg backend + forced TCP transport for stability."""
+        """Open RTSP with FFmpeg backend + forced TCP transport for stability.
+        Re-reads RTSP URL from DB on each attempt to pick up IP changes."""
+        # Refresh URL from DB if we have the DB id
+        if self._camera_db_id:
+            try:
+                db = self._get_db()
+                fresh_url = db.get_camera_rtsp_url(self._camera_db_id)
+                if fresh_url and fresh_url != self.rtsp_url:
+                    logger.info("[%s] RTSP URL refreshed from DB", self.cam_id)
+                    self.rtsp_url = fresh_url
+            except Exception as e:
+                logger.debug("[%s] URL refresh failed: %s", self.cam_id, e)
+
         # Force TCP transport globally for this process
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         
@@ -222,11 +313,13 @@ def grabber_process(
     recorder_queue: Queue,
     stop_event: Event,
     site_id: int = None,
+    camera_db_id: int = None,
 ):
     """Entry point for multiprocessing.Process(target=grabber_process, ...)."""
     # Ignore SIGINT in child — parent handles shutdown via stop_event
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 
-    reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, recorder_queue, stop_event, site_id)
+    reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, recorder_queue,
+                          stop_event, site_id, camera_db_id)
     reader.run()

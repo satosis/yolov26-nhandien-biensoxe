@@ -78,7 +78,8 @@ class DatabaseManager:
                         if result and cursor_factory:
                             result = [dict(r) for r in result]
                     elif return_id:
-                        result = cursor.fetchone()[0]
+                        row = cursor.fetchone()
+                        result = row[0] if row else None
                     if commit:
                         conn.commit()
                     return result
@@ -457,11 +458,13 @@ class DatabaseManager:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''INSERT INTO camera_status_log
-                       (camera_id, status, logged_at)
-                       VALUES (%s, %s, %s) RETURNING id''',
-                    (cam_id, event_type, started_at)
+                       (camera_id, status, event_type, logged_at)
+                       VALUES (%s, %s, %s, %s) RETURNING id''',
+                    (cam_id, event_type, event_type, started_at)
                 )
-                return cursor.fetchone()[0]
+                result = cursor.fetchone()[0]
+                conn.commit()
+                return result
     def get_camera_health(self, cam_id: str = None, hours: int = 24) -> list[dict]:
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -476,15 +479,25 @@ class DatabaseManager:
                         (hours,)
                     )
                 return [dict(r) for r in cursor.fetchall()]
+
+    def get_cameras_latest_status(self) -> dict:
+        """Get latest health status for each camera. Returns {camera_id_str: {status, logged_at}}."""
+        query = """
+            SELECT DISTINCT ON (camera_id) camera_id, status, logged_at
+            FROM camera_status_log
+            ORDER BY camera_id, logged_at DESC
+        """
+        rows = self._execute_query(query, fetchall=True, commit=False) or []
+        return {str(r['camera_id']): r for r in rows}
+
     def add_legal_hold(self, file_path: str, reason: str, held_by: str) -> bool:
-        # ON CONFLICT DO NOTHING implies we can't just use standard insert without raw query
-        # Keeping original for ON CONFLICT
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     'INSERT INTO legal_hold (file_path, reason, held_by, held_at) VALUES (%s, %s, %s, NOW()) ON CONFLICT DO NOTHING',
                     (file_path, reason, held_by)
                 )
+                conn.commit()
                 return True
     def release_legal_hold(self, file_path: str) -> bool:
         query = "UPDATE legal_hold SET released_at = NOW() WHERE file_path = %s AND released_at IS NULL"
@@ -844,15 +857,17 @@ class DatabaseManager:
     def get_camera(self, camera_id: int) -> dict:
         return self.select("cameras", conditions={"id": camera_id}, fetchall=False)
 
-    def add_camera(self, name, cam_type, imou_device_id, rtsp_url, is_active=True, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=554) -> bool:
+    def add_camera(self, name, cam_type, imou_device_id, rtsp_url, is_active=True, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=554):
+        """Insert a new camera. Returns the new camera ID (int) or None on failure."""
         query = '''
             INSERT INTO cameras (camera_name, camera_type, imou_device_id, imou_channel_id, rtsp_url, is_active, site_ids, provider_keys, camera_ip, camera_port)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
         '''
         pk_json = json.dumps(provider_keys) if provider_keys else '{}'
         dev_id = imou_device_id.strip() if imou_device_id else None
         params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
-        return self._execute_query(query, params, commit=True) is not None
+        return self._execute_query(query, params, commit=True, return_id=True)
 
     def update_camera(self, camera_id, name, cam_type, imou_device_id, rtsp_url, is_active, imou_channel_id="0", site_ids=None, provider_keys=None, camera_ip=None, camera_port=None) -> bool:
         query = '''
@@ -875,30 +890,48 @@ class DatabaseManager:
 
     def upsert_camera_asset(self, cam_id: str, name: str, ip: str = None,
                              serial: str = None, model: str = None,
-                             firmware: str = None) -> bool:
+                             firmware: str = None, rtsp_url: str = None,
+                             onvif_port: int = None, onvif_profiles: list = None,
+                             mac: str = None) -> bool:
         """Upsert a discovered camera into the cameras_asset CMDB table."""
+        import json as _json
+        profiles_json = _json.dumps(onvif_profiles) if onvif_profiles else None
         query = """
-            INSERT INTO cameras_asset (cam_id, name, ip, serial, model, firmware, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            INSERT INTO cameras_asset (cam_id, name, ip, mac, serial, model, firmware, rtsp_url, onvif_port, onvif_profiles, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, NOW())
             ON CONFLICT (cam_id) DO UPDATE SET
                 ip = COALESCE(EXCLUDED.ip, cameras_asset.ip),
+                mac = COALESCE(EXCLUDED.mac, cameras_asset.mac),
                 serial = COALESCE(EXCLUDED.serial, cameras_asset.serial),
                 model = COALESCE(EXCLUDED.model, cameras_asset.model),
                 firmware = COALESCE(EXCLUDED.firmware, cameras_asset.firmware),
                 name = COALESCE(EXCLUDED.name, cameras_asset.name),
+                rtsp_url = COALESCE(EXCLUDED.rtsp_url, cameras_asset.rtsp_url),
+                onvif_port = COALESCE(EXCLUDED.onvif_port, cameras_asset.onvif_port),
+                onvif_profiles = COALESCE(EXCLUDED.onvif_profiles, cameras_asset.onvif_profiles),
                 updated_at = NOW()
         """
-        return self._execute_query(query, (cam_id, name, ip, serial, model, firmware), commit=True) is not None
+        return self._execute_query(query, (cam_id, name, ip, mac, serial, model, firmware,
+                                           rtsp_url, onvif_port, profiles_json), commit=True) is not None
 
     def get_imou_api_keys(self) -> dict:
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_APP_ID', 'IMOU_APP_SECRET')")
-                res = {k: v for k, v in cursor.fetchall()}
-                return {
-                    'app_id': res.get('IMOU_APP_ID', ''),
-                    'app_secret': res.get('IMOU_APP_SECRET', '')
-                }
+        # Ưu tiên đọc từ provider keys (trang Quản lý Key)
+        provider_keys = self.get_provider_api_keys("imou")
+        app_id = provider_keys.get('open_app_id', '')
+        app_secret = provider_keys.get('open_app_secret', '')
+
+        # Fallback: đọc key cũ IMOU_APP_ID/IMOU_APP_SECRET
+        if not app_id or not app_secret:
+            with self._get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT key, value FROM app_settings WHERE key IN ('IMOU_APP_ID', 'IMOU_APP_SECRET')")
+                    res = {k: v for k, v in cursor.fetchall()}
+                    if not app_id:
+                        app_id = res.get('IMOU_APP_ID', '')
+                    if not app_secret:
+                        app_secret = res.get('IMOU_APP_SECRET', '')
+
+        return {'app_id': app_id, 'app_secret': app_secret}
     def update_imou_api_keys(self, app_id: str, app_secret: str) -> bool:
         q1 = '''INSERT INTO app_settings (key, value) VALUES ('IMOU_APP_ID', %s)
                 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()'''
@@ -973,62 +1006,89 @@ class DatabaseManager:
     def get_camera_rtsp_url(self, camera_id: int, subtype: int = 1) -> str | None:
         """
         Resolve the RTSP URL for a camera.
-        - For Imou: specialized generation with credential encoding.
-        - Others: returns the saved rtsp_url.
+        Priority:
+        1. ONVIF-detected URL (highest trust — camera reported its own URL)
+        2. Manual rtsp_url (if valid, non-placeholder)
+        3. Generate from provider's rtsp_template
         """
-        cam = self.get_camera(camera_id)
-        if not cam or cam.get('camera_type') != 'imou':
-            return cam.get('rtsp_url') if cam else None
+        import urllib.parse
 
+        cam = self.get_camera(camera_id)
+        if not cam:
+            return None
+
+        # Priority 1: ONVIF-detected RTSP URL
+        onvif_url = cam.get('onvif_rtsp_detected')
+        if onvif_url and onvif_url.startswith("rtsp://"):
+            return onvif_url
+
+        # Priority 2: Manual URL if already valid
         manual_url = cam.get('rtsp_url')
-        # Only use manual URL if it's actually manual (doesn't have placeholders or double-at from broken encoding)
         is_placeholder = "admin:password@192.168.1.100" in (manual_url or "")
         is_broken = "@@" in (manual_url or "")
-        
+
         if manual_url and manual_url.startswith("rtsp://") and not is_placeholder and not is_broken:
             return manual_url
 
-        provider = self.get_provider('imou')
-        template = provider['rtsp_template'] if provider and provider.get('rtsp_template') else \
-            'rtsp://admin:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}'
-        
-        # Get credentials - Safety Code is usually the password
-        provider_keys = cam.get('provider_keys') or {}
-        if isinstance(provider_keys, str):
-            import json
-            provider_keys = json.loads(provider_keys)
-        
-        import urllib.parse
-        
-        # Priority: 1. Camera-specific MK, 2. Global app setting
-        mk = provider_keys.get('mk')
-        if not mk:
-            mk = self.get_app_setting("IMOU_MK", "bB123456789@")
-            
-        # URL encode password if it has special chars like @, #, etc.
-        encoded_mk = urllib.parse.quote(mk, safe='')
-            
-        # Get IP and Port
+        # Priority 3: Generate from template
         ip = cam.get('camera_ip')
         if not ip:
             logger.warning(f"Camera {camera_id} has no IP configured. Cannot generate RTSP URL.")
             return None
-            
+
+        cam_type = cam.get('camera_type', 'rtsp')
+        provider = self.get_provider(cam_type)
+        template = (provider.get('rtsp_template') if provider else None) or \
+            'rtsp://{user}:{password}@{ip}:{port}/stream'
+
+        provider_keys = cam.get('provider_keys') or {}
+        if isinstance(provider_keys, str):
+            import json
+            provider_keys = json.loads(provider_keys)
+
+        user = provider_keys.get('user', 'admin')
+
+        mk = provider_keys.get('mk')
+        if not mk:
+            mk = self.get_app_setting(f"{cam_type.upper()}_MK", "")
+        if not mk:
+            mk = self.get_app_setting("IMOU_MK", "")
+        if not mk:
+            logger.warning(f"Camera {camera_id} has no password configured. Cannot generate RTSP URL.")
+            return None
+
+        encoded_mk = urllib.parse.quote(mk, safe='')
+
         port = cam.get('camera_port') or 554
-        
-        # Check if we should use sub-stream (subtype=1) from settings, default to 1 for stability
+        channel = cam.get('imou_channel_id') or '1'
         global_subtype = self.get_app_setting("IMOU_SUBTYPE", str(subtype))
-        
-        channel = cam.get('imou_channel_id') or '1' 
-        
-        # Use template
-        return template.format(
-            password=encoded_mk,
-            ip=ip,
-            port=port,
-            channel=channel,
-            subtype=global_subtype
-        )
+
+        try:
+            return template.format(
+                user=user,
+                password=encoded_mk,
+                ip=ip,
+                port=port,
+                channel=channel,
+                subtype=global_subtype
+            )
+        except KeyError as e:
+            logger.error(f"RTSP template format error for camera {camera_id}: {e}")
+            return f"rtsp://{user}:{encoded_mk}@{ip}:{port}/stream"
+
+    def store_onvif_detected_rtsp(self, camera_id: int, rtsp_url: str) -> bool:
+        """Store the ONVIF-detected RTSP URL in cameras table (highest priority source)."""
+        return self._execute_query(
+            "UPDATE cameras SET onvif_rtsp_detected = %s, updated_at = NOW() WHERE id = %s",
+            (rtsp_url, camera_id), commit=True
+        ) is not None
+
+    def regenerate_rtsp_url(self, camera_id: int) -> bool:
+        """Clear stored rtsp_url AND onvif_rtsp_detected so get_camera_rtsp_url() regenerates from template."""
+        return self._execute_query(
+            "UPDATE cameras SET rtsp_url = NULL, onvif_rtsp_detected = NULL, updated_at = NOW() WHERE id = %s",
+            (camera_id,), commit=True
+        ) is not None
 
     # --- Camera Providers ---
 
@@ -1447,3 +1507,23 @@ class DatabaseManager:
 
     def delete_rolling_door(self, door_id: int):
         return self.delete('rolling_doors', {'id': door_id})
+
+    def get_doors_for_auto_close(self) -> list:
+        """Get all rolling doors with auto_close_enabled and a linked camera."""
+        query = """
+            SELECT rd.id, rd.name, rd.camera_id, rd.auto_close_delay_sec,
+                   rd.relay_type, rd.relay_config, rd.site_id
+            FROM rolling_doors rd
+            WHERE rd.auto_close_enabled = TRUE AND rd.camera_id IS NOT NULL AND rd.is_active = TRUE
+        """
+        return self._execute_query(query, fetchall=True, commit=False) or []
+
+    def log_door_event(self, door_id: int, event_type: str, notes: str = None) -> bool:
+        """Log a door control event."""
+        query = """
+            INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """
+        return self._execute_query(
+            query, (str(door_id), event_type, event_type, notes), commit=True
+        ) is not None

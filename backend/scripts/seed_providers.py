@@ -17,7 +17,7 @@ def seed():
             "logo_url": "/static/assets/providers/imou.png",
             "api_base_url": "https://open.imoulife.com",
             "api_doc_url": "https://open.imoulife.com/book/index.html",
-            "rtsp_template": "rtsp://{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}",
+            "rtsp_template": "rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}",
             "notes": "Imou Cloud Platform. Ảnh chính thức từ imoulife.com"
         },
         {
@@ -26,7 +26,7 @@ def seed():
             "logo_url": "/static/assets/providers/hikvision.png",
             "api_base_url": "https://open.hikvision.com",
             "api_doc_url": "https://tpp.hikvision.com",
-            "rtsp_template": "rtsp://admin:{password}@{ip}:{port}/Streaming/Channels/{channel}01",
+            "rtsp_template": "rtsp://{user}:{password}@{ip}:{port}/Streaming/Channels/{channel}01",
             "notes": "Hikvision Security. Ảnh từ Wikimedia/Hikvision"
         },
         {
@@ -35,7 +35,7 @@ def seed():
             "logo_url": "/static/assets/providers/ezviz.png",
             "api_base_url": "https://open.ezviz.com",
             "api_doc_url": "https://www.ezviz.com/download/branding-assets",
-            "rtsp_template": "rtsp://{password}@{ip}:{port}/h264Preview_01_main",
+            "rtsp_template": "rtsp://{user}:{password}@{ip}:{port}/h264Preview_01_main",
             "notes": "Ezviz Smart Home. Ảnh chính thức từ ezviz.com"
         },
         {
@@ -44,7 +44,7 @@ def seed():
             "logo_url": "/static/assets/providers/dahua.png",
             "api_base_url": "https://open.dahuasecurity.com",
             "api_doc_url": "https://www.dahuasecurity.com/developer",
-            "rtsp_template": "rtsp://{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}",
+            "rtsp_template": "rtsp://{user}:{password}@{ip}:{port}/cam/realmonitor?channel={channel}&subtype={subtype}",
             "notes": "Dahua Pro SDK. Ảnh từ Wikimedia/Dahua"
         }
     ]

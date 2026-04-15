@@ -383,7 +383,40 @@
     const rtspPlaceholder = document.getElementById('rtsp-placeholder');
     const rtspFeed = document.getElementById('rtsp-feed');
     let rtspActive = false;
-    let rtspInterval = null;
+
+    const rtspCaptureCanvas = document.createElement('canvas');
+    let rtspProcessing = false;
+    const rtspOverlay = document.getElementById('rtsp-overlay');
+
+    function processRtspFrame() {
+      if (!rtspActive || rtspProcessing) return;
+      if (!rtspFeed.naturalWidth || rtspFeed.naturalWidth < 10) {
+        setTimeout(processRtspFrame, 500);
+        return;
+      }
+
+      rtspProcessing = true;
+      rtspCaptureCanvas.width = 640;
+      rtspCaptureCanvas.height = 480;
+      const ctx = rtspCaptureCanvas.getContext('2d', { alpha: false });
+      ctx.drawImage(rtspFeed, 0, 0, 640, 480);
+
+      rtspCaptureCanvas.toBlob(async (blob) => {
+        if (!rtspActive) { rtspProcessing = false; return; }
+        const data = await sendFrame(blob);
+        rtspProcessing = false;
+        if (!rtspActive) return;
+
+        renderResults(data);
+        rtspOverlay.classList.remove('hidden');
+        rtspOverlay.width = rtspFeed.clientWidth;
+        rtspOverlay.height = rtspFeed.clientHeight;
+        drawBoxes(rtspOverlay, rtspFeed, data.results, 640, 480);
+
+        const delay = (data?.results?.length > 0) ? 500 : 1000;
+        setTimeout(processRtspFrame, delay);
+      }, 'image/jpeg', 0.85);
+    }
 
     window.toggleRtsp = async () => {
       const camId = rtspCamera.value;
@@ -396,30 +429,24 @@
         // STOP
         await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
         rtspActive = false;
-        if (rtspInterval) clearInterval(rtspInterval);
-        // btnStartRtsp.classList.add('hidden'); // Removed
         rtspPlaceholder.classList.remove('hidden');
         rtspFeed.classList.add('hidden');
+        rtspOverlay.classList.add('hidden');
         rtspFeed.src = '';
+        // Clear overlay
+        const ctx = rtspOverlay.getContext('2d');
+        ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
       } else {
         // START
         rtspActive = true;
-        // btnStartRtsp.classList.remove('hidden'); // Removed
         rtspPlaceholder.classList.add('hidden');
         rtspFeed.classList.remove('hidden');
 
         await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
-        // For demonstration, we'll try to use a stream endpoint if it exists,
-        // otherwise we just show a "Connecting" state.
         rtspFeed.src = `/detection/stream/${camId}`;
 
-        // Polling loop for detections from SHM-based stream
-        rtspInterval = setInterval(async () => {
-          if (!rtspActive) return;
-          // We can't easily capture from <img> tag like we do with <video>,
-          // so we rely on the backend doing the detection and we just show the result.
-          // However, for the UI to be "alive", we might want to fetch results.
-        }, 1000);
+        // Start AI detection polling after stream loads
+        setTimeout(processRtspFrame, 1500);
       }
     };
 
