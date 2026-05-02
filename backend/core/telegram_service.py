@@ -7,12 +7,26 @@ import psutil
 from backend.core.config import TOKEN, CHAT_IMPORTANT, CHAT_REGULAR, FACES_DIR, normalize_plate
 from backend.core.database import DatabaseManager
 
-# Whitelist of Telegram user IDs allowed to execute bot commands
-# Set TELEGRAM_ALLOWED_USERS=123456,789012 in .env (comma-separated)
 _ALLOWED_USERS_RAW = os.environ.get("TELEGRAM_ALLOWED_USERS", "")
-TELEGRAM_ALLOWED_USERS = set(
-    int(uid.strip()) for uid in _ALLOWED_USERS_RAW.split(",") if uid.strip().isdigit()
-)
+
+# Helper to get dynamic Telegram config from DB with fallback to .env
+def get_telegram_config():
+    """Fetch global telegram settings from DB app_settings table."""
+    db = DatabaseManager()
+    token = db.get_app_setting("TELEGRAM_TOKEN", TOKEN)
+    chat_important = db.get_app_setting("TELEGRAM_CHAT_IMPORTANT", CHAT_IMPORTANT)
+    chat_regular = db.get_app_setting("TELEGRAM_CHAT_REGULAR", CHAT_REGULAR)
+    allowed_users_raw = db.get_app_setting("TELEGRAM_ALLOWED_USERS", _ALLOWED_USERS_RAW)
+    
+    allowed_users = set(
+        int(uid.strip()) for uid in allowed_users_raw.split(",") if uid.strip().isdigit()
+    )
+    return {
+        "token": token,
+        "chat_important": chat_important,
+        "chat_regular": chat_regular,
+        "allowed_users": allowed_users
+    }
 
 
 def notify_telegram(message, important=False):
@@ -29,17 +43,62 @@ def notify_telegram(message, important=False):
             if not chat_id:
                 continue
             url = f"https://api.telegram.org/bot{bot['token']}/sendMessage"
-            requests.post(url, json={"chat_id": chat_id, "text": prefix + message}, timeout=5)
-            sent_via_db = True
+            try:
+                requests.post(url, json={"chat_id": chat_id, "text": prefix + message}, timeout=5)
+                sent_via_db = True
+            except:
+                pass
 
-    # Fallback to single static config from backend.core.config if DB had no bots or failed
+    # Fallback to single static config from DB/backend.core.config
     if not sent_via_db:
-        chat_id = CHAT_IMPORTANT if important else CHAT_REGULAR
-        if not chat_id or not TOKEN:
+        cfg_dyn = get_telegram_config()
+        chat_id = cfg_dyn["chat_important"] if important else cfg_dyn["chat_regular"]
+        token = cfg_dyn["token"]
+        if not chat_id or not token:
             return
             
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
         requests.post(url, json={"chat_id": chat_id, "text": prefix + message}, timeout=5)
+
+
+def notify_telegram_video(video_path, caption="", important=False):
+    """Gửi video (.mp4) qua Telegram bot."""
+    if not os.path.exists(video_path):
+        return
+        
+    prefix = "🚨 [VIDEO CẢNH BÁO] " if important else "📹 [VIDEO GHI HÌNH] "
+    sent_via_db = False
+    
+    db = DatabaseManager()
+    bots = db.get_telegram_bots()
+    
+    if bots:
+        for bot in bots:
+            chat_id = bot.get('chat_id')
+            if not chat_id:
+                continue
+            url = f"https://api.telegram.org/bot{bot['token']}/sendVideo"
+            try:
+                with open(video_path, 'rb') as video:
+                    requests.post(url, files={'video': video}, data={'chat_id': chat_id, 'caption': prefix + caption}, timeout=30)
+                sent_via_db = True
+            except Exception as e:
+                print(f"Telegram Video (DB) Error: {e}")
+
+    # Fallback to static config
+    if not sent_via_db:
+        cfg_dyn = get_telegram_config()
+        chat_id = cfg_dyn["chat_important"] if important else cfg_dyn["chat_regular"]
+        token = cfg_dyn["token"]
+        if not chat_id or not token:
+            return
+            
+        url = f"https://api.telegram.org/bot{token}/sendVideo"
+        try:
+            with open(video_path, 'rb') as video:
+                requests.post(url, files={'video': video}, data={'chat_id': chat_id, 'caption': prefix + caption}, timeout=30)
+        except Exception as e:
+            print(f"Telegram Video (Static) Error: {e}")
 
 
 def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn):
@@ -149,7 +208,9 @@ def handle_telegram_command(text, chat_id, user_id, db, load_faces_fn):
 
 def telegram_polling_loop(db, load_faces_fn):
     """Vòng lặp nhận tin nhắn từ Telegram."""
-    if not TOKEN:
+    cfg_dyn = get_telegram_config()
+    token = cfg_dyn["token"]
+    if not token:
         return
 
     last_update_id = 0
@@ -172,8 +233,8 @@ def telegram_polling_loop(db, load_faces_fn):
                         chat_id_msg = msg["chat"]["id"]
                         user_id = msg["from"]["id"]
 
-                        if str(chat_id_msg) in [CHAT_IMPORTANT, CHAT_REGULAR]:
-                            if TELEGRAM_ALLOWED_USERS and user_id not in TELEGRAM_ALLOWED_USERS:
+                        if str(chat_id_msg) in [str(cfg_dyn["chat_important"]), str(cfg_dyn["chat_regular"])]:
+                            if cfg_dyn["allowed_users"] and user_id not in cfg_dyn["allowed_users"]:
                                 continue
                             handle_telegram_command(text, chat_id_msg, user_id, db, load_faces_fn)
                             # Forward non-command messages to agents (REMOVED)
@@ -186,7 +247,13 @@ def telegram_bot_handler(db, get_cpu_temp_fn, get_state_fn):
     """Handler Telegram bot với lệnh /stats, /sys, /cleanup, /mine, /staff, /reject."""
     last_update_id = 0
     while True:
-        url = f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset={last_update_id + 1}&timeout=10"
+        cfg_dyn = get_telegram_config()
+        token = cfg_dyn["token"]
+        if not token:
+            time.sleep(10)
+            continue
+            
+        url = f"https://api.telegram.org/bot{token}/getUpdates?offset={last_update_id + 1}&timeout=10"
         r = requests.get(url, timeout=15).json()
         if r.get("ok"):
             for update in r["result"]:

@@ -1,0 +1,53 @@
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('i18n', {
+      lang: 'vi',
+      translations: {
+        vi: {
+          home: 'Trang chủ', about: 'Giới thiệu', services: 'Dịch vụ', news: 'Tin tức', warehouse: 'Nhà xưởng', cranes: 'Xe cẩu', login: 'Đăng nhập',
+          hero_title: 'THÉP SƠN LÂM Industrial Core', hero_subtitle: 'Vận tải vươn xa', warehouse_btn: 'Khám phá giải pháp',
+          featured_asset: 'Tài sản nổi bật', view_all: 'XEM TẤT CẢ', available_now: 'ĐANG TRỐNG',
+          factory_lease: 'Cho thuê nhà xưởng cao cấp', inspection: 'HẸN LỊCH XEM XƯỞNG', equipment_services: 'Dịch vụ thiết bị',
+          crane_desc: 'Sức nâng từ 25T đến 500T cho hạ tầng trọng điểm.', location_title: 'Vị trí chiến lược: Vĩnh Phúc',
+          location_desc: 'Kết nối tối ưu tới các đường cao tốc và trung tâm công nghiệp.', to_hanoi: 'Tới trung tâm Hà Nội',
+          to_airport: 'Tới sân bay Nội Bài', specs: 'Thông số kỹ thuật', area: 'DIỆN TICH', substation: 'TRẠM BIẾN ÁP',
+          security: 'AN NINH', pccc: 'PCCC', pccc_desc: 'Chuẩn Bộ CA', advantages: 'Ưu điểm vượt trội',
+          support_247: 'Hỗ trợ 24/7', call_now: 'GỌI CẨU NGAY', iso_cert: 'Chứng chỉ vận hành ISO 9001',
+          crane_hero: 'Dịch vụ xe cẩu chuyên nghiệp', crane_hero_desc: 'Giải pháp nâng hạ tải trọng lớn với tiêu chuẩn an toàn quốc tế.',
+          orders: 'Đơn hàng', profile: 'Cá nhân', contact_now: 'Liên hệ ngay',
+          mobile_cranes: 'Xe cẩu bánh lốp', tower_cranes: 'Xe cẩu tháp', maintenance: 'Bảo trì định kỳ',
+          high_rise_ready: 'Phù hợp nhà cao tầng',
+          about_title: 'Về THÉP SƠN LÂM', about_desc: 'Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.',
+          vision: 'Tầm nhìn', mission: 'Sứ mệnh', core_values: 'Giá trị cốt lõi'
+        },
+        zh: {
+          home: '首页', about: '关于我们', services: '服务项目', news: '新闻资讯', warehouse: '厂房租赁', cranes: '起重机服务', login: '登录',
+          hero_title: 'THÉP SƠN LÂM 工业核心', hero_subtitle: '运输通达天下', warehouse_btn: '探索解决方案',
+          featured_asset: '特色资产', view_all: '查看全部', available_now: '现有空置',
+          factory_lease: '高端厂房出租', inspection: '预约参观厂房', equipment_services: '设备服务',
+          crane_desc: '起重能力25吨至500吨，服务于重点基础设施。', location_title: '战略位置：永福',
+          location_desc: '优化的交通连接，直通高速公路和工业中心。', to_hanoi: '至河内市中心',
+          to_airport: '至内排国际机场', specs: '技术规格', area: '面积', substation: '变电站',
+          security: '安保', pccc: '消防', pccc_desc: '公安部标准', advantages: '卓越优势',
+          support_247: '24/7 全天候支持', call_now: '立即拨打起重机服务', iso_cert: 'ISO 9001 运行认证',
+          crane_hero: '专业起重机服务', crane_hero_desc: '遵循国际安全标准的大吨位起重解决方案。',
+          orders: '订单', profile: '个人中心', contact_now: '立即联系',
+          mobile_cranes: '轮胎式起重机', tower_cranes: '塔式起重机', maintenance: '定期维护',
+          high_rise_ready: '适用于高层建筑',
+          about_title: '关于 THÉP SƠN LÂM', about_desc: '我们是华北地区领先的厂房解决方案和起重服务提供商。',
+          vision: '愿景', mission: '使命', core_values: '核心价值'
+        }
+      },
+      init() {
+        const browserLang = navigator.language.split('-')[0];
+        this.lang = (browserLang === 'zh') ? 'zh' : 'vi';
+      },
+      setLang(l) { this.lang = l; },
+      t(key) {
+        if (!this.translations[this.lang]) return key;
+        return this.translations[this.lang][key] || key;
+      }
+    });
+    Alpine.store('i18n').init();
+  });
+</script>

@@ -22,6 +22,11 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rolling_doors"
     
+    # Global Tuya settings
+    ctx["global_tuya_device_id"] = db.get_app_setting("TUYA_DEVICE_ID", "")
+    ctx["global_tuya_local_key"] = db.get_app_setting("TUYA_LOCAL_KEY", "")
+    ctx["global_tuya_ip"] = db.get_app_setting("TUYA_IP", "")
+    
     # Fetch data
     doors = db.get_all_rolling_doors()
     suppliers = db.get_all_door_providers()
@@ -54,6 +59,22 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
     ctx["cameras"] = db.get_all_cameras()
 
     return templates.TemplateResponse("pages/rolling_doors.html", {"request": request, **ctx})
+
+
+@router.post("/tuya_global")
+async def update_tuya_global(
+    request: Request,
+    device_id: str = Form(""),
+    local_key: str = Form(""),
+    ip: str = Form(""),
+    user: dict = Depends(require_menu("rolling_doors")),
+):
+    db = get_db()
+    db.set_app_setting("TUYA_DEVICE_ID", device_id.strip())
+    db.set_app_setting("TUYA_LOCAL_KEY", local_key.strip())
+    db.set_app_setting("TUYA_IP", ip.strip())
+    
+    return RedirectResponse(url="/rolling_doors", status_code=303)
 
 @router.post("")
 async def upsert_rolling_door(

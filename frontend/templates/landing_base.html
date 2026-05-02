@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>{% block title %}Industrial Core{% endblock %}</title>
+
+  <!-- Preconnect to cut DNS + TLS time for external resources -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Tailwind local -->
+  <script src="/static/vendor/tailwind.min.js"></script>
+
+  <!-- Fonts: Inter (latin only) + Material Symbols — async so they don't block render -->
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet"/></noscript>
+
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block" rel="stylesheet"/></noscript>
+
+  <!-- Alpine.js local — defer so it doesn't block HTML parse -->
+  <script defer src="/static/vendor/alpine.min.js"></script>
+
+  <link rel="shortcut icon" href="/static/favicon.png" type="image/x-icon">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  {% block seo %}
+  <meta name="description" content="THÉP SƠN LÂM Industrial Core — Cho thuê nhà xưởng KCN Stavian Vĩnh Phúc, dịch vụ xe cẩu 25–500 tấn, tư vấn FDI hạ tầng khu công nghiệp Việt Nam.">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="THÉP SƠN LÂM Industrial Core">
+  <link rel="canonical" href="{{ request.url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
+  <meta property="og:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng & Xe cẩu Vĩnh Phúc">
+  <meta property="og:description" content="THÉP SƠN LÂM Industrial Core — Cho thuê nhà xưởng KCN Stavian Vĩnh Phúc, dịch vụ xe cẩu 25–500 tấn, tư vấn FDI hạ tầng khu công nghiệp Việt Nam.">
+  <meta property="og:image" content="{{ request.base_url }}static/brain/factory_hero.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng & Xe cẩu Vĩnh Phúc">
+  <meta name="twitter:description" content="Cho thuê nhà xưởng KCN Stavian Vĩnh Phúc. Xe cẩu 25–500 tấn. Phục vụ 24/7.">
+  <meta name="twitter:image" content="{{ request.base_url }}static/brain/factory_hero.jpg">
+  {% endblock %}
+
+  {% include "partials/landing_i18n.html" %}
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary": "#000000",
+            "on-background": "#0b1c30",
+            "surface-bright": "#f8f9ff",
+            "background": "#f8f9ff",
+            "surface-dim": "#cbdbf5",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#b9c7e0",
+            "secondary": "#9d4300",
+            "on-secondary-fixed": "#341100",
+            "secondary-fixed-dim": "#ffb690",
+            "tertiary": "#000000",
+            "on-tertiary-fixed-variant": "#3a485c",
+            "surface-variant": "#d3e4fe",
+            "on-secondary-fixed-variant": "#783200",
+            "on-secondary": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-primary-container": "#7c839b",
+            "on-tertiary-fixed": "#0d1c2f",
+            "surface": "#f8f9ff",
+            "inverse-primary": "#bec6e0",
+            "secondary-container": "#fd761a",
+            "primary-fixed-dim": "#bec6e0",
+            "primary-container": "#131b2e",
+            "outline-variant": "#c6c6cd",
+            "secondary-fixed": "#ffdbca",
+            "error": "#ba1a1a",
+            "surface-container-low": "#eff4ff",
+            "inverse-on-surface": "#eaf1ff",
+            "on-tertiary": "#ffffff",
+            "on-surface": "#0b1c30",
+            "surface-container": "#e5eeff",
+            "inverse-surface": "#213145",
+            "tertiary-container": "#0d1c2f",
+            "on-error-container": "#93000a",
+            "surface-container-highest": "#d3e4fe",
+            "on-primary-fixed-variant": "#3f465c",
+            "on-primary-fixed": "#131b2e",
+            "tertiary-fixed": "#d5e3fd",
+            "surface-container-lowest": "#ffffff",
+            "surface-tint": "#565e74",
+            "outline": "#76777d",
+            "on-surface-variant": "#45464d",
+            "on-error": "#ffffff",
+            "primary-fixed": "#dae2fd",
+            "surface-container-high": "#dce9ff",
+            "on-tertiary-container": "#76859b",
+            "on-secondary-container": "#5c2400"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "sm": "16px",
+            "md": "24px",
+            "xl": "64px",
+            "xs": "8px",
+            "lg": "40px",
+            "gutter": "24px",
+            "base": "4px",
+            "margin": "32px"
+          },
+          "fontFamily": {
+            "label-sm": ["Inter"],
+            "label-bold": ["Inter"],
+            "body-lg": ["Inter"],
+            "h3": ["Inter"],
+            "h2": ["Inter"],
+            "display": ["Inter"],
+            "h1": ["Inter"],
+            "body-md": ["Inter"]
+          },
+          "fontSize": {
+            "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "500"}],
+            "label-bold": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+            "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+            "h3": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+            "h2": ["30px", {"lineHeight": "1.2", "fontWeight": "700"}],
+            "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+            "h1": ["36px", {"lineHeight": "1.2", "fontWeight": "700"}],
+            "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .active-pill {
+      background-color: #fd761a;
+      color: white;
+    }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Protect UI chrome from Google Translate */
+    .notranslate { unicode-bidi: embed; }
+
+    /* Preloader Styles */
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0b1c30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease, visibility 0.5s;
+    }
+    #preloader.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+    .factory-loader {
+      animation: pulse-factory 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-factory {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 20px rgba(253, 118, 26, 0.4)); }
+    }
+    .loader-text {
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      margin-top: 20px;
+      opacity: 0.6;
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden antialiased">
+  <!-- Preloader Overlay -->
+  <div id="preloader">
+    <svg class="factory-loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80" fill="#fd761a">
+      <!-- factory building -->
+      <rect x="4" y="32" width="56" height="28" rx="2"/>
+      <rect x="8" y="24" width="14" height="8"/>
+      <rect x="26" y="20" width="14" height="12"/>
+      <rect x="44" y="16" width="10" height="16"/>
+      <!-- chimney -->
+      <rect x="10" y="10" width="6" height="14"/>
+      <rect x="28" y="6" width="6" height="14"/>
+      <!-- windows / doors -->
+      <rect x="8" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="22" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="36" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="50" y="40" width="6" height="8" rx="1" fill="#0b1c30"/>
+      <!-- door -->
+      <rect x="27" y="50" width="10" height="10" rx="1" fill="#0b1c30"/>
+    </svg>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      const loader = document.getElementById('preloader');
+      setTimeout(() => {
+        loader.classList.add('hidden');
+      }, 800); // Small delay for smoothness
+    });
+  </script>
+  
+  {% include "partials/landing_header.html" %}
+
+  <!-- Google Translate (hidden widget, controlled by lang selector) -->
+  <div id="google_translate_element" style="display:none"></div>
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'vi',
+        includedLanguages: 'vi,zh-CN,en',
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+
+    function _setCookie(name, value, days, domain) {
+      const exp = new Date(Date.now() + days * 864e5).toUTCString();
+      let c = name + '=' + value + '; expires=' + exp + '; path=/; SameSite=Lax';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+    function _delCookie(name, domain) {
+      let c = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+
+    // Called by lang selector — switches Google Translate + saves preference 1 week
+    function setGoogleLang(langCode) {
+      if (langCode === 'vi') {
+        _delCookie('googtrans');
+        _delCookie('googtrans', location.hostname);
+        _delCookie('lang_pref');
+        _delCookie('lang_pref', location.hostname);
+      } else {
+        const val = '/vi/' + langCode;
+        _setCookie('googtrans', val, 7);
+        _setCookie('googtrans', val, 7, location.hostname);
+        _setCookie('lang_pref', langCode, 7);
+        _setCookie('lang_pref', langCode, 7, location.hostname);
+      }
+      location.reload();
+    }
+
+    // On load: reflect saved lang_pref cookie in Alpine store
+    document.addEventListener('alpine:init', () => {
+      const m = document.cookie.match(/lang_pref=([^;]+)/);
+      if (m && m[1] && m[1] !== 'vi') {
+        Alpine.store('i18n').lang = 'zh';
+      }
+    });
+  </script>
+  <script type="text/javascript"
+          src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+  </script>
+  <style>
+    /* Hide Google Translate toolbar banner */
+    .goog-te-banner-frame, .skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+    .goog-te-gadget { display: none !important; }
+  </style>
+
+  <main class="pt-16 pb-24">
+    {% block content %}{% endblock %}
+
+    {% include "partials/landing_footer.html" %}
+  </main>
+
+  <!-- BottomNavBar -->
+  <nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-white border-t border-slate-200 shadow-[0_-1px_3px_0_rgba(0,0,0,0.05)]">
+    <a class="flex flex-col items-center justify-center {% if request.path == '/' %}text-orange-600 bg-slate-50{% else %}text-slate-500{% endif %} rounded-lg p-1 transition-all" href="/">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true" style="{% if request.path == '/' %}font-variation-settings: 'FILL' 1;{% endif %}">grid_view</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
+    </a>
+    <a class="flex flex-col items-center justify-center {% if '/nha-xuong' in request.path %}text-orange-600 bg-slate-50{% else %}text-slate-500{% endif %} p-1 transition-all" href="/nha-xuong">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true" style="{% if '/nha-xuong' in request.path %}font-variation-settings: 'FILL' 1;{% endif %}">warehouse</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+    </a>
+    {% if user %}
+    <div class="relative flex flex-col items-center justify-center p-1" x-data="{ open: false }" @click.away="open = false">
+      <button @click="open = !open" class="flex flex-col items-center justify-center text-orange-600">
+        <div class="w-6 h-6 rounded-full bg-orange-600 flex items-center justify-center text-[10px] font-black text-white notranslate">
+          {{ (user.username or user.full_name or "U")[0] | upper }}
+        </div>
+        <span class="text-[10px] font-bold uppercase font-inter mt-1 text-orange-600 notranslate max-w-[56px] truncate">{{ user.full_name or user.username }}</span>
+      </button>
+      <div x-show="open"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-y-2"
+           x-transition:enter-end="opacity-100 translate-y-0"
+           class="absolute bottom-full mb-2 right-0 w-44 bg-white border border-slate-200 rounded-xl shadow-xl z-[60] overflow-hidden notranslate" translate="no">
+        <a href="/camera/detection" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-slate-700">
+          <span class="material-symbols-outlined text-[18px] text-orange-500 notranslate" aria-hidden="true">dashboard</span>
+          <span class="text-[12px] font-bold notranslate">Dashboard</span>
+        </a>
+        <div class="h-px bg-slate-100 mx-3"></div>
+        <a href="/logout" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-slate-700 hover:text-rose-500">
+          <span class="material-symbols-outlined text-[18px] notranslate" aria-hidden="true">logout</span>
+          <span class="text-[12px] font-bold notranslate">Đăng xuất</span>
+        </a>
+      </div>
+    </div>
+    {% else %}
+    <a class="flex flex-col items-center justify-center text-slate-500 p-1 hover:text-slate-900 transition-all" href="/login">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true">person</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
+    </a>
+    {% endif %}
+  </nav>
+
+  <!-- FAB -->
+  <a href="tel:{{ settings.phone if settings else '' }}" class="fixed bottom-20 right-6 w-14 h-14 bg-secondary-container text-white rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all z-40" translate="no">
+    <span class="material-symbols-outlined notranslate" aria-hidden="true">add_call</span>
+  </a>
+</body>
+</html>

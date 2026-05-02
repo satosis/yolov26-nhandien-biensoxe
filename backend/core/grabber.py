@@ -103,7 +103,7 @@ class CameraReader:
             stale = shared_memory.SharedMemory(name=shm_name, create=False)
             stale.close()
             stale.unlink()
-            logger.info("[%s] Cleaned stale SHM '%s'", cam_id, shm_name)
+            logger.warning("[%s] Cleaned stale SHM '%s' — InferenceWorker cache may need refresh", cam_id, shm_name)
         except FileNotFoundError:
             pass
         self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
@@ -238,7 +238,7 @@ class CameraReader:
         """Lazy DatabaseManager — shared pool, created once."""
         if not hasattr(self, '_db_instance'):
             from backend.core.database import DatabaseManager
-            self._db_instance = DatabaseManager()
+            self._db_instance = DatabaseManager(max_pool_size=2)
         return self._db_instance
 
     def _write_health_event(self, event_type: str):

@@ -14,9 +14,15 @@ from dataclasses import dataclass, field
 from multiprocessing import Process, Queue, Event, shared_memory
 from typing import Optional, List, Tuple, Dict, Any
 
-import onnxruntime as ort
+try:
+    import onnxruntime as ort
+    _HAS_ORT = True
+except ImportError:
+    _HAS_ORT = False
+
 import insightface
 from insightface.app import FaceAnalysis
+import torch
 from ultralytics import YOLO
 
 from backend.core import config as cfg
@@ -173,10 +179,49 @@ class PlateVoter:
 
 class PlateDetector:
     def __init__(self):
-        self._rknn = None
+        self._engine_type = "cpu"
         self._ort_session = None
         self._model = None
-        self._engine_type = "cpu"
+        self._rknn = None
+        self._model_path = cfg.PLATE_MODEL_PATH
+        
+        logger.info("PlateDetector: Initializing... Target model: %s", self._model_path)
+
+        # 0. User Preference: Try PyTorch (.pt) first
+        if self._model_path.endswith(".pt"):
+            if os.path.exists(self._model_path):
+                try:
+                    # --- Robust Workaround for YOLOv10/v11 E2ELoss ---
+                    try:
+                        import sys, types
+                        class E2ELoss: pass
+                        for target in ['ultralytics.utils.loss', 'ultralytics.nn.modules.loss']:
+                            try:
+                                # Ensure module exists in sys.modules
+                                if target not in sys.modules:
+                                    sys.modules[target] = types.ModuleType(target)
+                                # Inject E2ELoss
+                                setattr(sys.modules[target], 'E2ELoss', E2ELoss)
+                            except Exception: continue
+                    except Exception: pass
+                    
+                    self._model = YOLO(self._model_path, task="detect")
+                    # Hardware Acceleration: MPS (Mac) > CPU
+                    device = "cpu"
+                    if torch.backends.mps.is_available():
+                        device = "mps"
+                        # Warmup to ensure MPS is actually working
+                        self._model.to(device)
+                        logger.info("PlateDetector: PyTorch hardware acceleration ENABLED (MPS)")
+                    else:
+                        self._model.to("cpu")
+                        logger.info("PlateDetector: PyTorch loaded using CPU")
+                    self._engine_type = f"yolo_{device}"
+                    return # Skip ONNX/RKNN if .pt is requested and loaded
+                except Exception as e:
+                    logger.error("PlateDetector: PyTorch load failed: %s", e)
+            else:
+                logger.error("PlateDetector: Requested .pt file NOT FOUND: %s", self._model_path)
 
         # 1. Try RKNN (Rockchip NPU)
         rknn_path = getattr(cfg, 'RKNN_MODEL_PATH', None)
@@ -198,51 +243,51 @@ class PlateDetector:
             except Exception as e:
                 logger.warning("PlateDetector: RKNN initialization error: %s", e)
 
-        # 2. Try ONNX with Hardware Acceleration (CoreML / TensorRT)
-        if self._engine_type == "cpu":
-            path = cfg.PLATE_MODEL_PATH
-            onnx_path = path.replace(".pt", ".onnx")
-            if os.path.exists(onnx_path):
-                path = onnx_path
-            
-            is_onnx = path.endswith(".onnx")
-            if is_onnx:
-                self._model_path = path
-                # Optimization: AI models (especially INT8 quantized) are often incompatible with Apple's ANE.
-                # To avoid initialization delays and noisy logs, we detect INT8 models and default to CPU on Mac.
+        # 2. Try ONNX with Hardware Acceleration (fallback for ARM/production)
+        if self._engine_type == "cpu" and _HAS_ORT:
+            path = self._model_path
+            if path.endswith(".pt"):
+                onnx_path = path.replace(".pt", ".onnx")
+                int8_path = path.replace(".pt", "_int8.onnx")
+                if os.path.exists(int8_path):
+                    path = int8_path
+                elif os.path.exists(onnx_path):
+                    path = onnx_path
+
+            if path.endswith(".onnx") and os.path.exists(path):
                 is_int8 = "int8" in path.lower()
                 providers = ['CPUExecutionProvider']
                 provider_options = [{}]
-                
                 if not is_int8:
-                    # For FP16/FP32 models, try CoreML but avoid the Neural Engine (ANE) which can be unstable
                     providers.insert(0, 'CoreMLExecutionProvider')
                     provider_options.insert(0, {"MLComputeUnits": "CPUAndGPU"})
-
                 try:
-                    self._ort_session = ort.InferenceSession(
-                        path, 
-                        providers=providers,
-                        provider_options=provider_options
-                    )
-                    active_providers = self._ort_session.get_providers()
-                    if "CoreMLExecutionProvider" in active_providers:
+                    self._ort_session = ort.InferenceSession(path, providers=providers, provider_options=provider_options)
+                    active = self._ort_session.get_providers()
+                    if "CoreMLExecutionProvider" in active:
                         self._engine_type = "coreml"
-                        logger.info("PlateDetector: Hardware Acceleration ENABLED (CoreML): %s", path)
+                        logger.info("PlateDetector: ONNX + CoreML: %s", path)
                     else:
                         self._engine_type = "onnx_cpu"
-                        logger.info("PlateDetector: ONNX loaded using CPU: %s", path)
+                        logger.info("PlateDetector: ONNX CPU: %s", path)
                 except Exception as e:
-                    logger.warning("PlateDetector: ONNX init failed, trying CPU fallback: %s", e)
-                    try:
-                        self._ort_session = ort.InferenceSession(path, providers=['CPUExecutionProvider'])
-                        self._engine_type = "onnx_cpu"
-                    except Exception as e2:
-                        logger.error("PlateDetector: ONNX CPU fallback failed: %s", e2)
+                    logger.warning("PlateDetector: ONNX init failed: %s", e)
+                    self._ort_session = None
 
         # 3. Fallback to Ultralytics YOLO (CPU)
         if self._engine_type == "cpu":
             try:
+                # Apply same patch for fallback attempt
+                try:
+                    import sys, types
+                    class E2ELoss: pass
+                    for target in ['ultralytics.utils.loss', 'ultralytics.nn.modules.loss']:
+                        try:
+                            if target not in sys.modules: sys.modules[target] = types.ModuleType(target)
+                            setattr(sys.modules[target], 'E2ELoss', E2ELoss)
+                        except Exception: continue
+                except Exception: pass
+                
                 self._model = YOLO(cfg.PLATE_MODEL_PATH, task="detect")
                 self._model.to("cpu")
                 self._engine_type = "yolo_cpu"
@@ -252,49 +297,35 @@ class PlateDetector:
 
     def detect(self, frame):
         """Perform detection using the fastest available engine."""
-        if self._engine_type == "rknn":
-            return self._detect_rknn(frame)
+        if self._model:
+            return self._detect_yolo(frame)
         elif self._ort_session:
             return self._detect_onnx(frame)
-        elif self._model:
-            return self._detect_yolo(frame)
+        elif self._engine_type == "rknn":
+            return self._detect_rknn(frame)
         return []
 
     def _detect_rknn(self, frame):
         """RKNN NPU Inference (Rockchip)."""
-        # RKNN expects [640, 640, 3] usually
         blob = cv2.resize(frame, (640, 640))
         outputs = self._rknn.inference(inputs=[blob])
-        # Format [1, 300, 6] -> [x1, y1, x2, y2, score, cls_id]
         pred = outputs[0][0]
         return self._process_pred(pred, frame.shape[:2])
 
     def _detect_onnx(self, frame):
-        """ONNX Inference (CPU/CoreML) with automatic fallback."""
+        """ONNX Inference (CPU/CoreML)."""
         try:
             input_name = self._ort_session.get_inputs()[0].name
-            # blob size is usually 640x640 for this project
             blob = cv2.dnn.blobFromImage(frame, 1/255.0, (640, 640), swapRB=True)
             outputs = self._ort_session.run(None, {input_name: blob})
             pred = outputs[0][0]
             return self._process_pred(pred, frame.shape[:2])
         except Exception as e:
-            if self._engine_type == "coreml":
-                logger.error("CoreML execution failed (likely INT8 incompatibility), falling back to CPU: %s", e)
-                self._engine_type = "onnx_cpu"
-                try:
-                    # Clear session and reload with CPU only
-                    self._ort_session = ort.InferenceSession(self._model_path, providers=["CPUExecutionProvider"])
-                    return self._detect_onnx(frame) # Retry
-                except Exception as e2:
-                    logger.critical("Critical error: CPU fallback failed: %s", e2)
-                    return []
-            else:
-                logger.error("ONNX inference error: %s", e)
-                return []
+            logger.error("ONNX inference error: %s", e)
+            return []
 
     def _detect_yolo(self, frame):
-        """Fallback YOLO CPU Inference."""
+        """YOLO PyTorch inference (MPS/CPU). Device set once at init via model.to()."""
         results = self._model(frame, imgsz=640, conf=0.25, verbose=False)
         boxes = []
         for r in results:
@@ -335,7 +366,6 @@ class PlateDetector:
         if self._rknn:
             self._rknn.release()
             logger.info("PlateDetector: RKNN released")
-        self._ort_session = None
         self._model = None
 
 class OCRReader:
@@ -348,23 +378,26 @@ class OCRReader:
 
 class FaceRecognizer:
     def __init__(self):
-        # Force CPUExecutionProvider for FaceAnalysis
         preferred = ["CPUExecutionProvider"]
         self._app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=preferred)
-        self._app.prepare(ctx_id=-1, det_size=(320, 320)) # ctx_id=-1 for CPU
+        self._app.prepare(ctx_id=-1, det_size=(320, 320))
         logger.info("FaceRecognizer initialized with buffalo_sc (InsightFace) on CPU")
-        
+
         self._names = []
         self._matrix = None
-        
+        self._known_session = []  # Sticky cache: [{'emb': ndarray, 'name': str, 'ts': float}]
+        self._lock = threading.Lock()  # Protects _matrix, _names, _known_session
+
         self._load_known_faces()
-        logger.info(f"FaceRecognizer ready with {len(self._names)} known identities")
+        logger.info("FaceRecognizer ready with %d known identities", len(self._names))
 
     def reload(self):
-        """Reload known faces from disk."""
+        """Reload known faces from disk (thread-safe)."""
         logger.info("FaceRecognizer: Reloading known faces...")
-        self._load_known_faces()
-        logger.info(f"FaceRecognizer: Reload complete. {len(self._names)} identities loaded.")
+        with self._lock:
+            self._load_known_faces()
+            self._known_session.clear()
+        logger.info("FaceRecognizer: Reload complete. %d identities loaded.", len(self._names))
 
     def _load_known_faces(self):
         if not os.path.isdir(cfg.KNOWN_FACES_DIR): return
@@ -409,45 +442,124 @@ class FaceRecognizer:
         return "frontal"
 
     def _score_to_percent(self, sim: float) -> float:
-        lower, upper = 0.40, 0.80
+        lower, upper = getattr(cfg, 'FACE_SIM_LOWER', 0.40), getattr(cfg, 'FACE_SIM_UPPER', 0.80)
         percent = (sim - lower) / (upper - lower)
         return float(np.clip(percent, 0.0, 1.0))
 
     def identify(self, frame) -> tuple[str, float, list[int], Optional[np.ndarray], str]:
         """Recognize a face and return (name, similarity, bbox, embedding, direction)."""
         faces = self._app.get(frame)
-        if not faces: return "", 0.0, [], None, "frontal"
-        
+        if not faces:
+            return "", 0.0, [], None, "frontal"
+
         faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
         face = faces[0]
-        
+
         w, h = face.bbox[2]-face.bbox[0], face.bbox[3]-face.bbox[1]
         emb = face.normed_embedding
         bbox = list(map(int, face.bbox))
-        
-        # Get head orientation
+
         pose = getattr(face, 'pose', None)
         direction = self._map_pose_to_direction(pose)
-        
+
         if w < 40 or h < 40:
             return "TOO_SMALL", 0.0, bbox, emb, direction
 
-        if self._matrix is None:
-            return "STRANGER", 0.0, bbox, emb, direction
+        with self._lock:
+            if self._matrix is None:
+                return "STRANGER", 0.0, bbox, emb, direction
 
-        similarities = np.dot(self._matrix, emb)
-        idx = np.argmax(similarities)
-        best_sim = float(similarities[idx])
-        
-        if best_sim >= 0.40:
-            return self._names[idx], self._score_to_percent(best_sim), bbox, emb, direction
+            similarities = np.dot(self._matrix, emb)
+            idx = np.argmax(similarities)
+            best_sim = float(similarities[idx])
+
+            threshold = getattr(cfg, 'FACE_RECOG_THRESHOLD', 0.40)
+            now = time.time()
+            self._known_session = [s for s in self._known_session if now - s['ts'] < 30]
+
+            if best_sim >= threshold:
+                self._known_session.append({'emb': emb, 'name': self._names[idx], 'ts': now})
+                if len(self._known_session) > 20:
+                    self._known_session = self._known_session[-10:]
+                return self._names[idx], self._score_to_percent(best_sim), bbox, emb, direction
+
+            # Before returning STRANGER, check sticky cache
+            for s in self._known_session:
+                cache_sim = float(np.dot(emb, s['emb']))
+                if cache_sim > 0.60:
+                    return s['name'], self._score_to_percent(cache_sim), bbox, emb, direction
+
         return "STRANGER", 0.0, bbox, emb, direction
 
-    def close(self):
-        """Release InsightFace resources."""
-        # InsightFace doesn't provide a public .close(), but we can clear the app ref
-        self._app = None
-        logger.info("FaceRecognizer session released")
+# ── Tracking ──────────────────────────────────────────────────────────────────
+
+class PersonTrack:
+    def __init__(self, track_id: int, bbox: list):
+        self.track_id = track_id
+        self.last_bbox = bbox
+        self.centroid = self._get_centroid(bbox)
+        self.identity = "STRANGER"
+        self.confidence = 0.0
+        self.is_locked = False
+        self.last_seen = time.time()
+        self.frames_since_last_id = 0
+        self.last_trigger_ts = 0.0
+
+    def _get_centroid(self, bbox):
+        return ((bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2)
+
+    def update(self, bbox):
+        self.last_bbox = bbox
+        self.centroid = self._get_centroid(bbox)
+        self.last_seen = time.time()
+        self.frames_since_last_id += 1
+
+class SimpleTracker:
+    def __init__(self, max_distance: int = 150, max_age: float = 3.0):
+        self.tracks: list[PersonTrack] = []
+        self._next_id = 1
+        self.max_distance = max_distance
+        self.max_age = max_age
+
+    def update(self, detections: list[tuple]) -> list[tuple[tuple, PersonTrack]]:
+        """Match detections to tracks and return (detection, track) pairs."""
+        now = time.time()
+        
+        # 1. Cleanup old tracks
+        self.tracks = [t for t in self.tracks if now - t.last_seen < self.max_age]
+        
+        results = []
+        unmatched_dets = list(detections)
+        
+        # 2. Match to existing tracks (Simple Centroid Distance)
+        for track in self.tracks:
+            if not unmatched_dets: break
+            
+            best_idx = -1
+            min_dist = self.max_distance
+            
+            for i, det in enumerate(unmatched_dets):
+                x1, y1, x2, y2, conf, cls_id = det
+                cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                dist = np.sqrt((cx - track.centroid[0])**2 + (cy - track.centroid[1])**2)
+                
+                if dist < min_dist:
+                    min_dist = dist
+                    best_idx = i
+            
+            if best_idx != -1:
+                det = unmatched_dets.pop(best_idx)
+                track.update(det[:4])
+                results.append((det, track))
+        
+        # 3. Create new tracks for unmatched detections
+        for det in unmatched_dets:
+            new_track = PersonTrack(self._next_id, list(det[:4]))
+            self._next_id += 1
+            self.tracks.append(new_track)
+            results.append((det, new_track))
+            
+        return results
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -465,7 +577,7 @@ class InferenceWorker:
         self._plate_detector = None
         self._ocr = None
         self._face_recog = None
-        self._db = DatabaseManager()
+        self._db = DatabaseManager(max_pool_size=5)
 
         self._voters: dict[str, PlateVoter] = {}
         self._shm_clients: dict[str, shared_memory.SharedMemory] = {}
@@ -487,6 +599,7 @@ class InferenceWorker:
         self._last_face_reload = 0
         self._last_active_ts = time.time()
         self._idle_timeout = 300 # 5 minutes
+        self._trackers: dict[str, SimpleTracker] = {}
 
     def _ensure_models_loaded(self):
         """Lazy load AI models only when a frame is received."""
@@ -531,13 +644,19 @@ class InferenceWorker:
         for name, shm in list(self._shm_clients.items()):
             try:
                 shm.close()
-            except: pass
+            except Exception as e:
+                logger.warning("SHM close failed for %s: %s", name, e)
         logger.info("InferenceWorker cleanup complete")
 
     def _get_voter(self, cam_id: str) -> PlateVoter:
         if cam_id not in self._voters:
             self._voters[cam_id] = PlateVoter(buffer_size=cfg.FRAME_BUFFER_SIZE)
         return self._voters[cam_id]
+
+    def _get_tracker(self, cam_id: str) -> SimpleTracker:
+        if cam_id not in self._trackers:
+            self._trackers[cam_id] = SimpleTracker(max_distance=200)
+        return self._trackers[cam_id]
 
     def _get_shm_frame(self, shm_name: str):
         if shm_name not in self._shm_clients:
@@ -590,9 +709,43 @@ class InferenceWorker:
                 detections = self._plate_detector.detect(frame)
                 # Merge 2-line plate detections into single bounding boxes
                 detections = merge_plate_boxes(detections)
+                
+                # Separate People for tracking
+                person_dets = [d for d in detections if d[5] == 1]
+                other_dets = [d for d in detections if d[5] != 1]
+                
+                # Update Tracker
+                tracker = self._get_tracker(cam_id)
+                tracked_persons = tracker.update(person_dets)
+                
                 voter = self._get_voter(cam_id)
                 
-                for x1, y1, x2, y2, det_conf, cls_id in detections:
+                # Handle People (Tracked)
+                for det, track in tracked_persons:
+                    x1, y1, x2, y2, det_conf, _ = det
+                    
+                    # Display Logic: Use Locked Identity if available
+                    display_name = track.identity
+                    color = (0, 165, 255) if display_name == "STRANGER" else (0, 255, 0) # Green for known
+                    
+                    cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), color, 2)
+                    cv2.putText(result.annotated_frame, f"{display_name} {det_conf:.2f}", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                    
+                    # Trigger Smart Recording for People (throttle: max 1 trigger/sec per track)
+                    if det_conf > 0.80 and track.identity == "STRANGER" and self.recorder_control_queue and not self.recorder_control_queue.full():
+                        now_t = time.time()
+                        if now_t - track.last_trigger_ts > 1.0:
+                            track.last_trigger_ts = now_t
+                            self.recorder_control_queue.put_nowait({
+                                "cam_id": cam_id,
+                                "event_text": f"Person (Stranger)",
+                                "ts": now_t,
+                                "event_type": "person",
+                                "site_id": site_id
+                            })
+                
+                # Handle Others (Plates, Doors)
+                for x1, y1, x2, y2, det_conf, cls_id in other_dets:
                     if cls_id == 0: # Plate
                         # Padding: Expand bbox by ~15% (min 10px) to prevent character/punctuation clipping
                         h_frame, w_frame = frame.shape[:2]
@@ -606,9 +759,6 @@ class InferenceWorker:
                             self._executor.submit(self._async_ocr, crop, det_conf, voter, cam_id, frame, result)
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
                         cv2.putText(result.annotated_frame, "PLATE", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
-                    elif cls_id == 1: # Person
-                        cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (0, 165, 255), 2) # Amber
-                        cv2.putText(result.annotated_frame, f"PERSON {det_conf:.2f}", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
                     elif cls_id == 2: # Door
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 0), 2) # Blue
                         cv2.putText(result.annotated_frame, "DOOR", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
@@ -634,12 +784,14 @@ class InferenceWorker:
                             self._seen_plates[best_text] = time.time()
                             result.snapshot_path = save_snapshot(frame, cam_id, best_text)
                             
-                            # Trigger Smart Recording
+                            # Trigger Smart Recording for Plates
                             if self.recorder_control_queue and not self.recorder_control_queue.full():
                                 self.recorder_control_queue.put_nowait({
                                     "cam_id": cam_id,
                                     "plate_text": best_text,
-                                    "ts": time.time()
+                                    "ts": time.time(),
+                                    "event_type": "plate",
+                                    "site_id": site_id
                                 })
 
                             self._executor.submit(self._db.record_vehicle_entry, best_text, "car", cam_id, result.snapshot_path, site_id)
@@ -651,7 +803,12 @@ class InferenceWorker:
 
                 self._frame_counter += 1
                 if self._frame_counter % cfg.FACE_RECOG_EVERY_N == 0:
-                    self._executor.submit(self._async_face_identify, frame, cam_id, site_id, result)
+                    # Submit identification for ALL currently tracked persons
+                    active_tracks = self._get_tracker(cam_id).tracks
+                    for track in active_tracks:
+                        # Only re-identify if not already locked or if enough time passed
+                        if not track.is_locked or track.frames_since_last_id > 100:
+                            self._executor.submit(self._async_face_identify, frame, cam_id, site_id, result, track)
 
                 if not self.result_queue.full():
                     self.result_queue.put_nowait(result)
@@ -659,7 +816,7 @@ class InferenceWorker:
             logger.critical("InferenceWorker CRASHED: %s", str(e), exc_info=True)
             raise
 
-    def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult):
+    def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult, track: PersonTrack = None):
         if self._face_recog is None:
             return
         name, sim, f_bbox, emb, direction = self._face_recog.identify(frame)
@@ -669,6 +826,10 @@ class InferenceWorker:
             cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
             
             if name == "STRANGER" and emb is not None:
+                # Only log as stranger if the track isn't already locked to someone
+                if track and track.is_locked:
+                    return # Skip stranger logging for locked identity
+                    
                 # Advanced Deduplication: minimize photos for same stranger
                 now = time.time()
                 if cam_id not in self._recent_strangers:
@@ -693,6 +854,22 @@ class InferenceWorker:
                         self._executor.submit(self._db.log_stranger, cam_id, sim, face_snap, site_id, emb.tobytes(), direction)
                         self._recent_strangers[cam_id].append({'emb': emb, 'ts': now})
                     logger.info("New stranger logged for cam %s (sim: %f)", cam_id, sim)
+                    # Trigger Smart Recording for Stranger Face
+                    if self.recorder_control_queue and not self.recorder_control_queue.full():
+                        self.recorder_control_queue.put_nowait({
+                            "cam_id": cam_id,
+                            "event_text": "Stranger Detected",
+                            "ts": time.time(),
+                            "event_type": "stranger",
+                            "site_id": site_id
+                        })
+            elif name and name != "STRANGER" and track:
+                # LOCK identity to track
+                track.identity = name
+                track.confidence = sim
+                track.is_locked = True
+                track.frames_since_last_id = 0
+                logger.info(f"Fixed identity {name} to track {track.track_id} (sim: {sim:.2f})")
 
     def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame, result: InferenceResult):
         if self._ocr is None:

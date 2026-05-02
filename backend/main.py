@@ -16,6 +16,7 @@ from backend.core.grabber import grabber_process
 from backend.core.inference import inference_process
 from backend.core.recorder import recorder_worker
 from backend.core.database import DatabaseManager
+from backend.core import config as cfg
 from backend.util.network_utils import update_camera_ips_by_discovery
 
 # Configure logging
@@ -32,7 +33,7 @@ class CameraOrchestrator:
         self.result_queue = mp.Queue(maxsize=100)
         self.recorder_queue = mp.Queue(maxsize=500) # Large buffer for history
         self.recorder_control_queue = mp.Queue(maxsize=50)
-        self.db = DatabaseManager()
+        self.db = DatabaseManager(max_pool_size=5)
         self.processes = []
         self.core_processes = [] # Tracks Inference worker
         self.grabbers = {} # cam_id -> mp.Process mapping
@@ -118,6 +119,7 @@ class CameraOrchestrator:
         # We NO LONGER call self.start() here. It will be triggered dynamically.
         # Track what we have already started in THIS session to prevent auto-connect at boot
         self.session_stale_cams = set()
+        self._last_cleanup_ts = 0  # Trigger cleanup shortly after boot
         initial_streaming = self.db._execute_query("SELECT id FROM cameras WHERE is_streaming = TRUE", fetchall=True)
         if initial_streaming:
             self.session_stale_cams = {str(c['id']) for c in initial_streaming}
@@ -180,6 +182,18 @@ class CameraOrchestrator:
                 for cid in dead_cids:
                     if cid in self.grabbers:
                         del self.grabbers[cid]
+
+                # 3. Periodic Cleanup (Recordings retention)
+                now = time.time()
+                if now - self._last_cleanup_ts > 43200: # Every 12 hours
+                    try:
+                        days = getattr(cfg, "SMART_RECORD_RETENTION_DAYS", 15)
+                        count = self.db.delete_old_recordings(days)
+                        if count > 0:
+                            logger.info("System Cleanup: Removed %d old recordings (older than %d days).", count, days)
+                        self._last_cleanup_ts = now
+                    except Exception as e:
+                        logger.error("Cleanup task failed: %s", e)
 
                 time.sleep(3) # Sync interval (seconds)
         except Exception as e:

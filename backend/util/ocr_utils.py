@@ -164,77 +164,99 @@ class VNPlateOCR:
         return top, bottom
 
     def _ocr_line(self, line_img: np.ndarray) -> tuple[str, float]:
-        """Run ensemble OCR on a single line image."""
-        # Upscale small lines for better OCR
+        """Run ensemble OCR on a single line image (already split — use rec-only)."""
         h, w = line_img.shape[:2]
-        if h < 32:
+        if h < 48:
             scale = max(2, 64 // h)
             line_img = cv2.resize(line_img, (w * scale, h * scale),
                                   interpolation=cv2.INTER_LANCZOS4)
 
         variants = self._make_variants(line_img)
-        return self._pick_best(variants)
+        return self._pick_best_rec_only(variants)
 
     # ──────────────────────────────────────────────────────────────────────
     # 1-LINE plate strategy: ensemble OCR on the whole image
     # ──────────────────────────────────────────────────────────────────────
 
     def _read_one_line(self, plate_img: np.ndarray) -> tuple[str, float]:
-        """Ensemble OCR on a single-line plate."""
+        """Ensemble OCR on a single-line plate (needs detection for text localization)."""
         variants = self._make_variants(plate_img)
-        return self._pick_best(variants)
+        return self._pick_best_with_det(variants)
 
     # ──────────────────────────────────────────────────────────────────────
     # Shared ensemble + scoring
     # ──────────────────────────────────────────────────────────────────────
 
     def _make_variants(self, img: np.ndarray) -> list[np.ndarray]:
-        """Create preprocessing variants for ensemble OCR."""
+        """Create 4 preprocessing variants balancing speed and coverage."""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        cl = clahe.apply(gray)
 
-        variants = [
-            img,                                    # Original
-            self._sharpen(img),                     # Sharpen
-            self._adjust_gamma(img, 1.4),           # Brighter
-            self._adjust_gamma(img, 0.7),           # Darker
+        return [
+            img,                                          # Original (good lighting)
+            self._sharpen(img),                           # Motion blur
+            self._adjust_gamma(img, 0.6),                 # Dark plates (night)
+            cv2.cvtColor(cl, cv2.COLOR_GRAY2BGR),         # CLAHE (low contrast)
         ]
 
-        # Add adaptive threshold (critical for noisy/low-contrast plates)
-        adaptive = cv2.adaptiveThreshold(
-            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-        )
-        variants.append(cv2.cvtColor(adaptive, cv2.COLOR_GRAY2BGR))
-
-        # CLAHE enhancement
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-        cl = clahe.apply(gray)
-        variants.append(cv2.cvtColor(cl, cv2.COLOR_GRAY2BGR))
-
-        # Otsu threshold — good for yellow/white plates with clear foreground
-        _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        variants.append(cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR))
-
-        return variants
-
-    def _pick_best(self, variants: list[np.ndarray]) -> tuple[str, float]:
-        """Run OCR on all variants and pick the best result by scoring."""
+    def _pick_best_rec_only(self, variants: list[np.ndarray]) -> tuple[str, float]:
+        """Run OCR recognition-only on variants (for pre-split single lines)."""
         candidates = []
-
         for variant in variants:
-            result, _ = self._ocr(variant)
+            try:
+                result, _ = self._ocr(variant, use_det=False)
+            except Exception:
+                continue
             if not result:
                 continue
+            texts = []
+            confs = []
+            for item in result:
+                if len(item) >= 2:
+                    texts.append(str(item[0]))
+                    try:
+                        confs.append(float(item[1]))
+                    except (ValueError, TypeError):
+                        confs.append(0.5)
 
-            # Sort detections: top-to-bottom, then left-to-right
+            combined = "".join(texts).upper().replace(" ", "").strip()
+            if len(combined) < 3 or not confs:
+                continue
+            avg_conf = sum(confs) / len(confs)
+            repaired = self._structural_repair(combined)
+            score = self._score_candidate(repaired, avg_conf)
+            candidates.append((repaired, avg_conf, score))
+
+        if not candidates:
+            return "", 0.0
+        best = max(candidates, key=lambda x: x[2])
+        return best[0], best[1]
+
+    def _pick_best_with_det(self, variants: list[np.ndarray]) -> tuple[str, float]:
+        """Run OCR with text detection on variants (for full plate images)."""
+        candidates = []
+        for variant in variants:
+            try:
+                result, _ = self._ocr(variant, use_det=True)
+            except Exception:
+                continue
+            if not result:
+                continue
+            # Sort by position: top-to-bottom, left-to-right
             h_v = variant.shape[0]
             bucket = max(8, int(h_v * 0.2))
             sorted_result = sorted(
                 result,
                 key=lambda x: (x[0][0][1] // bucket, x[0][0][0])
             )
-
             texts = [line[1] for line in sorted_result]
-            confs = [float(line[2]) for line in sorted_result]
+            confs = []
+            for line in sorted_result:
+                try:
+                    confs.append(float(line[2]))
+                except (ValueError, TypeError):
+                    confs.append(0.5)
 
             combined = "".join(texts).upper().replace(" ", "").strip()
             if len(combined) < 3:

@@ -2,7 +2,7 @@ import os
 
 # --- Model Paths ---
 # verified path from orchestrator.log
-PLATE_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door_int8.onnx"
+PLATE_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/best.pt"
 RKNN_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door.rknn"
 # Buffalo_sc directory must contain 'models/buffalo_sc'
 FACE_MODEL_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/insightface"
@@ -14,15 +14,21 @@ RECORDING_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/data/rec
 FRAME_BUFFER_SIZE = 5
 VOTE_MIN_CONF = 0.70
 FACE_RECOG_EVERY_N = 10
+FACE_RECOG_THRESHOLD = 0.40    # Cosine sim >= 0.40 = Identified (ArcFace buffalo_sc standard)
+FACE_SIM_LOWER = 0.35          # Percentage mapping: 0% at 0.35
+FACE_SIM_UPPER = 0.75          # Percentage mapping: 100% at 0.75
 PLATE_DETECT_EVERY_N = 3
 FAKE_PLATE_THRESHOLD = 0.65  # 0.0 to 1.0 (Higher = more sensitive)
 SMART_RECORD_PRE_SEC = 5
 SMART_RECORD_POST_SEC = 10
+SMART_RECORD_TAIL_SEC = 10        # Seconds of silence after last event before stopping
+SMART_RECORD_MAX_SEC = 300        # Hard cap per recording (5 minutes)
+SMART_RECORD_RETENTION_DAYS = 15
 
 # --- SHM / Streaming Settings ---
 GRAB_WIDTH = 1280
 GRAB_HEIGHT = 720
-GRAB_FPS_CAP = 10
+GRAB_FPS_CAP = 20
 SHM_FRAME_BYTES = GRAB_WIDTH * GRAB_HEIGHT * 3
 RTSP_BUFFER_SIZE = 4
 RTSP_RECONNECT_DELAY = 5

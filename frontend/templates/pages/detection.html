@@ -60,7 +60,7 @@
         <div
           class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center relative overflow-hidden cursor-pointer hover:bg-white/[0.02] transition-colors group"
           onclick="window.toggleRtsp()">
-          <img id="rtsp-feed" class="w-full h-full object-contain hidden relative z-0">
+          <video id="rtsp-feed" autoplay playsinline muted class="w-full h-full object-contain hidden relative z-0"></video>
           <canvas id="rtsp-overlay" class="absolute inset-0 w-full h-full hidden z-10"></canvas>
           <div id="rtsp-placeholder"
             class="flex flex-col items-center gap-3 transition-transform group-hover:scale-105 z-20">
@@ -325,57 +325,54 @@
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
-      // btnStart.classList.remove('hidden'); // Button removed
       webcamInterval = true;
       let isProcessing = false;
+      let lastResults = [];
 
-      const processFrame = () => {
-        if (!stream || !webcamInterval) return;
-        if (!video.videoWidth) {
-          setTimeout(processFrame, 100);
-          return;
-        }
+      // AI detection runs independently — does NOT block video display
+      const runDetection = async () => {
+        if (!stream || !webcamInterval || isProcessing) return;
+        if (!video.videoWidth || video.readyState < 2) return;
 
-        // Only draw if video is ready
-        if (video.readyState < 2) {
-            setTimeout(processFrame, 100);
-            return;
-        }
-
-        // Skip if previous detection request still in-flight
-        if (isProcessing) {
-            setTimeout(processFrame, 200);
-            return;
-        }
         isProcessing = true;
-
-        captureCanvas.width = 640;
-        captureCanvas.height = 480;
+        captureCanvas.width = 480;
+        captureCanvas.height = 360;
         const ctx = captureCanvas.getContext('2d', { alpha: false });
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(video, 0, 0, 640, 480);
+        ctx.drawImage(video, 0, 0, 480, 360);
 
         captureCanvas.toBlob(async (blob) => {
           if (!webcamInterval) { isProcessing = false; return; }
           const data = await sendFrame(blob);
           isProcessing = false;
-          
-          // Results found? Speed up (500ms). No results? Slow down (1000ms) to save RAM/CPU.
-          const hasDetection = data && data.results && data.results.length > 0;
-          const nextDelay = hasDetection ? 500 : 1000;
-          
           if (!webcamInterval) return;
-
+          lastResults = data?.results || [];
           renderResults(data);
-          overlay.classList.remove('hidden');
-          drawBoxes(overlay, video, data.results, 640, 480);
-          
-          // Schedule next capture based on detection state
-          setTimeout(processFrame, nextDelay);
-        }, 'image/jpeg', 0.85); // 0.85 = Balanced quality vs RAM/Network usage
+        }, 'image/jpeg', 0.70);
       };
 
-      setTimeout(processFrame, 500);
+      // Overlay renders at display refresh rate — smooth bboxes on live video
+      const drawOverlay = () => {
+        if (!stream || !webcamInterval) return;
+        if (video.videoWidth && lastResults.length > 0) {
+          overlay.classList.remove('hidden');
+          overlay.width = video.clientWidth;
+          overlay.height = video.clientHeight;
+          drawBoxes(overlay, video, lastResults, 480, 360);
+        }
+        requestAnimationFrame(drawOverlay);
+      };
+
+      // Start both loops independently
+      const detectionLoop = setInterval(runDetection, 1500);
+      requestAnimationFrame(drawOverlay);
+
+      // Override stop to clean up
+      const origStop = window.stopWebcam;
+      window.stopWebcam = function () {
+        clearInterval(detectionLoop);
+        lastResults = [];
+        origStop();
+      };
     };
 
     // --- RTSP ---
@@ -387,13 +384,14 @@
     const rtspCaptureCanvas = document.createElement('canvas');
     let rtspProcessing = false;
     const rtspOverlay = document.getElementById('rtsp-overlay');
+    let rtspPeerConnection = null;
+    let rtspDetectionLoop = null;
+    let rtspLastResults = [];
 
-    function processRtspFrame() {
+    // --- RTSP AI Detection (independent from video stream) ---
+    const runRtspDetection = async () => {
       if (!rtspActive || rtspProcessing) return;
-      if (!rtspFeed.naturalWidth || rtspFeed.naturalWidth < 10) {
-        setTimeout(processRtspFrame, 500);
-        return;
-      }
+      if (!rtspFeed.videoWidth || rtspFeed.readyState < 2) return;
 
       rtspProcessing = true;
       rtspCaptureCanvas.width = 640;
@@ -406,16 +404,88 @@
         const data = await sendFrame(blob);
         rtspProcessing = false;
         if (!rtspActive) return;
-
+        rtspLastResults = data?.results || [];
         renderResults(data);
+      }, 'image/jpeg', 0.80);
+    };
+
+    // --- RTSP Overlay (smooth, 60fps from cached results) ---
+    const drawRtspOverlay = () => {
+      if (!rtspActive) return;
+      if (rtspFeed.videoWidth && rtspLastResults.length > 0) {
         rtspOverlay.classList.remove('hidden');
         rtspOverlay.width = rtspFeed.clientWidth;
         rtspOverlay.height = rtspFeed.clientHeight;
-        drawBoxes(rtspOverlay, rtspFeed, data.results, 640, 480);
+        drawBoxes(rtspOverlay, rtspFeed, rtspLastResults, 640, 480);
+      }
+      requestAnimationFrame(drawRtspOverlay);
+    };
 
-        const delay = (data?.results?.length > 0) ? 500 : 1000;
-        setTimeout(processRtspFrame, delay);
-      }, 'image/jpeg', 0.85);
+    // --- WebRTC connect via go2rtc ---
+    async function connectWebRTC(camId) {
+      const pc = new RTCPeerConnection({
+        iceServers: [{urls: 'stun:stun.l.google.com:19302'}],
+        // Pre-allocate ICE candidates to reduce gathering time
+        iceCandidatePoolSize: 2,
+        // Prefer UDP for lower latency on LAN
+        iceTransportPolicy: 'all',
+      });
+      pc.addTransceiver('video', {direction: 'recvonly'});
+      // Audio inactive: RTSP camera has no audio — skip audio negotiation entirely
+      pc.addTransceiver('audio', {direction: 'inactive'});
+
+      pc.ontrack = (e) => {
+        if (e.track.kind === 'video') {
+          rtspFeed.srcObject = e.streams[0];
+          // Fire play as soon as data arrives — reduce first-frame latency
+          rtspFeed.play().catch(() => {});
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // Trickle ICE: send offer as soon as first candidate arrives OR after 500ms,
+      // whichever comes first. Eliminates the fixed 2000ms blocking wait.
+      await new Promise((resolve) => {
+        let resolved = false;
+        const done = () => { if (!resolved) { resolved = true; resolve(); } };
+
+        // Resolve immediately if already complete (e.g. host-only candidates)
+        if (pc.iceGatheringState === 'complete') { done(); return; }
+
+        pc.onicecandidate = (ev) => {
+          // First non-null candidate available — SDP already has enough to connect on LAN
+          if (ev.candidate) done();
+          // null candidate signals gathering complete
+          else done();
+        };
+        pc.onicegatheringstatechange = () => {
+          if (pc.iceGatheringState === 'complete') done();
+        };
+
+        // Hard timeout: 500ms max wait (vs previous 2000ms)
+        setTimeout(done, 500);
+      });
+
+      const resp = await fetch(`/detection/go2rtc-proxy/${camId}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/sdp'},
+        body: pc.localDescription.sdp,
+      });
+
+      if (resp.ok) {
+        const answer = await resp.text();
+        await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: answer}));
+        rtspPeerConnection = pc;
+        return true;
+      }
+      return false;
+    }
+
+    // --- Fallback to MJPEG if go2rtc unavailable ---
+    function connectMJPEG(camId) {
+      rtspFeed.src = `/detection/stream/${camId}`;
     }
 
     window.toggleRtsp = async () => {
@@ -427,13 +497,17 @@
 
       if (rtspActive) {
         // STOP
-        await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
         rtspActive = false;
+        if (rtspDetectionLoop) clearInterval(rtspDetectionLoop);
+        rtspDetectionLoop = null;
+        rtspLastResults = [];
+        if (rtspPeerConnection) { rtspPeerConnection.close(); rtspPeerConnection = null; }
+        rtspFeed.srcObject = null;
+        rtspFeed.src = '';
+        await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
         rtspPlaceholder.classList.remove('hidden');
         rtspFeed.classList.add('hidden');
         rtspOverlay.classList.add('hidden');
-        rtspFeed.src = '';
-        // Clear overlay
         const ctx = rtspOverlay.getContext('2d');
         ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
       } else {
@@ -443,10 +517,17 @@
         rtspFeed.classList.remove('hidden');
 
         await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
-        rtspFeed.src = `/detection/stream/${camId}`;
 
-        // Start AI detection polling after stream loads
-        setTimeout(processRtspFrame, 1500);
+        // Try WebRTC first, fallback to MJPEG
+        const webrtcOk = await connectWebRTC(camId).catch(() => false);
+        if (!webrtcOk) {
+          console.log('WebRTC failed, falling back to MJPEG');
+          connectMJPEG(camId);
+        }
+
+        // Start independent AI detection + overlay loops
+        rtspDetectionLoop = setInterval(runRtspDetection, 1200);
+        requestAnimationFrame(drawRtspOverlay);
       }
     };
 

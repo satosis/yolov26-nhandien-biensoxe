@@ -31,9 +31,11 @@ class DoorController:
         self.RELAY_HTTP_URL = ""
 
         # Tuya Local Config (Get these from Tuya IoT Platform or tinytuya scan)
-        self.TUYA_DEVICE_ID = os.environ.get("TUYA_DEVICE_ID", "")
-        self.TUYA_LOCAL_KEY = os.environ.get("TUYA_LOCAL_KEY", "")
-        self.TUYA_IP = os.environ.get("TUYA_IP", "")  # Optional but recommended for speed
+        from backend.core.database import DatabaseManager
+        db = DatabaseManager()
+        self.TUYA_DEVICE_ID = db.get_app_setting("TUYA_DEVICE_ID", os.environ.get("TUYA_DEVICE_ID", ""))
+        self.TUYA_LOCAL_KEY = db.get_app_setting("TUYA_LOCAL_KEY", os.environ.get("TUYA_LOCAL_KEY", ""))
+        self.TUYA_IP = db.get_app_setting("TUYA_IP", os.environ.get("TUYA_IP", ""))
         
         self.door_state_lock = threading.Lock()
         self.door_state = "closed" # open, closed, opening, closing

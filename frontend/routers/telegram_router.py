@@ -16,8 +16,34 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 async def telegram_page(request: Request, user: dict = Depends(require_menu("telegram"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "telegram"
-    ctx["bots"] = get_db().get_telegram_bots()
+    db = get_db()
+    ctx["bots"] = db.get_telegram_bots()
+    
+    # Global settings
+    ctx["global_token"] = db.get_app_setting("TELEGRAM_TOKEN", "")
+    ctx["global_chat_important"] = db.get_app_setting("TELEGRAM_CHAT_IMPORTANT", "")
+    ctx["global_chat_regular"] = db.get_app_setting("TELEGRAM_CHAT_REGULAR", "")
+    ctx["global_allowed_users"] = db.get_app_setting("TELEGRAM_ALLOWED_USERS", "")
+    
     return templates.TemplateResponse("pages/telegram.html", {"request": request, **ctx})
+
+
+@router.post("/global")
+async def update_global_settings(
+    request: Request,
+    token: str = Form(""),
+    chat_important: str = Form(""),
+    chat_regular: str = Form(""),
+    allowed_users: str = Form(""),
+    user: dict = Depends(require_menu("telegram")),
+):
+    db = get_db()
+    db.set_app_setting("TELEGRAM_TOKEN", token.strip())
+    db.set_app_setting("TELEGRAM_CHAT_IMPORTANT", chat_important.strip())
+    db.set_app_setting("TELEGRAM_CHAT_REGULAR", chat_regular.strip())
+    db.set_app_setting("TELEGRAM_ALLOWED_USERS", allowed_users.strip())
+    
+    return RedirectResponse(url="/telegram", status_code=303)
 
 
 @router.post("")

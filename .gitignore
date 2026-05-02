@@ -3,5 +3,8 @@
 __pycache__/
 *.pyc
 venv
-models/yolo26_plate_people_door.onnx
+*.onnx
+*.pt
 training/
+go2rtc
+data/

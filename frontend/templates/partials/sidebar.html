@@ -23,7 +23,8 @@
       <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1px]">{{ group_name }}</span>
     </div>
     {% for key, label in items.items() %}
-    <a href="/{{ key }}"
+    {% set prefix = "/camera" if key in camera_page_keys else "" %}
+    <a href="{{ prefix }}/{{ key }}"
        class="flex items-center gap-2 mx-1 px-4 py-2.5 rounded-md text-[13px] font-medium transition-colors
               {% if current_menu == key %}bg-accent text-bg-inset font-semibold{% else %}text-txt-sec hover:bg-white/5{% endif %}">
       {{ label }}

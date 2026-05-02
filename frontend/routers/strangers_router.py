@@ -1,6 +1,7 @@
 """Strangers router."""
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
+import logging
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from frontend.deps import get_db, get_menu_context, require_menu
@@ -26,3 +27,17 @@ async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("s
 async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
     get_db().delete_stranger_log(stranger_id)
     return RedirectResponse("/strangers", status_code=303)
+
+@router.post("/register")
+async def register_stranger(
+    stranger_id: int = Form(...),
+    user_id: int = Form(...),
+    user_auth: dict = Depends(require_menu("strangers"))
+):
+    try:
+        logging.info(f"Registering stranger {stranger_id} as user {user_id}")
+        get_db().update_stranger_status(int(stranger_id), "registered", converted_user_id=int(user_id))
+        return RedirectResponse("/strangers", status_code=303)
+    except Exception as e:
+        logging.exception("Failed to register stranger")
+        raise e

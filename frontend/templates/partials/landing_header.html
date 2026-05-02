@@ -1,0 +1,152 @@
+<!-- THÉP SƠN LÂM Portal Header Component -->
+<header
+  class="fixed top-0 left-0 w-full z-50 bg-[#0b1c30]/95 backdrop-blur-lg border-b border-white/10 px-6 h-16 flex items-center justify-between transition-all duration-300 shadow-2xl notranslate"
+  translate="no" x-data="{ scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)"
+  :class="scrolled ? 'h-14 bg-[#0b1c30]' : 'h-16'">
+
+  <!-- Brand Section -->
+  <div class="flex items-center gap-4">
+    <button class="lg:hidden text-white/70 hover:text-white transition-colors">
+      <span class="material-symbols-outlined notranslate">menu</span>
+    </button>
+    <a href="/" class="flex items-center gap-3 group">
+      <div
+        class="w-9 h-9 bg-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-600/30 group-hover:scale-105 transition-all">
+        <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
+      </div>
+      <div class="flex flex-col leading-none">
+        <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">SẮT THÉP SƠN
+          LÂM</span>
+        <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial Core</span>
+      </div>
+    </a>
+  </div>
+
+  <!-- Navigation Section -->
+  <nav class="hidden lg:flex items-center gap-10">
+    <a href="/"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '{{ request.path }}' === '/' }">
+      <span x-text="$store.i18n.t('home')">Trang chủ</span>
+    </a>
+
+    <a href="/gioi-thieu"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '{{ request.path }}'.includes('/gioi-thieu') }">
+      <span x-text="$store.i18n.t('about')">Giới thiệu</span>
+    </a>
+
+    <!-- Services Dropdown -->
+    <div class="relative group" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+      <button
+        class="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest transition-all text-slate-100 hover:text-orange-400"
+        :class="{ 'text-orange-500': '{{ request.path }}'.includes('/nha-xuong') }">
+        <span x-text="$store.i18n.t('services')">Dịch vụ</span>
+        <span class="material-symbols-outlined text-[16px] notranslate" aria-hidden="true">expand_more</span>
+      </button>
+      <div x-show="open" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+        class="absolute left-0 mt-0 w-48 bg-[#0d2137] border border-white/10 rounded-xl shadow-2xl z-[60] overflow-hidden">
+        <div class="py-2">
+          <a href="/nha-xuong"
+            class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-slate-300 hover:text-orange-400">
+            <span class="material-symbols-outlined text-[20px] notranslate" aria-hidden="true">warehouse</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <a href="/tin-tuc"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '{{ request.path }}'.includes('/tin-tuc') }">
+      <span x-text="$store.i18n.t('news') || 'Tin tức'">Tin tức</span>
+    </a>
+  </nav>
+
+  <!-- Utils & Action Section -->
+  <div class="flex items-center gap-6" translate="no">
+    <!-- Language Selector -->
+    <div class="relative hidden sm:block" x-data="{ open: false }" @click.away="open = false">
+      <button @click="open = !open"
+        class="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-2 rounded-full hover:bg-white/10 transition-all text-white group notranslate">
+        <span class="text-xl" x-text="$store.i18n.lang === 'vi' ? '🇻🇳' : '🇨🇳'"></span>
+        <span
+          class="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-white transition-transform notranslate"
+          :class="open ? 'rotate-180' : ''" aria-hidden="true">expand_more</span>
+      </button>
+
+      <!-- Minimalist Dropdown -->
+      <div x-show="open" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+        class="absolute right-0 mt-2 w-16 bg-[#1a2b3c] border border-white/10 rounded-2xl shadow-2xl z-[60] py-2 flex flex-col items-center gap-1 notranslate">
+
+        <button @click="$store.i18n.lang = 'vi'; open = false; setGoogleLang('vi')"
+          class="w-10 h-10 flex items-center justify-center rounded-xl transition-all"
+          :class="$store.i18n.lang === 'vi' ? 'bg-orange-600/20 ring-1 ring-orange-500/50' : 'hover:bg-white/10'">
+          <span class="text-2xl">🇻🇳</span>
+        </button>
+
+        <button @click="$store.i18n.lang = 'zh'; open = false; setGoogleLang('zh-CN')"
+          class="w-10 h-10 flex items-center justify-center rounded-xl transition-all"
+          :class="$store.i18n.lang === 'zh' ? 'bg-orange-600/20 ring-1 ring-orange-500/50' : 'hover:bg-white/10'">
+          <span class="text-2xl">🇨🇳</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contact Info -->
+    {% if settings and settings.phone %}
+    <a href="tel:{{ settings.phone }}" class="hidden xl:flex items-center gap-2.5 group notranslate" translate="no">
+      <div
+        class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-orange-600/20 transition-all">
+        <span class="material-symbols-outlined text-orange-500 text-lg notranslate" aria-hidden="true">call</span>
+      </div>
+      <span
+        class="text-[13px] font-black text-white font-inter tracking-tight group-hover:text-orange-400 transition-colors">{{
+        settings.phone }}</span>
+    </a>
+    {% endif %}
+
+    <div class="h-6 w-px bg-white/10 hidden md:block"></div>
+
+    <!-- CTA Button -->
+    {% if user %}
+    <div class="relative" x-data="{ open: false }" @click.away="open = false">
+      <button @click="open = !open"
+        class="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-2 rounded-full hover:bg-white/10 transition-all text-white notranslate"
+        translate="no">
+        <div
+          class="w-7 h-7 rounded-full bg-orange-600 flex items-center justify-center text-[11px] font-black text-white uppercase notranslate">
+          {{ (user.username or user.full_name or "U")[0] | upper }}
+        </div>
+        <span class="hidden md:block text-[12px] font-bold text-slate-200 max-w-[100px] truncate notranslate">{{
+          user.full_name or user.username }}</span>
+        <span class="material-symbols-outlined text-[16px] text-slate-400 notranslate" :class="open ? 'rotate-180' : ''"
+          aria-hidden="true">expand_more</span>
+      </button>
+      <div x-show="open" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+        class="absolute right-0 mt-2 w-44 bg-[#1a2b3c] border border-white/10 rounded-xl shadow-2xl z-[60] overflow-hidden notranslate"
+        translate="no">
+        <a href="/camera/detection"
+          class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-slate-300 hover:text-orange-400">
+          <span class="material-symbols-outlined text-[18px] notranslate" aria-hidden="true">dashboard</span>
+          <span class="text-[12px] font-bold notranslate">Dashboard</span>
+        </a>
+        <div class="h-px bg-white/10 mx-3"></div>
+        <a href="/logout"
+          class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-slate-300 hover:text-rose-400">
+          <span class="material-symbols-outlined text-[18px] notranslate" aria-hidden="true">logout</span>
+          <span class="text-[12px] font-bold notranslate">Đăng xuất</span>
+        </a>
+      </div>
+    </div>
+    {% else %}
+    <a href="/login"
+      class="bg-orange-600 text-white px-6 py-2.5 rounded-lg font-black uppercase text-[11px] tracking-widest shadow-xl shadow-orange-600/20 hover:bg-orange-500 hover:-translate-y-0.5 active:translate-y-0 transition-all notranslate"
+      translate="no">
+      Đăng nhập
+    </a>
+    {% endif %}
+  </div>
+</header>

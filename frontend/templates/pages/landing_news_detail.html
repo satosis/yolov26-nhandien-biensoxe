@@ -1,0 +1,86 @@
+{% extends "landing_base.html" %}
+{% block title %}{{ item.title }} — THÉP SƠN LÂM{% endblock %}
+
+{% block seo %}
+<meta name="description" content="{{ item.summary or item.title }}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.url }}">
+<meta property="og:type" content="article">
+<meta property="og:title" content="{{ item.title }}">
+<meta property="og:description" content="{{ item.summary or '' }}">
+<meta property="og:image" content="{{ item.image or '/static/brain/factory_hero.jpg' }}">
+<meta property="og:url" content="{{ request.url }}">
+{% endblock %}
+
+{% block head %}
+<style>
+  .prose h2 { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin: 2rem 0 1rem; }
+  .prose h3 { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 1.5rem 0 0.75rem; }
+  .prose p { margin-bottom: 1.25rem; line-height: 1.8; }
+  .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+  .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+  .prose li { margin-bottom: 0.5rem; line-height: 1.7; }
+  .prose img { border-radius: 0.75rem; width: 100%; margin: 1.5rem 0; }
+  .prose a { color: #f97316; text-decoration: underline; }
+  .prose blockquote { border-left: 4px solid #f97316; padding-left: 1rem; color: #64748b; font-style: italic; margin: 1.5rem 0; }
+  .prose strong { font-weight: 700; color: #0f172a; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# HERO #}
+<section class="relative w-full min-h-[480px] flex items-end overflow-hidden bg-[#0b1c30]">
+  <div class="absolute inset-0">
+    <img src="{{ item.image or '/static/brain/factory_hero.jpg' }}" class="w-full h-full object-cover" style="opacity:.4" alt="{{ item.title }}">
+    <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/40 to-transparent"></div>
+  </div>
+  <div class="relative z-10 max-w-4xl mx-auto px-6 pb-16 pt-32 w-full">
+    <a href="/tin-tuc" class="inline-flex items-center gap-2 text-slate-400 hover:text-orange-400 text-sm font-bold mb-6 transition-colors">
+      <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+      Quay lại tin tức
+    </a>
+    {% if item.category %}
+    <span class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5 block w-fit">{{ item.category }}</span>
+    {% endif %}
+    <h1 class="text-3xl md:text-5xl font-black text-white leading-[1.15] mb-4 max-w-3xl">{{ item.title }}</h1>
+    <p class="text-slate-400 text-sm">
+      <span class="material-symbols-outlined text-[14px] align-middle mr-1">calendar_today</span>
+      {{ item.publish_date_str or '' }}
+    </p>
+  </div>
+</section>
+
+{# ARTICLE BODY #}
+<section class="bg-white py-16">
+  <div class="max-w-3xl mx-auto px-6">
+    {% if item.content %}
+    <div class="prose max-w-none leading-relaxed text-slate-700 text-lg">
+      {{ item.content | safe }}
+    </div>
+    {% elif item.summary %}
+    <p class="text-slate-600 text-lg leading-relaxed">{{ item.summary }}</p>
+    {% else %}
+    <p class="text-slate-400 italic">Nội dung đang được cập nhật...</p>
+    {% endif %}
+
+    <div class="mt-16 pt-8 border-t border-slate-100 flex flex-wrap gap-4">
+      <a href="/tin-tuc" class="px-6 py-3 border border-slate-200 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">arrow_back</span>
+        Tất cả tin tức
+      </a>
+      <a href="tel:{{ settings.phone if settings else '' }}" class="px-6 py-3 bg-orange-500 text-white font-bold text-sm rounded-xl hover:bg-orange-600 transition-all flex items-center gap-2">
+        <span class="material-symbols-outlined text-[16px]">call</span>
+        Liên hệ ngay
+      </a>
+    </div>
+  </div>
+</section>
+
+{# FORM LIEN HE #}
+<div id="lien-he">
+  {% set source_page = "news" %}
+  {% include "partials/contact_section.html" %}
+</div>
+
+{% endblock %}

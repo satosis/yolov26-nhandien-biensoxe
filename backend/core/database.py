@@ -27,7 +27,7 @@ class DatabaseError(Exception):
 class DatabaseManager:
     _pool = None
 
-    def __init__(self, dsn=None):
+    def __init__(self, dsn=None, max_pool_size=None):
         self.dsn = dsn or os.environ.get("DATABASE_URL")
         if not self.dsn:
             # Fallback check before raising to debug
@@ -35,9 +35,10 @@ class DatabaseManager:
             raise ValueError("DATABASE_URL environment variable is required")
         self.dsn = self.dsn.replace("postgresql+asyncpg://", "postgresql://")
 
-        # Initialize thread-safe connection pool globally for this process
-        if DatabaseManager._pool is None:
-            DatabaseManager._pool = pool.ThreadedConnectionPool(1, 15, self.dsn)
+        if not DatabaseManager._pool:
+            maxconn = int(max_pool_size) if max_pool_size else 15
+            DatabaseManager._pool = pool.ThreadedConnectionPool(1, maxconn, self.dsn)
+
     @contextmanager
     def _get_connection(self):
         """Context manager to lease a connection from the pool and return it safely.
@@ -52,7 +53,10 @@ class DatabaseManager:
             yield conn
         except Exception:
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except psycopg2.InterfaceError:
+                    pass  # Already closed
             raise
         finally:
             if conn:
@@ -82,6 +86,8 @@ class DatabaseManager:
                         result = row[0] if row else None
                     if commit:
                         conn.commit()
+                    else:
+                        conn.rollback()  # Clear transaction state for read-only queries
                     return result
         except (psycopg2.Error, Exception) as e:
             logger.error("Database query failed: %s\nQuery: %s\nParams: %s", str(e), query, params, exc_info=True)
@@ -92,7 +98,8 @@ class DatabaseManager:
         'vehicle_sessions', 'plate_whitelist', 'pending_plates',
         'app_settings', 'camera_status_log', 'legal_hold',
         'monthly_reports', 'telegram_bots', 'cameras_asset',
-        'stranger_logs', 'rolling_doors',
+        'stranger_logs', 'rolling_doors', 'video_recordings',
+        'inquiries', 'projects', 'news',
     })
 
     @staticmethod
@@ -393,50 +400,73 @@ class DatabaseManager:
                 )
                 conn.commit()
                 return cursor.fetchone()[0]
+
+    def add_video_recording(self, cam_id, site_id, event_type, event_text, file_path, thumbnail_path, duration, file_size=None):
+        """Register a new video recording in the database."""
+        return self.insert("video_recordings", {
+            "cam_id": str(cam_id),
+            "site_id": site_id,
+            "event_type": event_type,
+            "event_text": event_text,
+            "file_path": file_path,
+            "thumbnail_path": thumbnail_path,
+            "duration_seconds": int(duration),
+            "file_size_bytes": file_size
+        }, returning="id")
+
+    def get_recordings(self, site_id=None, limit=50, offset=0):
+        """Fetch list of recordings, optionally filtered by site."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                query = "SELECT * FROM video_recordings"
+                params = []
+                if site_id:
+                    query += " WHERE site_id = %s"
+                    params.append(site_id)
+                query += " ORDER BY start_time DESC LIMIT %s OFFSET %s"
+                params.extend([limit, offset])
+                cursor.execute(query, params)
+                return [dict(r) for r in cursor.fetchall()]
+
+    def count_recordings(self, site_id=None):
+        """Count total recordings, optionally filtered by site."""
+        query = "SELECT COUNT(*) FROM video_recordings"
+        params = []
+        if site_id:
+            query += " WHERE site_id = %s"
+            params.append(site_id)
+        row = self._execute_query(query, params, fetchall=False)
+        return row[0] if row else 0
+
+    def delete_old_recordings(self, days: int):
+        """Find and remove recordings older than 'days' days, including physical files."""
+        query = "SELECT id, file_path, thumbnail_path FROM video_recordings WHERE start_time < NOW() - (%s * INTERVAL '1 day')"
+        rows = self._execute_query(query, (days,), fetchall=True)
+        if not rows:
+            return 0
+            
+        deleted_count = 0
+        for row in rows:
+            # 1. Delete physical files
+            for path_key in ["file_path", "thumbnail_path"]:
+                path = row[path_key]
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception as e:
+                        logger.error(f"Failed to delete recording file {path}: {e}")
+            
+            # 2. Delete DB record
+            self.delete("video_recordings", {"id": row["id"]})
+            deleted_count += 1
+            
+        return deleted_count
     def get_stats(self):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 # Optimized to look only at today's vehicle counts instead of full table scan
                 cursor.execute("SELECT COUNT(*), vehicle_type FROM plate_events WHERE event_time >= CURRENT_DATE GROUP BY vehicle_type")
                 return cursor.fetchall()
-    # ───────────────── AI AUDITOR ──────────────────
-    def get_low_confidence_events(self, limit=10, max_conf=0.65, hours_back=24):
-        """Return plate events with lowest confidence for AI auditing."""
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute("""
-                    SELECT id, plate_number, confidence, image_path,
-                           event_time, camera_id, ai_audit_mismatch, ai_audit_result
-                    FROM plate_events
-                    WHERE plate_number IS NOT NULL
-                      AND plate_number != ''
-                      AND confidence IS NOT NULL
-                      AND confidence <= %s
-                      AND event_time >= NOW() - (%s * INTERVAL '1 hour')
-                    ORDER BY confidence ASC
-                    LIMIT %s
-                """, (max_conf, hours_back, limit))
-                return cursor.fetchall()
-    def mark_event_audited(self, event_id, gemini_result, is_mismatch):
-        """Store Gemini's audit result for a plate event."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    UPDATE plate_events
-                    SET ai_audit_result = %s,
-                        ai_audit_mismatch = %s,
-                        ai_audited_at = NOW()
-                    WHERE id = %s
-                """, (gemini_result, is_mismatch, event_id))
-            conn.commit()
-            return True
-    def get_all_app_settings(self):
-        """Get all app settings as a dictionary."""
-        rows = self.select("app_settings", columns=["key", "value"])
-        if rows:
-            return {row['key']: row['value'] or "" for row in rows}
-        return {}
-
     # ───────────────── END AI AUDITOR ──────────────
 
     def get_pending_plates(self, site_id=None):
@@ -984,6 +1014,11 @@ class DatabaseManager:
         row = self._execute_query("SELECT value FROM app_settings WHERE key = %s", (key,), fetch=True)
         return row['value'] if row else default
 
+    def get_all_app_settings(self) -> dict:
+        """Get all key/value pairs from app_settings."""
+        rows = self._execute_query("SELECT key, value FROM app_settings ORDER BY key", fetchall=True)
+        return {r['key']: r['value'] for r in rows}
+
     def set_app_setting(self, key: str, value: str) -> bool:
         """Upsert a single setting into app_settings."""
         return self.set_many_app_settings({key: value})
@@ -1002,6 +1037,112 @@ class DatabaseManager:
                     )
             conn.commit()
         return True
+
+    def get_landing_settings(self) -> dict:
+        """
+        Batch-get tất cả LANDING_* keys từ app_settings.
+        Return: dict với keys như LANDING_PHONE_WAREHOUSE, LANDING_ZALO_WAREHOUSE, etc.
+        Nếu key không tồn tại → value là None (template sẽ handle).
+        Không throw exception — return empty dict nếu query fail.
+        """
+        try:
+            rows = self._execute_query(
+                "SELECT key, value FROM app_settings WHERE key LIKE 'LANDING_%'",
+                fetchall=True,
+                commit=False,
+            )
+            if rows is None:
+                return {}
+            return {row["key"]: row["value"] for row in rows}
+        except Exception as e:
+            logger.warning("get_landing_settings: query failed: %s", e)
+            return {}
+
+    def get_projects(self, limit: int = 10) -> list:
+        """Fetch projects for landing page, ordered by newest first."""
+        query = """
+            SELECT id, name, location, area, height, bays, load_capacity, image, description
+            FROM projects
+            ORDER BY created_at DESC
+            LIMIT %s
+        """
+        return self._execute_query(query, (limit,), fetchall=True) or []
+
+    def get_news(self, limit: int = 5) -> list:
+        """Fetch latest news items, with publish_date serialized to ISO string."""
+        query = """
+            SELECT id, title, category, summary, image, publish_date
+            FROM news
+            ORDER BY publish_date DESC
+            LIMIT %s
+        """
+        rows = self._execute_query(query, (limit,), fetchall=True) or []
+        for row in rows:
+            if row.get("publish_date") and not isinstance(row["publish_date"], str):
+                row["publish_date"] = row["publish_date"].isoformat()
+        return rows
+
+    def get_news_by_id(self, news_id: int) -> dict | None:
+        """Fetch a single published news item by ID."""
+        rows = self._execute_query(
+            "SELECT id, title, category, summary, content, image, publish_date FROM news WHERE id = %s AND is_published IS DISTINCT FROM false",
+            (news_id,), fetchall=True
+        ) or []
+        if not rows:
+            return None
+        item = dict(rows[0])
+        if item.get("publish_date") and hasattr(item["publish_date"], "strftime"):
+            item["publish_date_str"] = item["publish_date"].strftime("%d/%m/%Y")
+        else:
+            item["publish_date_str"] = str(item.get("publish_date", ""))
+        return item
+
+    def save_inquiry(self, full_name: str, phone: str, company_name: str = "", demand: str = "", source_page: str = "home") -> int | None:
+        row = self._execute_query(
+            "INSERT INTO inquiries (full_name, phone, company_name, demand, source_page) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (full_name, phone, company_name, demand, source_page),
+            fetch=True,
+        )
+        return row["id"] if row else None
+
+    def get_inquiries(self, limit: int = 100, offset: int = 0, unread_only: bool = False) -> list:
+        where = "WHERE is_read = FALSE" if unread_only else ""
+        rows = self._execute_query(
+            f"SELECT * FROM inquiries {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            (limit, offset),
+            fetchall=True,
+            commit=False,
+        )
+        return rows or []
+
+    def count_unread_inquiries(self) -> int:
+        row = self._execute_query(
+            "SELECT COUNT(*) AS cnt FROM inquiries WHERE is_read = FALSE",
+            fetch=True,
+            commit=False,
+        )
+        return row["cnt"] if row else 0
+
+    def mark_inquiry_read(self, inquiry_id: int) -> bool:
+        return bool(self._execute_query(
+            "UPDATE inquiries SET is_read = TRUE WHERE id = %s",
+            (inquiry_id,),
+        ))
+
+    def update_inquiry_note(self, inquiry_id: int, note: str) -> bool:
+        return bool(self._execute_query(
+            "UPDATE inquiries SET note = %s WHERE id = %s",
+            (note, inquiry_id),
+        ))
+
+    def mark_all_inquiries_read(self) -> bool:
+        return bool(self._execute_query("UPDATE inquiries SET is_read = TRUE WHERE is_read = FALSE"))
+
+    def delete_inquiry(self, inquiry_id: int) -> bool:
+        return bool(self._execute_query(
+            "DELETE FROM inquiries WHERE id = %s",
+            (inquiry_id,),
+        ))
 
     def get_camera_rtsp_url(self, camera_id: int, subtype: int = 1) -> str | None:
         """

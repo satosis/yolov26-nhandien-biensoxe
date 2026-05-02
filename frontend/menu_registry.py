@@ -4,9 +4,7 @@
 MENU_GROUPS = {
     "📊 Theo dõi & AI": {
         "detection": "🔍 Nhận diện",
-        "dori": "📐 DORI",
-        "ocr_review": "🔤 OCR Review",
-        "hpc": "⚡ AI Engine",
+        "recordings": "📹 Ghi hình",
     },
     "🅿️ Bãi xe": {
         "parking_dashboard": "🅿️ Dashboard Bãi xe",
@@ -24,10 +22,11 @@ MENU_GROUPS = {
         "pending_plates": "🚘 Xe lạ",
     },
     "⚙️ Hệ thống": {
+        "inquiries": "📬 Tin tư vấn",
+        "admin/cms": "🌐 CMS Trang chủ",
         "users": "👥 Người dùng",
         "rbac": "🔐 Phân quyền",
         "telegram": "📱 Telegram",
-        "config": "⚙️ Cấu hình",
     },
 }
 

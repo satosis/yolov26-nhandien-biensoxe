@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Dịch vụ xe cẩu chuyên nghiệp — THÉP SƠN LÂM</title>
+
+  <!-- Preconnect to cut DNS + TLS time for external resources -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Tailwind local -->
+  <script src="/static/vendor/tailwind.min.js"></script>
+
+  <!-- Fonts: Inter (latin only) + Material Symbols — async so they don't block render -->
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet"/></noscript>
+
+  <link rel="preload" as="style"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block"
+        onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block" rel="stylesheet"/></noscript>
+
+  <!-- Alpine.js local — defer so it doesn't block HTML parse -->
+  <script defer src="/static/vendor/alpine.min.js"></script>
+
+  <link rel="shortcut icon" href="/static/favicon.png" type="image/x-icon">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  
+<meta name="description" content="Dịch vụ xe cẩu chuyên nghiệp tại Vĩnh Phúc — tải trọng 25–500 tấn, bảo hiểm 100%, phục vụ 24/7. Cẩu hàng, lắp đặt thiết bị công nghiệp, vận chuyển siêu trọng.">
+<meta name="keywords" content="xe cẩu Vĩnh Phúc, thuê xe cẩu, dịch vụ cẩu hàng, xe cẩu 500 tấn, crane service Vietnam, lắp đặt thiết bị công nghiệp, vận chuyển siêu trọng">
+<meta name="robots" content="index, follow">
+<meta name="author" content="THÉP SƠN LÂM Industrial Core">
+<link rel="canonical" href="http://localhost:8000/xe-cau">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
+<meta property="og:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — THÉP SƠN LÂM Vĩnh Phúc">
+<meta property="og:description" content="Xe cẩu bánh lốp & cẩu tháp tải trọng 25–500 tấn. Bảo hiểm 100%, phục vụ 24/7, đội ngũ vận hành ISO 9001. Liên hệ báo giá ngay.">
+<meta property="og:image" content="http://localhost:8000/static/brain/crane1.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="http://localhost:8000/xe-cau">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — THÉP SƠN LÂM">
+<meta name="twitter:description" content="Xe cẩu bánh lốp & cẩu tháp. Bảo hiểm 100%, phục vụ 24/7. Liên hệ báo giá ngay.">
+<meta name="twitter:image" content="http://localhost:8000/static/brain/crane1.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Service",
+      "@id": "http://localhost:8000/xe-cau#service",
+      "name": "Dịch vụ xe cẩu chuyên nghiệp",
+      "description": "Dịch vụ xe cẩu chuyên nghiệp: cẩu hàng hóa, lắp đặt thiết bị công nghiệp, vận chuyển tải trọng lớn. Tải trọng tối đa 500 tấn. Bảo hiểm 100%. Phục vụ 24/7.",
+      "image": "http://localhost:8000/static/brain/crane1.jpg",
+      "serviceType": "Crane Service",
+      "termsOfService": "Bảo hiểm 100% hàng hóa, vận hành bởi đội ngũ chứng chỉ ISO 9001",
+      "hoursAvailable": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+        "opens": "00:00",
+        "closes": "23:59"
+      },
+      "areaServed": [
+        { "@type": "State", "name": "Vĩnh Phúc" },
+        { "@type": "State", "name": "Hà Nội" },
+        { "@type": "State", "name": "Phú Thọ" },
+        { "@type": "Country", "name": "Vietnam" }
+      ],
+      "provider": {
+        "@type": "Organization",
+        "@id": "http://localhost:8000/#organization",
+        "name": "THÉP SƠN LÂM Industrial Core",
+        "telephone": ""
+      },
+      "offers": {
+        "@type": "Offer",
+        "availability": "https://schema.org/InStock",
+        "priceCurrency": "VND",
+        "seller": { "@id": "http://localhost:8000/#organization" }
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Xe cẩu của THÉP SƠN LÂM có tải trọng tối đa bao nhiêu tấn?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Chúng tôi có đội xe cẩu từ 25 tấn đến 500 tấn, bao gồm cẩu bánh lốp Kato, Tadano, Grove và cẩu tháp Liebherr. Phù hợp mọi công trình từ lắp đặt thiết bị đến xây dựng nhà cao tầng."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dịch vụ xe cẩu có phục vụ ngoài giờ hành chính không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có. Chúng tôi phục vụ 24/7, kể cả ngày lễ và Tết. Liên hệ hotline để đặt lịch cẩu khẩn cấp."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Hàng hóa có được bảo hiểm khi sử dụng dịch vụ cẩu không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có. 100% hàng hóa và thiết bị được bảo hiểm trong suốt quá trình cẩu vận chuyển. Đội ngũ vận hành đạt chứng chỉ ISO 9001."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Khu vực nào được phục vụ dịch vụ xe cẩu?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Chủ yếu phục vụ Vĩnh Phúc, Hà Nội, Phú Thọ và các tỉnh miền Bắc Việt Nam. Liên hệ để tư vấn cho dự án tại địa phương của bạn."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+
+
+  <script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('i18n', {
+      lang: 'vi',
+      translations: {
+        vi: {
+          home: 'Trang chủ', about: 'Giới thiệu', services: 'Dịch vụ', news: 'Tin tức', warehouse: 'Nhà xưởng', cranes: 'Xe cẩu', login: 'Đăng nhập',
+          hero_title: 'THÉP SƠN LÂM Industrial Core', hero_subtitle: 'Vận tải vươn xa', warehouse_btn: 'Khám phá giải pháp',
+          featured_asset: 'Tài sản nổi bật', view_all: 'XEM TẤT CẢ', available_now: 'ĐANG TRỐNG',
+          factory_lease: 'Cho thuê nhà xưởng cao cấp', inspection: 'HẸN LỊCH XEM XƯỞNG', equipment_services: 'Dịch vụ thiết bị',
+          crane_desc: 'Sức nâng từ 25T đến 500T cho hạ tầng trọng điểm.', location_title: 'Vị trí chiến lược: Vĩnh Phúc',
+          location_desc: 'Kết nối tối ưu tới các đường cao tốc và trung tâm công nghiệp.', to_hanoi: 'Tới trung tâm Hà Nội',
+          to_airport: 'Tới sân bay Nội Bài', specs: 'Thông số kỹ thuật', area: 'DIỆN TICH', substation: 'TRẠM BIẾN ÁP',
+          security: 'AN NINH', pccc: 'PCCC', pccc_desc: 'Chuẩn Bộ CA', advantages: 'Ưu điểm vượt trội',
+          support_247: 'Hỗ trợ 24/7', call_now: 'GỌI CẨU NGAY', iso_cert: 'Chứng chỉ vận hành ISO 9001',
+          crane_hero: 'Dịch vụ xe cẩu chuyên nghiệp', crane_hero_desc: 'Giải pháp nâng hạ tải trọng lớn với tiêu chuẩn an toàn quốc tế.',
+          orders: 'Đơn hàng', profile: 'Cá nhân', contact_now: 'Liên hệ ngay',
+          mobile_cranes: 'Xe cẩu bánh lốp', tower_cranes: 'Xe cẩu tháp', maintenance: 'Bảo trì định kỳ',
+          high_rise_ready: 'Phù hợp nhà cao tầng',
+          about_title: 'Về THÉP SƠN LÂM', about_desc: 'Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.',
+          vision: 'Tầm nhìn', mission: 'Sứ mệnh', core_values: 'Giá trị cốt lõi'
+        },
+        zh: {
+          home: '首页', about: '关于我们', services: '服务项目', news: '新闻资讯', warehouse: '厂房租赁', cranes: '起重机服务', login: '登录',
+          hero_title: 'THÉP SƠN LÂM 工业核心', hero_subtitle: '运输通达天下', warehouse_btn: '探索解决方案',
+          featured_asset: '特色资产', view_all: '查看全部', available_now: '现有空置',
+          factory_lease: '高端厂房出租', inspection: '预约参观厂房', equipment_services: '设备服务',
+          crane_desc: '起重能力25吨至500吨，服务于重点基础设施。', location_title: '战略位置：永福',
+          location_desc: '优化的交通连接，直通高速公路和工业中心。', to_hanoi: '至河内市中心',
+          to_airport: '至内排国际机场', specs: '技术规格', area: '面积', substation: '变电站',
+          security: '安保', pccc: '消防', pccc_desc: '公安部标准', advantages: '卓越优势',
+          support_247: '24/7 全天候支持', call_now: '立即拨打起重机服务', iso_cert: 'ISO 9001 运行认证',
+          crane_hero: '专业起重机服务', crane_hero_desc: '遵循国际安全标准的大吨位起重解决方案。',
+          orders: '订单', profile: '个人中心', contact_now: '立即联系',
+          mobile_cranes: '轮胎式起重机', tower_cranes: '塔式起重机', maintenance: '定期维护',
+          high_rise_ready: '适用于高层建筑',
+          about_title: '关于 THÉP SƠN LÂM', about_desc: '我们是华北地区领先的厂房解决方案和起重服务提供商。',
+          vision: '愿景', mission: '使命', core_values: '核心价值'
+        }
+      },
+      init() {
+        const browserLang = navigator.language.split('-')[0];
+        this.lang = (browserLang === 'zh') ? 'zh' : 'vi';
+      },
+      setLang(l) { this.lang = l; },
+      t(key) {
+        if (!this.translations[this.lang]) return key;
+        return this.translations[this.lang][key] || key;
+      }
+    });
+    Alpine.store('i18n').init();
+  });
+</script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "primary": "#000000",
+            "on-background": "#0b1c30",
+            "surface-bright": "#f8f9ff",
+            "background": "#f8f9ff",
+            "surface-dim": "#cbdbf5",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#b9c7e0",
+            "secondary": "#9d4300",
+            "on-secondary-fixed": "#341100",
+            "secondary-fixed-dim": "#ffb690",
+            "tertiary": "#000000",
+            "on-tertiary-fixed-variant": "#3a485c",
+            "surface-variant": "#d3e4fe",
+            "on-secondary-fixed-variant": "#783200",
+            "on-secondary": "#ffffff",
+            "error-container": "#ffdad6",
+            "on-primary-container": "#7c839b",
+            "on-tertiary-fixed": "#0d1c2f",
+            "surface": "#f8f9ff",
+            "inverse-primary": "#bec6e0",
+            "secondary-container": "#fd761a",
+            "primary-fixed-dim": "#bec6e0",
+            "primary-container": "#131b2e",
+            "outline-variant": "#c6c6cd",
+            "secondary-fixed": "#ffdbca",
+            "error": "#ba1a1a",
+            "surface-container-low": "#eff4ff",
+            "inverse-on-surface": "#eaf1ff",
+            "on-tertiary": "#ffffff",
+            "on-surface": "#0b1c30",
+            "surface-container": "#e5eeff",
+            "inverse-surface": "#213145",
+            "tertiary-container": "#0d1c2f",
+            "on-error-container": "#93000a",
+            "surface-container-highest": "#d3e4fe",
+            "on-primary-fixed-variant": "#3f465c",
+            "on-primary-fixed": "#131b2e",
+            "tertiary-fixed": "#d5e3fd",
+            "surface-container-lowest": "#ffffff",
+            "surface-tint": "#565e74",
+            "outline": "#76777d",
+            "on-surface-variant": "#45464d",
+            "on-error": "#ffffff",
+            "primary-fixed": "#dae2fd",
+            "surface-container-high": "#dce9ff",
+            "on-tertiary-container": "#76859b",
+            "on-secondary-container": "#5c2400"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "sm": "16px",
+            "md": "24px",
+            "xl": "64px",
+            "xs": "8px",
+            "lg": "40px",
+            "gutter": "24px",
+            "base": "4px",
+            "margin": "32px"
+          },
+          "fontFamily": {
+            "label-sm": ["Inter"],
+            "label-bold": ["Inter"],
+            "body-lg": ["Inter"],
+            "h3": ["Inter"],
+            "h2": ["Inter"],
+            "display": ["Inter"],
+            "h1": ["Inter"],
+            "body-md": ["Inter"]
+          },
+          "fontSize": {
+            "label-sm": ["12px", {"lineHeight": "1.2", "fontWeight": "500"}],
+            "label-bold": ["14px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700"}],
+            "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+            "h3": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
+            "h2": ["30px", {"lineHeight": "1.2", "fontWeight": "700"}],
+            "display": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+            "h1": ["36px", {"lineHeight": "1.2", "fontWeight": "700"}],
+            "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .active-pill {
+      background-color: #fd761a;
+      color: white;
+    }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Protect UI chrome from Google Translate */
+    .notranslate { unicode-bidi: embed; }
+
+    /* Preloader Styles */
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #0b1c30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease, visibility 0.5s;
+    }
+    #preloader.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+    .factory-loader {
+      animation: pulse-factory 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-factory {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 20px rgba(253, 118, 26, 0.4)); }
+    }
+    .loader-text {
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+      margin-top: 20px;
+      opacity: 0.6;
+    }
+  </style>
+  
+<style>
+  .spec-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.5rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+
+  .spec-card:hover {
+    box-shadow: 0 8px 32px rgba(249, 115, 22, 0.10);
+    transform: translateY(-3px);
+  }
+
+  .gallery-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s;
+  }
+
+  .gallery-img:hover {
+    transform: scale(1.05);
+  }
+
+  .tax-badge {
+    background: linear-gradient(135deg, #fff7ed, #fed7aa);
+    border: 1px solid #f97316;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+  }
+</style>
+
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden antialiased">
+  <!-- Preloader Overlay -->
+  <div id="preloader">
+    <svg class="factory-loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80" fill="#fd761a">
+      <!-- factory building -->
+      <rect x="4" y="32" width="56" height="28" rx="2"/>
+      <rect x="8" y="24" width="14" height="8"/>
+      <rect x="26" y="20" width="14" height="12"/>
+      <rect x="44" y="16" width="10" height="16"/>
+      <!-- chimney -->
+      <rect x="10" y="10" width="6" height="14"/>
+      <rect x="28" y="6" width="6" height="14"/>
+      <!-- windows / doors -->
+      <rect x="8" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="22" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="36" y="40" width="8" height="8" rx="1" fill="#0b1c30"/>
+      <rect x="50" y="40" width="6" height="8" rx="1" fill="#0b1c30"/>
+      <!-- door -->
+      <rect x="27" y="50" width="10" height="10" rx="1" fill="#0b1c30"/>
+    </svg>
+  </div>
+
+  <script>
+    window.addEventListener('load', function() {
+      const loader = document.getElementById('preloader');
+      setTimeout(() => {
+        loader.classList.add('hidden');
+      }, 800); // Small delay for smoothness
+    });
+  </script>
+  
+  <!-- THÉP SƠN LÂM Portal Header Component -->
+<header
+  class="fixed top-0 left-0 w-full z-50 bg-[#0b1c30]/95 backdrop-blur-lg border-b border-white/10 px-6 h-16 flex items-center justify-between transition-all duration-300 shadow-2xl notranslate"
+  translate="no" x-data="{ scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)"
+  :class="scrolled ? 'h-14 bg-[#0b1c30]' : 'h-16'">
+
+  <!-- Brand Section -->
+  <div class="flex items-center gap-4">
+    <button class="lg:hidden text-white/70 hover:text-white transition-colors">
+      <span class="material-symbols-outlined notranslate">menu</span>
+    </button>
+    <a href="/" class="flex items-center gap-3 group">
+      <div
+        class="w-9 h-9 bg-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-600/30 group-hover:scale-105 transition-all">
+        <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
+      </div>
+      <div class="flex flex-col leading-none">
+        <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">SẮT THÉP SƠN
+          LÂM</span>
+        <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial Core</span>
+      </div>
+    </a>
+  </div>
+
+  <!-- Navigation Section -->
+  <nav class="hidden lg:flex items-center gap-10">
+    <a href="/"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '/xe-cau' === '/' }">
+      <span x-text="$store.i18n.t('home')">Trang chủ</span>
+    </a>
+
+    <a href="/gioi-thieu"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '/xe-cau'.includes('/gioi-thieu') }">
+      <span x-text="$store.i18n.t('about')">Giới thiệu</span>
+    </a>
+
+    <!-- Services Dropdown -->
+    <div class="relative group" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+      <button
+        class="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest transition-all text-slate-100 hover:text-orange-400"
+        :class="{ 'text-orange-500': '/xe-cau'.includes('/nha-xuong') }">
+        <span x-text="$store.i18n.t('services')">Dịch vụ</span>
+        <span class="material-symbols-outlined text-[16px] notranslate" aria-hidden="true">expand_more</span>
+      </button>
+      <div x-show="open" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+        class="absolute left-0 mt-0 w-48 bg-[#0d2137] border border-white/10 rounded-xl shadow-2xl z-[60] overflow-hidden">
+        <div class="py-2">
+          <a href="/nha-xuong"
+            class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-slate-300 hover:text-orange-400">
+            <span class="material-symbols-outlined text-[20px] notranslate" aria-hidden="true">warehouse</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <a href="/tin-tuc"
+      class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
+      :class="{ 'text-orange-500': '/xe-cau'.includes('/tin-tuc') }">
+      <span x-text="$store.i18n.t('news') || 'Tin tức'">Tin tức</span>
+    </a>
+  </nav>
+
+  <!-- Utils & Action Section -->
+  <div class="flex items-center gap-6" translate="no">
+    <!-- Language Selector -->
+    <div class="relative hidden sm:block" x-data="{ open: false }" @click.away="open = false">
+      <button @click="open = !open"
+        class="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-2 rounded-full hover:bg-white/10 transition-all text-white group notranslate">
+        <span class="text-xl" x-text="$store.i18n.lang === 'vi' ? '🇻🇳' : '🇨🇳'"></span>
+        <span
+          class="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-white transition-transform notranslate"
+          :class="open ? 'rotate-180' : ''" aria-hidden="true">expand_more</span>
+      </button>
+
+      <!-- Minimalist Dropdown -->
+      <div x-show="open" x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+        class="absolute right-0 mt-2 w-16 bg-[#1a2b3c] border border-white/10 rounded-2xl shadow-2xl z-[60] py-2 flex flex-col items-center gap-1 notranslate">
+
+        <button @click="$store.i18n.lang = 'vi'; open = false; setGoogleLang('vi')"
+          class="w-10 h-10 flex items-center justify-center rounded-xl transition-all"
+          :class="$store.i18n.lang === 'vi' ? 'bg-orange-600/20 ring-1 ring-orange-500/50' : 'hover:bg-white/10'">
+          <span class="text-2xl">🇻🇳</span>
+        </button>
+
+        <button @click="$store.i18n.lang = 'zh'; open = false; setGoogleLang('zh-CN')"
+          class="w-10 h-10 flex items-center justify-center rounded-xl transition-all"
+          :class="$store.i18n.lang === 'zh' ? 'bg-orange-600/20 ring-1 ring-orange-500/50' : 'hover:bg-white/10'">
+          <span class="text-2xl">🇨🇳</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Contact Info -->
+    
+
+    <div class="h-6 w-px bg-white/10 hidden md:block"></div>
+
+    <!-- CTA Button -->
+    
+    <a href="/login"
+      class="bg-orange-600 text-white px-6 py-2.5 rounded-lg font-black uppercase text-[11px] tracking-widest shadow-xl shadow-orange-600/20 hover:bg-orange-500 hover:-translate-y-0.5 active:translate-y-0 transition-all notranslate"
+      translate="no">
+      Đăng nhập
+    </a>
+    
+  </div>
+</header>
+
+  <!-- Google Translate (hidden widget, controlled by lang selector) -->
+  <div id="google_translate_element" style="display:none"></div>
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'vi',
+        includedLanguages: 'vi,zh-CN,en',
+        autoDisplay: false
+      }, 'google_translate_element');
+    }
+
+    function _setCookie(name, value, days, domain) {
+      const exp = new Date(Date.now() + days * 864e5).toUTCString();
+      let c = name + '=' + value + '; expires=' + exp + '; path=/; SameSite=Lax';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+    function _delCookie(name, domain) {
+      let c = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+
+    // Called by lang selector — switches Google Translate + saves preference 1 week
+    function setGoogleLang(langCode) {
+      if (langCode === 'vi') {
+        _delCookie('googtrans');
+        _delCookie('googtrans', location.hostname);
+        _delCookie('lang_pref');
+        _delCookie('lang_pref', location.hostname);
+      } else {
+        const val = '/vi/' + langCode;
+        _setCookie('googtrans', val, 7);
+        _setCookie('googtrans', val, 7, location.hostname);
+        _setCookie('lang_pref', langCode, 7);
+        _setCookie('lang_pref', langCode, 7, location.hostname);
+      }
+      location.reload();
+    }
+
+    // On load: reflect saved lang_pref cookie in Alpine store
+    document.addEventListener('alpine:init', () => {
+      const m = document.cookie.match(/lang_pref=([^;]+)/);
+      if (m && m[1] && m[1] !== 'vi') {
+        Alpine.store('i18n').lang = 'zh';
+      }
+    });
+  </script>
+  <script type="text/javascript"
+          src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
+  </script>
+  <style>
+    /* Hide Google Translate toolbar banner */
+    .goog-te-banner-frame, .skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+    .goog-te-gadget { display: none !important; }
+  </style>
+
+  <main class="pt-16 pb-24">
+    
+
+
+<section class="relative w-full min-h-[580px] flex items-end overflow-hidden bg-[#0b1c30]" x-data="{
+           slides: ['/static/brain/crane1.jpg', '/static/brain/warehouse1.jpg', '/static/brain/wh_real1.jpg'],
+           cur: 0,
+           init(){ setInterval(()=> this.cur=(this.cur+1)%this.slides.length, 5000) }
+         }">
+  <div class="absolute inset-0">
+    <template x-for="(s,i) in slides" :key="i">
+      <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
+        <img :src="s" class="w-full h-full object-cover" style="opacity:.55" alt="Xe cẩu chuyên nghiệp THÉP SƠN LÂM">
+      </div>
+    </template>
+    <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/20 to-transparent"></div>
+  </div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6 pb-16 pt-32 w-full">
+    <span
+      class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Crane
+      Service · Vĩnh Phúc</span>
+    <h1 class="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-5 max-w-3xl">
+      Dịch vụ xe cẩu<br><span class="text-orange-400">Chuyên nghiệp — An toàn</span>
+    </h1>
+    <p class="text-slate-300 text-lg max-w-2xl mb-8 leading-relaxed">
+      Tải trọng tối đa <strong class="text-white">500 tấn</strong> · Bảo hiểm 100% hàng hóa · Kỹ sư ISO 9001 · Phản hồi
+      trong 15 phút.
+    </p>
+    <div class="flex flex-wrap gap-4">
+      <a href="#lien-he"
+        class="px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg shadow-orange-500/30">
+        Đặt xe cẩu ngay
+      </a>
+      <a href="tel:0986565666"
+        class="px-8 py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-orange-400 text-lg">call</span>
+        0986 565 666
+      </a>
+    </div>
+  </div>
+
+  
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+    <template x-for="(_,i) in slides" :key="i">
+      <button @click="cur=i" :class="cur===i?'bg-orange-500 w-6':'bg-white/30 w-2'"
+        class="h-2 rounded-full transition-all duration-300"></button>
+    </template>
+  </div>
+</section>
+
+
+<section class="bg-[#0b1c30] border-t border-white/10">
+  <div class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+    <div>
+      <p class="text-2xl font-black text-orange-400">500T+</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Tải trọng tối đa</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-orange-400">100%</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Bảo hiểm hàng hóa</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-orange-400">24/7</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Phục vụ liên tục</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-orange-400">15 phút</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Phản hồi tư vấn</p>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-24 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Equipment Fleet</span>
+      <h2 class="text-4xl font-black text-slate-900">Đội xe cẩu hiện đại</h2>
+    </div>
+
+    
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div class="spec-card group">
+        <div
+          class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+          <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">precision_manufacturing</span>
+        </div>
+        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Cẩu di động</p>
+        <p class="text-3xl font-black text-slate-900 mb-1">Kato 50T</p>
+        <p class="text-sm text-slate-500">NK-500E · Tải 50 tấn</p>
+      </div>
+      <div class="spec-card group border-orange-200 bg-orange-50/30">
+        <div class="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span class="material-symbols-outlined text-white text-2xl">precision_manufacturing</span>
+        </div>
+        <p class="text-[10px] text-orange-500 uppercase tracking-[0.3em] font-bold mb-2">Cẩu dàn — Lớn nhất</p>
+        <p class="text-3xl font-black text-slate-900 mb-1">Liebherr 300T</p>
+        <p class="text-sm text-slate-500">LR 1300 · Tải 300 tấn</p>
+      </div>
+      <div class="spec-card group">
+        <div
+          class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+          <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">precision_manufacturing</span>
+        </div>
+        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Cẩu bánh lốp</p>
+        <p class="text-3xl font-black text-slate-900 mb-1">Tadano 25T</p>
+        <p class="text-sm text-slate-500">GR-250N · Tải 25 tấn</p>
+      </div>
+      <div class="spec-card group">
+        <div
+          class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+          <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">precision_manufacturing</span>
+        </div>
+        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Cẩu toàn địa hình</p>
+        <p class="text-3xl font-black text-slate-900 mb-1">Grove 100T</p>
+        <p class="text-sm text-slate-500">GMK4100L · Tải 100 tấn</p>
+      </div>
+    </div>
+
+    
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">height</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Tầm với tối đa</p>
+        <p class="text-xl font-black text-slate-900">100 m</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">bolt</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Nguồn điện</p>
+        <p class="text-xl font-black text-slate-900">Diesel · Hybrid</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">verified</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Chứng nhận</p>
+        <p class="text-xl font-black text-slate-900">ISO 9001</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">security</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Tiêu chuẩn an toàn</p>
+        <p class="text-xl font-black text-slate-900">TCVN 4244</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">schedule</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Điều vận</p>
+        <p class="text-xl font-black text-slate-900">24/7</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">local_shipping</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Phạm vi</p>
+        <p class="text-xl font-black text-slate-900">Toàn quốc</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">engineering</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Kinh nghiệm</p>
+        <p class="text-xl font-black text-slate-900">10+ năm</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">support_agent</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Tư vấn</p>
+        <p class="text-xl font-black text-slate-900">Miễn phí</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-12">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Gallery</span>
+      <h2 class="text-4xl font-black text-slate-900">Hình ảnh thực tế</h2>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 h-[480px]">
+      <div class="col-span-2 row-span-2 rounded-3xl overflow-hidden">
+        <img src="/static/brain/crane1.jpg" class="gallery-img" alt="Xe cẩu THÉP SƠN LÂM tại công trình">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/warehouse1.jpg" loading="lazy" class="gallery-img h-full" alt="Cẩu hàng công nghiệp THÉP SƠN LÂM">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/wh_real1.jpg" loading="lazy" class="gallery-img h-full" alt="Lắp đặt thiết bị nặng bằng xe cẩu">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/wh_real2.jpg" loading="lazy" class="gallery-img h-full" alt="Xe cẩu Kato tại công trình Vĩnh Phúc">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/wh_real3.jpg" loading="lazy" class="gallery-img h-full" alt="Vận chuyển siêu trọng THÉP SƠN LÂM">
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-24 bg-slate-900 relative overflow-hidden">
+  <div class="absolute inset-0 opacity-5">
+    <div class="w-full h-full"
+      style="background-image: repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 60px), repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 60px)">
+    </div>
+  </div>
+  <div class="max-w-6xl mx-auto px-6 relative z-10">
+    <div class="grid md:grid-cols-2 gap-16 items-center">
+      <div>
+        <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic
+          Location</span>
+        <h2 class="text-4xl font-black text-white mb-8">Trụ sở tại<br>Vĩnh Phúc</h2>
+        <p class="text-slate-400 mb-10 leading-relaxed">Đội xe cẩu xuất phát từ Vĩnh Phúc — kết nối cao tốc Nội Bài – Lào
+          Cai, phục vụ nhanh các tỉnh miền Bắc và toàn quốc.</p>
+        <div class="space-y-4">
+          <div
+            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">20</div>
+            <div>
+              <p class="text-white font-bold text-sm">km đến TP. Vĩnh Yên</p>
+              <p class="text-slate-500 text-xs">Trung tâm hành chính tỉnh Vĩnh Phúc</p>
+            </div>
+          </div>
+          <div
+            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">40</div>
+            <div>
+              <p class="text-white font-bold text-sm">km đến sân bay Nội Bài</p>
+              <p class="text-slate-500 text-xs">Cửa ngõ xuất nhập khẩu hàng không</p>
+            </div>
+          </div>
+          <div
+            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">60</div>
+            <div>
+              <p class="text-white font-bold text-sm">km đến trung tâm Hà Nội</p>
+              <p class="text-slate-500 text-xs">Qua cao tốc Nội Bài – Lào Cai</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        
+        <div class="rounded-3xl overflow-hidden shadow-2xl border border-white/10 h-[420px]">
+          <iframe src="https://maps.google.com/maps?q=Vinh+Phuc+Vietnam&z=12&output=embed"
+            class="w-full h-full" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+            title="Vị trí kho bãi xe cẩu tại Vĩnh Phúc">
+          </iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-24 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Our Commitment</span>
+      <h2 class="text-4xl font-black text-slate-900">Lý do chọn THÉP SƠN LÂM</h2>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">verified</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Bảo hiểm 100%</p>
+        <p class="text-sm text-slate-600 font-medium">Toàn bộ hàng hóa được bảo hiểm đầy đủ, đền bù kịp thời</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">engineering</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Kỹ sư ISO 9001</p>
+        <p class="text-sm text-slate-600 font-medium">Vận hành viên có chứng chỉ quốc tế, kinh nghiệm 10+ năm</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">precision_manufacturing</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Thiết bị hiện đại</p>
+        <p class="text-sm text-slate-600 font-medium">Đội xe cẩu đa chủng loại, tải trọng 25T – 500T</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">support_agent</span>
+        <p class="font-black text-slate-900 text-lg mb-1">24/7 hỗ trợ</p>
+        <p class="text-sm text-slate-600 font-medium">Hotline luôn trực, phản hồi tư vấn trong 15 phút</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-20 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Our Services</span>
+      <h2 class="text-3xl font-black text-slate-900 mb-4">Dịch vụ xe cẩu chuyên nghiệp</h2>
+      <p class="text-slate-500 max-w-xl mx-auto">Chúng tôi cung cấp đầy đủ giải pháp nâng hạ, vận chuyển và lắp đặt thiết
+        bị nặng cho mọi công trình.</p>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">forklift</span>
+        <h4 class="font-black text-slate-900 mb-2">Cẩu hàng công nghiệp</h4>
+        <p class="text-sm text-slate-500">Nâng hạ thiết bị máy móc, container, kết cấu thép nặng tại nhà máy, kho bãi,
+          công trình xây dựng.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">precision_manufacturing</span>
+        <h4 class="font-black text-slate-900 mb-2">Lắp thiết bị nặng</h4>
+        <p class="text-sm text-slate-500">Lắp đặt máy CNC, lò hơi, transformer điện, hệ thống băng tải với độ chính xác
+          cao, an toàn tuyệt đối.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">local_shipping</span>
+        <h4 class="font-black text-slate-900 mb-2">Vận chuyển siêu trọng</h4>
+        <p class="text-sm text-slate-500">Kết hợp xe đầu kéo và cẩu chuyên dụng cho hàng hóa quá khổ, quá tải theo tuyến
+          QL, cao tốc toàn quốc.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">apartment</span>
+        <h4 class="font-black text-slate-900 mb-2">Cẩu xây dựng</h4>
+        <p class="text-sm text-slate-500">Thi công lắp dựng kết cấu thép nhà xưởng, cầu đường, cột điện, trụ viễn thông
+          trên toàn quốc.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">manage_search</span>
+        <h4 class="font-black text-slate-900 mb-2">Khảo sát kỹ thuật</h4>
+        <p class="text-sm text-slate-500">Kỹ sư khảo sát hiện trường, tính toán tải trọng, lập phương án cẩu an toàn trước
+          khi thi công.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">support_agent</span>
+        <h4 class="font-black text-slate-900 mb-2">Tư vấn miễn phí</h4>
+        <p class="text-sm text-slate-500">Hotline 24/7, kỹ sư tư vấn phương án, báo giá trọn gói trong vòng 1 giờ không
+          mất phí.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="py-24 bg-[#0b1c30]">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">How It Works</span>
+      <h2 class="text-4xl font-black text-white">Đặt xe cẩu trong 4 bước</h2>
+    </div>
+    <div class="max-w-2xl mx-auto space-y-4 relative">
+      <div class="absolute left-[23px] top-8 bottom-8 w-px bg-orange-500/30"></div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-orange-500/30 shrink-0">1</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Liên hệ & Khảo sát</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Gọi hotline hoặc điền form — kỹ sư tư vấn tải trọng, địa điểm,
+            phương án cẩu trong vòng 15 phút.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-orange-100 border-2 border-orange-400 flex items-center justify-center text-orange-700 font-black text-lg shrink-0">2</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Báo giá & Ký hợp đồng</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Báo giá trọn gói trong 1 giờ. Hợp đồng rõ ràng, có điều khoản
+            bảo hiểm hàng hóa và thiết bị đầy đủ.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-orange-100 border-2 border-orange-400 flex items-center justify-center text-orange-700 font-black text-lg shrink-0">3</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Triển khai thi công</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Đội ngũ kỹ thuật và xe cẩu có mặt đúng giờ. Giám sát an toàn
+            100% theo tiêu chuẩn TCVN 4244.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-orange-100 border-2 border-orange-400 flex items-center justify-center text-orange-700 font-black text-lg shrink-0">4</div>
+        <div class="flex-1 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Nghiệm thu & Bàn giao</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Kiểm tra kết quả cùng khách hàng, xử lý phát sinh nếu có, bàn
+            giao hồ sơ an toàn đầy đủ.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<div id="lien-he">
+  
+  
+<section id="lien-he" class="py-24 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-gutter">
+    <div class="bg-primary-container rounded-[3.5rem] overflow-hidden flex flex-col lg:flex-row shadow-3xl">
+
+      
+      <div class="lg:w-1/2 p-12 lg:p-20 text-white flex flex-col justify-center">
+        <h2 class="text-4xl font-black mb-8 leading-tight">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h2>
+        <p class="text-slate-400 mb-12">Để lại thông tin, đội ngũ chuyên gia của chúng tôi sẽ liên hệ tư vấn giải pháp
+          hạ tầng tối ưu nhất trong vòng 24h.</p>
+        <div class="space-y-6">
+          <div class="flex items-center gap-4">
+            <div
+              class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-orange-500">
+              <span class="material-symbols-outlined">mail</span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 uppercase font-bold">Email</p>
+              <p class="text-lg font-bold">contact@thép sơn lâm.com</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div
+              class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-orange-500">
+              <span class="material-symbols-outlined">support_agent</span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 uppercase font-bold">Hotline 24/7</p>
+              <p class="text-lg font-bold">+84 123 456 789</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+      <div class="lg:w-1/2 bg-white p-12 lg:p-20 flex flex-col justify-center">
+        <form id="contact-form" class="space-y-6" novalidate>
+          <input type="hidden" name="source_page" value="crane">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Họ và tên *</label>
+              <input type="text" name="full_name" required placeholder="Nguyễn Văn A"
+                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại *</label>
+              <input type="tel" name="phone" required placeholder="090 123 4567"
+                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tên doanh nghiệp</label>
+            <input type="text" name="company_name" placeholder="Công ty TNHH THÉP SƠN LÂM"
+              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhu cầu tư vấn</label>
+            <select name="demand"
+              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none appearance-none">
+              <option value="Cho thuê nhà xưởng xây sẵn">Cho thuê nhà xưởng xây sẵn</option>
+              <option value="Tư vấn đầu tư FDI">Tư vấn đầu tư FDI</option>
+              <option value="Thuê kho bãi logistics">Thuê kho bãi logistics</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+
+          <button type="submit" id="contact-submit-btn"
+            class="w-full bg-orange-500 text-white py-5 rounded-2xl font-black uppercase tracking-[0.3em] text-sm hover:bg-orange-600 transition-colors shadow-xl shadow-orange-500/30">
+            Gửi yêu cầu tư vấn
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Toast notification -->
+
+<script>
+  (function () {
+    const form = document.getElementById('contact-form');
+    const btn = document.getElementById('contact-submit-btn');
+
+    function showToast(ok, msg) {
+      const existing = document.getElementById('contact-toast');
+      if (existing) existing.remove();
+
+      const bg = ok ? 'bg-green-600' : 'bg-rose-600';
+      const icon = ok ? 'check_circle' : 'warning';
+      const el = document.createElement('div');
+      el.id = 'contact-toast';
+      el.style.cssText = 'position:fixed;top:24px;right:24px;z-index:9999;max-width:360px;width:calc(100% - 48px);transform:translateX(120%);transition:transform 0.3s ease-out';
+      el.setAttribute('role', 'alert');
+      el.innerHTML = `<div class="${bg} text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
+      <span class="material-symbols-outlined text-xl mt-0.5 shrink-0">${icon}</span>
+      <p class="text-sm font-semibold leading-snug">${msg}</p>
+    </div>`;
+      document.body.appendChild(el);
+      requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; });
+      setTimeout(() => {
+        el.style.transform = 'translateX(120%)';
+        setTimeout(() => el.remove(), 350);
+      }, 4500);
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const full_name = form.querySelector('[name=full_name]').value.trim();
+      const phone = form.querySelector('[name=phone]').value.trim();
+      if (!full_name || full_name.length < 2) {
+        showToast(false, 'Vui lòng nhập họ tên (ít nhất 2 ký tự).');
+        return;
+      }
+      if (!phone || !/^[0-9\s\+\-\.]{7,20}$/.test(phone)) {
+        showToast(false, 'Số điện thoại không hợp lệ.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Đang gửi…';
+
+      try {
+        const data = new FormData(form);
+        const res = await fetch('/lien-he', { method: 'POST', body: data });
+        if (res.ok) {
+          showToast(true, 'Gửi thành công! Chúng tôi sẽ liên hệ lại trong vòng 30 phút.');
+          form.reset();
+        } else {
+          showToast(false, 'Có lỗi xảy ra. Vui lòng thử lại hoặc gọi hotline.');
+        }
+      } catch (_) {
+        showToast(false, 'Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Gửi yêu cầu tư vấn';
+      }
+    });
+  })();
+</script>
+</div>
+
+
+
+    <footer class="bg-[#0b1c30] text-white pt-16 pb-8 px-6" translate="no">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- Top row: brand + nav columns -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-10 pb-12 border-b border-white/10">
+
+      <!-- Brand column -->
+      <div class="col-span-2 md:col-span-1">
+        <a href="/" class="flex items-center gap-3 mb-4 group">
+          <div class="w-9 h-9 bg-orange-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-600/30">
+            <span class="material-symbols-outlined text-white text-xl font-black notranslate"
+              aria-hidden="true">robot_2</span>
+          </div>
+          <div class="flex flex-col leading-none">
+            <span class="text-base font-black text-white uppercase tracking-tighter notranslate">THÉP SƠN LÂM</span>
+            <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial
+              Core</span>
+          </div>
+        </a>
+        <p class="text-slate-400 text-sm leading-relaxed max-w-xs notranslate">
+          Khu công nghiệp & nhà xưởng xây sẵn tại Vĩnh Phúc — sẵn sàng cho sản xuất ngay từ ngày đầu.
+        </p>
+        <div class="flex gap-3 mt-5">
+          <a href="tel:0796166566"
+            class="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-orange-600 hover:border-orange-600 transition-all group">
+            <span class="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-white notranslate"
+              aria-hidden="true">call</span>
+          </a>
+          <a href="#lien-he"
+            class="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-orange-600 hover:border-orange-600 transition-all group">
+            <span class="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-white notranslate"
+              aria-hidden="true">mail</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Dịch vụ column -->
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Dịch vụ</p>
+        <ul class="space-y-3">
+          <li><a href="/nha-xuong"
+              class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Nhà xưởng xây sẵn</a>
+          </li>
+          <li><a href="#" class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Hạ tầng
+              KCN</a></li>
+          <li><a href="#" class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Xây xưởng
+              theo yêu cầu</a></li>
+        </ul>
+      </div>
+
+      <!-- Công ty column -->
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Công ty</p>
+        <ul class="space-y-3">
+          <li><a href="/gioi-thieu"
+              class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Giới thiệu</a></li>
+          <li><a href="/tin-tuc"
+              class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Tin tức</a></li>
+          <li><a href="/lien-he" class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Liên
+              hệ</a></li>
+          <li><a href="/login" class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">Cổng
+              quản trị</a></li>
+        </ul>
+      </div>
+
+      <!-- Liên hệ column -->
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Liên hệ</p>
+        <ul class="space-y-3">
+          <li class="flex items-start gap-2">
+            <span class="material-symbols-outlined text-orange-500 text-[16px] mt-0.5 shrink-0 notranslate"
+              aria-hidden="true">location_on</span>
+            <span class="text-slate-400 text-sm notranslate">Khu công nghiệp Trung Hà - Phú Thọ</span>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-500 text-[16px] shrink-0 notranslate"
+              aria-hidden="true">call</span>
+            <a href="tel:0986565666"
+              class="text-slate-400 text-sm hover:text-orange-400 transition-colors notranslate">0986 565 666</a>
+          </li>
+          <li class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-500 text-[16px] shrink-0 notranslate"
+              aria-hidden="true">schedule</span>
+            <span class="text-slate-400 text-sm notranslate">T2 – T7 · 8:00 – 17:30</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bottom row: copyright + badge -->
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
+      <p class="text-slate-500 text-xs notranslate">
+        © <span x-text="new Date().getFullYear()"></span> THÉP SƠN LÂM Industrial Core. Bảo lưu mọi quyền.
+      </p>
+      <div class="flex items-center gap-4">
+        <span
+          class="inline-flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-full text-[10px] text-slate-400 font-bold uppercase tracking-widest notranslate">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+          KCN Stavian · Vĩnh Phúc
+        </span>
+      </div>
+    </div>
+
+  </div>
+</footer>
+  </main>
+
+  <!-- BottomNavBar -->
+  <nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-white border-t border-slate-200 shadow-[0_-1px_3px_0_rgba(0,0,0,0.05)]">
+    <a class="flex flex-col items-center justify-center text-slate-500 rounded-lg p-1 transition-all" href="/">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true" style="">grid_view</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
+    </a>
+    <a class="flex flex-col items-center justify-center text-slate-500 p-1 transition-all" href="/nha-xuong">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true" style="">warehouse</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+    </a>
+    
+    <a class="flex flex-col items-center justify-center text-slate-500 p-1 hover:text-slate-900 transition-all" href="/login">
+      <span class="material-symbols-outlined notranslate" aria-hidden="true">person</span>
+      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
+    </a>
+    
+  </nav>
+
+  <!-- FAB -->
+  <a href="tel:" class="fixed bottom-20 right-6 w-14 h-14 bg-secondary-container text-white rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all z-40" translate="no">
+    <span class="material-symbols-outlined notranslate" aria-hidden="true">add_call</span>
+  </a>
+</body>
+</html>

@@ -74,8 +74,8 @@ async def _periodic_discovery():
 
     # Read intervals from DB once at startup
     try:
-        from backend.core.database import DatabaseManager
-        db = DatabaseManager()
+        from frontend.deps import get_db
+        db = get_db()
         fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
         slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
     except Exception:
@@ -90,8 +90,8 @@ async def _periodic_discovery():
                 await asyncio.to_thread(_run_background_discovery)
                 # Refresh intervals on slow cycle (settings may have changed)
                 try:
-                    from backend.core.database import DatabaseManager
-                    db = DatabaseManager()
+                    from frontend.deps import get_db
+                    db = get_db()
                     fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
                     slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
                 except Exception:
@@ -132,7 +132,24 @@ app.add_middleware(
     https_only=False,
 )
 
-# Static files
+# Static files — with long-lived cache headers for assets
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+class StaticCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/static/"):
+            # Images/fonts/vendor JS: cache 7 days
+            if any(path.endswith(ext) for ext in (".jpg",".jpeg",".png",".webp",".svg",".ico",".woff2",".woff",".ttf")):
+                response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+            # Vendor JS/CSS: cache 30 days
+            elif path.startswith("/static/vendor/"):
+                response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        return response
+
+app.add_middleware(StaticCacheMiddleware)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 from backend.core import config as cfg
@@ -140,11 +157,13 @@ os.makedirs(cfg.KNOWN_FACES_DIR, exist_ok=True)
 os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
 app.mount("/known_faces", StaticFiles(directory=cfg.KNOWN_FACES_DIR), name="known_faces")
 app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots")
+app.mount("/data/recordings", StaticFiles(directory=cfg.RECORDING_DIR), name="recordings")
 
 # Templates
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.add_extension('jinja2.ext.do')
 
+# --- Import and register routers ---
 # --- Import and register routers ---
 from frontend.routers.auth_router import router as auth_router
 from frontend.routers.detection_router import router as detection_router
@@ -157,21 +176,50 @@ from frontend.routers.vehicles_router import router as vehicles_router
 from frontend.routers.strangers_router import router as strangers_router
 from frontend.routers.pending_plates_router import router as pending_plates_router
 from frontend.routers.parking_router import router as parking_router
-from frontend.routers.ocr_review_router import router as ocr_review_router
 from frontend.routers.telegram_router import router as telegram_router
 from frontend.routers.rbac_router import router as rbac_router
 from frontend.routers.users_router import router as users_router
-from frontend.routers.config_router import router as config_router
-from frontend.routers.hpc_router import router as hpc_router
-from frontend.routers.dori_router import router as dori_router
 from frontend.routers.system_router import router as system_router
+from frontend.routers.recordings_router import router as recordings_router
+from frontend.routers.landing_router import router as landing_router
+from frontend.routers.inquiries_router import router as inquiries_router
+from frontend.routers.cms_router import router as cms_router
+from frontend.notifications import manager
+from fastapi import WebSocket, WebSocketDisconnect
 
-for r in [auth_router, detection_router, cameras_router, sites_router,
-          providers_router, door_providers_router, rolling_doors_router,
-          vehicles_router, strangers_router, pending_plates_router,
-          parking_router, ocr_review_router, telegram_router, rbac_router,
-          users_router, config_router, hpc_router, dori_router, system_router]:
+# Routers to be prefixed with /camera
+CAMERA_PAGE_KEYS = {
+    "detection", "cameras", "vehicles", "strangers", 
+    "pending_plates", "parking_dashboard", "parking_logs", 
+    "parking_analytics", "recordings"
+}
+
+# Grouped registration
+for r in [detection_router, cameras_router, vehicles_router, strangers_router, 
+          pending_plates_router, parking_router, recordings_router]:
+    app.include_router(r, prefix="/camera")
+
+for r in [auth_router, sites_router, providers_router, door_providers_router,
+          rolling_doors_router, telegram_router, rbac_router,
+          users_router, system_router, inquiries_router, cms_router]:
     app.include_router(r)
+
+app.include_router(landing_router)
+
+@app.websocket("/ws/notifications")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+@app.post("/api/internal/notify-inquiry")
+async def notify_inquiry(data: dict):
+    """Internal endpoint to trigger WebSocket broadcast."""
+    await manager.broadcast({"type": "NEW_INQUIRY", "data": data})
+    return {"status": "ok"}
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -198,25 +246,3 @@ async def template_not_found_handler(request: Request, exc: jinja2.exceptions.Te
         "user": None, "menu_groups": {}, "sites": [], "active_site_id": 0, "current_menu": ""
     }
     return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
-
-
-@app.get("/.well-known/appspecific/com.chrome.devtools.json")
-async def devtools_json():
-    return {}
-
-
-@app.get("/")
-async def root(request: Request):
-    """Redirect to first allowed menu page."""
-    user = request.session.get("user")
-    if not user:
-        # Try remember token
-        user = try_remember_token(request)
-    if not user:
-        return RedirectResponse("/login")
-    ctx = get_menu_context(request, user)
-    first_key = ""
-    for items in ctx["menu_groups"].values():
-        first_key = next(iter(items))
-        break
-    return RedirectResponse(f"/{first_key}" if first_key else "/login")

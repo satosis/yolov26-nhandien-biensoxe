@@ -14,11 +14,16 @@
     {% for s in strangers %}
     <div class="bg-bg-card rounded-lg p-4 flex items-center justify-between gap-4 border border-white/5 hover:border-white/10 transition-colors">
       <div class="flex items-center gap-4">
-        {% if s.image_path %}
-        <img src="/snapshots/{{ s.image_path.split('/')[-1] }}" class="w-16 h-16 rounded-lg object-cover border border-white/10" alt="snapshot">
-        {% else %}
-        <div class="w-16 h-16 rounded-lg bg-bg-inset flex items-center justify-center text-txt-ter text-2xl">👤</div>
-        {% endif %}
+        <div class="w-[80px] h-[80px] rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 cursor-zoom-in group transition-all hover:border-accent/40 shadow-sm">
+          {% if s.image_path %}
+          <img src="/snapshots/{{ s.image_path.split('/')[-1] }}" 
+               class="w-full h-full object-cover transition-transform group-hover:scale-110"
+               onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
+               onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center text-[22px]\'>👤</div>'">
+          {% else %}
+          <div class="w-full h-full flex items-center justify-center text-[22px]">👤</div>
+          {% endif %}
+        </div>
         <div class="flex-1 flex flex-col gap-1">
           <div class="flex items-center gap-2">
             <span class="text-[13px] font-semibold text-white">Camera: {{ s.camera_name or s.camera_id }}{% if s.site_name %} ({{ s.site_name }}){% endif %}</span>
@@ -34,7 +39,7 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <form action="/kyc/register-stranger" method="POST" class="flex items-center gap-2">
+        <form action="/strangers/register" method="POST" class="flex items-center gap-2">
           <input type="hidden" name="stranger_id" value="{{ s.id }}">
           <select name="user_id" class="bg-bg-inset border border-white/10 text-white text-[12px] rounded px-2 py-1 outline-none focus:border-accent w-32" required>
             <option value="" disabled selected>Chọn User...</option>

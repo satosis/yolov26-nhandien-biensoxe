@@ -1,0 +1,19 @@
+streams:
+  cam_7: rtsp://admin:bB123456789@@192.168.43.111:554/cam/realmonitor?channel=1&subtype=1
+
+webrtc:
+  # ICE candidate strategy: LAN candidates first (lowest latency), STUN public as fallback.
+  # "net:udp" instructs go2rtc to gather local host candidates automatically.
+  # STUN is kept for WAN / TURN scenarios — must not regress.
+  candidates:
+    - net:udp  # gather local host IP candidates (LAN direct path, no relay)
+    - stun:stun.l.google.com:19302  # public STUN fallback for NAT traversal
+
+  # Codec preference: H.264 Baseline avoids transcoding on most IP cameras and
+  # decodes in hardware on mobile browsers. Opus is the standard WebRTC audio codec.
+  codecs:
+    video: h264
+    audio: opus
+
+api:
+  listen: ":1984"

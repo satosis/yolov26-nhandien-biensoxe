@@ -66,9 +66,22 @@ def get_menu_context(request: Request, user: dict) -> dict:
         if group_items:
             filtered[group_name] = group_items
 
+    # Camera pages set for prefixing logic
+    camera_page_keys = {
+        "detection", "cameras", "vehicles", "strangers", 
+        "pending_plates", "parking_dashboard", "parking_logs", 
+        "parking_analytics", "recordings"
+    }
+
     sites = get_db().get_sites(active_only=True)
     active_site_id = request.session.get("active_site_id", 0)
-    current_menu = request.url.path.strip("/").split("/")[0] if request.url.path != "/" else ""
+    
+    # Handle /camera prefix for current_menu highlight
+    path = request.url.path.strip("/")
+    if path.startswith("camera/"):
+        current_menu = path[7:] # len("camera/") == 7
+    else:
+        current_menu = path
 
     return {
         "user": user,
@@ -76,4 +89,5 @@ def get_menu_context(request: Request, user: dict) -> dict:
         "sites": sites,
         "active_site_id": active_site_id,
         "current_menu": current_menu,
+        "camera_page_keys": camera_page_keys,
     }
