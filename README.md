@@ -1,5 +1,7 @@
 # 🚗 Camera AI — Hệ thống giám sát bãi giữ xe thông minh
 
+![Parking AI Hero](assets/hero.png)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-green.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-teal.svg)](https://fastapi.tiangolo.com/)
@@ -143,6 +145,7 @@ python3 backend/main.py
 ## 📋 Tính năng chi tiết
 
 ### 🔍 AI Detection
+![LPR Technical Demo](assets/lpr_demo.png)
 - **YOLOv2.6 INT8** — Tối ưu cho ARM (Orange Pi 4 Pro)
 - **PaddleOCR** — Nhận diện chữ trên biển số Việt Nam
 - **InsightFace buffalo_sc** — Nhận diện khuôn mặt, phát hiện người lạ (stranger detection)
@@ -163,6 +166,7 @@ python3 backend/main.py
 - Bot username verification
 
 ### 🌐 Web Management
+![Mobile Responsive Mockup](assets/mobile.png)
 - **Mobile responsive** — CSS breakpoints 768px + 480px
 - **RBAC** — Phân quyền menu theo role từ DB
 - **Remember login** — Token-based, localStorage + DB

@@ -1,7 +1,6 @@
 """Landing page router — public routes, no auth required."""
 import logging
 import re
-import json
 from datetime import datetime
 from fastapi import APIRouter, Request, Form
 from fastapi.templating import Jinja2Templates
@@ -114,9 +113,9 @@ async def landing_warehouse(request: Request):
     )
 
 
-@router.get("/xe-cau", response_class=HTMLResponse)
-async def landing_crane(request: Request):
-    """Spoke 2 — Xe cau chuyen nghiep."""
+@router.get("/nha-xuong-co-tiet", response_class=HTMLResponse)
+async def landing_co_tiet(request: Request):
+    """Spoke 1b — CCN Co Tiet nha xuong cho thue."""
     db = get_db()
     raw_settings = db.get_landing_settings()
     settings = {
@@ -126,22 +125,51 @@ async def landing_crane(request: Request):
         "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
     }
     return templates.TemplateResponse(
-        "pages/landing_crane.html",
-        {"request": request, "settings": settings, "source_page": "crane", "user": get_optional_user(request)},
+        "pages/landing_co_tiet.html",
+        {
+            "request": request,
+            "settings": settings,
+            "source_page": "co_tiet",
+            "user": get_optional_user(request),
+        },
     )
 
 
-@router.get("/tin-tuc/{news_id}", response_class=HTMLResponse)
-async def landing_news_detail(request: Request, news_id: int):
-    """Chi tiet bai viet tin tuc."""
+@router.get("/xe-cau", response_class=HTMLResponse)
+async def landing_crane(request: Request):
+    """Spoke 2 — Xe cau chuyen nghiep."""
+    return templates.TemplateResponse(
+        "pages/landing_crane.html",
+        {"request": request, "source_page": "crane", "user": get_optional_user(request)},
+    )
+
+
+@router.get("/kiem-dinh-can", response_class=HTMLResponse)
+async def landing_scale(request: Request):
+    """Spoke 3 — Kiem dinh can & cho thue qua can Dai Lo Xanh."""
+    return templates.TemplateResponse(
+        "pages/landing_scale.html",
+        {"request": request, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
+    )
+
+
+@router.get("/tin-tuc/{slug}", response_class=HTMLResponse)
+async def landing_news_detail(request: Request, slug: str):
+    """Chi tiet bai viet tin tuc — slug hoac legacy numeric ID."""
+    from fastapi.responses import RedirectResponse
     db = get_db()
     raw_settings = db.get_landing_settings()
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
     }
-    item = db.get_news_by_id(news_id)
+    # Legacy: numeric ID → redirect to slug URL
+    if slug.isdigit():
+        item = db.get_news_by_id(int(slug))
+        if item and item.get("slug"):
+            return RedirectResponse(f"/tin-tuc/{item['slug']}", status_code=301)
+        return RedirectResponse("/tin-tuc")
+    item = db.get_news_by_slug(slug)
     if not item:
-        from fastapi.responses import RedirectResponse
         return RedirectResponse("/tin-tuc")
     user = get_optional_user(request)
     return templates.TemplateResponse("pages/landing_news_detail.html", {
@@ -192,7 +220,9 @@ async def sitemap(request: Request):
     static_urls = [
         ("", "1.0", "weekly"),
         ("/nha-xuong", "0.9", "weekly"),
+        ("/nha-xuong-co-tiet", "0.9", "weekly"),
         ("/xe-cau", "0.9", "weekly"),
+        ("/kiem-dinh-can", "0.9", "weekly"),
         ("/tin-tuc", "0.8", "daily"),
         ("/gioi-thieu", "0.7", "monthly"),
     ]

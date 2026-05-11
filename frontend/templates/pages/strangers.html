@@ -39,7 +39,7 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <form action="/strangers/register" method="POST" class="flex items-center gap-2">
+        <form action="/camera/strangers/register" method="POST" class="flex items-center gap-2">
           <input type="hidden" name="stranger_id" value="{{ s.id }}">
           <select name="user_id" class="bg-bg-inset border border-white/10 text-white text-[12px] rounded px-2 py-1 outline-none focus:border-accent w-32" required>
             <option value="" disabled selected>Chọn User...</option>
@@ -52,7 +52,7 @@
           </button>
         </form>
 
-        <form action="/strangers/{{ s.id }}/review" method="POST">
+        <form action="/camera/strangers/{{ s.id }}/review" method="POST">
           <button type="submit" class="text-txt-ter hover:text-white text-[12px] px-2 py-1 transition-colors" title="Bỏ qua">
             ✕
           </button>

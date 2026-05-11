@@ -1,0 +1,390 @@
+{% extends "landing_base.html" %}
+{% block title %}Kiểm định cân & Cho thuê quả cân — Đại Lộ Xanh{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Dịch vụ kiểm định cân và cho thuê quả cân chuẩn tại Vĩnh Phúc — Công ty Đại Lộ Xanh. Cân điện tử, cân đồng hồ, quả cân M1/M2/F1. Liên hệ 0912 559 868.">
+<meta name="keywords" content="kiểm định cân, cho thuê quả cân, cân điện tử, cân đồng hồ, quả cân chuẩn, kiêm định thiết bị đo lường, Vĩnh Phúc, Đại Lộ Xanh">
+<meta name="robots" content="index, follow">
+<meta name="author" content="Nguyễn Kim Quyết — Đại Lộ Xanh">
+<link rel="canonical" href="{{ request.url }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:site_name" content="Đại Lộ Xanh">
+<meta property="og:title" content="Kiểm định cân & Cho thuê quả cân — Đại Lộ Xanh">
+<meta property="og:description" content="Dịch vụ kiểm định cân chuyên nghiệp, cho thuê quả cân chuẩn M1/M2/F1. Phục vụ nhà máy, xí nghiệp, siêu thị toàn tỉnh Vĩnh Phúc.">
+<meta property="og:url" content="{{ request.url }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Kiểm định cân & Cho thuê quả cân — Đại Lộ Xanh">
+<meta name="twitter:description" content="Kiểm định cân chuyên nghiệp, cho thuê quả cân chuẩn. Liên hệ 0912 559 868.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Service",
+      "@id": "{{ request.url }}#service",
+      "name": "Kiểm định cân & Cho thuê quả cân",
+      "description": "Dịch vụ kiểm định cân chuyên nghiệp và cho thuê quả cân chuẩn M1/M2/F1 tại Vĩnh Phúc. Phục vụ nhà máy, xí nghiệp, siêu thị, hộ kinh doanh.",
+      "serviceType": "Scale Calibration & Weight Rental",
+      "hoursAvailable": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+        "opens": "07:30",
+        "closes": "17:30"
+      },
+      "areaServed": [
+        { "@type": "State", "name": "Vĩnh Phúc" },
+        { "@type": "State", "name": "Phú Thọ" },
+        { "@type": "State", "name": "Hà Nội" }
+      ],
+      "provider": {
+        "@type": "Organization",
+        "@id": "{{ request.base_url }}#organization-daloxanh",
+        "name": "Đại Lộ Xanh",
+        "telephone": "0912559868",
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "telephone": "0912559868",
+          "contactType": "customer service",
+          "areaServed": "VN",
+          "availableLanguage": "Vietnamese"
+        }
+      },
+      "offers": {
+        "@type": "Offer",
+        "availability": "https://schema.org/InStock",
+        "priceCurrency": "VND"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Kiểm định cân mất bao lâu?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Thông thường kiểm định tại chỗ mất 30–60 phút/cân. Cấp giấy chứng nhận trong ngày hoặc tối đa 1 ngày làm việc."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Cho thuê quả cân có những loại nào?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Chúng tôi cho thuê quả cân chuẩn các cấp M1, M2, F1 với khối lượng từ 1 kg đến 500 kg. Phù hợp kiểm định cân bàn, cân sàn, cân điện tử."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dịch vụ kiểm định có cấp giấy chứng nhận không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Có. Sau kiểm định chúng tôi cấp tem kiểm định và giấy chứng nhận hợp lệ theo quy định của Tổng cục Tiêu chuẩn Đo lường Chất lượng."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Phục vụ những khu vực nào?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Chủ yếu phục vụ toàn tỉnh Vĩnh Phúc, Phú Thọ và khu vực lân cận Hà Nội. Liên hệ để được tư vấn cụ thể."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+  .spec-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.5rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .spec-card:hover {
+    box-shadow: 0 8px 32px rgba(34,197,94,0.10);
+    transform: translateY(-3px);
+  }
+  .tax-badge {
+    background: linear-gradient(135deg, #f0fdf4, #bbf7d0);
+    border: 1px solid #22c55e;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── HERO ── #}
+<section class="relative w-full min-h-[540px] flex items-end overflow-hidden bg-[#0b2416]" x-data="{
+  slides: ['/static/brain/warehouse1.jpg', '/static/brain/wh_real1.jpg', '/static/brain/wh_real2.jpg'],
+  cur: 0,
+  init(){ setInterval(()=> this.cur=(this.cur+1)%this.slides.length, 5000) }
+}">
+  <div class="absolute inset-0">
+    <template x-for="(s,i) in slides" :key="i">
+      <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
+        <img :src="s" class="w-full h-full object-cover" style="opacity:.45" alt="Kiểm định cân Đại Lộ Xanh">
+      </div>
+    </template>
+    <div class="absolute inset-0 bg-gradient-to-t from-[#0b2416] via-[#0b2416]/30 to-transparent"></div>
+  </div>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-6 pb-16 pt-32 w-full">
+    <span class="inline-block bg-green-600 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Kiểm định · Đại Lộ Xanh</span>
+    <h1 class="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-5 max-w-3xl">
+      Kiểm định cân<br><span class="text-green-400">& Cho thuê quả cân</span>
+    </h1>
+    <p class="text-slate-300 text-lg max-w-2xl mb-8 leading-relaxed">
+      Cấp <strong class="text-white">tem + giấy chứng nhận</strong> đúng quy định · Quả cân chuẩn M1/M2/F1 · Phục vụ toàn tỉnh Vĩnh Phúc.
+    </p>
+    <div class="flex flex-wrap gap-4">
+      <a href="#lien-he"
+        class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg shadow-green-600/30">
+        Đặt lịch kiểm định
+      </a>
+      <a href="tel:0912559868"
+        class="px-8 py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
+        <span class="material-symbols-outlined text-green-400 text-lg">call</span>
+        0912 559 868
+      </a>
+    </div>
+  </div>
+
+  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+    <template x-for="(_,i) in slides" :key="i">
+      <button @click="cur=i" :class="cur===i?'bg-green-500 w-6':'bg-white/30 w-2'"
+        class="h-2 rounded-full transition-all duration-300"></button>
+    </template>
+  </div>
+</section>
+
+{# ── QUICK STATS ── #}
+<section class="bg-[#0b2416] border-t border-white/10">
+  <div class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+    <div>
+      <p class="text-2xl font-black text-green-400">500kg</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Quả cân lớn nhất</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-green-400">M1/M2/F1</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Cấp chính xác</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-green-400">1 ngày</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Cấp chứng nhận</p>
+    </div>
+    <div>
+      <p class="text-2xl font-black text-green-400">Tại chỗ</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Kiểm định lưu động</p>
+    </div>
+  </div>
+</section>
+
+{# ── DỊCH VỤ CHÍNH ── #}
+<section class="py-24 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-green-600 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Our Services</span>
+      <h2 class="text-4xl font-black text-slate-900">Dịch vụ của chúng tôi</h2>
+    </div>
+
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">scale</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Kiểm định cân điện tử</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Kiểm định cân bàn, cân sàn, cân xe tải điện tử. Cấp tem kiểm định và giấy chứng nhận hợp chuẩn theo ĐLVN.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">settings</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Kiểm định cân đồng hồ / cơ</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Kiểm định, hiệu chỉnh cân đòn, cân đồng hồ lò xo, cân treo. Phù hợp cho hộ kinh doanh chợ, siêu thị nhỏ.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">inventory_2</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Cho thuê quả cân chuẩn</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Cho thuê quả cân chuẩn M1, M2, F1 từ 1kg đến 500kg. Phục vụ tự kiểm tra nội bộ, kiểm định định kỳ tại doanh nghiệp.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">local_shipping</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Kiểm định lưu động</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Đội kỹ thuật mang thiết bị đến tận nơi. Phục vụ nhà máy, khu công nghiệp, siêu thị không cần vận chuyển cân ra ngoài.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">verified</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Cấp giấy chứng nhận</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Giấy chứng nhận kiểm định có giá trị pháp lý, hợp lệ với cơ quan quản lý nhà nước và khách hàng kiểm tra.</p>
+      </div>
+      <div class="bg-white rounded-2xl p-8 border border-slate-100 shadow-sm hover:shadow-lg transition-shadow">
+        <div class="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-5">
+          <span class="material-symbols-outlined text-green-600 text-2xl">support_agent</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-lg mb-2">Tư vấn miễn phí</h3>
+        <p class="text-sm text-slate-500 leading-relaxed">Tư vấn lựa chọn cân phù hợp nghiệp vụ, chu kỳ kiểm định bắt buộc, hỗ trợ thủ tục đăng ký kiểm định lần đầu.</p>
+      </div>
+    </div>
+
+    {# Loại quả cân cho thuê #}
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+      <div class="bg-green-600 px-8 py-5">
+        <h3 class="text-white font-black text-xl">Danh mục quả cân cho thuê</h3>
+        <p class="text-green-100 text-sm mt-1">Cấp chính xác M1 · M2 · F1 theo ĐLVN 09</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead class="bg-slate-50 text-[11px] font-black uppercase tracking-widest text-slate-500 border-b border-slate-100">
+            <tr>
+              <th class="px-6 py-4">Khối lượng</th>
+              <th class="px-6 py-4">Cấp chính xác</th>
+              <th class="px-6 py-4">Ứng dụng phổ biến</th>
+              <th class="px-6 py-4 text-right">Liên hệ báo giá</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50 text-sm text-slate-700">
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4 font-bold">1 kg — 10 kg</td>
+              <td class="px-6 py-4"><span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-bold">M1 · M2 · F1</span></td>
+              <td class="px-6 py-4">Cân bàn, cân đếm, cân phân tích nhỏ</td>
+              <td class="px-6 py-4 text-right"><a href="tel:0912559868" class="text-green-600 font-bold hover:underline">0912 559 868</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4 font-bold">20 kg — 50 kg</td>
+              <td class="px-6 py-4"><span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-bold">M1 · M2</span></td>
+              <td class="px-6 py-4">Cân sàn, cân đồng hồ siêu thị, chợ</td>
+              <td class="px-6 py-4 text-right"><a href="tel:0912559868" class="text-green-600 font-bold hover:underline">0912 559 868</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4 font-bold">100 kg — 200 kg</td>
+              <td class="px-6 py-4"><span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-bold">M1 · M2</span></td>
+              <td class="px-6 py-4">Cân sàn công nghiệp, kho hàng</td>
+              <td class="px-6 py-4 text-right"><a href="tel:0912559868" class="text-green-600 font-bold hover:underline">0912 559 868</a></td>
+            </tr>
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-6 py-4 font-bold">500 kg</td>
+              <td class="px-6 py-4"><span class="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full text-xs font-bold">M2</span></td>
+              <td class="px-6 py-4">Cân sàn tải lớn, cân xe nâng, nhà máy</td>
+              <td class="px-6 py-4 text-right"><a href="tel:0912559868" class="text-green-600 font-bold hover:underline">0912 559 868</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── LÝ DO CHỌN ── #}
+<section class="py-24 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-green-600 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Why Us</span>
+      <h2 class="text-4xl font-black text-slate-900">Tại sao chọn Đại Lộ Xanh?</h2>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-green-600 text-3xl mb-3 block">verified_user</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Đúng pháp luật</p>
+        <p class="text-sm text-slate-600">Kiểm định đúng quy trình ĐLVN, giấy chứng nhận có giá trị pháp lý</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-green-600 text-3xl mb-3 block">local_shipping</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Lưu động tận nơi</p>
+        <p class="text-sm text-slate-600">Không cần vận chuyển cân — kỹ thuật viên đến tại địa chỉ của bạn</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-green-600 text-3xl mb-3 block">schedule</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Nhanh trong ngày</p>
+        <p class="text-sm text-slate-600">Kiểm định và cấp giấy chứng nhận trong ngày làm việc</p>
+      </div>
+      <div class="tax-badge text-center">
+        <span class="material-symbols-outlined text-green-600 text-3xl mb-3 block">payments</span>
+        <p class="font-black text-slate-900 text-lg mb-1">Giá minh bạch</p>
+        <p class="text-sm text-slate-600">Báo giá trọn gói trước khi thực hiện, không phát sinh</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── QUY TRÌNH ── #}
+<section class="py-24 bg-[#0b2416]">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-green-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">How It Works</span>
+      <h2 class="text-4xl font-black text-white">Quy trình kiểm định</h2>
+    </div>
+    <div class="max-w-2xl mx-auto space-y-4 relative">
+      <div class="absolute left-[23px] top-8 bottom-8 w-px bg-green-500/30"></div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-green-600/30 shrink-0">1</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Liên hệ & Báo số lượng cân</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Gọi 0912 559 868 hoặc điền form — cho biết loại cân, số lượng, địa chỉ kiểm định. Báo giá ngay qua điện thoại.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center text-green-800 font-black text-lg shrink-0">2</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Đặt lịch & Xác nhận</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Chọn ngày giờ phù hợp. Kỹ thuật viên xác nhận lịch, mang theo quả cân và thiết bị đo chuẩn.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center text-green-800 font-black text-lg shrink-0">3</div>
+        <div class="flex-1 pb-8 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Kiểm định tại chỗ</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Đo kiểm, hiệu chỉnh, dán tem kiểm định trực tiếp tại cơ sở. Thời gian 30–60 phút/cân.</p>
+        </div>
+      </div>
+      <div class="relative flex gap-6">
+        <div class="z-10 w-12 h-12 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center text-green-800 font-black text-lg shrink-0">4</div>
+        <div class="flex-1 pt-2">
+          <h4 class="font-black text-white text-base mb-2">Cấp giấy chứng nhận</h4>
+          <p class="text-slate-400 text-sm leading-relaxed">Nhận giấy chứng nhận kiểm định hợp lệ trong ngày. Lưu hồ sơ theo dõi chu kỳ kiểm định tiếp theo.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── THÔNG TIN CHỦ SỞ HỮU ── #}
+<section class="py-16 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="bg-white rounded-3xl border border-slate-100 shadow-sm p-10 flex flex-col md:flex-row items-center gap-10">
+      <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center shrink-0">
+        <span class="material-symbols-outlined text-green-600 text-5xl">person</span>
+      </div>
+      <div class="flex-1 text-center md:text-left">
+        <p class="text-[10px] text-green-600 font-black uppercase tracking-widest mb-2">Chủ sở hữu / Liên hệ trực tiếp</p>
+        <h3 class="text-2xl font-black text-slate-900 mb-1">Nguyễn Kim Quyết</h3>
+        <p class="text-slate-500 mb-4">Công ty Đại Lộ Xanh — Dịch vụ kiểm định cân & cho thuê quả cân tại Vĩnh Phúc</p>
+        <a href="tel:0912559868"
+          class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-black px-6 py-3 rounded-xl transition-all shadow-lg shadow-green-600/20">
+          <span class="material-symbols-outlined text-xl">call</span>
+          0912 559 868
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── CONTACT ── #}
+{% include "partials/contact_section_scale.html" %}
+
+{% endblock %}

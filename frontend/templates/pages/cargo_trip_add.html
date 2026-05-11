@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+{% block title %}Thêm chuyến hàng — {{ vehicle.plate_number }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5" x-data="{
+  loadingPrice: false,
+  fuelTotal: 0,
+  revenue: 0,
+  profit: 0,
+  origin: 'Tề Lỗ, Yên Lạc, Vĩnh Phúc',
+  destination: '',
+  originCoords: {lat: 21.2574132, lon: 105.5448795},
+  destCoords: null,
+  calculatingKM: false,
+  distance_km: '',
+
+  async handleLocationChange(val, type) {
+    if (!val) {
+      if (type === 'origin') this.originCoords = null;
+      else this.destCoords = null;
+      return;
+    }
+    if (val.includes('google.com') || val.includes('goo.gl') || val.includes('maps.app')) {
+      await this.resolveMaps(val, type);
+    } else {
+      await this.geocodeOnly(val, type);
+    }
+    if (this.originCoords && this.destCoords) {
+      this.calculateKM();
+    }
+  },
+
+  async resolveMaps(url, type) {
+    try {
+      const res = await fetch('/camera/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
+      const json = await res.json();
+      if (json.ok) {
+        if (type === 'origin') {
+          this.origin = json.label;
+          this.originCoords = {lat: json.lat, lon: json.lon};
+        } else {
+          this.destination = json.label;
+          this.destCoords = {lat: json.lat, lon: json.lon};
+        }
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
+      }
+    } catch(e) {}
+  },
+
+  async geocodeOnly(q, type) {
+    try {
+      const res = await fetch('/camera/vehicles/api/geocode?q=' + encodeURIComponent(q));
+      const json = await res.json();
+      if (json.ok) {
+        if (type === 'origin') this.originCoords = {lat: json.lat, lon: json.lon};
+        if (type === 'dest') this.destCoords = {lat: json.lat, lon: json.lon};
+      }
+    } catch(e) {}
+  },
+
+  async calculateKM() {
+    if (!this.originCoords || !this.destCoords) return;
+    this.calculatingKM = true;
+    try {
+      const url = `/camera/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.ok) {
+        this.distance_km = json.distance_km;
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + json.distance_km + ' km', type:'success'}}));
+      }
+    } catch(e) {}
+    this.calculatingKM = false;
+  },
+
+  async fetchFuelPrice(dateVal, targetField) {
+    if (!dateVal) return;
+    const d = dateVal.substring(0, 10);
+    this.loadingPrice = true;
+    try {
+      const res = await fetch('/camera/vehicles/api/fuel-price?target_date=' + d);
+      const json = await res.json();
+      if (json.ok && json.price) {
+        document.getElementById('display-fuel-price').innerText = json.price.toLocaleString('vi-VN') + ' ₫/lít';
+        document.getElementById('edit-fuel-price').value = json.price;
+        this.updateTotal();
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + json.price.toLocaleString('vi-VN') + ' ₫/lít', type:'info'}}));
+      }
+    } catch(e) {}
+    this.loadingPrice = false;
+  },
+
+  updateTotal() {
+    const liters = parseFloat(document.getElementById('edit-fuel-liters').value) || 0;
+    const price = parseFloat(document.getElementById('edit-fuel-price').value) || 0;
+    this.fuelTotal = liters * price;
+    this.updateProfit();
+  },
+
+  updateProfit() {
+    this.profit = this.revenue - this.fuelTotal;
+  }
+}" x-init="
+  // Initial geocode for default origin if needed
+  if (origin && !originCoords) handleLocationChange(origin, 'origin');
+  updateProfit();
+">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại danh sách</a>
+      <span class="text-divider">|</span>
+      <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
+      <span class="text-white font-semibold text-lg">Thêm chuyến hàng mới</span>
+    </div>
+  </div>
+
+  <!-- Add Form -->
+  <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/add"
+        class="bg-bg-card rounded-lg p-6 flex flex-col gap-6 border border-white/5 max-w-4xl">
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Ngày xuất phát *</label>
+        <input type="date" name="departure_time" required
+               id="add-departure" value="{{ now_iso[:10] }}"
+               @change="fetchFuelPrice($event.target.value, 'edit-fuel-price')"
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Ngày về</label>
+        <input type="date" name="return_time"
+               id="add-return" value="{{ now_iso[:10] }}"
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Điểm lấy hàng</label>
+        <input type="text" name="origin" x-model="origin"
+               @input="handleLocationChange($event.target.value, 'origin')"
+               placeholder="Dán link Google Maps hoặc gõ tay..."
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div>
+        <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Điểm giao hàng</label>
+        <input type="text" name="destination" x-model="destination"
+               @input="handleLocationChange($event.target.value, 'dest')"
+               placeholder="Dán link Google Maps hoặc gõ tay..."
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <label class="block text-txt-sec text-[12px] font-medium mb-1.5 flex items-center justify-between">
+          Quãng đường (km)
+          <span x-show="calculatingKM" class="text-accent text-[10px] animate-pulse">⏳ Đang tính...</span>
+        </label>
+        <input type="number" name="distance_km" step="0.1" 
+               x-model="distance_km"
+               class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Cước vận chuyển (₫)</label>
+          <input type="number" name="freight_revenue" x-model="revenue"
+                 @input="updateProfit()"
+                 placeholder="0"
+                 class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Lợi nhuận dự tính</label>
+          <div class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm h-[44px] flex items-center font-mono font-bold"
+               :class="profit >= 0 ? 'text-status-green' : 'text-status-red'"
+               x-text="profit.toLocaleString('vi-VN') + ' ₫'"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-bg-inset/50 rounded-xl p-5 flex flex-col gap-4 border border-white/5">
+      <div class="text-txt-sec text-[11px] font-bold uppercase tracking-widest flex items-center gap-2">
+        <span class="text-base">⛽</span> Chi phí dầu
+        <span x-show="loadingPrice" class="text-accent text-[10px] font-normal lowercase animate-pulse">Đang lấy giá...</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div>
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Số lít</label>
+          <input type="number" name="fuel_liters" id="edit-fuel-liters" step="0.01" 
+                 placeholder="0.00"
+                 @input="updateTotal()"
+                 class="w-full bg-bg-card border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Giá dầu</label>
+          <input type="hidden" name="fuel_price_per_liter" id="edit-fuel-price">
+          <div id="display-fuel-price" class="w-full bg-bg-inset/30 border border-white/5 rounded-md px-4 py-2.5 text-sm text-txt-ter h-[44px] flex items-center font-mono">
+            —
+          </div>
+        </div>
+        <div>
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Tổng chi phí dầu</label>
+          <div class="w-full bg-bg-card border border-white/5 rounded-md px-4 py-2.5 text-sm h-[44px] flex items-center font-mono font-bold"
+               :class="fuelTotal > 0 ? 'text-status-yellow' : 'text-txt-ter'"
+               x-text="fuelTotal > 0 ? fuelTotal.toLocaleString('vi-VN') + ' ₫' : '—'"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4 mt-2">
+      <button type="submit" class="bg-accent text-bg-inset font-bold text-[14px] px-8 py-3 rounded-md hover:bg-cyan-300 transition-all shadow-lg shadow-accent/10">
+        🚀 Tạo chuyến hàng
+      </button>
+      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" 
+         class="text-txt-sec text-[14px] px-6 py-3 rounded-md hover:bg-white/5 transition-colors">
+        Hủy
+      </a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -40,12 +40,10 @@
   showDiscoveryModal: false,
   showDetails: false,
   discoveredDevices: [],
-  existingDevices: [],
   updatedCameras: [],
   discoverySummary: {},
   async init() {},
-  get newDevices() { return this.discoveredDevices.filter(d => !d._added); },
-  get addedDevices() { return this.discoveredDevices.filter(d => d._added); },
+  get pendingDevices() { return this.discoveredDevices.filter(d => !d._added && !d._updated); },
   selectDiscovered(dev) {
     document.getElementById('add-cam-form').classList.remove('hidden');
     document.getElementById('add-camera-name').value = (dev.source === 'cloud' ? (dev.name || 'Imou Cloud Camera') : (dev.name || 'Local Camera'));
@@ -69,7 +67,7 @@
         if (dev.rtsp_url_onvif) {
             payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
         }
-        const resp = await fetch('/cameras/auto-add', {
+        const resp = await fetch('/camera/cameras/auto-add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -88,7 +86,7 @@
   },
   async addAllDevices() {
     const toAdd = this.discoveredDevices.filter(d => !d._added);
-    const toUpdate = this.existingDevices.filter(d => !d._updated);
+    const toUpdate = this.discoveredDevices.filter(d => d._exists && !d._updated);
     let changed = 0;
     for (const dev of toAdd) {
         const ok = await this.autoAddDevice(dev, true);
@@ -100,7 +98,7 @@
     }
     if (changed > 0) window.location.reload();
   }
-}" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; existingDevices = ($event.detail && $event.detail.existing_devices) ? $event.detail.existing_devices : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
+}" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -287,7 +285,7 @@
         <!-- Inline Edit Form Row -->
         <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
           <td colspan="9" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
-            <form method="POST" action="/cameras/{{ cam.id }}/edit" class="flex flex-col gap-4">
+            <form method="POST" action="/camera/cameras/{{ cam.id }}/edit" class="flex flex-col gap-4">
               <div class="grid grid-cols-2 gap-4">
                 <div>
                   <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên camera *</label>
@@ -396,7 +394,7 @@
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
            class="bg-bg-card border border-white/10 w-full rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
-           :class="(discoveredDevices.length > 0 || existingDevices.length > 0) ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
+           :class="discoveredDevices.length > 0 ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
 
         <!-- Modal Header + Summary -->
         <div class="px-5 pt-5 pb-3 flex items-center justify-between">
@@ -420,7 +418,7 @@
                     Online: <span x-text="discoverySummary.onlineCount"></span>
                   </span>
                 </template>
-                <template x-if="!discoverySummary.updated && !discoverySummary.registered && discoveredDevices.length === 0 && existingDevices.length === 0">
+                <template x-if="!discoverySummary.updated && !discoverySummary.registered && discoveredDevices.length === 0">
                   <span>Không tìm thấy thiết bị mới</span>
                 </template>
               </p>
@@ -546,7 +544,7 @@
           </template>
 
           <!-- Existing devices in DB -->
-          <template x-if="existingDevices.length > 0">
+          <template x-if="discoveredDevices.filter(d => d._exists).length > 0">
             <div class="px-5 py-3">
 
               <table class="w-full text-left">
@@ -560,7 +558,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <template x-for="dev in existingDevices" :key="(dev.camera_id || dev.id) + dev.ip">
+                  <template x-for="dev in discoveredDevices.filter(d => d._exists)" :key="(dev.camera_id || dev.id) + dev.ip">
                     <tr class="border-b border-white/[0.03] transition-all group"
                         :class="dev._updated ? 'bg-amber-500/5' : 'hover:bg-white/[0.03]'">
                       <td class="px-3 py-2">
@@ -627,7 +625,7 @@
           </template>
 
           <!-- Empty state: compact -->
-          <div x-show="discoveredDevices.length === 0 && existingDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
+          <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
             <div class="flex flex-col items-center gap-2">
               <span class="text-3xl opacity-20">📡</span>
               <p class="text-[12px] text-txt-sec">Không tìm thấy thiết bị mới</p>
@@ -637,9 +635,9 @@
 
         <!-- Modal Footer -->
         <div class="px-5 py-2.5 border-t border-white/5 flex justify-end items-center gap-2 bg-white/[0.02]">
-          <button @click="addAllDevices()" x-show="newDevices.length + existingDevices.filter(d => !d._updated).length > 1"
+          <button @click="addAllDevices()" x-show="discoveredDevices.filter(d => !d._added && !d._updated).length > 1"
                   class="bg-accent text-bg-inset hover:bg-cyan-300 px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold flex items-center gap-1.5">
-            <span x-text="'Xử lý tất cả (' + (newDevices.length + existingDevices.filter(d => !d._updated).length) + ')'"></span>
+            <span x-text="'Xử lý tất cả (' + discoveredDevices.filter(d => !d._added && !d._updated).length + ')'"></span>
           </button>
           <button @click="showDiscoveryModal = false"
                   class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold">
@@ -722,7 +720,7 @@ async function discoverCameras() {
     const timers = progressSteps.map(s => setTimeout(() => { text.innerText = s.text; }, s.delay));
 
     try {
-        const resp = await fetch('/cameras/discover', { method: 'POST' });
+        const resp = await fetch('/camera/cameras/discover', { method: 'POST' });
         const data = await resp.json();
         timers.forEach(clearTimeout);
 
@@ -740,9 +738,8 @@ async function discoverCameras() {
             // Dispatch to modal
             window.dispatchEvent(new CustomEvent('show-discovery', {
                 detail: {
-                    devices: data.new_devices || [],
+                    devices: data.devices || [],
                     updated_cameras: data.updated_cameras || [],
-                    existing_devices: data.existing_devices || [],
                     summary: { updated, registered, newDevs, onlineCount }
                 }
             }));

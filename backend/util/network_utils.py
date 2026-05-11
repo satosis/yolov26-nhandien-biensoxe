@@ -1380,25 +1380,17 @@ def discover_and_update_all_cameras():
         if ip:
             seen_ips.add(ip)
 
-    # Add unmatched DB cameras to existing_devices (so UI always shows them)
-    for cam in all_cams:
-        if cam['id'] not in matched_cam_ids:
-            existing_devices.append({
-                'id': (cam.get('imou_device_id') or '').lower() or str(cam['id']),
-                'name': cam.get('camera_name', f"Camera #{cam['id']}"),
-                'ip': cam.get('camera_ip') or '',
-                'type': 'unknown',
-                'source': 'db',
-                'manufacturer': '',
-                'model': '',
-                'serial': '',
-                'is_online': False,
-                'camera_id': cam['id'],
-                'camera_name': cam['camera_name'],
-                '_exists': True,
-            })
+    # Gộp tất cả camera quét được thành 1 list, đánh dấu _exists để UI biết add/update
+    all_discovered = []
+    for dev in new_devices:
+        dev['_exists'] = False
+        all_discovered.append(dev)
+    for dev in existing_devices:
+        dev['_exists'] = True
+        all_discovered.append(dev)
 
-    results['new_devices'] = new_devices
+    results['devices'] = all_discovered
+    results['new_devices'] = new_devices        # giữ cho backward compat
     results['existing_devices'] = existing_devices
 
     # --- APPLY UPDATES TO DB ---

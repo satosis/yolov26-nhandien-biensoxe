@@ -21,12 +21,12 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
 @router.post("/{stranger_id}/review")
 async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
     get_db().update_stranger_status(stranger_id, "reviewed")
-    return RedirectResponse("/strangers", status_code=303)
+    return RedirectResponse("/camera/strangers", status_code=303)
 
 @router.delete("/{stranger_id}")
 async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
     get_db().delete_stranger_log(stranger_id)
-    return RedirectResponse("/strangers", status_code=303)
+    return RedirectResponse("/camera/strangers", status_code=303)
 
 @router.post("/register")
 async def register_stranger(
@@ -37,7 +37,7 @@ async def register_stranger(
     try:
         logging.info(f"Registering stranger {stranger_id} as user {user_id}")
         get_db().update_stranger_status(int(stranger_id), "registered", converted_user_id=int(user_id))
-        return RedirectResponse("/strangers", status_code=303)
+        return RedirectResponse("/camera/strangers", status_code=303)
     except Exception as e:
         logging.exception("Failed to register stranger")
         raise e

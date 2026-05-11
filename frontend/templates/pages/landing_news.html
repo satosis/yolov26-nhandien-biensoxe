@@ -76,7 +76,7 @@
     {% else %}
     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
       {% for item in news_items %}
-      <a href="/tin-tuc/{{ item.id }}" class="news-card block">
+      <a href="/tin-tuc/{{ item.slug or item.id }}" class="news-card block">
         <div class="overflow-hidden">
           <img src="{{ item.image or '/static/brain/news1.jpg' }}" class="news-img" alt="{{ item.title }}" loading="lazy">
         </div>

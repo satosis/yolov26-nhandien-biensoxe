@@ -5,7 +5,7 @@
     playing: null,
     deleteRecording(id) {
         if(confirm('Bạn có chắc muốn xóa đoạn ghi hình này?')) {
-            fetch('/recordings/' + id, { method: 'DELETE' })
+            fetch('/camera/recordings/' + id, { method: 'DELETE' })
             .then(res => res.json())
             .then(data => {
                 if(data.success) window.location.reload();

@@ -1,14 +1,21 @@
 import os
 
+# Get project root (three levels up from backend/core/config.py)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # --- Model Paths ---
-# verified path from orchestrator.log
-PLATE_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/best.pt"
-RKNN_MODEL_PATH = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door.rknn"
+# Use relative paths for better portability
+PLATE_MODEL_PATH = os.path.join(BASE_DIR, "backend/models/best.pt")
+RKNN_MODEL_PATH = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door.rknn")
 # Buffalo_sc directory must contain 'models/buffalo_sc'
-FACE_MODEL_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/models/insightface"
-KNOWN_FACES_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/config/faces"
-SNAPSHOT_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/data/snapshots"
-RECORDING_DIR = "/Users/mac/Documents/yolov26-nhandien-biensoxe/backend/data/recordings"
+FACE_MODEL_DIR = os.path.join(BASE_DIR, "backend/models/insightface")
+KNOWN_FACES_DIR = os.path.join(BASE_DIR, "backend/config/faces")
+SNAPSHOT_DIR = os.path.join(BASE_DIR, "backend/data/snapshots")
+RECORDING_DIR = os.path.join(BASE_DIR, "backend/data/recordings")
+
+# Ensure critical data directories exist
+for d in [KNOWN_FACES_DIR, SNAPSHOT_DIR, RECORDING_DIR]:
+    os.makedirs(d, exist_ok=True)
 
 # --- Recognition Settings ---
 FRAME_BUFFER_SIZE = 5
@@ -49,7 +56,7 @@ STREAM_JPEG_QUALITY_LIVE = 88
 TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 CHAT_IMPORTANT = os.environ.get("TELEGRAM_CHAT_IMPORTANT", "")
 CHAT_REGULAR = os.environ.get("TELEGRAM_CHAT_REGULAR", "")
-FACES_DIR = os.environ.get("FACES_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "data/faces"))
+FACES_DIR = os.environ.get("FACES_DIR", os.path.join(BASE_DIR, "backend/data/faces"))
 
 def normalize_plate(plate: str) -> str:
     if not plate: return ""

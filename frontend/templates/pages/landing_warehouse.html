@@ -1,9 +1,9 @@
 {% extends "landing_base.html" %}
-{% block title %}Nhà xưởng xây sẵn cho thuê tại Vĩnh Phúc — Stavian IP{% endblock %}
+{% block title %}Nhà xưởng cho thuê tại KCN Trung Hà — Phú Thọ{% endblock %}
 
 {% block seo %}
-<meta name="description" content="Cho thuê nhà xưởng xây sẵn tại KCN Stavian Vĩnh Phúc. Diện tích 2.584–3.416 m², cao 10,85 m, tải trọng sàn 3 tấn/m². Bàn giao Q3/2026. Liên hệ ngay.">
-<meta name="keywords" content="nhà xưởng cho thuê Vĩnh Phúc, thuê xưởng KCN Stavian, factory for rent Vinh Phuc, khu công nghiệp Vĩnh Phúc, nhà xưởng xây sẵn, cho thuê kho xưởng">
+<meta name="description" content="Cho thuê nhà xưởng KCN Trung Hà, Tỉnh Phú Thọ. 02 nhà xưởng 4.032 m² và 2.730 m². Trạm điện 5.000 KVA, PCCC tự động, sử dụng đất còn hơn 45 năm. Phù hợp may mặc, điện tử, cơ khí sạch.">
+<meta name="keywords" content="nhà xưởng cho thuê Phú Thọ, thuê xưởng KCN Trung Hà, kho xưởng may mặc điện tử, factory for rent Phu Tho, khu công nghiệp Trung Hà, nhà xưởng xây sẵn">
 <meta name="robots" content="index, follow">
 <meta name="author" content="THÉP SƠN LÂM Industrial Core">
 <link rel="canonical" href="{{ request.url }}">
@@ -11,15 +11,15 @@
 <meta property="og:locale" content="vi_VN">
 <meta property="og:locale:alternate" content="zh_CN">
 <meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
-<meta property="og:title" content="Nhà xưởng xây sẵn cho thuê tại KCN Stavian Vĩnh Phúc — THÉP SƠN LÂM">
-<meta property="og:description" content="Cho thuê nhà xưởng xây sẵn KCN Stavian Vĩnh Phúc. 2.584–3.416 m², cao 10,85 m, tải trọng 3 T/m². Hạ tầng hoàn chỉnh, bàn giao ngay Q3/2026.">
+<meta property="og:title" content="Nhà xưởng cho thuê KCN Trung Hà — Phú Thọ — THÉP SƠN LÂM">
+<meta property="og:description" content="02 nhà xưởng 4.032 m² và 2.730 m² tại KCN Trung Hà - Phú Thọ. Trạm điện 5.000 KVA, PCCC tự động. Phù hợp may mặc, điện tử, cơ khí sạch.">
 <meta property="og:image" content="{{ request.base_url }}static/brain/wh_real2.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="{{ request.url }}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Nhà xưởng xây sẵn cho thuê tại KCN Stavian Vĩnh Phúc — THÉP SƠN LÂM">
-<meta name="twitter:description" content="2.584–3.416 m², cao 10,85 m, tải trọng 3 T/m². Bàn giao Q3/2026. Hạ tầng điện, nước, PCCC hoàn chỉnh.">
+<meta name="twitter:title" content="Nhà xưởng cho thuê KCN Trung Hà — Phú Thọ">
+<meta name="twitter:description" content="02 nhà xưởng 4.032 m² & 2.730 m². Trạm điện 5.000 KVA, PCCC tự động nghiệm thu, sử dụng đất 45+ năm.">
 <meta name="twitter:image" content="{{ request.base_url }}static/brain/wh_real2.jpg">
 <script type="application/ld+json">
 {
@@ -28,40 +28,29 @@
     {
       "@type": "RealEstateListing",
       "@id": "{{ request.url }}#listing",
-      "name": "Nhà xưởng xây sẵn cho thuê tại KCN Stavian Vĩnh Phúc",
-      "description": "Cho thuê nhà xưởng xây sẵn tại Khu công nghiệp Stavian, Vĩnh Phúc. Diện tích từ 2.584–3.416 m², chiều cao 10,85 m, tải trọng sàn 3 tấn/m². Điện 3 pha, nước, PCCC đầy đủ. Bàn giao Quý III/2026.",
+      "name": "Nhà xưởng cho thuê tại KCN Trung Hà - Phú Thọ",
+      "description": "Cho thuê 02 nhà xưởng 4.032 m² và 2.730 m² tại KCN Trung Hà, Tỉnh Phú Thọ. Trạm điện 5.000 KVA, PCCC tự động đã nghiệm thu, sử dụng đất còn hơn 45 năm. Ưu tiên may mặc, điện tử, cơ khí sạch.",
       "image": "{{ request.base_url }}static/brain/wh_real2.jpg",
       "url": "{{ request.url }}",
       "address": {
         "@type": "PostalAddress",
-        "streetAddress": "Khu công nghiệp Stavian",
-        "addressLocality": "Vĩnh Phúc",
-        "addressRegion": "Vĩnh Phúc",
+        "streetAddress": "Khu công nghiệp Trung Hà",
+        "addressLocality": "Phú Thọ",
+        "addressRegion": "Phú Thọ",
         "addressCountry": "VN"
-      },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": "21.3609",
-        "longitude": "105.5474"
       },
       "floorSize": {
         "@type": "QuantitativeValue",
-        "minValue": 2584,
-        "maxValue": 3416,
+        "minValue": 2730,
+        "maxValue": 4032,
         "unitCode": "MTK"
       },
-      "numberOfRooms": 1,
-      "availabilityStarts": "2026-09-01",
-      "leaseLength": {
-        "@type": "QuantitativeValue",
-        "minValue": 36,
-        "unitCode": "MON"
-      },
+      "numberOfRooms": 2,
       "seller": {
         "@type": "Organization",
         "@id": "{{ request.base_url }}#organization",
         "name": "THÉP SƠN LÂM Industrial Core",
-        "telephone": "{{ settings.phone if settings else '' }}"
+        "telephone": "0986565666"
       }
     },
     {
@@ -69,34 +58,34 @@
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "Diện tích nhà xưởng cho thuê tại KCN Stavian Vĩnh Phúc là bao nhiêu?",
+          "name": "Diện tích nhà xưởng cho thuê tại KCN Trung Hà - Phú Thọ là bao nhiêu?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Diện tích mỗi căn từ 2.584 m² đến 3.416 m², chiều cao thông thủy 10,85 m, tải trọng sàn 3 tấn/m²."
+            "text": "Có 02 nhà xưởng: nhà xưởng 1 diện tích 4.032 m² và nhà xưởng 2 diện tích 2.730 m²."
           }
         },
         {
           "@type": "Question",
-          "name": "Nhà xưởng có đầy đủ hạ tầng không?",
+          "name": "Nhà xưởng KCN Trung Hà có đầy đủ hạ tầng không?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Có. Hạ tầng đầy đủ: điện 3 pha công suất cao, nước sạch, hệ thống PCCC đạt chuẩn Bộ CA, đường nội bộ 12 m, cổng kiểm soát an ninh 24/7."
+            "text": "Có. Trạm điện 5.000 KVA, hệ thống PCCC tự động đã được nghiệm thu, đã có Giấy chứng nhận quyền sử dụng đất với thời hạn còn hơn 45 năm, Giấy chứng nhận đầu tư cho thuê nhà xưởng dư thừa."
           }
         },
         {
           "@type": "Question",
-          "name": "Bao giờ có thể nhận bàn giao nhà xưởng?",
+          "name": "Ngành nghề nào được ưu tiên thuê nhà xưởng tại KCN Trung Hà?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Dự kiến bàn giao Quý III năm 2026 (tháng 9/2026). Liên hệ ngay để đặt chỗ và nhận thông tin ưu đãi."
+            "text": "Ưu tiên các ngành sản xuất sạch: may mặc, lắp ráp điện tử, cơ khí chính xác và các ngành nghề không gây ô nhiễm môi trường. Không cho thuê đối với ngành nghề gây ô nhiễm."
           }
         },
         {
           "@type": "Question",
-          "name": "Vị trí KCN Stavian Vĩnh Phúc có thuận lợi không?",
+          "name": "Vị trí KCN Trung Hà có thuận lợi tuyển lao động không?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Rất thuận lợi. Cách trung tâm Hà Nội 40 km, cách sân bay Nội Bài 20 km, kết nối cao tốc Nội Bài – Lào Cai và QL2."
+            "text": "Rất thuận lợi. Giao thông đi lại thuận tiện, dễ tuyển lao động, phù hợp cho các ngành cần nhiều lao động như may mặc và lắp ráp điện tử."
           }
         }
       ]
@@ -116,23 +105,19 @@
     text-align: center;
     transition: box-shadow 0.2s, transform 0.2s;
   }
-
   .spec-card:hover {
     box-shadow: 0 8px 32px rgba(249, 115, 22, 0.10);
     transform: translateY(-3px);
   }
-
   .gallery-img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform 0.5s;
   }
-
   .gallery-img:hover {
     transform: scale(1.05);
   }
-
   .advantage-item {
     display: flex;
     align-items: flex-start;
@@ -140,11 +125,7 @@
     padding: 1rem 0;
     border-bottom: 1px solid #f1f5f9;
   }
-
-  .advantage-item:last-child {
-    border-bottom: none;
-  }
-
+  .advantage-item:last-child { border-bottom: none; }
   .tax-badge {
     background: linear-gradient(135deg, #fff7ed, #fed7aa);
     border: 1px solid #f97316;
@@ -157,31 +138,27 @@
 {% block content %}
 
 {# ── HERO ── #}
-<script>window.__wh_slides__ = {{ projects | map(attribute='image') | list | tojson }};</script>
 <section class="relative w-full min-h-[580px] flex items-end overflow-hidden bg-[#0b1c30]" x-data="{
-           slides: [],
-           cur: 0,
-           init(){ this.slides = window.__wh_slides__ || []; setInterval(()=> this.cur=(this.cur+1)%Math.max(this.slides.length,1), 5000) }
-         }">
+  slides: ['/static/brain/wh_real1.jpg','/static/brain/wh_real2.jpg','/static/brain/wh_real3.jpg','/static/brain/wh_real4.jpg'],
+  cur: 0,
+  init(){ setInterval(()=> this.cur=(this.cur+1)%this.slides.length, 5000) }
+}">
   <div class="absolute inset-0">
     <template x-for="(s,i) in slides" :key="i">
       <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
-        <img :src="s" class="w-full h-full object-cover" style="opacity:.55" alt="Nhà xưởng xây sẵn KCN Stavian Vĩnh Phúc">
+        <img :src="s" class="w-full h-full object-cover" style="opacity:.55" alt="Nhà xưởng KCN Trung Hà - Phú Thọ">
       </div>
     </template>
     <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/20 to-transparent"></div>
   </div>
 
   <div class="relative z-10 max-w-6xl mx-auto px-6 pb-16 pt-32 w-full">
-    <span
-      class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Ready
-      Built Factory · KCN Stavian Vĩnh Phúc</span>
+    <span class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Nhà xưởng cho thuê · KCN Trung Hà · Phú Thọ</span>
     <h1 class="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-5 max-w-3xl">
       Nhà xưởng xây sẵn<br><span class="text-orange-400">Vào là sản xuất được</span>
     </h1>
     <p class="text-slate-300 text-lg max-w-2xl mb-8 leading-relaxed">
-      Diện tích từ <strong class="text-white">2.584 – 3.416 m²</strong> · Bàn giao Quý III/2026 · Tải trọng sàn 2–3
-      tấn/m² · Cách sân bay Nội Bài 40 km.
+      <strong class="text-white">02 nhà xưởng 4.032 m² và 2.730 m²</strong> · Trạm điện 5.000 KVA · PCCC tự động nghiệm thu · Sử dụng đất còn hơn 45 năm.
     </p>
     <div class="flex flex-wrap gap-4">
       <a href="#lien-he"
@@ -191,12 +168,11 @@
       <a href="tel:0986565666"
         class="px-8 py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
         <span class="material-symbols-outlined text-orange-400 text-lg">call</span>
-        0986 565 666
+        0986 565 666 — Mr. Lâm
       </a>
     </div>
   </div>
 
-  {# slide dots #}
   <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
     <template x-for="(_,i) in slides" :key="i">
       <button @click="cur=i" :class="cur===i?'bg-orange-500 w-6':'bg-white/30 w-2'"
@@ -209,126 +185,167 @@
 <section class="bg-[#0b1c30] border-t border-white/10">
   <div class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
     <div>
-      <p class="text-2xl font-black text-orange-400">8.584 m²</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Tổng diện tích 3 block</p>
+      <p class="text-2xl font-black text-orange-400">6.762 m²</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Tổng 02 nhà xưởng</p>
     </div>
     <div>
-      <p class="text-2xl font-black text-orange-400">10,85 m</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Chiều cao đỉnh mái</p>
+      <p class="text-2xl font-black text-orange-400">5.000 KVA</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Trạm điện</p>
     </div>
     <div>
-      <p class="text-2xl font-black text-orange-400">3 tấn/m²</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Tải trọng sàn tối đa</p>
+      <p class="text-2xl font-black text-orange-400">45+ năm</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Thời hạn sử dụng đất</p>
     </div>
     <div>
-      <p class="text-2xl font-black text-orange-400">40 km</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Đến sân bay Nội Bài</p>
+      <p class="text-2xl font-black text-orange-400">Sạch</p>
+      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">May mặc · Điện tử · Cơ khí</p>
     </div>
   </div>
 </section>
 
-{# ── THÔNG SỐ KỸ THUẬT ── #}
+{# ── 02 NHÀ XƯỞNG ── #}
 <section class="py-24 bg-slate-50">
   <div class="max-w-6xl mx-auto px-6">
     <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Technical Specs</span>
-      <h2 class="text-4xl font-black text-slate-900">Thông số kỹ thuật</h2>
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Available Units</span>
+      <h2 class="text-4xl font-black text-slate-900">02 nhà xưởng cần cho thuê</h2>
+      <p class="text-slate-500 mt-3 max-w-xl mx-auto">Ưu tiên doanh nghiệp sản xuất sạch — may mặc, điện tử, lắp ráp, cơ khí. Không cho thuê ngành gây ô nhiễm môi trường.</p>
     </div>
 
-    {# 3 blocks #}
-    <div class="grid md:grid-cols-3 gap-6 mb-12">
-      <div class="spec-card group">
-        <div
-          class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
-          <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
-        </div>
-        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Block 1</p>
-        <p class="text-3xl font-black text-slate-900 mb-1">2.584 m²</p>
-        <p class="text-sm text-slate-500">Nhà xưởng 1–3 tầng</p>
-      </div>
+    <div class="grid md:grid-cols-2 gap-8 mb-16">
       <div class="spec-card group border-orange-200 bg-orange-50/30">
         <div class="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <span class="material-symbols-outlined text-white text-2xl">warehouse</span>
         </div>
-        <p class="text-[10px] text-orange-500 uppercase tracking-[0.3em] font-bold mb-2">Block 2 — Lớn nhất</p>
-        <p class="text-3xl font-black text-slate-900 mb-1">3.416 m²</p>
-        <p class="text-sm text-slate-500">Nhà xưởng 1–3 tầng</p>
+        <p class="text-[10px] text-orange-500 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 1 — Lớn</p>
+        <p class="text-5xl font-black text-slate-900 mb-2">4.032 m²</p>
+        <p class="text-sm text-slate-500 mb-4">Khu công nghiệp Trung Hà, Tỉnh Phú Thọ</p>
+        <div class="flex flex-wrap gap-2 justify-center">
+          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">May mặc</span>
+          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">Điện tử</span>
+          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">Cơ khí sạch</span>
+        </div>
       </div>
       <div class="spec-card group">
-        <div
-          class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+        <div class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
           <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
         </div>
-        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Block 3</p>
-        <p class="text-3xl font-black text-slate-900 mb-1">2.584 m²</p>
-        <p class="text-sm text-slate-500">Nhà xưởng 1–3 tầng</p>
+        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 2</p>
+        <p class="text-5xl font-black text-slate-900 mb-2">2.730 m²</p>
+        <p class="text-sm text-slate-500 mb-4">Khu công nghiệp Trung Hà, Tỉnh Phú Thọ</p>
+        <div class="flex flex-wrap gap-2 justify-center">
+          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">May mặc</span>
+          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">Điện tử</span>
+          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">Cơ khí sạch</span>
+        </div>
       </div>
     </div>
 
-    {# spec grid chi tiết #}
+    {# spec chi tiết #}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">height</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Chiều cao cột biên</p>
-        <p class="text-xl font-black text-slate-900">8,75 m</p>
-      </div>
-      <div class="spec-card">
         <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">bolt</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Điện</p>
-        <p class="text-xl font-black text-slate-900">110 kV · 150 MWh</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">water_drop</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Nước sạch</p>
-        <p class="text-xl font-black text-slate-900">8.000 m³/ngày</p>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Trạm điện</p>
+        <p class="text-xl font-black text-slate-900">5.000 KVA</p>
       </div>
       <div class="spec-card">
         <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">fire_extinguisher</span>
         <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">PCCC</p>
-        <p class="text-xl font-black text-slate-900">Sprinkler tự động</p>
+        <p class="text-xl font-black text-slate-900">Tự động · Nghiệm thu</p>
       </div>
       <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">security</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">An ninh</p>
-        <p class="text-xl font-black text-slate-900">CCTV 24/7</p>
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">verified</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giấy phép đất</p>
+        <p class="text-xl font-black text-slate-900">Còn 45+ năm</p>
       </div>
       <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">wifi</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Viễn thông</p>
-        <p class="text-xl font-black text-slate-900">Cáp quang quốc tế</p>
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">description</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giấy phép đầu tư</p>
+        <p class="text-xl font-black text-slate-900">Đầy đủ hợp lệ</p>
       </div>
       <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">local_gas_station</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Năng lượng</p>
-        <p class="text-xl font-black text-slate-900">Hệ thống khí LNG</p>
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">people</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Tuyển lao động</p>
+        <p class="text-xl font-black text-slate-900">Dễ · Dồi dào</p>
       </div>
       <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">water</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Xử lý nước thải</p>
-        <p class="text-xl font-black text-slate-900">4.000 m³/ngày</p>
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">local_shipping</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giao thông</p>
+        <p class="text-xl font-black text-slate-900">Thuận lợi</p>
       </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">eco</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Môi trường</p>
+        <p class="text-xl font-black text-slate-900">Ngành sạch</p>
+      </div>
+      <div class="spec-card">
+        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">calendar_month</span>
+        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Bàn giao</p>
+        <p class="text-xl font-black text-slate-900">Ngay lập tức</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ── PHÂN KHÚC KHÁCH HÀNG ── #}
+<section class="py-20 bg-white">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="text-center mb-16">
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Phù hợp với</span>
+      <h2 class="text-4xl font-black text-slate-900">Ngành nghề được ưu tiên cho thuê</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
+        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <span class="material-symbols-outlined text-white text-3xl">checkroom</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-xl mb-3">Xưởng may mặc</h3>
+        <p class="text-slate-600 text-sm leading-relaxed">Diện tích lớn, thông thoáng, điện ổn định — lý tưởng cho dây chuyền may công nghiệp. Dễ tuyển lao động tại chỗ.</p>
+      </div>
+      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
+        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <span class="material-symbols-outlined text-white text-3xl">memory</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-xl mb-3">Lắp ráp điện tử</h3>
+        <p class="text-slate-600 text-sm leading-relaxed">Trạm biến áp 5.000 KVA đáp ứng dây chuyền điện tử. Môi trường sạch, lao động dồi dào, giao thông thuận lợi.</p>
+      </div>
+      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
+        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <span class="material-symbols-outlined text-white text-3xl">precision_manufacturing</span>
+        </div>
+        <h3 class="font-black text-slate-900 text-xl mb-3">Cơ khí & ngành sạch</h3>
+        <p class="text-slate-600 text-sm leading-relaxed">Các ngành nghề sản xuất sạch sẽ không gây ô nhiễm môi trường đều được hoan nghênh. Hạ tầng hoàn chỉnh sẵn sàng.</p>
+      </div>
+    </div>
+    <div class="mt-8 p-5 rounded-2xl bg-red-50 border border-red-100 text-center">
+      <p class="text-red-700 font-bold text-sm">⚠ Không cho thuê đối với các ngành nghề gây ô nhiễm môi trường</p>
     </div>
   </div>
 </section>
 
 {# ── ẢNH THỰC TẾ ── #}
-<section class="py-20 bg-white">
+<section class="py-20 bg-slate-50">
   <div class="max-w-6xl mx-auto px-6">
     <div class="text-center mb-12">
       <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Gallery</span>
-      <h2 class="text-4xl font-black text-slate-900">Hình ảnh thực tế</h2>
+      <h2 class="text-4xl font-black text-slate-900">Hình ảnh thực tế nhà xưởng</h2>
     </div>
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 h-[480px]">
-      {% if projects|length > 0 %}
       <div class="col-span-2 row-span-2 rounded-3xl overflow-hidden">
-        <img src="{{ projects[0].image }}" class="gallery-img" alt="Nhà xưởng KCN Trung Hà - Phú Thọ toàn cảnh">
+        <img src="/static/brain/wh_real1.jpg" class="gallery-img" alt="Nhà xưởng KCN Trung Hà - Phú Thọ toàn cảnh">
       </div>
-      {% endif %}
-      {% for p in projects[1:5] %}
       <div class="rounded-2xl overflow-hidden">
-        <img src="{{ p.image }}" loading="lazy" class="gallery-img h-full" alt="Khu vực sản xuất nhà xưởng KCN Stavian Vĩnh Phúc">
+        <img src="/static/brain/wh_real2.jpg" loading="lazy" class="gallery-img h-full" alt="Nội thất nhà xưởng KCN Trung Hà">
       </div>
-      {% endfor %}
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/wh_real3.jpg" loading="lazy" class="gallery-img h-full" alt="Khu vực sản xuất nhà xưởng Phú Thọ">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/warehouse1.jpg" loading="lazy" class="gallery-img h-full" alt="Mặt tiền nhà xưởng xây sẵn">
+      </div>
+      <div class="rounded-2xl overflow-hidden">
+        <img src="/static/brain/wh_real4.jpg" loading="lazy" class="gallery-img h-full" alt="Sân bãi rộng rãi nhà xưởng Trung Hà">
+      </div>
     </div>
   </div>
 </section>
@@ -343,48 +360,44 @@
   <div class="max-w-6xl mx-auto px-6 relative z-10">
     <div class="grid md:grid-cols-2 gap-16 items-center">
       <div>
-        <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic
-          Location</span>
-        <h2 class="text-4xl font-black text-white mb-8">Vị trí đắc địa<br>tại Vĩnh Phúc</h2>
-        <p class="text-slate-400 mb-10 leading-relaxed">KCN Khu công nghiệp Trung Hà - Phú Thọ, kết nối đa
-          phương thức vượt trội — cao tốc, sân bay, cảng ICD ngay trong tầm tay.</p>
+        <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic Location</span>
+        <h2 class="text-4xl font-black text-white mb-8">Vị trí đắc địa<br>tại Phú Thọ</h2>
+        <p class="text-slate-400 mb-10 leading-relaxed">KCN Trung Hà - Tỉnh Phú Thọ, giao thông thuận lợi, dễ tuyển lao động địa phương — phù hợp cho các ngành cần nhiều nhân công như may mặc và lắp ráp điện tử.</p>
         <div class="space-y-4">
-          <div
-            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">20</div>
+          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">
+              <span class="material-symbols-outlined text-3xl">location_on</span>
+            </div>
             <div>
-              <p class="text-white font-bold text-sm">km đến TP. Vĩnh Yên</p>
-              <p class="text-slate-500 text-xs">Trung tâm hành chính tỉnh</p>
+              <p class="text-white font-bold text-sm">KCN Trung Hà — Tỉnh Phú Thọ</p>
+              <p class="text-slate-500 text-xs">Khu công nghiệp có hạ tầng hoàn chỉnh</p>
             </div>
           </div>
-          <div
-            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">40</div>
+          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 font-black w-10 shrink-0">
+              <span class="material-symbols-outlined text-3xl">people</span>
+            </div>
             <div>
-              <p class="text-white font-bold text-sm">km đến sân bay Nội Bài</p>
-              <p class="text-slate-500 text-xs">Cửa ngõ xuất nhập khẩu hàng không</p>
+              <p class="text-white font-bold text-sm">Dễ tuyển lao động</p>
+              <p class="text-slate-500 text-xs">Nguồn lao động địa phương dồi dào, phù hợp may mặc & điện tử</p>
             </div>
           </div>
-          <div
-            class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">60</div>
+          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+            <div class="text-orange-500 font-black w-10 shrink-0">
+              <span class="material-symbols-outlined text-3xl">local_shipping</span>
+            </div>
             <div>
-              <p class="text-white font-bold text-sm">km đến trung tâm Hà Nội</p>
-              <p class="text-slate-500 text-xs">Qua cao tốc Nội Bài – Lào Cai</p>
+              <p class="text-white font-bold text-sm">Giao thông thuận lợi</p>
+              <p class="text-slate-500 text-xs">Kết nối cao tốc, quốc lộ, thuận tiện vận chuyển hàng hóa</p>
             </div>
           </div>
-        </div>
-        <div class="mt-8 p-5 rounded-2xl bg-orange-500/10 border border-orange-500/20">
-          <p class="text-orange-400 text-xs font-bold uppercase tracking-widest mb-2">Cao độ nền</p>
-          <p class="text-white font-bold">21 – 29 m so với mực nước biển · Chống ngập úng tuyệt đối</p>
         </div>
       </div>
       <div>
-        {# Embedded Google Map #}
         <div class="rounded-3xl overflow-hidden shadow-2xl border border-white/10 h-[420px]">
-          <iframe src="https://maps.google.com/maps?q=Lap+Thach+Vinh+Phuc+Vietnam&z=12&output=embed"
+          <iframe src="https://maps.google.com/maps?q=Khu+cong+nghiep+Trung+Ha+Phu+Tho+Vietnam&z=13&output=embed"
             class="w-full h-full" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-            title="Vị trí KCN Stavian Vĩnh Phúc">
+            title="Vị trí KCN Trung Hà - Phú Thọ">
           </iframe>
         </div>
       </div>
@@ -392,80 +405,33 @@
   </div>
 </section>
 
-{# ── ƯU ĐÃI ĐẦU TƯ ── #}
+{# ── PHÁP LÝ & HẠ TẦNG ── #}
 <section class="py-24 bg-white">
   <div class="max-w-6xl mx-auto px-6">
     <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Investment
-        Incentives</span>
-      <h2 class="text-4xl font-black text-slate-900">Ưu đãi đầu tư hấp dẫn</h2>
-      <p class="text-slate-500 mt-4 max-w-xl mx-auto">Chính sách ưu đãi từ Nhà nước dành cho doanh nghiệp đầu tư tại KCN
-        Stavian Vĩnh Phúc</p>
+      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Legal & Infrastructure</span>
+      <h2 class="text-4xl font-black text-slate-900">Pháp lý đầy đủ — Hạ tầng sẵn sàng</h2>
     </div>
     <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
       <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">calendar_month</span>
-        <p class="font-black text-slate-900 text-lg mb-1">Đến 12/2035</p>
-        <p class="text-sm text-slate-600 font-medium">Miễn tiền thuê đất hàng năm trả cho Nhà nước</p>
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">description</span>
+        <p class="font-black text-slate-900 text-base mb-1">Giấy chứng nhận đầu tư</p>
+        <p class="text-sm text-slate-600">Dự án có GCN đầu tư cho thuê nhà xưởng dư thừa hợp lệ</p>
       </div>
       <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">percent</span>
-        <p class="font-black text-slate-900 text-lg mb-1">Miễn 2 năm</p>
-        <p class="text-sm text-slate-600 font-medium">Thuế thu nhập doanh nghiệp 2 năm đầu hoạt động</p>
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">home_work</span>
+        <p class="font-black text-slate-900 text-base mb-1">GCN quyền sử dụng đất</p>
+        <p class="text-sm text-slate-600">Đã có sổ đỏ, thời hạn sử dụng đất còn hơn 45 năm</p>
       </div>
       <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">trending_down</span>
-        <p class="font-black text-slate-900 text-lg mb-1">Giảm 4 năm</p>
-        <p class="text-sm text-slate-600 font-medium">50% thuế TNDN trong 4 năm tiếp theo</p>
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">bolt</span>
+        <p class="font-black text-slate-900 text-base mb-1">Trạm điện 5.000 KVA</p>
+        <p class="text-sm text-slate-600">Công suất điện lớn, ổn định cho dây chuyền sản xuất</p>
       </div>
       <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">local_shipping</span>
-        <p class="font-black text-slate-900 text-lg mb-1">Miễn thuế NK</p>
-        <p class="text-sm text-slate-600 font-medium">Miễn thuế nhập khẩu tài sản cố định phục vụ sản xuất</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ── DỊCH VỤ KÈM THEO ── #}
-<section class="py-20 bg-slate-50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Build-to-Suit</span>
-      <h2 class="text-3xl font-black text-slate-900 mb-4">Xây xưởng theo yêu cầu (BTS)</h2>
-      <p class="text-slate-500 max-w-xl mx-auto">Ngoài nhà xưởng xây sẵn, chúng tôi thiết kế và thi công theo đúng yêu
-        cầu kỹ thuật của từng doanh nghiệp.</p>
-    </div>
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">engineering</span>
-        <h4 class="font-black text-slate-900 mb-2">Phát triển & thi công</h4>
-        <p class="text-sm text-slate-500">Đội ngũ PM chuyên nghiệp đồng hành từ thiết kế đến bàn giao.</p>
-      </div>
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">location_on</span>
-        <h4 class="font-black text-slate-900 mb-2">Tư vấn lựa chọn địa điểm</h4>
-        <p class="text-sm text-slate-500">Hỗ trợ phân tích quỹ đất, chuỗi cung ứng và logistics.</p>
-      </div>
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">manage_accounts</span>
-        <h4 class="font-black text-slate-900 mb-2">Quản lý vận hành</h4>
-        <p class="text-sm text-slate-500">Dịch vụ cho thuê và quản lý xưởng sau bàn giao.</p>
-      </div>
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">gavel</span>
-        <h4 class="font-black text-slate-900 mb-2">Hỗ trợ pháp lý FDI</h4>
-        <p class="text-sm text-slate-500">Tư vấn đầu tư, thủ tục pháp lý trọn gói cho doanh nghiệp nước ngoài.</p>
-      </div>
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">real_estate_agent</span>
-        <h4 class="font-black text-slate-900 mb-2">Tư vấn bất động sản</h4>
-        <p class="text-sm text-slate-500">Phân tích thị trường, định giá và cấu trúc hợp đồng thuê tối ưu.</p>
-      </div>
-      <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">support_agent</span>
-        <h4 class="font-black text-slate-900 mb-2">Hỗ trợ 24/7</h4>
-        <p class="text-sm text-slate-500">Đội ngũ kỹ thuật và quản lý tại chỗ, phản hồi nhanh mọi sự cố.</p>
+        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">fire_extinguisher</span>
+        <p class="font-black text-slate-900 text-base mb-1">PCCC tự động</p>
+        <p class="text-sm text-slate-600">Hệ thống PCCC tự động đã được nghiệm thu đầy đủ</p>
       </div>
     </div>
   </div>
@@ -474,7 +440,7 @@
 {# ── FORM LIÊN HỆ ── #}
 <div id="lien-he">
   {% set source_page = "warehouse" %}
-  {% include "partials/contact_section.html" %}
+  {% include "partials/contact_section_warehouse.html" %}
 </div>
 
 {% endblock %}

@@ -74,7 +74,7 @@ async def recordings_page(
     if active_site:
         base_params["site_id"] = active_site
     qs = urlencode(base_params)
-    ctx["page_base_url"] = "/recordings?" + (qs + "&" if qs else "")
+    ctx["page_base_url"] = "/camera/recordings?" + (qs + "&" if qs else "")
 
     return templates.TemplateResponse("pages/recordings.html", {"request": request, **ctx})
 

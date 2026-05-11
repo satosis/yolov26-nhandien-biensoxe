@@ -39,7 +39,7 @@ async def add_vehicle(
         site_ids=site_ids_int,
         note=note,
     )
-    return RedirectResponse(url="/vehicles", status_code=303)
+    return RedirectResponse(url="/camera/vehicles", status_code=303)
 
 
 @router.delete("/{plate_id}")
@@ -49,7 +49,7 @@ async def delete_vehicle(
     user: dict = Depends(require_menu("vehicles")),
 ):
     get_db().delete("plate_whitelist", {"id": plate_id})
-    return RedirectResponse(url="/vehicles", status_code=303)
+    return RedirectResponse(url="/camera/vehicles", status_code=303)
 
 
 @router.post("/{plate_id}/delete")
@@ -59,7 +59,7 @@ async def delete_vehicle_post(
     user: dict = Depends(require_menu("vehicles")),
 ):
     get_db().delete("plate_whitelist", {"id": plate_id})
-    return RedirectResponse(url="/vehicles", status_code=303)
+    return RedirectResponse(url="/camera/vehicles", status_code=303)
 
 
 @router.post("/{vehicle_id}/edit")
@@ -80,4 +80,4 @@ async def edit_vehicle(
         site_ids=site_ids_int,
         note=note,
     )
-    return RedirectResponse(url="/vehicles", status_code=303)
+    return RedirectResponse(url="/camera/vehicles", status_code=303)

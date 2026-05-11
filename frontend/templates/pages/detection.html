@@ -288,7 +288,7 @@
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
-      const resp = await fetch('/detection/api/detect', { method: 'POST', body: fd });
+      const resp = await fetch('/camera/detection/api/detect', { method: 'POST', body: fd });
       if (!resp.ok) {
         console.error("Server detection error", resp.status);
         return { error: 'Server error ' + resp.status, results: [] };

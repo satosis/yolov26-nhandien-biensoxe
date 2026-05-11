@@ -5,6 +5,8 @@ import ssl
 import certifi
 import asyncio
 import logging
+import decimal
+import json
 
 # Fix for SSL certificate verification on macOS
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
@@ -163,6 +165,16 @@ app.mount("/data/recordings", StaticFiles(directory=cfg.RECORDING_DIR), name="re
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.add_extension('jinja2.ext.do')
 
+# Custom tojson filter to handle Decimal objects
+def custom_tojson(obj):
+    def default(o):
+        if isinstance(o, decimal.Decimal):
+            return float(o)
+        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+    return json.dumps(obj, default=default)
+
+templates.env.filters['tojson'] = custom_tojson
+
 # --- Import and register routers ---
 # --- Import and register routers ---
 from frontend.routers.auth_router import router as auth_router
@@ -173,6 +185,7 @@ from frontend.routers.providers_router import router as providers_router
 from frontend.routers.door_providers_router import router as door_providers_router
 from frontend.routers.rolling_doors_router import router as rolling_doors_router
 from frontend.routers.vehicles_router import router as vehicles_router
+from frontend.routers.cargo_trips_router import router as cargo_trips_router
 from frontend.routers.strangers_router import router as strangers_router
 from frontend.routers.pending_plates_router import router as pending_plates_router
 from frontend.routers.parking_router import router as parking_router
@@ -195,7 +208,7 @@ CAMERA_PAGE_KEYS = {
 }
 
 # Grouped registration
-for r in [detection_router, cameras_router, vehicles_router, strangers_router, 
+for r in [detection_router, cameras_router, vehicles_router, cargo_trips_router, strangers_router,
           pending_plates_router, parking_router, recordings_router]:
     app.include_router(r, prefix="/camera")
 
@@ -223,8 +236,11 @@ async def notify_inquiry(data: dict):
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code in (301, 302, 303, 307, 308):
+        location = exc.headers.get("Location", "/login") if exc.headers else "/login"
+        return RedirectResponse(url=location, status_code=exc.status_code)
+
     user = get_optional_user(request)
-    # Default context if no user is logged in
     ctx = {
         "user": user,
         "menu_groups": {},
@@ -237,6 +253,28 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
     if exc.status_code == 404:
         return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
+    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=500)
+
+import traceback as _traceback
+import logging as _logging
+_app_logger = _logging.getLogger("frontend.app")
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    _app_logger.error("Unhandled exception on %s: %s\n%s", request.url.path, exc, _traceback.format_exc())
+    user = get_optional_user(request)
+    ctx = {
+        "user": user,
+        "menu_groups": {},
+        "sites": [],
+        "active_site_id": 0,
+        "current_menu": ""
+    }
+    if user:
+        try:
+            ctx = get_menu_context(request, user)
+        except Exception:
+            pass
     return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=500)
 
 @app.exception_handler(jinja2.exceptions.TemplateNotFound)

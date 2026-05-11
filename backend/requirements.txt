@@ -11,6 +11,7 @@ requests>=2.32.3
 Pillow>=10.0.0
 psycopg2-binary==2.9.11
 bcrypt
+psutil                  # System monitoring
 OPi.GPIO                # Orange Pi GPIO control
 
 # --- AI & Detection (YOLO, Face) ---
@@ -38,3 +39,5 @@ tinytuya
 
 # --- Charts ---
 plotly
+vietocr
+huggingface_hub

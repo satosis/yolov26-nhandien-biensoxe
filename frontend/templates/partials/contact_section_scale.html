@@ -1,0 +1,115 @@
+{# Contact section riêng cho trang kiểm định cân #}
+<section id="lien-he" class="py-24 bg-slate-50">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="bg-[#0b2416] rounded-[3.5rem] overflow-hidden flex flex-col lg:flex-row shadow-2xl">
+
+      <div class="lg:w-1/2 p-12 lg:p-20 text-white flex flex-col justify-center">
+        <h2 class="text-4xl font-black mb-8 leading-tight">Đặt lịch kiểm định<br>hoặc thuê quả cân?</h2>
+        <p class="text-slate-400 mb-12">Để lại thông tin, chúng tôi sẽ liên hệ xác nhận lịch và báo giá trong vòng 30 phút.</p>
+        <div class="space-y-6">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-green-500">
+              <span class="material-symbols-outlined">call</span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 uppercase font-bold">Hotline · Mr. Quyết</p>
+              <a href="tel:0912559868" class="text-lg font-black text-white hover:text-green-400 transition-colors">0912 559 868</a>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-green-500">
+              <span class="material-symbols-outlined">schedule</span>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500 uppercase font-bold">Giờ làm việc</p>
+              <p class="text-base font-bold">Thứ 2 – Thứ 7 · 7:30 – 17:30</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:w-1/2 bg-white p-12 lg:p-20 flex flex-col justify-center">
+        <form id="contact-form-scale" class="space-y-6" novalidate>
+          <input type="hidden" name="source_page" value="kiem-dinh-can">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Họ và tên *</label>
+              <input type="text" name="full_name" required placeholder="Nguyễn Văn A"
+                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-green-500 focus:bg-white transition-all outline-none">
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại *</label>
+              <input type="tel" name="phone" required placeholder="090 123 4567"
+                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-green-500 focus:bg-white transition-all outline-none">
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tên cơ sở / doanh nghiệp</label>
+            <input type="text" name="company_name" placeholder="Cửa hàng / Nhà máy / Siêu thị…"
+              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-green-500 focus:bg-white transition-all outline-none">
+          </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhu cầu</label>
+            <select name="demand"
+              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-green-500 focus:bg-white transition-all outline-none appearance-none">
+              <option value="Kiểm định cân điện tử">Kiểm định cân điện tử</option>
+              <option value="Kiểm định cân đồng hồ / cơ">Kiểm định cân đồng hồ / cơ</option>
+              <option value="Cho thuê quả cân chuẩn">Cho thuê quả cân chuẩn</option>
+              <option value="Kiểm định lưu động tại cơ sở">Kiểm định lưu động tại cơ sở</option>
+              <option value="Khác">Khác</option>
+            </select>
+          </div>
+          <button type="submit" id="scale-submit-btn"
+            class="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase tracking-[0.3em] text-sm hover:bg-green-700 transition-colors shadow-xl shadow-green-600/20">
+            Gửi yêu cầu
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<script>
+  (function () {
+    const form = document.getElementById('contact-form-scale');
+    const btn = document.getElementById('scale-submit-btn');
+
+    function showToast(ok, msg) {
+      const existing = document.getElementById('scale-toast');
+      if (existing) existing.remove();
+      const bg = ok ? 'bg-green-600' : 'bg-rose-600';
+      const icon = ok ? 'check_circle' : 'warning';
+      const el = document.createElement('div');
+      el.id = 'scale-toast';
+      el.style.cssText = 'position:fixed;top:24px;right:24px;z-index:9999;max-width:360px;width:calc(100% - 48px);transform:translateX(120%);transition:transform 0.3s ease-out';
+      el.setAttribute('role', 'alert');
+      el.innerHTML = `<div class="${bg} text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
+        <span class="material-symbols-outlined text-xl mt-0.5 shrink-0">${icon}</span>
+        <p class="text-sm font-semibold leading-snug">${msg}</p>
+      </div>`;
+      document.body.appendChild(el);
+      requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; });
+      setTimeout(() => {
+        el.style.transform = 'translateX(120%)';
+        setTimeout(() => el.remove(), 350);
+      }, 4500);
+    }
+
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const full_name = form.querySelector('[name=full_name]').value.trim();
+      const phone = form.querySelector('[name=phone]').value.trim();
+      if (!full_name || full_name.length < 2) { showToast(false, 'Vui lòng nhập họ tên.'); return; }
+      if (!phone || !/^[0-9\s\+\-\.]{7,20}$/.test(phone)) { showToast(false, 'Số điện thoại không hợp lệ.'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Đang gửi…';
+      try {
+        const res = await fetch('/lien-he', { method: 'POST', body: new FormData(form) });
+        if (res.ok) { showToast(true, 'Gửi thành công! Chúng tôi sẽ liên hệ xác nhận lịch trong 30 phút.'); form.reset(); }
+        else { showToast(false, 'Có lỗi xảy ra. Vui lòng gọi trực tiếp 0912 559 868.'); }
+      } catch (_) { showToast(false, 'Không thể kết nối. Vui lòng gọi 0912 559 868.'); }
+      finally { btn.disabled = false; btn.textContent = 'Gửi yêu cầu'; }
+    });
+  })();
+</script>

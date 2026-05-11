@@ -1,5 +1,7 @@
 import os
+import decimal
 import psycopg2
+import psycopg2.extensions
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -11,7 +13,7 @@ import time
 import uuid
 import secrets
 import urllib.parse
-from dotenv import load_dotenv
+from backend.core.kyc_manager import KYCManager
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +38,21 @@ class DatabaseManager:
         self.dsn = self.dsn.replace("postgresql+asyncpg://", "postgresql://")
 
         if not DatabaseManager._pool:
+            # Register DECIMAL to float caster globally
+            def cast_decimal(value, cur):
+                return float(value) if value is not None else None
+            
+            DECIMAL = psycopg2.extensions.new_type(
+                psycopg2.extensions.DECIMAL.values,
+                'DECIMAL',
+                cast_decimal
+            )
+            psycopg2.extensions.register_type(DECIMAL)
+
             maxconn = int(max_pool_size) if max_pool_size else 15
             DatabaseManager._pool = pool.ThreadedConnectionPool(1, maxconn, self.dsn)
+        
+        self.kyc = KYCManager(self)
 
     @contextmanager
     def _get_connection(self):
@@ -99,7 +114,7 @@ class DatabaseManager:
         'app_settings', 'camera_status_log', 'legal_hold',
         'monthly_reports', 'telegram_bots', 'cameras_asset',
         'stranger_logs', 'rolling_doors', 'video_recordings',
-        'inquiries', 'projects', 'news',
+        'inquiries', 'projects', 'news', 'cargo_trips',
     })
 
     @staticmethod
@@ -435,8 +450,8 @@ class DatabaseManager:
         if site_id:
             query += " WHERE site_id = %s"
             params.append(site_id)
-        row = self._execute_query(query, params, fetchall=False)
-        return row[0] if row else 0
+        row = self._execute_query(query, params, fetch=True, commit=False)
+        return row["count"] if row else 0
 
     def delete_old_recordings(self, days: int):
         """Find and remove recordings older than 'days' days, including physical files."""
@@ -658,135 +673,37 @@ class DatabaseManager:
     def delete_user(self, user_id) -> bool:
         return self.delete("users", {"id": user_id})
 
-    # ── KYC Methods ──────────────────────────────────────────────────────────
+    # ── KYC Methods (Proxied to KYCManager) ───────────────────────────────────
 
-    def update_kyc_basic_info(self, user_id, full_name, phone, email, dob, id_number):
-        """Level 1: Save basic personal info and advance to kyc_level=1."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    '''UPDATE users SET full_name=%s, phone=%s, email=%s,
-                       date_of_birth=%s, id_number=%s, kyc_level=GREATEST(kyc_level, 1)
-                       WHERE id=%s''',
-                    (full_name, phone, email, dob, id_number, user_id)
-                )
-                conn.commit()
-                return True
+    def update_kyc_basic_info(self, *args, **kwargs):
+        return self.kyc.update_basic_info(*args, **kwargs)
 
-    def insert_kyc_document(self, user_id, doc_type, file_path):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    '''INSERT INTO kyc_documents (user_id, doc_type, file_path)
-                       VALUES (%s, %s, %s)
-                       ON CONFLICT DO NOTHING''',
-                    (user_id, doc_type, file_path)
-                )
-                conn.commit()
-                return True
+    def insert_kyc_document(self, *args, **kwargs):
+        return self.kyc.insert_document(*args, **kwargs)
 
-    def delete_kyc_document(self, user_id, doc_type):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "DELETE FROM kyc_documents WHERE user_id=%s AND doc_type=%s",
-                    (user_id, doc_type)
-                )
-                conn.commit()
-                return True
+    def delete_kyc_document(self, *args, **kwargs):
+        return self.kyc.delete_document(*args, **kwargs)
 
-    def get_kyc_documents(self, user_id):
-        query = "SELECT * FROM kyc_documents WHERE user_id=%s ORDER BY uploaded_at"
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, (user_id,))
-                return [dict(r) for r in cursor.fetchall()]
+    def get_kyc_documents(self, *args, **kwargs):
+        return self.kyc.get_documents(*args, **kwargs)
 
-    def update_kyc_level(self, user_id, level):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                if level == 3:
-                    cursor.execute(
-                        "UPDATE users SET kyc_level=%s, kyc_submitted_at=NOW() WHERE id=%s",
-                        (level, user_id)
-                    )
-                else:
-                    cursor.execute(
-                        "UPDATE users SET kyc_level=%s WHERE id=%s",
-                        (level, user_id)
-                    )
-                conn.commit()
-                return True
+    def update_kyc_level(self, *args, **kwargs):
+        return self.kyc.update_level(*args, **kwargs)
 
-    def get_kyc_user_detail(self, user_id):
-        query = '''SELECT u.id, u.username, u.full_name, u.phone, u.email,
-                          u.date_of_birth, u.id_number, u.kyc_level,
-                          u.kyc_submitted_at, u.kyc_reviewed_at,
-                          u.kyc_reviewed_by, u.kyc_reject_reason,
-                          r.role_name as role
-                   FROM users u LEFT JOIN roles r ON u.role_id = r.id
-                   WHERE u.id=%s'''
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query, (user_id,))
-                row = cursor.fetchone()
-                return dict(row) if row else None
+    def get_kyc_user_detail(self, *args, **kwargs):
+        return self.kyc.get_user_detail(*args, **kwargs)
 
-    def get_pending_kyc_users(self):
-        query = '''SELECT u.id, u.username, u.full_name, u.phone, u.email,
-                          u.id_number, u.kyc_level, u.kyc_submitted_at,
-                          r.role_name as role
-                   FROM users u LEFT JOIN roles r ON u.role_id = r.id
-                   WHERE u.kyc_level = 3
-                   ORDER BY u.kyc_submitted_at'''
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(query)
-                return [dict(r) for r in cursor.fetchall()]
+    def get_pending_kyc_users(self, *args, **kwargs):
+        return self.kyc.get_pending_users(*args, **kwargs)
 
-    def approve_kyc(self, user_id, reviewer):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    '''UPDATE users SET kyc_level=4, kyc_reviewed_at=NOW(),
-                       kyc_reviewed_by=%s, kyc_reject_reason=NULL WHERE id=%s''',
-                    (reviewer, user_id)
-                )
-                cursor.execute(
-                    "UPDATE kyc_documents SET status='approved', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
-                    (reviewer, user_id)
-                )
-                conn.commit()
-                return True
+    def approve_kyc(self, *args, **kwargs):
+        return self.kyc.approve(*args, **kwargs)
 
-    def reject_kyc(self, user_id, reviewer, reason):
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    '''UPDATE users SET kyc_level=-1, kyc_reviewed_at=NOW(),
-                       kyc_reviewed_by=%s, kyc_reject_reason=%s WHERE id=%s''',
-                    (reviewer, reason, user_id)
-                )
-                cursor.execute(
-                    "UPDATE kyc_documents SET status='rejected', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
-                    (reviewer, user_id)
-                )
-                conn.commit()
-                return True
+    def reject_kyc(self, *args, **kwargs):
+        return self.kyc.reject(*args, **kwargs)
 
-    def reset_kyc(self, user_id):
-        """Reset KYC for re-submission after rejection."""
-        with self._get_connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    '''UPDATE users SET kyc_level=0, kyc_submitted_at=NULL,
-                       kyc_reviewed_at=NULL, kyc_reviewed_by=NULL, kyc_reject_reason=NULL
-                       WHERE id=%s''',
-                    (user_id,)
-                )
-                cursor.execute("DELETE FROM kyc_documents WHERE user_id=%s", (user_id,))
-                conn.commit()
-                return True
+    def reset_kyc(self, *args, **kwargs):
+        return self.kyc.reset(*args, **kwargs)
 
     def get_telegram_bots(self) -> list[dict]:
         return self.select("telegram_bots", order_by="bot_name")
@@ -1071,7 +988,7 @@ class DatabaseManager:
     def get_news(self, limit: int = 5) -> list:
         """Fetch latest news items, with publish_date serialized to ISO string."""
         query = """
-            SELECT id, title, category, summary, image, publish_date
+            SELECT id, slug, title, category, summary, image, publish_date
             FROM news
             ORDER BY publish_date DESC
             LIMIT %s
@@ -1082,10 +999,25 @@ class DatabaseManager:
                 row["publish_date"] = row["publish_date"].isoformat()
         return rows
 
-    def get_news_by_id(self, news_id: int) -> dict | None:
-        """Fetch a single published news item by ID."""
+    def get_news_by_slug(self, slug: str) -> dict | None:
+        """Fetch a single published news item by slug."""
         rows = self._execute_query(
-            "SELECT id, title, category, summary, content, image, publish_date FROM news WHERE id = %s AND is_published IS DISTINCT FROM false",
+            "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE slug = %s AND is_published IS DISTINCT FROM false",
+            (slug,), fetchall=True
+        ) or []
+        if not rows:
+            return None
+        item = dict(rows[0])
+        if item.get("publish_date") and hasattr(item["publish_date"], "strftime"):
+            item["publish_date_str"] = item["publish_date"].strftime("%d/%m/%Y")
+        else:
+            item["publish_date_str"] = str(item.get("publish_date", ""))
+        return item
+
+    def get_news_by_id(self, news_id: int) -> dict | None:
+        """Fetch a single published news item by ID (legacy, redirects to slug)."""
+        rows = self._execute_query(
+            "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE id = %s AND is_published IS DISTINCT FROM false",
             (news_id,), fetchall=True
         ) or []
         if not rows:
@@ -1456,6 +1388,85 @@ class DatabaseManager:
     def delete_stranger_log(self, stranger_id: int) -> bool:
         """Hard-delete a single stranger log row."""
         return self.delete("stranger_logs", {"id": stranger_id})
+
+    # ── Cargo Trips ────────────────────────────────────────────────────────────
+
+    def get_cargo_trips(self, vehicle_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT * FROM cargo_trips
+                    WHERE vehicle_id = %s
+                    ORDER BY departure_time DESC
+                    LIMIT %s OFFSET %s
+                """, (vehicle_id, limit, offset))
+                return [dict(r) for r in cursor.fetchall()]
+
+    def count_cargo_trips(self, vehicle_id: int) -> int:
+        row = self._execute_query(
+            "SELECT COUNT(*) FROM cargo_trips WHERE vehicle_id = %s",
+            (vehicle_id,), fetch=True, commit=False
+        )
+        return row["count"] if row else 0
+
+    def add_cargo_trip(self, vehicle_id: int, plate_number: str, departure_time,
+                       return_time=None, origin=None, destination=None,
+                       fuel_liters=None, fuel_price_per_liter=None,
+                       freight_revenue=None, distance_km=None) -> int | None:
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO cargo_trips
+                        (vehicle_id, plate_number, departure_time, return_time,
+                         origin, destination,
+                         fuel_liters, fuel_price_per_liter,
+                         freight_revenue, distance_km)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING id
+                """, (vehicle_id, plate_number, departure_time, return_time,
+                      origin, destination,
+                      fuel_liters, fuel_price_per_liter,
+                      freight_revenue, distance_km))
+                row = cursor.fetchone()
+                conn.commit()
+                return row[0] if row else None
+
+    def update_cargo_trip(self, trip_id: int, departure_time=None, return_time=None,
+                          origin=None, destination=None,
+                          fuel_liters=None, fuel_price_per_liter=None,
+                          freight_revenue=None, distance_km=None) -> bool:
+        fields, params = [], []
+        for col, val in [
+            ("departure_time", departure_time), ("return_time", return_time),
+            ("origin", origin), ("destination", destination),
+            ("fuel_liters", fuel_liters),
+            ("fuel_price_per_liter", fuel_price_per_liter),
+            ("freight_revenue", freight_revenue),
+            ("distance_km", distance_km),
+        ]:
+            if val is not None:
+                fields.append(f"{col} = %s")
+                params.append(val)
+        if not fields:
+            return False
+        fields.append("updated_at = NOW()")
+        params.append(trip_id)
+        return self._execute_query(
+            f"UPDATE cargo_trips SET {', '.join(fields)} WHERE id = %s",
+            params, commit=True
+        ) is not False
+
+    def get_cargo_trip(self, trip_id: int) -> dict | None:
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("SELECT * FROM cargo_trips WHERE id = %s", (trip_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+
+    def delete_cargo_trip(self, trip_id: int) -> bool:
+        return self.delete("cargo_trips", {"id": trip_id})
+
+    # ── End Cargo Trips ────────────────────────────────────────────────────────
 
     def generate_unique_username(self, prefix: str = "user") -> str:
         """Return the next available username in the form prefix_001, prefix_002, …"""

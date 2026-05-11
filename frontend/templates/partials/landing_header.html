@@ -15,7 +15,7 @@
         <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
       </div>
       <div class="flex flex-col leading-none">
-        <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">SẮT THÉP SƠN
+        <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">THÉP SƠN
           LÂM</span>
         <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial Core</span>
       </div>
@@ -51,7 +51,12 @@
           <a href="/nha-xuong"
             class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-slate-300 hover:text-orange-400">
             <span class="material-symbols-outlined text-[20px] notranslate" aria-hidden="true">warehouse</span>
-            <span class="text-[11px] font-bold uppercase tracking-wider" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider">KCN Trung Hà</span>
+          </a>
+          <a href="/nha-xuong-co-tiet"
+            class="flex items-center gap-3 px-4 py-3 border-t border-white/5 hover:bg-white/5 transition-colors text-slate-300 hover:text-orange-400">
+            <span class="material-symbols-outlined text-[20px] notranslate" aria-hidden="true">factory</span>
+            <span class="text-[11px] font-bold uppercase tracking-wider">CCN Cổ Tiết</span>
           </a>
         </div>
       </div>
@@ -95,17 +100,14 @@
     </div>
 
     <!-- Contact Info -->
-    {% if settings and settings.phone %}
-    <a href="tel:{{ settings.phone }}" class="hidden xl:flex items-center gap-2.5 group notranslate" translate="no">
+    <a href="tel:0912559868" class="hidden xl:flex items-center gap-2.5 group notranslate" translate="no">
       <div
         class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-orange-600/20 transition-all">
         <span class="material-symbols-outlined text-orange-500 text-lg notranslate" aria-hidden="true">call</span>
       </div>
       <span
-        class="text-[13px] font-black text-white font-inter tracking-tight group-hover:text-orange-400 transition-colors">{{
-        settings.phone }}</span>
+        class="text-[13px] font-black text-white font-inter tracking-tight group-hover:text-orange-400 transition-colors">0912 559 868</span>
     </a>
-    {% endif %}
 
     <div class="h-6 w-px bg-white/10 hidden md:block"></div>
 

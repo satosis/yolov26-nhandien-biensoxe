@@ -30,7 +30,7 @@
 
   <!-- Add form -->
   <form id="add-vehicle-form" style="display:none" class="bg-bg-card rounded-lg p-5 flex flex-col gap-4"
-        method="post" action="/vehicles">
+        method="post" action="/camera/vehicles">
     <div class="text-white font-semibold text-[14px]">➕ Thêm xe mới</div>
     <div class="grid grid-cols-3 gap-4">
       <div>
@@ -124,6 +124,8 @@
           </td>
           <td class="px-5 py-3.5 text-right">
             <div class="flex justify-end gap-2">
+              <a href="/camera/vehicles/{{ v.id }}/cargo"
+                 class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors" title="Lịch sử chuyến hàng">📋</a>
               <button class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors"
                       onclick="openEdit({{ v.id }}, '{{ v.plate_number }}', '{{ v.owner_name or '' }}', {{ v.site_ids | tojson }}, '{{ v.note or '' }}')">✏️</button>
               <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer transition-colors"
@@ -132,7 +134,7 @@
                           title: 'Xóa phương tiện',
                           message: 'Bạn chắc chắn muốn xóa xe {{ v.plate_number }}?',
                           confirmText: 'Xác nhận xóa',
-                          confirmUrl: '/vehicles/{{ v.id }}/delete',
+                          confirmUrl: '/camera/vehicles/{{ v.id }}/delete',
                           confirmMethod: 'POST',
                           confirmTarget: '#vehicle-{{ v.id }}'
                         }
@@ -180,7 +182,7 @@ function hideAddForm() {
 function openEdit(id, plate, owner, siteIds, note) {
   document.getElementById('add-vehicle-form').style.display = 'none';
   var f = document.getElementById('edit-vehicle-form');
-  f.action = '/vehicles/' + id + '/edit';
+  f.action = '/camera/vehicles/' + id + '/edit';
   document.getElementById('edit-plate').value = plate;
   document.getElementById('edit-owner').value = owner;
   document.getElementById('edit-note').value = note;

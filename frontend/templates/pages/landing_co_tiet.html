@@ -1,0 +1,981 @@
+{% extends "landing_base.html" %}
+
+{% block title %}Cho thuê nhà xưởng Cụm công nghiệp Cổ Tiết — Đồng Dâu, Vạn Xuân, Phú Thọ | Sơn Lâm{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Cho thuê 04 nhà xưởng xây sẵn tại Cụm công nghiệp Cổ Tiết, khu Đồng Dâu, xã Vạn Xuân, tỉnh Phú Thọ. 800 m² – 9.000 m², trạm điện 5000 KVA, PCCC, XLNT. Sẵn sàng bàn giao.">
+<meta name="keywords" content="nhà xưởng cho thuê Tam Nông Phú Thọ, Cụm công nghiệp Cổ Tiết, CCN Cổ Tiết, xã Vạn Xuân, cho thuê xưởng may mặc điện tử, factory for rent Phu Tho Tam Nong, Cụm công nghiệp Cổ Tiết, nhà xưởng xây sẵn Phú Thọ">
+<meta name="robots" content="index, follow">
+<meta name="author" content="THÉP SƠN LÂM Industrial Core">
+<link rel="canonical" href="https://thepsonlam.com/nha-xuong-co-tiet">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
+<meta property="og:title" content="Cho thuê nhà xưởng Cụm công nghiệp Cổ Tiết, Phú Thọ — SƠN LÂM">
+<meta property="og:description" content="04 nhà xưởng xây sẵn tại khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết, tỉnh Phú Thọ. Diện tích 800 m², 4.500 m² và 9.000 m². Trạm điện 5000 KVA, PCCC, XLNT. Sẵn sàng bàn giao.">
+<meta property="og:image" content="/static/brain/real_factory_2.webp">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://thepsonlam.com/nha-xuong-co-tiet">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Cho thuê nhà xưởng Cụm công nghiệp Cổ Tiết Phú Thọ — SƠN LÂM">
+<meta name="twitter:description" content="04 nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết, tỉnh Phú Thọ. 800 m² – 9.000 m². Trạm điện 5000 KVA. PCCC + XLNT. Sẵn sàng bàn giao.">
+<meta name="twitter:image" content="/static/brain/real_factory_2.webp">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "RealEstateListing",
+      "@id": "https://thepsonlam.com/nha-xuong-co-tiet#listing",
+      "name": "Cho thuê 04 nhà xưởng xây sẵn tại Cụm công nghiệp Cổ Tiết, Phú Thọ",
+      "description": "CÔNG TY TNHH TMDV SƠN LÂM cho thuê 04 nhà xưởng xây sẵn tại khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết, tỉnh Phú Thọ. Diện tích đa dạng: 800 m², 4.500 m² và 9.000 m². Trạm điện 5000 KVA, PCCC tự động, hệ thống XLNT. TBA 110KV Tam Nông liền kề. Cao độ san nền 17.50m.",
+      "image": "/static/brain/real_factory_1.webp",
+      "url": "https://thepsonlam.com/nha-xuong-co-tiet",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết",
+        "addressLocality": "Huyện Tam Nông",
+        "addressRegion": "Tỉnh Phú Thọ",
+        "addressCountry": "VN"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "21.2780",
+        "longitude": "105.2750"
+      },
+      "floorSize": {
+        "@type": "QuantitativeValue",
+        "minValue": 800,
+        "maxValue": 9000,
+        "unitCode": "MTK"
+      },
+      "numberOfRooms": 4,
+      "availabilityStarts": "2025-06-01",
+      "leaseLength": {
+        "@type": "QuantitativeValue",
+        "minValue": 12,
+        "unitCode": "MON"
+      },
+      "seller": {
+        "@type": "Organization",
+        "@id": "https://thepsonlam.com/#organization",
+        "name": "CÔNG TY TNHH TMDV SƠN LÂM",
+        "telephone": "+84 986 565 666"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Nhà xưởng cho thuê tại Cụm công nghiệp Cổ Tiết có diện tích bao nhiêu?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Dự án có 04 nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết, tỉnh Phú Thọ. Các loại diện tích: 800 m², 4.500 m² và 9.000 m²."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Hạ tầng nhà xưởng Cụm công nghiệp Cổ Tiết gồm những gì?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Hạ tầng đầy đủ: trạm điện 5.000 KVA, TBA 110KV Tam Nông liền kề, hệ thống PCCC tự động (bể PCCC + nhà bơm PCCC), hệ thống xử lý nước thải (XLNT), 2 nhà bảo vệ, 2 nhà để xe, đường giao thông nội bộ, cây xanh."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Nhà xưởng đã sẵn sàng bàn giao chưa?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Nhà xưởng đã sẵn sàng bàn giao. Dự án có Giấy chứng nhận đầu tư, Giấy chứng nhận quyền sử dụng đất, PCCC đã nghiệm thu. Thời hạn sử dụng đất còn hơn 45 năm."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Vị trí Cụm công nghiệp Cổ Tiết có thuận lợi không?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Rất thuận lợi. Nằm trên ĐT 315 (đường nhựa), gần ngã tư Cổ Tiết và Cầu Ngọc Tháp. Kết nối QL2, cao tốc Nội Bài – Lào Cai. TBA 110KV Tam Nông ngay cạnh dự án."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+  .spec-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.5rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+
+  .spec-card:hover {
+    box-shadow: 0 8px 32px rgba(249, 115, 22, 0.10);
+    transform: translateY(-3px);
+  }
+
+  .gallery-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s;
+  }
+
+  .gallery-img:hover {
+    transform: scale(1.05);
+  }
+
+  .advantage-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .advantage-item:last-child {
+    border-bottom: none;
+  }
+
+  .tax-badge {
+    background: linear-gradient(135deg, #fff7ed, #fed7aa);
+    border: 1px solid #f97316;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+    <script>window.__wh_slides__ = [
+      "/static/brain/real_factory_2.webp",
+      "/static/brain/real_factory_4.webp",
+      "/static/brain/real_factory_6.webp",
+      "/static/brain/real_factory_8.webp",
+      "/static/brain/real_factory_9.webp",
+      "/static/brain/real_factory_10.webp",
+      "/static/brain/real_factory_11.webp",
+      "/static/brain/real_factory_12.webp"
+    ];</script>
+    <section class="relative w-full min-h-[580px] flex items-end overflow-hidden bg-[#0b1c30]" x-data="{
+           slides: [],
+           cur: 0,
+           init(){ this.slides = window.__wh_slides__ || []; setInterval(()=> this.cur=(this.cur+1)%Math.max(this.slides.length,1), 5000) }
+         }">
+      <div class="absolute inset-0">
+        <template x-for="(s,i) in slides" :key="i">
+          <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
+            <img :src="s" class="w-full h-full object-cover" style="opacity:.55"
+              alt="Nhà xưởng xây sẵn CCN Cổ Tiết Phú Thọ">
+          </div>
+        </template>
+        <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/20 to-transparent"></div>
+      </div>
+
+      <div class="relative z-10 max-w-6xl mx-auto px-6 pb-16 pt-32 w-full">
+        <span
+          class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Khu Đồng Dâu
+          · Xã Vạn Xuân · Cụm công nghiệp Cổ Tiết · Phú Thọ</span>
+        <h1 class="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-5 max-w-3xl">
+          Cho thuê nhà xưởng<br><span class="text-orange-400">May mặc, điện tử, cơ khí</span>
+        </h1>
+        <p class="text-slate-300 text-lg max-w-2xl mb-8 leading-relaxed">
+          04 nhà xưởng xây sẵn <strong class="text-white">800 m² – 9.000 m²</strong> · Trạm điện 5000 KVA · TBA 110KV · PCCC tự động · Hệ thống XLNT · Thời hạn đất hơn 45 năm.
+        </p>
+        <p class="text-slate-400 text-sm max-w-2xl mb-8">
+          <span class="material-symbols-outlined text-orange-400 text-sm align-middle mr-1">location_on</span>Khu Đồng Dâu, xã Vạn Xuân, Cụm công nghiệp Cổ Tiết, tỉnh Phú Thọ.
+        </p>
+        <div class="flex flex-wrap gap-4">
+          <a href="#lien-he"
+            class="px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg shadow-orange-500/30">
+            Hẹn xem xưởng ngay
+          </a>
+          <a href="tel:0986565666"
+            class="px-8 py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
+            <span class="material-symbols-outlined text-orange-400 text-lg">call</span>
+            0986 565 666
+          </a>
+          <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" target="_blank"
+            class="px-8 py-4 bg-blue-600/20 border border-blue-400/30 hover:bg-blue-600/30 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
+            <span class="material-symbols-outlined text-blue-400 text-lg">map</span>
+            Xem bản vẽ mặt bằng (PDF)
+          </a>
+        </div>
+      </div>
+
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+        <template x-for="(_,i) in slides" :key="i">
+          <button @click="cur=i" :class="cur===i?'bg-orange-500 w-6':'bg-white/30 w-2'"
+            class="h-2 rounded-full transition-all duration-300"></button>
+        </template>
+      </div>
+    </section>
+
+
+    <section class="bg-[#0b1c30] border-t border-white/10">
+      <div class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+        <div>
+          <p class="text-2xl font-black text-orange-400">800 m²</p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Diện tích xưởng 1</p>
+        </div>
+        <div>
+          <p class="text-2xl font-black text-orange-400">4.500 m²</p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Diện tích xưởng 2</p>
+        </div>
+        <div>
+          <p class="text-2xl font-black text-orange-400">5000 KVA</p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Trạm điện</p>
+        </div>
+        <div>
+          <p class="text-2xl font-black text-orange-400">45 năm+</p>
+          <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Thời hạn đất</p>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- Cụm công nghiệp Cổ Tiết - Phú Thọ SEO Content -->
+    <section class="py-24 bg-white border-b border-slate-100">
+      <div class="max-w-6xl mx-auto px-gutter">
+        <div class="grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Nhà Xưởng Nổi Bật</span>
+            <h2 class="text-h2 font-display text-slate-900 mb-6">Cho thuê nhà xưởng tại Cụm công nghiệp Cổ Tiết<br>Xã Vạn Xuân, Tỉnh Phú Thọ</h2>
+            <div class="prose prose-slate max-w-none text-slate-600 space-y-4">
+              <p>
+                <strong>Bạn cần thuê kho xưởng nhà xưởng để làm xưởng may mặc</strong> thì chúng tôi có nhà xưởng cho thuê ở Cụm công nghiệp Cổ Tiết - Tỉnh Phú Thọ.
+              </p>
+              <p>
+                <strong>Bạn cần thuê kho xưởng nhà xưởng để làm xưởng điện tử</strong> thì chúng tôi có nhà xưởng cho thuê ở Cụm công nghiệp Cổ Tiết - Tỉnh Phú Thọ.
+              </p>
+              <p>
+                <strong>Bạn sản xuất các ngành nghề sạch sẽ và cần thuê kho xưởng nhà xưởng</strong> thì chúng tôi có nhà xưởng cho thuê ở Cụm công nghiệp Cổ Tiết - Tỉnh Phú Thọ.
+              </p>
+              <p>
+                Chúng tôi cần cho thuê <strong>04 nhà xưởng (bao gồm các diện tích 800 m², 4.500 m² và 9.000 m²)</strong> trong Cụm công nghiệp Cổ Tiết thuộc Tỉnh Phú Thọ. Tổng thể dự án bao gồm:
+              </p>
+              <ul class="list-none space-y-2 mb-6 text-sm">
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>Hệ thống nhà xưởng:</strong> 04 nhà xưởng tiêu chuẩn (01 xưởng 800 m², 01 xưởng 4.500 m² và 02 xưởng 9.000 m²).</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>Phụ trợ &amp; An ninh:</strong> 02 nhà để xe tập trung (nhà để xe 1 &amp; 2), 02 nhà bảo vệ trực 24/7 và hệ thống nhà vệ sinh riêng biệt.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>Hệ thống điện:</strong> Trạm biến áp công suất lớn và kết nối TBA 110KV Tam Nông ngay sát dự án.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>PCCC &amp; CHCN:</strong> Nhà bơm PCCC chuyên dụng kết hợp bể nước PCCC &amp; CHCN dung tích lớn, đạt chuẩn nghiệm thu.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>Xử lý nước thải:</strong> Hệ thống XLNT đồng bộ gồm Nhà trạm XLNT và Bể XLNT đảm bảo tiêu chuẩn môi trường.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <span class="material-symbols-outlined text-orange-500 text-lg mt-0.5">check_circle</span>
+                  <span><strong>Cảnh quan &amp; Giao thông:</strong> Đường giao thông nội bộ rộng rãi, kết nối thông suốt giữa các block và hệ thống cây xanh độ phủ cao.</span>
+                </li>
+              </ul>
+              <div class="bg-red-50 text-red-700 p-4 rounded-xl border border-red-100 flex items-start gap-3 mt-4">
+                <span class="material-symbols-outlined text-red-500 mt-0.5">warning</span>
+                <p class="text-sm font-semibold m-0">Nhà xưởng trong Cụm công nghiệp Cổ Tiết - Tỉnh Phú Thọ <strong>không cho thuê</strong> đối với các ngành nghề gây ô nhiễm môi trường.</p>
+              </div>
+              <p class="mt-6">
+                Quý khách hàng có nhu cầu quan tâm đến nhà xưởng cho thuê ở trong Cụm công nghiệp Cổ Tiết - Tỉnh Phú Thọ xin liên hệ.
+              </p>
+              <div class="inline-flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 mt-2 w-full">
+                <span class="material-symbols-outlined text-orange-500 text-3xl">contact_phone</span>
+                <div>
+                  <p class="text-xs text-slate-500 uppercase tracking-widest font-bold mb-1">Mọi chi tiết liên hệ</p>
+                  <p class="text-xl font-black text-slate-900">Mr Lâm: <a href="tel:0986565666" class="text-orange-500 hover:text-orange-600 transition-colors">0986565666</a></p>
+                </div>
+              </div>
+              <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" target="_blank" class="flex items-center gap-3 bg-blue-50 p-4 rounded-xl border border-blue-100 mt-4 w-full group hover:bg-blue-100 transition-all">
+                <span class="material-symbols-outlined text-blue-500 text-3xl group-hover:scale-110 transition-transform">picture_as_pdf</span>
+                <div class="flex-1">
+                  <p class="text-xs text-blue-600 uppercase tracking-widest font-bold mb-1">Tài liệu dự án</p>
+                  <p class="text-sm font-bold text-slate-900">Bản vẽ quy hoạch sử dụng đất (Layout)</p>
+                </div>
+                <span class="material-symbols-outlined text-blue-400">download</span>
+              </a>
+            </div>
+          </div>
+          <div class="rounded-3xl overflow-hidden shadow-2xl relative h-full min-h-[600px] lg:min-h-full">
+            <img src="/static/brain/real_factory_2.webp" loading="lazy" class="absolute inset-0 w-full h-full object-cover" alt="Nhà xưởng Cụm công nghiệp Cổ Tiết - Phú Thọ">
+            <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30]/90 via-[#0b1c30]/20 to-transparent"></div>
+            <div class="absolute bottom-8 left-8 right-8">
+              <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-white">
+                <p class="text-3xl font-black mb-2">800 m² – 9.000 m²</p>
+                <p class="text-sm text-white/80">Nhà xưởng tiêu chuẩn sẵn sàng bàn giao tại Cụm công nghiệp Cổ Tiết, Phú Thọ. Trạm điện 5000 KVA.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT COMPARISON TABLE -->
+    <section class="py-24 bg-slate-50">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-16">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">So sánh chi tiết</span>
+          <h2 class="text-4xl font-black text-slate-900 mb-4">Các loại Nhà xưởng cho thuê</h2>
+          <p class="text-slate-500 max-w-2xl mx-auto">So sánh thông số kỹ thuật chi tiết giữa các loại diện tích nhà xưởng đang cho thuê tại Cụm công nghiệp Cổ Tiết để lựa chọn phù hợp nhất cho doanh nghiệp của bạn.</p>
+        </div>
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Unit 1 -->
+          <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden flex flex-col">
+            <div class="mb-4">
+              <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-1">Nhà xưởng 1</p>
+              <p class="text-3xl font-black text-slate-900">800 <span class="text-sm text-slate-400">m²</span></p>
+            </div>
+            <div class="space-y-3 mb-6 flex-1">
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Kích thước</span>
+                <span class="font-bold text-slate-900">Đang cập nhật</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Điện</span>
+                <span class="font-bold text-slate-900">5.000 KVA</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">PCCC</span>
+                <span class="font-bold text-green-600">✓</span>
+              </div>
+            </div>
+            <a href="tel:0986565666" class="w-full bg-slate-900 hover:bg-orange-500 text-white text-center py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all">
+              Liên hệ
+            </a>
+          </div>
+          <!-- Unit 2 -->
+          <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden flex flex-col">
+            <div class="mb-4">
+              <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-1">Nhà xưởng 2</p>
+              <p class="text-3xl font-black text-slate-900">4.500 <span class="text-sm text-slate-400">m²</span></p>
+            </div>
+            <div class="space-y-3 mb-6 flex-1">
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Kích thước</span>
+                <span class="font-bold text-slate-900">Đang cập nhật</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Điện</span>
+                <span class="font-bold text-slate-900">5.000 KVA</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">PCCC</span>
+                <span class="font-bold text-green-600">✓</span>
+              </div>
+            </div>
+            <a href="tel:0986565666" class="w-full bg-slate-900 hover:bg-orange-500 text-white text-center py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all">
+              Liên hệ
+            </a>
+          </div>
+          <!-- Unit 3 -->
+          <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm relative overflow-hidden flex flex-col">
+            <div class="mb-4">
+              <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-1">Nhà xưởng 3</p>
+              <p class="text-3xl font-black text-slate-900">9.000 <span class="text-sm text-slate-400">m²</span></p>
+            </div>
+            <div class="space-y-3 mb-6 flex-1">
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Kích thước</span>
+                <span class="font-bold text-slate-900">Đang cập nhật</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Điện</span>
+                <span class="font-bold text-slate-900">5.000 KVA</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">PCCC</span>
+                <span class="font-bold text-green-600">✓</span>
+              </div>
+            </div>
+            <a href="tel:0986565666" class="w-full bg-slate-900 hover:bg-orange-500 text-white text-center py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all">
+              Liên hệ
+            </a>
+          </div>
+          <!-- Unit 4 -->
+          <div class="bg-white rounded-3xl p-6 border-2 border-orange-200 shadow-lg relative overflow-hidden flex flex-col">
+            <div class="absolute top-0 right-0 bg-orange-500 text-white text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-xl">Hot</div>
+            <div class="mb-4">
+              <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-1">Nhà xưởng 4</p>
+              <p class="text-3xl font-black text-slate-900">9.000 <span class="text-sm text-slate-400">m²</span></p>
+            </div>
+            <div class="space-y-3 mb-6 flex-1">
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Kích thước</span>
+                <span class="font-bold text-slate-900">Đang cập nhật</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">Điện</span>
+                <span class="font-bold text-slate-900">5.000 KVA</span>
+              </div>
+              <div class="flex justify-between items-center text-xs py-2 border-b border-slate-50">
+                <span class="text-slate-500">PCCC</span>
+                <span class="font-bold text-green-600">✓</span>
+              </div>
+            </div>
+            <a href="tel:0986565666" class="w-full bg-orange-500 hover:bg-orange-600 text-white text-center py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] transition-all shadow-md shadow-orange-500/20">
+              Liên hệ
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLAN / LAYOUT SECTION -->
+    <section class="py-24 bg-white border-t border-slate-100">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-12">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Mặt bằng tổng thể</span>
+          <h2 class="text-4xl font-black text-slate-900 mb-4">Sơ đồ quy hoạch chi tiết</h2>
+          <p class="text-slate-500 max-w-2xl mx-auto">Sơ đồ phân lô và bố trí hạ tầng tại Cụm công nghiệp Cổ Tiết. Click vào ảnh để xem chi tiết toàn màn hình hoặc phóng to.</p>
+        </div>
+        <div class="relative rounded-[2.5rem] overflow-hidden border border-slate-200 shadow-2xl bg-slate-50 group">
+          <img src="/static/brain/real_factory_1.webp" loading="lazy"
+               class="w-full h-auto object-contain max-h-[900px] cursor-zoom-in transition-all duration-500 hover:scale-[1.01]"
+               style="image-rendering: -webkit-optimize-contrast; filter: contrast(1.05) brightness(1.02);"
+               alt="Sơ đồ mặt bằng Cụm công nghiệp Cổ Tiết - Phú Thọ">
+          <div class="absolute bottom-6 right-6 flex gap-3">
+            <button onclick="window.open('/static/brain/real_factory_1.webp', '_blank')"
+                    class="bg-white/90 backdrop-blur-md text-slate-900 px-6 py-3 rounded-xl font-bold text-xs shadow-xl hover:bg-orange-500 hover:text-white transition-all flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm">open_in_new</span>
+              Xem ảnh gốc HD
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRANSPORTATION ADVANTAGES -->
+    <section class="py-24 bg-white">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="grid md:grid-cols-2 gap-16 items-center">
+          <div>
+            <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Lợi thế vận chuyển</span>
+            <h2 class="text-4xl font-black text-slate-900 mb-6">Giao thông thuận lợi<br>Dễ dàng tuyển dụng</h2>
+            <p class="text-slate-500 mb-8 leading-relaxed">Cụm công nghiệp Cổ Tiết nằm tại vị trí chiến lược với khả năng kết nối giao thông đa phương thức. Đặc biệt, khu vực có nguồn lao động dồi dào và chi phí sinh hoạt thấp — lý tưởng cho các doanh nghiệp sử dụng nhiều nhân công.</p>
+            <div class="space-y-4">
+              <div class="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-orange-500">local_shipping</span>
+                </div>
+                <div>
+                  <h5 class="font-bold text-slate-900 mb-1">Đường bộ</h5>
+                  <p class="text-sm text-slate-500">Kết nối trực tiếp QL2, QL32C và cao tốc Nội Bài – Lào Cai. Thuận lợi cho vận chuyển hàng hóa đi các tỉnh phía Bắc và cửa khẩu Trung Quốc.</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-orange-500">people</span>
+                </div>
+                <div>
+                  <h5 class="font-bold text-slate-900 mb-1">Nguồn lao động</h5>
+                  <p class="text-sm text-slate-500">Phú Thọ có dân số trẻ, tỷ lệ lao động trong độ tuổi cao. Các trường nghề và CĐ địa phương cung cấp nguồn nhân lực chất lượng cho ngành may mặc, điện tử.</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center shrink-0">
+                  <span class="material-symbols-outlined text-orange-500">savings</span>
+                </div>
+                <div>
+                  <h5 class="font-bold text-slate-900 mb-1">Chi phí cạnh tranh</h5>
+                  <p class="text-sm text-slate-500">Chi phí thuê đất và nhân công thấp hơn 30-40% so với Hà Nội, Bắc Ninh, giúp doanh nghiệp tối ưu chi phí vận hành dài hạn.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-3xl overflow-hidden h-64">
+              <img src="/static/brain/real_factory_4.webp" loading="lazy" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="Giao thông Cụm công nghiệp Cổ Tiết">
+            </div>
+            <div class="rounded-3xl overflow-hidden h-64 mt-8">
+              <img src="/static/brain/real_factory_10.webp" loading="lazy" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="Nhà xưởng nội thất Cụm công nghiệp Cổ Tiết">
+            </div>
+            <div class="rounded-3xl overflow-hidden h-64">
+              <img src="/static/brain/real_factory_3.webp" loading="lazy" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="Khuôn viên Cụm công nghiệp Cổ Tiết">
+            </div>
+            <div class="rounded-3xl overflow-hidden h-64 mt-8">
+              <img src="/static/brain/real_factory_11.webp" loading="lazy" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" alt="Nhà xưởng sản xuất Cụm công nghiệp Cổ Tiết">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ SECTION -->
+    <section class="py-24 bg-slate-50" x-data="{ openFaq: null }">
+      <div class="max-w-4xl mx-auto px-6">
+        <div class="text-center mb-16">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Hỏi đáp</span>
+          <h2 class="text-4xl font-black text-slate-900 mb-4">Câu hỏi thường gặp</h2>
+          <p class="text-slate-500 max-w-2xl mx-auto">Giải đáp các thắc mắc phổ biến về việc thuê nhà xưởng tại Cụm công nghiệp Cổ Tiết - Phú Thọ.</p>
+        </div>
+        <div class="space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <button @click="openFaq = openFaq === 1 ? null : 1" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors">
+              <h4 class="font-bold text-slate-900">Nhà xưởng tại Cụm công nghiệp Cổ Tiết có những ngành nghề nào được ưu tiên cho thuê?</h4>
+              <span class="material-symbols-outlined text-orange-500 transition-transform shrink-0" :class="openFaq === 1 ? 'rotate-180' : ''">expand_more</span>
+            </button>
+            <div x-show="openFaq === 1" x-transition class="px-6 pb-6">
+              <p class="text-slate-500 text-sm leading-relaxed">Chúng tôi ưu tiên cho thuê đối với các doanh nghiệp sản xuất sạch bao gồm: <strong>may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm</strong> và các ngành nghề không gây ô nhiễm môi trường. Các ngành nghề như hóa chất độc hại, nhuộm, thuộc da sẽ không được chấp thuận.</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <button @click="openFaq = openFaq === 2 ? null : 2" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors">
+              <h4 class="font-bold text-slate-900">Hệ thống điện và PCCC tại nhà xưởng như thế nào?</h4>
+              <span class="material-symbols-outlined text-orange-500 transition-transform shrink-0" :class="openFaq === 2 ? 'rotate-180' : ''">expand_more</span>
+            </button>
+            <div x-show="openFaq === 2" x-transition class="px-6 pb-6">
+              <p class="text-slate-500 text-sm leading-relaxed">Nhà xưởng được trang bị <strong>trạm điện công suất 5.000 KVA</strong>, đảm bảo nguồn điện ổn định cho sản xuất quy mô lớn. Hệ thống <strong>PCCC tự động (sprinkler)</strong> đã được nghiệm thu bởi cơ quan Công an, đạt tiêu chuẩn an toàn phòng cháy chữa cháy theo quy định hiện hành.</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <button @click="openFaq = openFaq === 3 ? null : 3" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors">
+              <h4 class="font-bold text-slate-900">Thời hạn thuê nhà xưởng tối thiểu và tối đa là bao nhiêu?</h4>
+              <span class="material-symbols-outlined text-orange-500 transition-transform shrink-0" :class="openFaq === 3 ? 'rotate-180' : ''">expand_more</span>
+            </button>
+            <div x-show="openFaq === 3" x-transition class="px-6 pb-6">
+              <p class="text-slate-500 text-sm leading-relaxed">Thời hạn thuê linh hoạt theo thỏa thuận. Thời hạn sử dụng đất còn <strong>hơn 45 năm</strong>, cho phép doanh nghiệp lên kế hoạch đầu tư dài hạn. Chúng tôi có Giấy chứng nhận đầu tư cho phép cho thuê nhà xưởng dư thừa và Giấy chứng nhận quyền sử dụng đất đầy đủ.</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <button @click="openFaq = openFaq === 4 ? null : 4" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors">
+              <h4 class="font-bold text-slate-900">Có thể đến xem xưởng trực tiếp không? Liên hệ ai?</h4>
+              <span class="material-symbols-outlined text-orange-500 transition-transform shrink-0" :class="openFaq === 4 ? 'rotate-180' : ''">expand_more</span>
+            </button>
+            <div x-show="openFaq === 4" x-transition class="px-6 pb-6">
+              <p class="text-slate-500 text-sm leading-relaxed">Quý khách có thể hẹn lịch tham quan nhà xưởng bất kỳ lúc nào. Vui lòng liên hệ trực tiếp <strong>Mr Lâm: <a href="tel:0986565666" class="text-orange-500 hover:text-orange-600">0986 565 666</a></strong> để được hướng dẫn đường đi và bố trí người đón tiếp tại Cụm công nghiệp Cổ Tiết, Phú Thọ.</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <button @click="openFaq = openFaq === 5 ? null : 5" class="w-full flex items-center justify-between p-6 text-left hover:bg-slate-50 transition-colors">
+              <h4 class="font-bold text-slate-900">Tại sao chọn Cụm công nghiệp Cổ Tiết thay vì các KCN tại Bắc Ninh, Hải Dương?</h4>
+              <span class="material-symbols-outlined text-orange-500 transition-transform shrink-0" :class="openFaq === 5 ? 'rotate-180' : ''">expand_more</span>
+            </button>
+            <div x-show="openFaq === 5" x-transition class="px-6 pb-6">
+              <p class="text-slate-500 text-sm leading-relaxed">Cụm công nghiệp Cổ Tiết - Phú Thọ có nhiều lợi thế cạnh tranh: <strong>chi phí thuê thấp hơn 30-40%</strong> so với các KCN tại Bắc Ninh, Hải Dương; nguồn lao động dồi dào và ổn định; giao thông kết nối tốt qua QL2 và cao tốc Nội Bài – Lào Cai; đặc biệt nhà xưởng đã sẵn sàng bàn giao với đầy đủ hạ tầng điện, nước, PCCC — giúp doanh nghiệp tiết kiệm thời gian và chi phí xây dựng ban đầu.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technical Specs Section -->
+    <section class="py-24 bg-white border-t border-slate-100">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-16">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Technical Specs</span>
+          <h2 class="text-4xl font-black text-slate-900">Thông số kỹ thuật</h2>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div class="spec-card group">
+            <div class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+              <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
+            </div>
+            <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 1</p>
+            <p class="text-3xl font-black text-slate-900 mb-1">800 m²</p>
+            <p class="text-sm text-slate-500">Tiêu chuẩn công nghiệp</p>
+          </div>
+          <div class="spec-card group">
+            <div class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+              <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
+            </div>
+            <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 2</p>
+            <p class="text-3xl font-black text-slate-900 mb-1">4.500 m²</p>
+            <p class="text-sm text-slate-500">Tiêu chuẩn cao cấp</p>
+          </div>
+          <div class="spec-card group">
+            <div class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
+              <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
+            </div>
+            <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 3</p>
+            <p class="text-3xl font-black text-slate-900 mb-1">9.000 m²</p>
+            <p class="text-sm text-slate-500">Quy mô lớn</p>
+          </div>
+          <div class="spec-card group border-orange-200 bg-orange-50/30">
+            <div class="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <span class="material-symbols-outlined text-white text-2xl">warehouse</span>
+            </div>
+            <p class="text-[10px] text-orange-500 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 4</p>
+            <p class="text-3xl font-black text-slate-900 mb-1">9.000 m²</p>
+            <p class="text-sm text-slate-500">Quy mô lớn</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">height</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Chiều cao cột biên</p>
+            <p class="text-xl font-black text-slate-900">8,75 m</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">bolt</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Hệ thống điện</p>
+            <p class="text-xl font-black text-slate-900">Trạm biến áp 5000 KVA</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">fire_extinguisher</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">PCCC &amp; CHCN</p>
+            <p class="text-xl font-black text-slate-900">Bể &amp; Nhà bơm chuyên dụng</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">water</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Xử lý nước thải</p>
+            <p class="text-xl font-black text-slate-900">Trạm XLNT đạt chuẩn</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">directions_car</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Bãi đỗ xe</p>
+            <p class="text-xl font-black text-slate-900">02 Khu để xe tập trung</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">security</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">An ninh</p>
+            <p class="text-xl font-black text-slate-900">02 Nhà bảo vệ 24/7</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">wc</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Vệ sinh</p>
+            <p class="text-xl font-black text-slate-900">Hệ thống WC riêng biệt</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">park</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Cảnh quan</p>
+            <p class="text-xl font-black text-slate-900">Hệ thống cây xanh bao phủ</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">conversion_path</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giao thông</p>
+            <p class="text-xl font-black text-slate-900">Đường nội bộ quy hoạch</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">water_drop</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Nước sạch</p>
+            <p class="text-xl font-black text-slate-900">8.000 m³/ngày</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">wifi</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Viễn thông</p>
+            <p class="text-xl font-black text-slate-900">Cáp quang quốc tế</p>
+          </div>
+          <div class="spec-card">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">foundation</span>
+            <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Sàn nhà xưởng</p>
+            <p class="text-xl font-black text-slate-900">Bê tông cốt thép 5 tấn/m²</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Gallery -->
+    <section class="py-20 bg-white">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-12">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Gallery</span>
+          <h2 class="text-4xl font-black text-slate-900">Hình ảnh thực tế</h2>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 h-[480px]">
+          <div class="col-span-2 row-span-2 rounded-3xl overflow-hidden">
+            <img src="/static/brain/real_factory_2.webp" class="gallery-img" alt="Nhà xưởng CCN Cổ Tiết Phú Thọ toàn cảnh">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_4.webp" loading="lazy" class="gallery-img h-full" alt="Hạ tầng nhà xưởng CCN Cổ Tiết">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_6.webp" loading="lazy" class="gallery-img h-full" alt="Không gian sản xuất hiện đại">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_8.webp" loading="lazy" class="gallery-img h-full" alt="Kiến trúc nhà xưởng tiêu chuẩn">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_9.webp" loading="lazy" class="gallery-img h-full" alt="Khu vực vận hành sản xuất">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_10.webp" loading="lazy" class="gallery-img h-full" alt="Ngoại quan nhà xưởng chuyên nghiệp">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_11.webp" loading="lazy" class="gallery-img h-full" alt="Hệ thống khung thép tiền chế">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_12.webp" loading="lazy" class="gallery-img h-full" alt="Hệ thống PCCC &amp; An ninh">
+          </div>
+          <div class="rounded-2xl overflow-hidden">
+            <img src="/static/brain/real_factory_3.webp" loading="lazy" class="gallery-img h-full" alt="Cảnh quan công nghiệp sạch">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Strategic Location -->
+    <section class="py-24 bg-slate-900 relative overflow-hidden">
+      <div class="absolute inset-0 opacity-5">
+        <div class="w-full h-full"
+          style="background-image: repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 60px), repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 60px)">
+        </div>
+      </div>
+      <div class="max-w-6xl mx-auto px-6 relative z-10">
+        <div class="grid md:grid-cols-2 gap-16 items-center">
+          <div>
+            <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic Location</span>
+            <h2 class="text-4xl font-black text-white mb-8">Vị trí đắc địa<br>tại Tam Nông, Phú Thọ</h2>
+            <p class="text-slate-400 mb-10 leading-relaxed">Cụm công nghiệp Cổ Tiết, khu Đồng Dâu, xã Vạn Xuân, Tỉnh Phú Thọ. Kết nối đa phương thức vượt trội — cao tốc, sân bay, cảng ICD ngay trong tầm tay.</p>
+            <div class="space-y-4">
+              <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                <div class="text-orange-500 text-2xl font-black w-10 shrink-0">20</div>
+                <div>
+                  <p class="text-white font-bold text-sm">km đến TP. Việt Trì</p>
+                  <p class="text-slate-500 text-xs">Trung tâm hành chính tỉnh Phú Thọ</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                <div class="text-orange-500 text-2xl font-black w-10 shrink-0">65</div>
+                <div>
+                  <p class="text-white font-bold text-sm">km đến sân bay Nội Bài</p>
+                  <p class="text-slate-500 text-xs">Cửa ngõ xuất nhập khẩu hàng không</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                <div class="text-orange-500 text-2xl font-black w-10 shrink-0">85</div>
+                <div>
+                  <p class="text-white font-bold text-sm">km đến trung tâm Hà Nội</p>
+                  <p class="text-slate-500 text-xs">Kết nối qua cầu Trung Hà &amp; Đại lộ Thăng Long</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-8 p-5 rounded-2xl bg-orange-500/10 border border-orange-500/20">
+              <p class="text-orange-400 text-xs font-bold uppercase tracking-widest mb-2">Cao độ nền</p>
+              <p class="text-white font-bold">17.50 m (Cao độ thiết kế) · Tuyệt đối an toàn, không ngập lụt</p>
+            </div>
+          </div>
+          <div>
+            <div class="rounded-3xl overflow-hidden shadow-2xl border border-white/10 h-[420px]">
+              <iframe src="https://maps.google.com/maps?q=CCN+Co+Tiet+Tam+Nong+Phu+Tho+Vietnam&z=12&output=embed"
+                class="w-full h-full" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                title="Vị trí CCN Cổ Tiết Phú Thọ">
+              </iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Investment Incentives -->
+    <section class="py-24 bg-white">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-16">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Investment Incentives</span>
+          <h2 class="text-4xl font-black text-slate-900">Ưu đãi đầu tư hấp dẫn</h2>
+          <p class="text-slate-500 mt-4 max-w-xl mx-auto">Chính sách ưu đãi từ Nhà nước dành cho doanh nghiệp đầu tư tại Cụm công nghiệp Cổ Tiết, Tỉnh Phú Thọ</p>
+        </div>
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div class="tax-badge text-center">
+            <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">calendar_month</span>
+            <p class="font-black text-slate-900 text-lg mb-1">Đến 12/2035</p>
+            <p class="text-sm text-slate-600 font-medium">Miễn tiền thuê đất hàng năm trả cho Nhà nước</p>
+          </div>
+          <div class="tax-badge text-center">
+            <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">percent</span>
+            <p class="font-black text-slate-900 text-lg mb-1">Miễn 2 năm</p>
+            <p class="text-sm text-slate-600 font-medium">Thuế thu nhập doanh nghiệp 2 năm đầu hoạt động</p>
+          </div>
+          <div class="tax-badge text-center">
+            <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">trending_down</span>
+            <p class="font-black text-slate-900 text-lg mb-1">Giảm 4 năm</p>
+            <p class="text-sm text-slate-600 font-medium">50% thuế TNDN trong 4 năm tiếp theo</p>
+          </div>
+          <div class="tax-badge text-center">
+            <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">local_shipping</span>
+            <p class="font-black text-slate-900 text-lg mb-1">Miễn thuế NK</p>
+            <p class="text-sm text-slate-600 font-medium">Miễn thuế nhập khẩu tài sản cố định phục vụ sản xuất</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Build-to-Suit -->
+    <section class="py-20 bg-slate-50">
+      <div class="max-w-6xl mx-auto px-6">
+        <div class="text-center mb-16">
+          <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Build-to-Suit</span>
+          <h2 class="text-3xl font-black text-slate-900 mb-4">Xây xưởng theo yêu cầu (BTS)</h2>
+          <p class="text-slate-500 max-w-xl mx-auto">Ngoài nhà xưởng xây sẵn, chúng tôi thiết kế và thi công theo đúng yêu cầu kỹ thuật của từng doanh nghiệp.</p>
+        </div>
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">engineering</span>
+            <h4 class="font-black text-slate-900 mb-2">Phát triển &amp; thi công</h4>
+            <p class="text-sm text-slate-500">Đội ngũ PM chuyên nghiệp đồng hành từ thiết kế đến bàn giao.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">location_on</span>
+            <h4 class="font-black text-slate-900 mb-2">Tư vấn lựa chọn địa điểm</h4>
+            <p class="text-sm text-slate-500">Hỗ trợ phân tích quỹ đất, chuỗi cung ứng và logistics.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">manage_accounts</span>
+            <h4 class="font-black text-slate-900 mb-2">Quản lý vận hành</h4>
+            <p class="text-sm text-slate-500">Dịch vụ cho thuê và quản lý xưởng sau bàn giao.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">gavel</span>
+            <h4 class="font-black text-slate-900 mb-2">Hỗ trợ pháp lý FDI</h4>
+            <p class="text-sm text-slate-500">Tư vấn đầu tư, thủ tục pháp lý trọn gói cho doanh nghiệp nước ngoài.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">real_estate_agent</span>
+            <h4 class="font-black text-slate-900 mb-2">Tư vấn bất động sản</h4>
+            <p class="text-sm text-slate-500">Phân tích thị trường, định giá và cấu trúc hợp đồng thuê tối ưu.</p>
+          </div>
+          <div class="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <span class="material-symbols-outlined text-orange-500 text-2xl mb-3 block">support_agent</span>
+            <h4 class="font-black text-slate-900 mb-2">Hỗ trợ 24/7</h4>
+            <p class="text-sm text-slate-500">Đội ngũ kỹ thuật và quản lý tại chỗ, phản hồi nhanh mọi sự cố.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact Section -->
+    <div id="lien-he">
+      <section class="py-24 bg-slate-50">
+        <div class="max-w-6xl mx-auto px-gutter">
+          <div class="bg-[#0b1c30] rounded-[3.5rem] overflow-hidden flex flex-col lg:flex-row shadow-2xl">
+
+            <div class="lg:w-1/2 p-12 lg:p-20 text-white flex flex-col justify-center">
+              <h2 class="text-4xl font-black mb-8 leading-tight">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h2>
+              <p class="text-slate-400 mb-12">Để lại thông tin, đội ngũ chuyên gia của chúng tôi sẽ liên hệ tư vấn giải pháp hạ tầng tối ưu nhất trong vòng 24h.</p>
+              <div class="space-y-6">
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-orange-500">
+                    <span class="material-symbols-outlined">call</span>
+                  </div>
+                  <div>
+                    <p class="text-xs text-slate-500 uppercase font-bold">Hotline · Mr. Lâm</p>
+                    <a href="tel:0986565666" class="text-lg font-black text-white hover:text-orange-400 transition-colors">0986 565 666</a>
+                  </div>
+                </div>
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-orange-500">
+                    <span class="material-symbols-outlined">location_on</span>
+                  </div>
+                  <div>
+                    <p class="text-xs text-slate-500 uppercase font-bold">Địa chỉ</p>
+                    <p class="text-base font-bold">Khu Đồng Dâu, xã Vạn Xuân, CCN Cổ Tiết, Phú Thọ</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-orange-500">
+                    <span class="material-symbols-outlined">schedule</span>
+                  </div>
+                  <div>
+                    <p class="text-xs text-slate-500 uppercase font-bold">Giờ làm việc</p>
+                    <p class="text-base font-bold">Thứ 2 – Thứ 7 · 08:00 – 17:30</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lg:w-1/2 bg-white p-12 lg:p-20 flex flex-col justify-center">
+              <form id="contact-form-cotiet" class="space-y-6" novalidate>
+                <input type="hidden" name="source_page" value="co_tiet">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Họ và tên *</label>
+                    <input type="text" name="full_name" required placeholder="Nguyễn Văn A"
+                      class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại *</label>
+                    <input type="tel" name="phone" required placeholder="090 123 4567"
+                      class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tên công ty / doanh nghiệp</label>
+                  <input type="text" name="company_name" placeholder="Công ty TNHH…"
+                    class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
+                </div>
+                <div class="space-y-2">
+                  <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhu cầu</label>
+                  <select name="demand"
+                    class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none appearance-none">
+                    <option value="Cho thuê nhà xưởng xây sẵn">Cho thuê nhà xưởng xây sẵn</option>
+                    <option value="Tư vấn đầu tư FDI">Tư vấn đầu tư FDI</option>
+                    <option value="Đặt lịch xem xưởng">Đặt lịch xem xưởng</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+                </div>
+                <button type="submit" id="cotiet-submit-btn"
+                  class="w-full bg-orange-500 text-white py-5 rounded-2xl font-black uppercase tracking-[0.3em] text-sm hover:bg-orange-600 transition-colors shadow-xl shadow-orange-500/20">
+                  Gửi yêu cầu tư vấn
+                </button>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <script>
+        (function () {
+          const form = document.getElementById('contact-form-cotiet');
+          const btn = document.getElementById('cotiet-submit-btn');
+
+          function showToast(ok, msg) {
+            const existing = document.getElementById('cotiet-toast');
+            if (existing) existing.remove();
+            const bg = ok ? 'bg-orange-500' : 'bg-rose-600';
+            const icon = ok ? 'check_circle' : 'warning';
+            const el = document.createElement('div');
+            el.id = 'cotiet-toast';
+            el.style.cssText = 'position:fixed;top:24px;right:24px;z-index:9999;max-width:360px;width:calc(100% - 48px);transform:translateX(120%);transition:transform 0.3s ease-out';
+            el.setAttribute('role', 'alert');
+            el.innerHTML = `<div class="${bg} text-white rounded-2xl shadow-2xl px-5 py-4 flex items-start gap-3">
+              <span class="material-symbols-outlined text-xl mt-0.5 shrink-0">${icon}</span>
+              <p class="text-sm font-semibold leading-snug">${msg}</p>
+            </div>`;
+            document.body.appendChild(el);
+            requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; });
+            setTimeout(() => {
+              el.style.transform = 'translateX(120%)';
+              setTimeout(() => el.remove(), 350);
+            }, 4500);
+          }
+
+          form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const full_name = form.querySelector('[name=full_name]').value.trim();
+            const phone = form.querySelector('[name=phone]').value.trim();
+            if (!full_name || full_name.length < 2) { showToast(false, 'Vui lòng nhập họ tên.'); return; }
+            if (!phone || !/^[0-9\s\+\-\.]{7,20}$/.test(phone)) { showToast(false, 'Số điện thoại không hợp lệ.'); return; }
+            btn.disabled = true;
+            btn.textContent = 'Đang gửi…';
+            try {
+              const res = await fetch('/lien-he', { method: 'POST', body: new FormData(form) });
+              if (res.ok) { showToast(true, 'Gửi thành công! Chúng tôi sẽ liên hệ lại trong vòng 30 phút.'); form.reset(); }
+              else { showToast(false, 'Có lỗi xảy ra. Vui lòng gọi trực tiếp 0986 565 666.'); }
+            } catch (_) { showToast(false, 'Không thể kết nối. Vui lòng gọi 0986 565 666.'); }
+            finally { btn.disabled = false; btn.textContent = 'Gửi yêu cầu tư vấn'; }
+          });
+        })();
+      </script>
+    </div>
+
+{% endblock %}
