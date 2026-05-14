@@ -1,7 +1,11 @@
 """Cargo trips router — lịch sử chở hàng theo xe."""
+import base64
+import json
 import math
 import httpx
 import logging
+import secrets
+import time
 from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, Query, File, UploadFile
@@ -10,7 +14,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from frontend.deps import get_db, get_menu_context, require_menu
-from backend.core.handwriting_ocr import extract_trips_from_image
+from backend.core.handwriting_ocr import extract_trip_candidates_from_document
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +22,130 @@ router = APIRouter(prefix="/vehicles")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 PER_PAGE = 20
+SCAN_REVIEW_TTL = 30 * 60
+SCAN_REVIEW_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_scan_reviews"
+OCR_SAMPLE_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_ocr_samples"
+_SCAN_REVIEWS: dict[str, dict] = {}
+
+
+def _scan_review_path(token: str) -> Path:
+    safe_token = "".join(ch for ch in token if ch.isalnum() or ch in ("-", "_"))
+    return SCAN_REVIEW_DIR / f"{safe_token}.json"
+
+
+def _save_scan_review(token: str, data: dict):
+    _SCAN_REVIEWS[token] = data
+    SCAN_REVIEW_DIR.mkdir(parents=True, exist_ok=True)
+    _scan_review_path(token).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def _load_scan_review(token: str) -> dict | None:
+    data = _SCAN_REVIEWS.get(token)
+    if data:
+        return data
+    path = _scan_review_path(token)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        path.unlink(missing_ok=True)
+        return None
+    if time.time() - data.get("created_at", 0) > SCAN_REVIEW_TTL:
+        path.unlink(missing_ok=True)
+        return None
+    _SCAN_REVIEWS[token] = data
+    return data
+
+
+def _delete_scan_review(token: str):
+    _SCAN_REVIEWS.pop(token, None)
+    _scan_review_path(token).unlink(missing_ok=True)
+
+
+def _data_uri_to_png(data_uri: str) -> bytes | None:
+    if not data_uri or "," not in data_uri:
+        return None
+    header, payload = data_uri.split(",", 1)
+    if "base64" not in header:
+        return None
+    try:
+        return base64.b64decode(payload)
+    except Exception:
+        return None
+
+
+def _persist_ocr_sample(
+    token: str,
+    vehicle_id: int,
+    row_index: str,
+    candidate: dict,
+    corrected: dict,
+    corrected_line_texts: dict[str, str] | None = None,
+):
+    sample_id = f"{int(time.time())}_{token[:8]}_{row_index}"
+    sample_dir = OCR_SAMPLE_DIR / sample_id
+    sample_dir.mkdir(parents=True, exist_ok=True)
+
+    source_lines = []
+    for line_pos, line in enumerate(candidate.get("source_lines", []), start=1):
+        line_copy = dict(line)
+        line_key = str(line_pos - 1)
+        reviewed_text = (corrected_line_texts or {}).get(line_key)
+        if reviewed_text is not None:
+            line_copy["reviewed_text"] = reviewed_text.strip()
+            line_copy["reviewed_text_changed"] = reviewed_text.strip() != str(line.get("text") or "").strip()
+        crop_data = line_copy.pop("crop_image", "")
+        crop_bytes = _data_uri_to_png(crop_data)
+        if crop_bytes:
+            crop_name = f"line_{line_pos:02d}.png"
+            (sample_dir / crop_name).write_bytes(crop_bytes)
+            line_copy["crop_file"] = crop_name
+        source_lines.append(line_copy)
+
+    ocr_public = {
+        "departure_time": candidate.get("departure_time") or "",
+        "return_time": candidate.get("return_time") or "",
+        "origin": candidate.get("origin") or "",
+        "destination": candidate.get("destination") or "",
+        "fuel_liters": "" if candidate.get("fuel_liters") is None else str(candidate.get("fuel_liters")),
+        "freight_revenue": "" if candidate.get("freight_revenue") is None else str(candidate.get("freight_revenue")),
+        "distance_km": "" if candidate.get("distance_km") is None else str(candidate.get("distance_km")),
+    }
+    changed_fields = [
+        field for field, value in corrected.items()
+        if str(value or "").strip() != str(ocr_public.get(field) or "").strip()
+    ]
+
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "vehicle_id": vehicle_id,
+        "row_index": row_index,
+        "changed_fields": changed_fields,
+        "ocr": {
+            "parsed": ocr_public,
+            "candidate": {k: v for k, v in candidate.items() if k not in ("source_lines",)},
+            "source_lines": source_lines,
+        },
+        "corrected": corrected,
+    }
+    (sample_dir / "sample.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _cleanup_scan_reviews():
+    now = time.time()
+    stale = [token for token, data in _SCAN_REVIEWS.items() if now - data.get("created_at", 0) > SCAN_REVIEW_TTL]
+    for token in stale:
+        _delete_scan_review(token)
+    if SCAN_REVIEW_DIR.exists():
+        for path in SCAN_REVIEW_DIR.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                path.unlink(missing_ok=True)
+                continue
+            if now - data.get("created_at", 0) > SCAN_REVIEW_TTL:
+                path.unlink(missing_ok=True)
 
 
 def _fmt_currency(value) -> str:
@@ -335,6 +463,7 @@ async def scan_handwriting(
     image: UploadFile = File(...),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    _cleanup_scan_reviews()
     db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
@@ -343,29 +472,127 @@ async def scan_handwriting(
     image_bytes = await image.read()
 
     try:
-        trips = extract_trips_from_image(image_bytes)
+        scan_result = extract_trip_candidates_from_document(
+            image_bytes,
+            filename=image.filename or "",
+            content_type=image.content_type or "",
+        )
     except Exception as e:
         logger.error("handwriting_ocr failed: %s", e)
         return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
 
+    token = secrets.token_urlsafe(24)
+    _save_scan_review(token, {
+        "created_at": time.time(),
+        "vehicle_id": vehicle_id,
+        "user_id": user.get("id"),
+        "filename": image.filename or "",
+        "content_type": image.content_type or "",
+        "scan_result": scan_result,
+    })
+    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo/scan/review?token={token}", status_code=303)
+
+
+@router.get("/{vehicle_id}/cargo/scan/review")
+async def review_cargo_scan(
+    vehicle_id: int,
+    request: Request,
+    token: str = Query(...),
+    user: dict = Depends(require_menu("vehicles")),
+):
+    _cleanup_scan_reviews()
+    db = get_db()
+    ctx = get_menu_context(request, user)
+    ctx["current_menu"] = "vehicles"
+
+    vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
+    review = _load_scan_review(token)
+    if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
+        return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+
+    scan_result = review["scan_result"]
+    ctx["vehicle"] = vehicle
+    ctx["token"] = token
+    ctx["filename"] = review.get("filename", "")
+    ctx["lines"] = scan_result.get("lines", [])
+    ctx["candidates"] = scan_result.get("candidates", [])
+    ctx["line_count"] = scan_result.get("line_count", 0)
+    ctx["candidate_count"] = scan_result.get("candidate_count", 0)
+    ctx["quality"] = scan_result.get("quality", {})
+    ctx["quality_warnings"] = scan_result.get("quality_warnings", [])
+    return templates.TemplateResponse("pages/cargo_scan_review.html", {"request": request, **ctx})
+
+
+@router.post("/{vehicle_id}/cargo/scan/confirm")
+async def confirm_cargo_scan(
+    vehicle_id: int,
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    _cleanup_scan_reviews()
+    form = await request.form()
+    token = str(form.get("token") or "")
+    review = _load_scan_review(token)
+
+    db = get_db()
+    vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
+    if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
+        return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+
     saved = 0
-    for t in trips:
-        if not t.get("departure_time"):
+    skipped = 0
+    scan_result = review.get("scan_result", {})
+    candidates = scan_result.get("candidates", [])
+    row_indexes = sorted({
+        key.split("_", 1)[1]
+        for key in form.keys()
+        if key.startswith("departure_") or key.startswith("skip_")
+    }, key=lambda v: int(v) if v.isdigit() else 0)
+
+    for idx in row_indexes:
+        if form.get(f"skip_{idx}") == "on":
+            skipped += 1
             continue
+        departure_time = str(form.get(f"departure_{idx}") or "").strip()
+        if not departure_time:
+            skipped += 1
+            continue
+        corrected = {
+            "departure_time": departure_time,
+            "return_time": str(form.get(f"return_{idx}") or "").strip(),
+            "origin": str(form.get(f"origin_{idx}") or "").strip(),
+            "destination": str(form.get(f"destination_{idx}") or "").strip(),
+            "fuel_liters": str(form.get(f"fuel_{idx}") or "").strip(),
+            "freight_revenue": str(form.get(f"revenue_{idx}") or "").strip(),
+            "distance_km": str(form.get(f"distance_{idx}") or "").strip(),
+        }
+        corrected_line_texts = {
+            key.rsplit("_", 1)[1]: str(value or "").strip()
+            for key, value in form.items()
+            if key.startswith(f"line_text_{idx}_")
+        }
         try:
             db.add_cargo_trip(
                 vehicle_id=vehicle_id,
                 plate_number=vehicle["plate_number"],
-                departure_time=datetime.fromisoformat(t["departure_time"]),
-                return_time=_dt(t.get("return_time")),
-                origin=t.get("origin"),
-                destination=t.get("destination"),
-                fuel_liters=t.get("fuel_liters"),
+                departure_time=datetime.fromisoformat(departure_time),
+                return_time=_dt(corrected["return_time"]),
+                origin=(corrected["origin"] or None),
+                destination=(corrected["destination"] or None),
+                fuel_liters=_num(corrected["fuel_liters"]),
                 fuel_price_per_liter=None,
-                freight_revenue=t.get("freight_revenue"),
+                freight_revenue=_num(corrected["freight_revenue"]),
+                distance_km=_num(corrected["distance_km"]),
             )
+            if idx.isdigit() and int(idx) < len(candidates):
+                try:
+                    _persist_ocr_sample(token, vehicle_id, idx, candidates[int(idx)], corrected, corrected_line_texts)
+                except Exception as sample_error:
+                    logger.warning("Failed to persist cargo OCR sample: %s | row=%s", sample_error, idx)
             saved += 1
         except Exception as e:
-            logger.warning("Failed to save trip row: %s | row: %s", e, t)
+            skipped += 1
+            logger.warning("Failed to save reviewed cargo scan row: %s | row=%s", e, idx)
 
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scanned={saved}", status_code=303)
+    _delete_scan_review(token)
+    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scanned={saved}&scan_skipped={skipped}", status_code=303)

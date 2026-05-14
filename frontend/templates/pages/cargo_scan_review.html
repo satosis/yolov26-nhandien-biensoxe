@@ -1,0 +1,183 @@
+{% extends "layout.html" %}
+{% block title %}Duyệt bản quét — {{ vehicle.plate_number }}{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5" x-data>
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
+      <span class="text-divider">|</span>
+      <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
+      <span class="text-white font-semibold text-lg">Duyệt kết quả quét</span>
+    </div>
+    <div class="text-[12px] text-txt-ter">
+      {{ line_count }} dòng OCR · {{ candidate_count }} chuyến dự đoán
+    </div>
+  </div>
+
+  <div class="bg-bg-inset border border-white/10 rounded-lg px-4 py-3 text-[13px] text-txt-sec">
+    Kiểm tra các dòng màu vàng/đỏ trước khi lưu. Với chữ viết khó đọc, hệ thống chỉ điền nháp và không tự lưu vào lịch trình.
+  </div>
+
+  {% if quality_warnings %}
+  <div class="bg-status-yellow/10 border border-status-yellow/30 rounded-lg px-4 py-3">
+    <div class="text-status-yellow text-[12px] font-bold uppercase tracking-widest mb-2">Chất lượng ảnh cần chú ý</div>
+    <div class="flex flex-col gap-1">
+      {% for msg in quality_warnings %}
+      <div class="text-[13px] text-status-yellow">{{ msg }}</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not candidates %}
+  <div class="bg-bg-card border border-white/5 rounded-lg p-6">
+    <div class="text-status-yellow font-semibold text-sm mb-2">Chưa tách được chuyến hàng</div>
+    <p class="text-txt-sec text-sm">Có thể ảnh quá mờ, giấy bị nghiêng hoặc chữ không đủ tương phản. Hãy thử quét lại gần hơn, đủ sáng hơn.</p>
+  </div>
+  {% else %}
+  <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan/confirm" class="flex flex-col gap-4">
+    <input type="hidden" name="token" value="{{ token }}">
+
+    {% for c in candidates %}
+    {% set i = loop.index0 %}
+    {% set warnings = c.get('warnings', []) %}
+    {% set field_conf = c.get('_field_confidence', {}) %}
+    {% set field_sources = c.get('_field_sources', {}) %}
+    <div data-scan-row class="bg-bg-card border rounded-lg overflow-hidden {% if warnings|selectattr('level','equalto','danger')|list %}border-status-red/40{% elif warnings %}border-status-yellow/40{% else %}border-white/5{% endif %}">
+      <div class="px-4 py-3 border-b border-divider flex items-center justify-between gap-3 flex-wrap">
+        <div class="flex items-center gap-3">
+          <span class="text-white font-semibold text-sm">Chuyến {{ loop.index }}</span>
+          {% if warnings %}
+          <span class="text-[11px] px-2 py-1 rounded bg-status-yellow/10 text-status-yellow border border-status-yellow/20">{{ warnings|length }} cảnh báo</span>
+          {% else %}
+          <span class="text-[11px] px-2 py-1 rounded bg-status-green/10 text-status-green border border-status-green/20">Ổn</span>
+          {% endif %}
+        </div>
+        <label class="flex items-center gap-2 text-[12px] text-txt-sec">
+          <input type="checkbox" name="skip_{{ i }}" class="accent-cyan-400" @change="$el.closest('[data-scan-row]').querySelectorAll('input:not([type=checkbox]), textarea').forEach(i => i.disabled = $el.checked)">
+          Bỏ qua dòng này
+        </label>
+      </div>
+
+      {% if warnings %}
+      <div class="px-4 py-3 bg-bg-inset/60 border-b border-divider flex flex-col gap-1">
+        {% for w in warnings %}
+        <div class="text-[12px] {% if w.level == 'danger' %}text-status-red{% else %}text-status-yellow{% endif %}">
+          {{ w.message }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Xuất phát *</label>
+          <input type="datetime-local" name="departure_{{ i }}" value="{{ c.departure_time or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% if field_conf.get('departure_time') %}
+          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('departure_time') * 100)|round|int }}%</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Ngày về</label>
+          <input type="datetime-local" name="return_{{ i }}" value="{{ c.return_time or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% if field_conf.get('return_time') %}
+          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('return_time') * 100)|round|int }}%</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Số lít dầu</label>
+          <input type="number" name="fuel_{{ i }}" step="0.01" value="{{ c.fuel_liters or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% if field_conf.get('fuel_liters') %}
+          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('fuel_liters') * 100)|round|int }}%</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Điểm lấy hàng</label>
+          <input type="text" name="origin_{{ i }}" value="{{ c.origin or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Điểm giao hàng</label>
+          <input type="text" name="destination_{{ i }}" value="{{ c.destination or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Cước vận chuyển</label>
+          <input type="number" name="revenue_{{ i }}" step="1" value="{{ c.freight_revenue or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% if field_conf.get('freight_revenue') %}
+          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('freight_revenue') * 100)|round|int }}%</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="block text-txt-sec text-[12px] mb-1.5">Quãng đường (km)</label>
+          <input type="number" name="distance_{{ i }}" step="0.1" value="{{ c.distance_km or '' }}"
+                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          {% if field_conf.get('distance_km') %}
+          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('distance_km') * 100)|round|int }}%</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <details class="border-t border-divider bg-bg-inset/30">
+        <summary class="px-4 py-2 text-[12px] text-txt-sec cursor-pointer hover:text-white">Xem dòng OCR gốc</summary>
+        <div class="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+          {% for line in c.source_lines %}
+          <div class="bg-bg-inset border border-white/5 rounded-md p-3 flex flex-col gap-2">
+            <div class="text-[11px] text-txt-ter">Dòng {{ line.index }} · {{ (line.confidence * 100)|round|int }}%</div>
+            {% if line.crop_image %}
+            <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="w-full max-h-[92px] object-contain bg-white rounded border border-white/10">
+            {% endif %}
+            <div class="text-[13px] text-white">{{ line.text }}</div>
+            <label class="text-[11px] text-txt-ter">Dòng chuẩn</label>
+            <textarea name="line_text_{{ i }}_{{ loop.index0 }}" rows="2"
+                      class="w-full bg-bg-card border border-white/10 rounded-md px-3 py-2 text-[12px] text-white focus:outline-none focus:border-accent/50">{{ line.text }}</textarea>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+    {% endfor %}
+
+    <div class="flex items-center gap-3 sticky bottom-0 bg-bg-page/95 backdrop-blur border-t border-divider py-4">
+      <button type="submit" class="bg-accent text-bg-inset font-bold text-[14px] px-7 py-3 rounded-md hover:bg-cyan-300 transition-colors">
+        Lưu các chuyến đã duyệt
+      </button>
+      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec text-[14px] px-5 py-3 rounded-md hover:bg-white/5 transition-colors">
+        Hủy
+      </a>
+    </div>
+  </form>
+  {% endif %}
+
+  <div class="bg-bg-card border border-white/5 rounded-lg overflow-hidden">
+    <div class="px-4 py-3 border-b border-divider text-[12px] text-txt-sec font-semibold uppercase tracking-widest">Toàn bộ OCR</div>
+    <div class="divide-y divide-divider max-h-[360px] overflow-y-auto">
+      {% for line in lines %}
+      <div class="px-4 py-2 grid grid-cols-[70px_80px_1fr] gap-3 text-[12px]">
+        <span class="text-txt-ter">Dòng {{ line.index }}</span>
+        <span class="{% if line.confidence < 0.62 %}text-status-red{% elif line.confidence < 0.78 %}text-status-yellow{% else %}text-status-green{% endif %}">
+          {{ (line.confidence * 100)|round|int }}%
+        </span>
+        <span class="text-white flex flex-col gap-2">
+          {% if line.crop_image %}
+          <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="w-full max-h-[72px] object-contain bg-white rounded border border-white/10">
+          {% endif %}
+          <span>{{ line.text }}</span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -109,7 +109,7 @@ pip install -r requirements.txt
 cd frontend
 uvicorn app:app --host 0.0.0.0 --port 8000
 
-# 3. Chạy AI Core (Detection Engine) 
+# 3. Chạy AI Core (Detection Engine)
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 python3 backend/main.py
 

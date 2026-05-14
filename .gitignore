@@ -2,9 +2,11 @@
 /data/
 __pycache__/
 *.pyc
+frontend/.runtime/
 venv
 *.onnx
 *.pt
 training/
+datasets/
 go2rtc
 data/

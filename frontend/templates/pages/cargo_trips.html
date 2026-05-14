@@ -4,8 +4,9 @@
 {% block content %}
 <div class="flex flex-col gap-5" x-data="{}" x-init="
   const p = new URLSearchParams(window.location.search);
-  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'✅ Đã nhập ' + p.get('scanned') + ' chuyến từ ảnh.', type:'success'}}));
-  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'❌ Không đọc được ảnh. Thử lại hoặc nhập tay.', type:'error'}}));
+  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'✅ Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
+  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'⚠️ Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
+  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'❌ Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
 ">
 
   <!-- Header -->
@@ -17,15 +18,26 @@
       <span class="text-white font-semibold text-lg">{{ vehicle.owner_name or '' }}</span>
       <span class="text-txt-ter text-sm">— Lịch sử chuyến hàng</span>
     </div>
-    <div class="flex items-center gap-2" x-data="{ scanning: false }">
-      <!-- Scan button -->
+    <div class="flex items-center gap-2 flex-wrap" x-data="{ scanning: false }">
+      <!-- iPhone/Safari keeps the full camera photo when using file capture. -->
       <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
             enctype="multipart/form-data" class="inline"
             @submit="scanning = true">
         <label class="flex items-center gap-2 bg-bg-card border border-white/10 text-txt-sec hover:text-white hover:border-accent/40 font-medium text-[13px] px-4 py-2.5 rounded-md transition-colors cursor-pointer">
-          <span x-show="!scanning">📷 Scan sổ ghi</span>
+          <span x-show="!scanning">📷 Quét văn bản</span>
           <span x-show="scanning" class="text-accent">⏳ Đang xử lý...</span>
-          <input type="file" name="image" accept="image/*" capture="environment"
+          <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
+                 class="hidden" @change="$el.closest('form').submit(); scanning = true">
+        </label>
+      </form>
+
+      <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
+            enctype="multipart/form-data" class="inline"
+            @submit="scanning = true">
+        <label class="flex items-center gap-2 bg-bg-inset border border-white/10 text-txt-sec hover:text-white hover:border-accent/40 font-medium text-[13px] px-4 py-2.5 rounded-md transition-colors cursor-pointer">
+          <span x-show="!scanning">▣ Ảnh/PDF scan</span>
+          <span x-show="scanning" class="text-accent">⏳ Đang xử lý...</span>
+          <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
                  class="hidden" @change="$el.closest('form').submit(); scanning = true">
         </label>
       </form>
