@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from frontend.deps import get_db, get_menu_context, require_menu
 from frontend.menu_registry import ALL_MENUS, MENU_GROUPS
 

@@ -1,5 +1,4 @@
 import os
-import decimal
 import psycopg2
 import psycopg2.extensions
 from psycopg2 import pool
@@ -12,7 +11,7 @@ import re
 import time
 import uuid
 import secrets
-import urllib.parse
+from dotenv import load_dotenv
 from backend.core.kyc_manager import KYCManager
 
 logger = logging.getLogger(__name__)
@@ -743,10 +742,11 @@ class DatabaseManager:
         conditions = {"is_active": True} if active_only else None
         return self.select("sites", conditions=conditions, order_by="site_name")
 
-    def add_site(self, site_name, address="", description="", total_slots=0) -> bool:
+    def add_site(self, site_name, address="", description="", total_slots=0, is_active=True) -> bool:
         return self.insert("sites", {
             "site_name": site_name, "address": address,
-            "description": description, "total_slots": total_slots
+            "description": description, "total_slots": total_slots,
+            "is_active": is_active
         }, returning="id") is not None
 
     def update_site(self, site_id, site_name, address, description, is_active, total_slots=None) -> bool:

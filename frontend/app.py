@@ -20,15 +20,14 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import jinja2
 
 # Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from frontend.auth import try_remember_token
-from frontend.deps import get_current_user, get_optional_user, get_menu_context
+from frontend.deps import get_optional_user, get_menu_context
 
 _discovery_logger = logging.getLogger("discovery")
 
@@ -128,7 +127,7 @@ app = FastAPI(title="Parking Camera", lifespan=lifespan)
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.environ.get("SESSION_SECRET", "dev-secret-change-me"),
+    secret_key="parking-camera-session",
     session_cookie="parking_session",
     max_age=60 * 60 * 24 * 7,
     https_only=False,

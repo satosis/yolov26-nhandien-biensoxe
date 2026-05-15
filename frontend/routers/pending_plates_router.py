@@ -95,7 +95,7 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
 async def approve_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
     username = user.get("username", "admin")
     logger.info(f"HTMX-Action: Approving {pending_id} by {username}")
-    success = get_db().delete_pending_plate_by_id(pending_id)
+    get_db().delete_pending_plate_by_id(pending_id)
     
     # Ultra-reliable detection: Header OR Query Param
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):
@@ -106,7 +106,7 @@ async def approve_plate(pending_id: str, request: Request, user: dict = Depends(
 async def reject_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
     username = user.get("username", "admin")
     logger.info(f"HTMX-Action: Deleting {pending_id} (Refused) by {username}")
-    success = get_db().delete_pending_plate_by_id(pending_id)
+    get_db().delete_pending_plate_by_id(pending_id)
     
     # Ultra-reliable detection: Header OR Query Param
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):

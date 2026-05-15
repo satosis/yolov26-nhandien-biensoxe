@@ -15,7 +15,7 @@
 
 | Tính năng | Mô tả |
 |---|---|
-| 🔍 **Nhận diện biển số** | YOLOv2.6 + PaddleOCR, hỗ trợ biển số Việt Nam |
+| 🔍 **Nhận diện biển số** | YOLOv2.6 + RapidOCR, hỗ trợ biển số Việt Nam |
 | 👤 **Nhận diện khuôn mặt** | InsightFace buffalo_sc, phát hiện người lạ (threshold 0.25) |
 | 📊 **Đếm người/xe** | TripwireTracker — vạch ảo đếm qua camera |
 | 📸 **Phát hiện camera lệch** | ORB feature matching + RANSAC |
@@ -46,7 +46,7 @@ RTSP Camera (Imou 2K)
 
 | Thành phần | Công nghệ |
 |---|---|
-| AI Inference | YOLOv2.6 (Ultralytics), PaddleOCR, InsightFace |
+| AI Inference | YOLOv2.6 ONNX Runtime, RapidOCR, InsightFace |
 | Backend | FastAPI + Uvicorn |
 | Frontend | Jinja2 + HTMX + Tailwind CSS + Alpine.js |
 | Camera | OpenCV RTSP, ONVIF, Imou Open API |
@@ -103,7 +103,7 @@ docker compose --profile db_admin up -d
 Nếu muốn cài đặt thủ công:
 ```bash
 # 1. Cài đặt Python 3.10+ và các thư viện cần thiết
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # 2. Chạy Frontend (Web Management Interface)
 cd frontend
@@ -147,7 +147,7 @@ python3 backend/main.py
 ### 🔍 AI Detection
 ![LPR Technical Demo](assets/lpr_demo.png)
 - **YOLOv2.6 INT8** — Tối ưu cho ARM (Orange Pi 4 Pro)
-- **PaddleOCR** — Nhận diện chữ trên biển số Việt Nam
+- **RapidOCR** — Nhận diện chữ trên biển số Việt Nam
 - **InsightFace buffalo_sc** — Nhận diện khuôn mặt, phát hiện người lạ (stranger detection)
 - **OCR Active Learning** — Confidence 0.3–0.7 lưu sample, admin review qua web
 
@@ -177,7 +177,7 @@ python3 backend/main.py
 | Thông số | Giá trị |
 |---|---|
 | Python | 3.10.x (production), 3.11.x (dev) |
-| Model | `models/best_int8.onnx` (YOLOv2.6 INT8) |
+| Model | `backend/models/yolo26_plate_people_door_int8.onnx` (YOLOv2.6 INT8) |
 | Face threshold | 0.25 |
 | Stranger cooldown | 60s per camera |
 | Pending plate cooldown | 60s per plate |

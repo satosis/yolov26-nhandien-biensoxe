@@ -1,4 +1,3 @@
-import queue
 import os
 import time
 import signal
@@ -11,8 +10,8 @@ import numpy as np
 import cv2
 import concurrent.futures
 from dataclasses import dataclass, field
-from multiprocessing import Process, Queue, Event, shared_memory
-from typing import Optional, List, Tuple, Dict, Any
+from multiprocessing import Queue, Event, shared_memory
+from typing import Optional
 
 try:
     import onnxruntime as ort
@@ -20,16 +19,12 @@ try:
 except ImportError:
     _HAS_ORT = False
 
-import insightface
 from insightface.app import FaceAnalysis
-import torch
-from ultralytics import YOLO
 
 from backend.core import config as cfg
 from backend.core.database import DatabaseManager
-from backend.util import ocr_utils, image_utils, texture_utils
 from backend.util.ocr_utils import VNPlateOCR
-from backend.util.image_utils import save_face_snapshot, save_snapshot
+from backend.util.image_utils import save_snapshot
 from backend.util.texture_utils import check_plate_authenticity
 from backend.util.bbox_utils import merge_plate_boxes
 
@@ -191,6 +186,9 @@ class PlateDetector:
         if self._model_path.endswith(".pt"):
             if os.path.exists(self._model_path):
                 try:
+                    import torch
+                    from ultralytics import YOLO
+
                     # --- Robust Workaround for YOLOv10/v11 E2ELoss ---
                     try:
                         import sys, types
@@ -277,6 +275,8 @@ class PlateDetector:
         # 3. Fallback to Ultralytics YOLO (CPU)
         if self._engine_type == "cpu":
             try:
+                from ultralytics import YOLO
+
                 # Apply same patch for fallback attempt
                 try:
                     import sys, types
@@ -738,7 +738,7 @@ class InferenceWorker:
                             track.last_trigger_ts = now_t
                             self.recorder_control_queue.put_nowait({
                                 "cam_id": cam_id,
-                                "event_text": f"Person (Stranger)",
+                                "event_text": "Person (Stranger)",
                                 "ts": now_t,
                                 "event_type": "person",
                                 "site_id": site_id

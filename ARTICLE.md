@@ -11,7 +11,7 @@ Hệ thống sử dụng mô hình **YOLOv2.6** được tối ưu hóa đặc b
 ![LPR Technical Demo](assets/lpr_demo.png)
 
 ### Các tính năng AI nổi bật:
-- **Nhận diện biển số (LPR):** Sử dụng YOLO kết hợp PaddleOCR để đọc chính xác biển số xe Việt Nam trong mọi điều kiện ánh sáng.
+- **Nhận diện biển số (LPR):** Sử dụng YOLO kết hợp RapidOCR để đọc chính xác biển số xe Việt Nam trong mọi điều kiện ánh sáng.
 - **Nhận diện khuôn mặt:** Phát hiện và nhận diện người lạ với độ chính xác cao, giúp tăng cường an ninh.
 - **Active Learning:** Hệ thống tự động thu thập các mẫu nhận diện có độ tin cậy thấp để admin có thể "huấn luyện" lại, giúp AI ngày càng thông minh hơn.
 

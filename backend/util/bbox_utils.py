@@ -91,12 +91,6 @@ def _should_merge(a: list, b: list) -> bool:
     if min_h <= 0:
         return False
     
-    # 1. Vertical gap: the space between the bottom of the upper box 
-    #    and the top of the lower box must be < height of the smaller box
-    upper_bottom = min(ay2, by2)
-    lower_top = max(ay1, by1)
-    vertical_gap = lower_top - upper_bottom  # Negative means overlap
-    
     # If they're sorted top-to-bottom: a is above b
     gap = by1 - ay2  # Positive = gap, negative = overlap
     

@@ -1,4 +1,8 @@
 .env
+.DS_Store
+.ruff_cache/
+*.log
+nohup.out
 /data/
 __pycache__/
 *.pyc

@@ -1,12 +1,11 @@
 """Providers router — Camera provider CRUD."""
-import json
 from typing import Optional
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.templating import Jinja2Templates
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import RedirectResponse
 from pathlib import Path
 
-from frontend.deps import get_db, get_current_user, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu
 
 router = APIRouter(prefix="/providers")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")

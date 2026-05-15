@@ -4,7 +4,6 @@ import logging
 import threading
 import requests
 import tinytuya
-import importlib.util
 
 # OPi.GPIO is only available/functional on Linux/Orange Pi systems
 GPIO = None
@@ -14,7 +13,6 @@ except (ImportError, RuntimeError, AttributeError):
     # This will fail on macOS because of 'select.EPOLLIN' absence
     pass
 
-from backend.core import config as cfg
 from backend.core.hunonic_handler import HunonicHandler
 
 logger = logging.getLogger("door_controller")

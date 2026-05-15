@@ -2,7 +2,9 @@
 .gitignore
 .pytest_cache
 venv/
+.venv/
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -20,12 +22,20 @@ uploads/
 .cursor/
 CLAUDE.md
 
+# Frontend/build artifacts are not needed by the ai_core image
+frontend/node_modules/
+frontend/.runtime/
+frontend/nohup.out
+frontend/uvicorn.log
+frontend/backend.log
+
 # Build artifacts
 docker-compose.yml
 install.sh
 tests/
 .env
 .env.*
+*.log
 cmd
 
 # Large files not needed in image

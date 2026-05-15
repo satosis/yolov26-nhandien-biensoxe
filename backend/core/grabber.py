@@ -17,8 +17,7 @@ import logging
 import signal
 import numpy as np
 import cv2
-import queue
-from multiprocessing import Process, Queue, Event, shared_memory
+from multiprocessing import Queue, Event, shared_memory
 from typing import Optional
 
 from backend.core import config as cfg

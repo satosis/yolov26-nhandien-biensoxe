@@ -10,20 +10,21 @@ services:
     env_file:
       - ./.env
     environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - DATABASE_URL=postgresql://camera_user:password@global-postgres:5432/camera_ai
-    # ─── CAMERA DISCOVERY NETWORKING ─────────────────────────────────
-    # Bridge network: ARP scan + unicast ONVIF work. Multicast (WS-Discovery, Dahua UDP) does NOT.
-    # Host network:   ALL discovery methods work (multicast + broadcast + ARP).
+      TZ: Asia/Ho_Chi_Minh
+      DATABASE_URL: postgresql://camera_user:password@global-postgres:5432/camera_ai
+
+    # Camera discovery networking:
+    # - Bridge network: ARP scan and unicast ONVIF work.
+    # - Host network: multicast/broadcast discovery also works, but is less isolated.
     #
-    # Option A (default): Bridge — safe, isolated, ARP-only auto-discovery
-    ports:
-      - "8080:8000"
+    # Default: bridge network. The ai_core service is a worker, not a web server,
+    # so it does not publish HTTP ports.
     networks:
       - shared-services
-    # Option B: Host — full discovery. Uncomment below, comment out ports+networks above.
+
+    # Optional full discovery mode. Uncomment this and remove networks above
+    # when deploying on Linux with host networking support.
     # network_mode: host
-    # ─────────────────────────────────────────────────────────────────
 
 networks:
   shared-services:

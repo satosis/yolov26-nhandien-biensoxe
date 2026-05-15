@@ -1,6 +1,5 @@
 import json
 import os
-import logging
 
 class SettingsManager:
     def __init__(self, settings_path):

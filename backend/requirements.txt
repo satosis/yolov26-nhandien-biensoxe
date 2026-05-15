@@ -1,44 +1,34 @@
-# ========== PROJECT REQUIREMENTS ==========
-# Dùng cho toàn bộ hệ thống: AI Core + FastAPI Webapp
-# Cài đặt: pip install -r requirements.txt
+# Runtime dependencies for local development and Docker.
 
-# --- Core & Utils ---
-opencv-contrib-python==4.10.0.84
+# Core
 numpy<2.0.0
-pandas==2.0.2
 python-dotenv>=1.0.0
 requests>=2.32.3
+httpx>=0.27.0
 Pillow>=10.0.0
-PyMuPDF>=1.24.0
 psycopg2-binary==2.9.11
 bcrypt
-psutil                  # System monitoring
-OPi.GPIO                # Orange Pi GPIO control
+psutil
+certifi
 
-# --- AI & Detection (YOLO, Face) ---
-ultralytics==8.4.36
-face-recognition
-insightface>=0.7.3
-onnx==1.17.0
-onnxscript>=0.6.2
-onnxruntime>=1.18.0
-
-# --- OCR (PaddleOCR Vietnamese) ---
-paddlepaddle>=2.6.2
-rapidocr-onnxruntime
-
-# --- Web & API (FastAPI + Jinja2 + HTMX) ---
+# Web
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 jinja2>=3.1.0
 python-multipart>=0.0.9
 itsdangerous>=2.1.0
 
-# --- IoT & Camera ---
+# Camera and device integrations
 onvif-zeep==0.2.12
 tinytuya
 
-# --- Charts ---
-plotly
+# AI runtime
+opencv-python-headless==4.10.0.84
+insightface>=0.7.3
+onnxruntime>=1.18.0
+rapidocr-onnxruntime
+
+# Cargo handwriting OCR
+PyMuPDF>=1.24.0
 vietocr
 huggingface_hub

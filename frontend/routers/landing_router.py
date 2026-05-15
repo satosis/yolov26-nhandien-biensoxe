@@ -182,7 +182,7 @@ async def landing_news_detail(request: Request, slug: str):
 
 @router.get("/tin-tuc", response_class=HTMLResponse)
 async def landing_news(request: Request):
-    """Tin tuc & Cap nhat — danh sach tin tuc tu DB."""
+    """Tin tức & Cập nhật — danh sách tin tức từ DB."""
     db = get_db()
     raw_settings = db.get_landing_settings()
     settings = {
@@ -192,7 +192,6 @@ async def landing_news(request: Request):
     news_items = db.get_news(limit=50)
     for item in news_items:
         if item.get("publish_date"):
-            from datetime import date
             d = item["publish_date"]
             if hasattr(d, "strftime"):
                 item["publish_date_str"] = d.strftime("%d/%m/%Y")

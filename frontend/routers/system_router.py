@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Request, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends
 from frontend.deps import get_current_user
 import socket
 import logging

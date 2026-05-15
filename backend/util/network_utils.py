@@ -174,7 +174,7 @@ def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) ->
     """Check if any of the target ports are open on the given IP. Higher timeout for Wi-Fi."""
     for port in ports:
         try:
-            with socket.create_connection((ip, port), timeout=timeout) as sock:
+            with socket.create_connection((ip, port), timeout=timeout):
                 return True
         except OSError:
             continue
@@ -288,7 +288,6 @@ def discover_onvif_cameras(timeout=6):
         # Send on each local interface via IP_MULTICAST_IF
         for local_ip in local_ips:
             try:
-                import struct
                 sock.setsockopt(
                     socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
                     socket.inet_aton(local_ip)

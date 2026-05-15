@@ -1,8 +1,6 @@
-import os
 import time
 import logging
 import multiprocessing as mp
-from typing import Dict, List, Set
 
 from backend.core.grabber import grabber_process
 from backend.core.inference import inference_process

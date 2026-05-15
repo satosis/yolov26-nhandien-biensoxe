@@ -278,7 +278,6 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                 detections = _dedupe_detections(detections)
 
             logger.info(f"DEBUG: Found {len(detections)} detections (after merge)")
-            has_person = any(d[5] == 1 for d in detections)
 
             db = get_db()  # Get once — not per-detection
             for x1, y1, x2, y2, conf, cls_id in detections:

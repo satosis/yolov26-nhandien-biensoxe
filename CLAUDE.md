@@ -149,7 +149,7 @@ Research flow (khi cần nghiên cứu thị trường):
 ## Tổng quan hệ thống
 
 Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro (ARM)**, tích hợp:
-- Nhận diện biển số xe Việt Nam (YOLOv26 + PaddleOCR)
+- Nhận diện biển số xe Việt Nam (YOLOv26 + RapidOCR)
 - Đếm người/xe qua vạch ảo (TripwireTracker)
 - Phát hiện camera lệch góc (ORB feature matching + RANSAC)
 - Điều khiển cửa cuốn tự động (Tuya)
@@ -168,7 +168,7 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 
 | Thành phần | Công nghệ |
 |---|---|
-| AI inference | YOLOv26 (Ultralytics), PaddleOCR, InsightFace |
+| AI inference | YOLOv26 ONNX Runtime, RapidOCR, InsightFace |
 | Backend | FastAPI + uvicorn |
 | Camera | OpenCV RTSP, ONVIF, Imou Open API |
 | UI/Management | FastAPI + Jinja2 + HTMX + Tailwind CSS |
@@ -216,7 +216,7 @@ yolov26-nhandien-biensoxe/
 ├── main.py                    # Entry point backup (legacy)
 ├── CLAUDE.md                  # File này — CẬP NHẬT khi release tính năng mới
 ├── init.sql                   # PostgreSQL schema (source of truth)
-├── requirements.txt           # Python deps
+├── requirements.txt           # Python deps (backend/requirements.txt)
 ├── docker-compose.yml         # Stack: ai_core (context: .), postgres
 │
 ├── backend/                    # Core logic and services
@@ -240,11 +240,11 @@ yolov26-nhandien-biensoxe/
 │       └── pages/             # 18 page templates
 │
 ├── models/
-│   ├── best.onnx              # YOLOv26 (gốc)
-│   └── best_int8.onnx         # YOLOv26 INT8 (production)
+│   ├── yolo26_plate_people_door.onnx       # YOLOv26 (gốc)
+│   └── yolo26_plate_people_door_int8.onnx  # YOLOv26 INT8 (production)
 │
 ├── util/
-│   └── ocr_utils.py           # VNPlateOCR (PaddleOCR wrapper)
+│   └── ocr_utils.py           # VNPlateOCR (RapidOCR wrapper)
 │
 └── tests/
     └── test_security.py       # Security self-tests
@@ -314,7 +314,7 @@ IMOU_OPEN_DEVICE_ID=
 ## Thông tin kỹ thuật
 
 - **Python**: 3.10.x (production), 3.11.x (dev/test)
-- **Model**: `models/best_int8.onnx` (YOLOv26 INT8)
+- **Model**: `backend/models/yolo26_plate_people_door_int8.onnx` (YOLOv26 INT8)
 - **Webapp**: http://host:8000
 - **Face detection**: InsightFace buffalo_sc, similarity threshold 0.25
 - **Stranger cooldown**: 60s per camera
@@ -327,5 +327,5 @@ IMOU_OPEN_DEVICE_ID=
 - **YOLO model classes**: 0=plate, 1=person, 2=door (`yolo26_plate_people_door_int8.onnx`)
 - **Circuit breaker**: 5 fails → OPEN 120s → HALF_OPEN test, backoff 5s→300s
 - **Camera health**: grabber ghi stream_up/stream_down/crashed vào camera_status_log, Telegram alert on offline
-- **Env vars**: chỉ secrets (DATABASE_URL, SESSION_SECRET, TELEGRAM_TOKEN), config qua DB app_settings
+- **Env vars**: chỉ cấu hình hạ tầng cần thiết như DATABASE_URL; session và Telegram không dùng fallback env.
 - **Discovery intervals**: ARP 60s (fast), ONVIF+Dahua 300s (slow), configurable via app_settings

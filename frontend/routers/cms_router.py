@@ -1,6 +1,6 @@
 """CMS Router — Management of projects, news and landing assets."""
 import logging
-from fastapi import APIRouter, Request, Form, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pathlib import Path

@@ -1,8 +1,5 @@
 """Shared dependencies for webapp."""
-import os
-from functools import lru_cache
 from fastapi import Request, HTTPException
-from starlette.responses import RedirectResponse
 
 _db = None
 

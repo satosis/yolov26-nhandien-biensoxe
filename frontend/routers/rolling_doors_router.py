@@ -2,12 +2,11 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 import json
 from datetime import datetime
 from backend.core.door_controller import DoorController
 from frontend.deps import get_db, get_menu_context, require_menu
-import traceback
 import logging
 
 logger = logging.getLogger("rolling_doors_router")

@@ -75,7 +75,7 @@ async def create_site(
     is_active: str = Form("on"),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    get_db().add_site(site_name, address or "", description or "", total_slots)
+    get_db().add_site(site_name, address or "", description or "", total_slots, active)
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã thêm {site_name}", "type": "success"}})
@@ -126,7 +126,6 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
     </form>
   </td>
 </tr>'''
-    return HTMLResponse(html)
     return HTMLResponse(html)
 
 

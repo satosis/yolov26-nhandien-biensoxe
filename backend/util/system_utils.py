@@ -1,7 +1,6 @@
 import os
 import shutil
 import logging
-import platform
 
 try:
     import psutil
