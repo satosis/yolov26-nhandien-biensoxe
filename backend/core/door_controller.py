@@ -1,4 +1,3 @@
-import os
 import time
 import logging
 import threading
@@ -28,12 +27,12 @@ class DoorController:
         # Tasmota/HTTP Config
         self.RELAY_HTTP_URL = ""
 
-        # Tuya Local Config (Get these from Tuya IoT Platform or tinytuya scan)
+        # Optional global Tuya defaults configured from the webapp.
         from backend.core.database import DatabaseManager
         db = DatabaseManager()
-        self.TUYA_DEVICE_ID = db.get_app_setting("TUYA_DEVICE_ID", os.environ.get("TUYA_DEVICE_ID", ""))
-        self.TUYA_LOCAL_KEY = db.get_app_setting("TUYA_LOCAL_KEY", os.environ.get("TUYA_LOCAL_KEY", ""))
-        self.TUYA_IP = db.get_app_setting("TUYA_IP", os.environ.get("TUYA_IP", ""))
+        self.TUYA_DEVICE_ID = db.get_app_setting("TUYA_DEVICE_ID", "")
+        self.TUYA_LOCAL_KEY = db.get_app_setting("TUYA_LOCAL_KEY", "")
+        self.TUYA_IP = db.get_app_setting("TUYA_IP", "")
         
         self.door_state_lock = threading.Lock()
         self.door_state = "closed" # open, closed, opening, closing
