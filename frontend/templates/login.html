@@ -68,19 +68,23 @@
 
       <form method="post" action="/login" class="flex flex-col gap-[18px]" x-data="{
         lastUser: '{{ last_username|default("", true) }}' || document.cookie.match(/last_username=([^;]+)/)?.[1] || '',
+        username: '{{ last_username|default("", true) }}' || document.cookie.match(/last_username=([^;]+)/)?.[1] || 'admin',
+        password: 'nhandien23456@',
         show: false
-      }" x-init="if(lastUser) $nextTick(() => $el.querySelector('[name=password]').focus())">
+      }" x-init="$nextTick(() => { if (!lastUser) { username = 'admin'; } $el.querySelector('[name=password]').focus() })">
         <div class="flex flex-col gap-1.5">
           <label class="text-[13px] font-medium text-txt-sec">Tài khoản</label>
           <input type="text" name="username" placeholder="Nhập username..." required
+                 x-model="username"
+                 value="admin"
                  :autofocus="!lastUser"
-                 :value="lastUser"
                  class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-[13px] font-medium text-txt-sec">Mật khẩu</label>
           <div class="relative w-full group">
-            <input :type="show ? 'text' : 'password'" name="password" placeholder="••••••••" required
+            <input :type="show ? 'text' : 'password'" name="password" x-model="password" placeholder="••••••••" required
+                   value="nhandien23456@"
                    class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg pl-3.5 pr-11 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
             <button type="button" @click="show = !show"
                     class="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-txt-ter hover:text-accent transition-colors cursor-pointer outline-none">

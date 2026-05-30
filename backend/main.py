@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add project root to Python path (works on Mac, Linux, Windows)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import time
 import logging
 import multiprocessing as mp

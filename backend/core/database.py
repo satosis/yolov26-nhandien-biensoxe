@@ -112,6 +112,8 @@ class DatabaseManager:
         'monthly_reports', 'telegram_bots', 'cameras_asset',
         'stranger_logs', 'rolling_doors', 'video_recordings',
         'inquiries', 'projects', 'news', 'cargo_trips',
+        'admin_seeds', 'camera_providers', 'door_providers',
+        'ocr_training_samples', 'kyc_documents',
     })
 
     @staticmethod
@@ -1570,8 +1572,8 @@ class DatabaseManager:
                     SELECT vs.*, s.site_name, c_in.camera_name as cam_in, c_out.camera_name as cam_out
                     FROM vehicle_sessions vs
                     LEFT JOIN sites s ON vs.site_id = s.id
-                    LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id
-                    LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id
+                    LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id::text
+                    LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id::text
                     ORDER BY vs.entry_time DESC
                     LIMIT %s
                 """, (limit,))

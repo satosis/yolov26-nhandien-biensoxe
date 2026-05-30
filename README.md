@@ -103,7 +103,7 @@ docker compose --profile db_admin up -d
 Nếu muốn cài đặt thủ công:
 ```bash
 # 1. Cài đặt Python 3.10+ và các thư viện cần thiết
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # 2. Chạy Frontend (Web Management Interface)
 cd frontend
@@ -111,7 +111,7 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 # 3. Chạy AI Core (Detection Engine)
 export PYTHONPATH=$PYTHONPATH:$(pwd)
-python3 backend/main.py
+python main.py
 
 ```
 

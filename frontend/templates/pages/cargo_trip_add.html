@@ -13,21 +13,59 @@
   destCoords: null,
   calculatingKM: false,
   distance_km: '',
+  distanceTimer: null,
+  distanceSeq: 0,
+  lastDistanceKey: '',
 
   async handleLocationChange(val, type) {
+    this.distanceSeq++;
     if (!val) {
       if (type === 'origin') this.originCoords = null;
       else this.destCoords = null;
+      this.calculatingKM = false;
+      this.scheduleDistanceCalculation();
       return;
     }
-    if (val.includes('google.com') || val.includes('goo.gl') || val.includes('maps.app')) {
-      await this.resolveMaps(val, type);
-    } else {
-      await this.geocodeOnly(val, type);
-    }
-    if (this.originCoords && this.destCoords) {
-      this.calculateKM();
-    }
+    if (type === 'origin') this.originCoords = null;
+    else this.destCoords = null;
+    this.scheduleDistanceCalculation();
+  },
+
+  scheduleDistanceCalculation() {
+    clearTimeout(this.distanceTimer);
+    const origin = (this.origin || '').trim();
+    const destination = (this.destination || '').trim();
+    if (!origin || !destination) return;
+    this.distanceTimer = setTimeout(() => this.calculateKMFromAddresses(), 700);
+  },
+
+  async calculateKMFromAddresses() {
+    const origin = (this.origin || '').trim();
+    const destination = (this.destination || '').trim();
+    if (!origin || !destination) return;
+    const key = origin + '|' + destination;
+    if (key === this.lastDistanceKey) return;
+
+    const seq = ++this.distanceSeq;
+    this.calculatingKM = true;
+    try {
+      const url = '/camera/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+      const res = await fetch(url);
+      const json = await res.json();
+      if (seq !== this.distanceSeq) return;
+      if (json.ok) {
+        this.distance_km = json.distance_km;
+        if (this.isMapsLink(origin) && json.origin && json.origin.label) this.origin = json.origin.label;
+        if (this.isMapsLink(destination) && json.destination && json.destination.label) this.destination = json.destination.label;
+        this.lastDistanceKey = key;
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + json.distance_km + ' km', type:'success'}}));
+      }
+    } catch(e) {}
+    if (seq === this.distanceSeq) this.calculatingKM = false;
+  },
+
+  isMapsLink(value) {
+    return value.includes('google.com') || value.includes('goo.gl') || value.includes('maps.app');
   },
 
   async resolveMaps(url, type) {
@@ -103,6 +141,7 @@
 }" x-init="
   // Initial geocode for default origin if needed
   if (origin && !originCoords) handleLocationChange(origin, 'origin');
+  scheduleDistanceCalculation();
   updateProfit();
 ">
 

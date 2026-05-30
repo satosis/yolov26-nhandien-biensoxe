@@ -15,8 +15,14 @@ async def vehicles_page(request: Request, user: dict = Depends(require_menu("veh
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
     site_id = request.session.get("active_site_id", 0) or None
-    ctx["vehicles"] = get_db().get_whitelist_vehicles(site_id=site_id)
-    ctx["site_list"] = get_db().get_sites(active_only=True)
+    db = get_db()
+    owner_users = db.get_all_users()
+    for owner in owner_users:
+        owner["vehicle_owner_label"] = owner.get("full_name") or owner.get("username")
+
+    ctx["vehicles"] = db.get_whitelist_vehicles(site_id=site_id)
+    ctx["owner_users"] = owner_users
+    ctx["site_list"] = db.get_sites(active_only=True)
     ctx["sites"] = ctx["site_list"]
     return templates.TemplateResponse("pages/vehicles.html", {"request": request, **ctx})
 
@@ -34,7 +40,7 @@ async def add_vehicle(
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
     get_db().upsert_vehicle_whitelist(
         plate_norm=plate_number.strip().upper(),
-        label=owner_name,
+        label=owner_name or None,
         added_by=added_by,
         site_ids=site_ids_int,
         note=note,
@@ -76,7 +82,7 @@ async def edit_vehicle(
     get_db().update_vehicle_whitelist(
         vehicle_id=vehicle_id,
         plate_norm=plate_number.strip().upper(),
-        label=owner_name,
+        label=owner_name or None,
         site_ids=site_ids_int,
         note=note,
     )

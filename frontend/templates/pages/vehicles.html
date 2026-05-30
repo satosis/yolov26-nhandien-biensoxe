@@ -4,15 +4,20 @@
 {% block head %}
 <link href="/static/css/tom-select.css" rel="stylesheet">
 <style>
-.ts-wrapper.multi .ts-control { background:#1a1e2e; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 10px; min-height:38px; color:#fff; box-shadow:none; }
-.ts-wrapper.multi .ts-control:focus-within { border-color:rgba(34,211,238,0.5); }
+.ts-wrapper.multi .ts-control,
+.ts-wrapper.single .ts-control,
+.ts-wrapper.single.input-active .ts-control,
+.ts-wrapper.focus .ts-control { background:#1a1e2e !important; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 10px; min-height:38px; color:#fff; box-shadow:none; }
+.ts-wrapper.multi .ts-control:focus-within,
+.ts-wrapper.single .ts-control:focus-within { border-color:rgba(34,211,238,0.5); }
+.ts-wrapper.single .ts-control .item { color:#fff; font-size:13px; }
 .ts-wrapper.multi .ts-control .item { background:rgba(34,211,238,0.15); color:#22d3ee; border:1px solid rgba(34,211,238,0.3); border-radius:4px; padding:1px 6px; font-size:12px; }
 .ts-wrapper.multi .ts-control .item .remove { color:#22d3ee; margin-left:4px; }
-.ts-dropdown { background:#1a1e2e; border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; }
+.ts-dropdown { background:#1a1e2e; border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; z-index:60; }
 .ts-dropdown .option { padding:8px 12px; font-size:13px; }
 .ts-dropdown .option:hover, .ts-dropdown .option.active { background:rgba(34,211,238,0.1); color:#22d3ee; }
 .ts-dropdown .option.selected { color:#22d3ee; font-weight:600; }
-.ts-wrapper .ts-control input { color:#fff; }
+.ts-wrapper .ts-control input { color:#fff !important; }
 .ts-wrapper .ts-control input::placeholder { color:rgba(255,255,255,0.3); }
 </style>
 {% endblock %}
@@ -39,7 +44,12 @@
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe</label>
-        <input name="owner_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <select id="add-owner" name="owner_name" class="w-full">
+          <option value=""></option>
+          {% for owner in owner_users %}
+          <option value="{{ owner.vehicle_owner_label }}">{{ owner.vehicle_owner_label }}{% if owner.full_name and owner.username != owner.full_name %} ({{ owner.username }}){% endif %}</option>
+          {% endfor %}
+        </select>
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
@@ -70,7 +80,12 @@
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Chủ xe</label>
-        <input id="edit-owner" name="owner_name" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
+        <select id="edit-owner" name="owner_name" class="w-full">
+          <option value=""></option>
+          {% for owner in owner_users %}
+          <option value="{{ owner.vehicle_owner_label }}">{{ owner.vehicle_owner_label }}{% if owner.full_name and owner.username != owner.full_name %} ({{ owner.username }}){% endif %}</option>
+          {% endfor %}
+        </select>
       </div>
       <div>
         <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm</label>
@@ -127,7 +142,7 @@
               <a href="/camera/vehicles/{{ v.id }}/cargo"
                  class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors" title="Lịch sử chuyến hàng">📋</a>
               <button class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors"
-                      onclick="openEdit({{ v.id }}, '{{ v.plate_number }}', '{{ v.owner_name or '' }}', {{ v.site_ids | tojson }}, '{{ v.note or '' }}')">✏️</button>
+                      onclick='openEdit({{ v.id }}, {{ v.plate_number | tojson }}, {{ (v.owner_name or "") | tojson }}, {{ v.site_ids | tojson }}, {{ (v.note or "") | tojson }})'>✏️</button>
               <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer transition-colors"
                       @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                         detail: {
@@ -155,7 +170,7 @@
 
 <script src="/static/js/tom-select.complete.min.js"></script>
 <script>
-var tsAdd, tsEdit;
+var tsAdd, tsEdit, tsAddOwner, tsEditOwner;
 
 document.addEventListener("DOMContentLoaded", function() {
   tsAdd = new TomSelect("#add-site", {
@@ -163,10 +178,22 @@ document.addEventListener("DOMContentLoaded", function() {
     placeholder: "— Chọn địa điểm —",
     maxItems: null,
   });
+  tsAddOwner = new TomSelect("#add-owner", {
+    allowEmptyOption: true,
+    create: false,
+    placeholder: "— Chọn chủ xe —",
+    maxItems: 1,
+  });
   tsEdit = new TomSelect("#edit-site", {
     plugins: ['remove_button'],
     placeholder: "— Chọn địa điểm —",
     maxItems: null,
+  });
+  tsEditOwner = new TomSelect("#edit-owner", {
+    allowEmptyOption: true,
+    create: false,
+    placeholder: "— Chọn chủ xe —",
+    maxItems: 1,
   });
 });
 
@@ -174,6 +201,7 @@ function showAddForm() {
   document.getElementById('add-vehicle-form').style.display = 'flex';
   document.getElementById('edit-vehicle-form').style.display = 'none';
   tsAdd.clear();
+  tsAddOwner.clear();
   document.getElementById('add-plate').focus();
 }
 function hideAddForm() {
@@ -184,12 +212,12 @@ function openEdit(id, plate, owner, siteIds, note) {
   var f = document.getElementById('edit-vehicle-form');
   f.action = '/camera/vehicles/' + id + '/edit';
   document.getElementById('edit-plate').value = plate;
-  document.getElementById('edit-owner').value = owner;
   document.getElementById('edit-note').value = note;
   
   // Sync Tom Select
   var ids = Array.isArray(siteIds) ? siteIds.map(String) : [];
   tsEdit.setValue(ids);
+  tsEditOwner.setValue(owner || "");
   
   f.style.display = 'flex';
   f.scrollIntoView({behavior:'smooth'});

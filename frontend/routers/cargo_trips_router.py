@@ -174,6 +174,100 @@ def _dt(v):
         return None
 
 
+def _geocode_query_variants(q: str) -> list[str]:
+    q = (q or "").strip()
+    if not q:
+        return []
+    parts = [part.strip() for part in q.split(",") if part.strip()]
+    variants = [q]
+    if "việt nam" not in q.lower() and "viet nam" not in q.lower():
+        variants.append(f"{q}, Việt Nam")
+    if len(parts) >= 3:
+        city_parts = [p for p in parts if p.lower() in {"hà nội", "ha noi", "việt nam", "viet nam"}]
+        if city_parts:
+            for start in (1, 0):
+                if start < len(parts):
+                    variants.append(", ".join([parts[start], *city_parts]))
+        for start in range(1, len(parts) - 1):
+            variants.append(", ".join(parts[start:]))
+    seen = set()
+    result = []
+    for item in variants:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            result.append(item)
+    return result
+
+
+async def _geocode_location(q: str) -> dict | None:
+    if not q or not q.strip():
+        return None
+    async with httpx.AsyncClient(timeout=6) as client:
+        for query in _geocode_query_variants(q):
+            resp = await client.get(
+                f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query)}&format=json&limit=1&accept-language=vi&countrycodes=vn",
+                headers={"User-Agent": "CargoCam/1.0"}
+            )
+            data = resp.json()
+            if data:
+                return {
+                    "lat": data[0]["lat"],
+                    "lon": data[0]["lon"],
+                    "label": data[0].get("display_name") or query,
+                    "query": query,
+                }
+    return None
+
+
+async def _resolve_location(value: str) -> dict | None:
+    value = (value or "").strip()
+    if not value:
+        return None
+    if "google.com" not in value and "goo.gl" not in value and "maps.app" not in value:
+        return await _geocode_location(value)
+
+    try:
+        url = value
+        if "goo.gl" in url or "maps.app.goo.gl" in url or "maps.app" in url:
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.head(url, follow_redirects=True)
+                url = str(resp.url)
+
+        import re
+        match = re.search(r'/place/([^/]+)', url)
+        if match:
+            raw = match.group(1).split("@")[0].split("?")[0]
+            name = urllib.parse.unquote_plus(raw).strip().strip(",").strip()
+            if name:
+                geocoded = await _geocode_location(name)
+                if geocoded:
+                    geocoded["label"] = name
+                    return geocoded
+                return {"label": name}
+
+        coord = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
+        if not coord:
+            coord = re.search(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url)
+        if coord:
+            lat, lon = coord.group(1), coord.group(2)
+            return {"lat": lat, "lon": lon, "label": value}
+    except Exception:
+        logger.exception("Failed to resolve location: %s", value)
+    return None
+
+
+async def _driving_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float | None:
+    url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url)
+        data = resp.json()
+    if data.get("code") != "Ok":
+        return None
+    dist_m = data["routes"][0]["distance"]
+    return round(dist_m / 1000, 1)
+
+
 @router.get("/{vehicle_id}/cargo")
 async def cargo_trips_page(
     vehicle_id: int,
@@ -310,6 +404,36 @@ async def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float)
             dist_m = data["routes"][0]["distance"]
             return JSONResponse({"ok": True, "distance_km": round(dist_m / 1000, 1)})
         return JSONResponse({"ok": False, "msg": "Không tìm được đường đi."})
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@router.get("/api/calculate-distance-by-address")
+async def calculate_distance_by_address(origin: str = Query(...), destination: str = Query(...)):
+    """Geocode origin/destination and return driving distance without page reload."""
+    try:
+        origin_location = await _resolve_location(origin)
+        destination_location = await _resolve_location(destination)
+        if not origin_location or not destination_location:
+            return JSONResponse({"ok": False, "msg": "Khong tim thay du 2 dia diem."})
+        if not all(origin_location.get(k) for k in ("lat", "lon")) or not all(destination_location.get(k) for k in ("lat", "lon")):
+            return JSONResponse({"ok": False, "msg": "Khong lay duoc toa do cua 2 dia diem."})
+
+        distance_km = await _driving_distance_km(
+            float(origin_location["lat"]),
+            float(origin_location["lon"]),
+            float(destination_location["lat"]),
+            float(destination_location["lon"]),
+        )
+        if distance_km is None:
+            return JSONResponse({"ok": False, "msg": "Khong tim duoc duong di."})
+
+        return JSONResponse({
+            "ok": True,
+            "distance_km": distance_km,
+            "origin": origin_location,
+            "destination": destination_location,
+        })
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
 
