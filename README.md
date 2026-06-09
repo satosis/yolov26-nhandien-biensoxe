@@ -1,4 +1,4 @@
-# 🚗 Camera AI — Hệ thống giám sát bãi giữ xe thông minh
+# 🚗 Camera AI — Giám sát bãi giữ xe thông minh
 
 ![Parking AI Hero](assets/hero.png)
 
@@ -7,180 +7,74 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-teal.svg)](https://fastapi.tiangolo.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docs.docker.com/compose/)
 
-> Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro (ARM)**, tích hợp AI nhận diện biển số xe Việt Nam, nhận diện khuôn mặt, đếm người/xe, điều khiển cửa cuốn tự động và cảnh báo Telegram.
+> Hệ thống AI giám sát bãi xe trên **Orange Pi 4 Pro (ARM)**: nhận diện biển số VN, khuôn mặt, đếm người/xe, điều khiển cửa cuốn và cảnh báo Telegram.
 
----
-
-## ✨ Tính năng chính
+## ✨ Tính năng
 
 | Tính năng | Mô tả |
 |---|---|
-| 🔍 **Nhận diện biển số** | YOLOv2.6 + RapidOCR, hỗ trợ biển số Việt Nam |
-| 👤 **Nhận diện khuôn mặt** | InsightFace buffalo_sc, phát hiện người lạ (threshold 0.25) |
-| 📊 **Đếm người/xe** | TripwireTracker — vạch ảo đếm qua camera |
-| 📸 **Phát hiện camera lệch** | ORB feature matching + RANSAC |
-| 🚪 **Điều khiển cửa cuốn** | Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT |
-| 📱 **Cảnh báo Telegram** | Multi-bot, 2 kênh (quan trọng / thường) |
-| 🎥 **PTZ Camera** | ONVIF + Imou Open API |
-| 📲 **Mobile WebRTC** | Camera view qua TURN server, hỗ trợ camera sau |
-| 🏢 **Multi-site** | Quản lý nhiều bãi xe, mỗi site có zone/camera riêng |
-| 🔐 **RBAC** | Phân quyền menu theo role (DB-driven) |
-| 🌐 **Web Management** | FastAPI + Jinja2 + HTMX + Tailwind CSS |
+| 🔍 Nhận diện biển số | YOLOv2.6 + RapidOCR (biển số Việt Nam) |
+| 👤 Nhận diện khuôn mặt | InsightFace, phát hiện người lạ (threshold 0.25) |
+| 📊 Đếm người/xe | TripwireTracker (vạch ảo) |
+| 🚪 Cửa cuốn | Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT |
+| 📱 Telegram | Multi-bot, 2 kênh (quan trọng / thường) |
+| 🎥 PTZ + WebRTC | ONVIF + Imou Open API, mobile view qua TURN |
+| 🏢 Multi-site + RBAC | Nhiều bãi xe, phân quyền menu DB-driven |
+| 🌐 Web Management | FastAPI + Jinja2 + HTMX + Tailwind CSS |
 
-## 🏗️ Kiến trúc hệ thống
+## 🏗️ Kiến trúc
 
 ```
 RTSP Camera (Imou 2K)
-    │
     ├─► main.py (AI core: YOLO track + OCR + TripwireTracker)
     │       ├─► backend/core/database.py (PostgreSQL)
     │       └─► backend/core/telegram_service.py (cảnh báo)
-    │
-    └─► frontend/ (FastAPI app — quản lý toàn bộ hệ thống)
-            ├─► frontend/routers/ (17 route handlers)
-            ├─► frontend/templates/ (Jinja2 HTML templates)
-            └─► frontend/menu_registry.py (single source of truth cho menus)
+    └─► frontend/ (FastAPI — quản lý hệ thống)
+            ├─► routers/ (17 route handlers)
+            ├─► templates/ (Jinja2)
+            └─► menu_registry.py (single source of truth)
 ```
 
-## 🛠️ Stack công nghệ
+**Stack:** YOLOv2.6 ONNX + RapidOCR + InsightFace · FastAPI/Uvicorn · Jinja2 + HTMX + Tailwind · PostgreSQL 16 · Telegram Bot API · Tuya/Tasmota/MQTT · Docker Compose
 
-| Thành phần | Công nghệ |
-|---|---|
-| AI Inference | YOLOv2.6 ONNX Runtime, RapidOCR, InsightFace |
-| Backend | FastAPI + Uvicorn |
-| Frontend | Jinja2 + HTMX + Tailwind CSS + Alpine.js |
-| Camera | OpenCV RTSP, ONVIF, Imou Open API |
-| Database | PostgreSQL 16 |
-| Messaging | Telegram Bot API (multi-bot) |
-| IoT | Tuya (tinytuya), Tasmota, MQTT |
-| Container | Docker Compose |
-
-## 🚀 Cài đặt & Chạy
-
-### Yêu cầu
-
-- Docker & Docker Compose
-- Python 3.10+ (nếu chạy không Docker)
-
-### 1. Clone repo
+## 🚀 Cài đặt
 
 ```bash
 git clone https://github.com/satosis/yolov26-nhandien-biensoxe.git
 cd yolov26-nhandien-biensoxe
+cp .env.example .env          # sửa DATABASE_URL, POSTGRES_* với thông tin thực
 ```
 
-### 2. Cấu hình môi trường
+**Chạy với Docker (khuyến nghị):**
 
 ```bash
-cp .env.example .env
-# Sửa .env với thông tin thực tế
+docker compose up -d                          # khởi chạy
+docker compose logs -f ai_core                # xem logs
+docker compose --profile db_admin up -d       # kèm Adminer
 ```
 
-**Biến môi trường chính:**
+**Chạy thủ công (không Docker):**
 
 ```bash
-# Database
-DATABASE_URL=postgresql://camera_user:password@localhost:5432/camera_ai
-POSTGRES_DB=camera_ai
-POSTGRES_USER=camera_user
-POSTGRES_PASSWORD=your_secure_password
-```
-
-### 3. Chạy với Docker Compose
-
-```bash
-# Khởi chạy hệ thống
-docker compose up -d
-
-# Xem logs
-docker compose logs -f ai_core
-
-# Với Adminer (quản lý DB)
-docker compose --profile db_admin up -d
-```
-
-### 4. Chạy thủ công (không Docker)
-Nếu muốn cài đặt thủ công:
-```bash
-# 1. Cài đặt Python 3.10+ và các thư viện cần thiết
 pip install -r requirements.txt
-
-# 2. Chạy Frontend (Web Management Interface)
-cd frontend
-uvicorn app:app --host 0.0.0.0 --port 8000
-
-# 3. Chạy AI Core (Detection Engine)
-export PYTHONPATH=$PYTHONPATH:$(pwd)
-python main.py
-
+cd frontend && uvicorn app:app --host 0.0.0.0 --port 8000   # Frontend
+export PYTHONPATH=$PYTHONPATH:$(pwd) && python main.py       # AI Core
 ```
 
-## 🔗 Truy cập
+**Truy cập:** Web Management `http://localhost:8080` · Adminer `http://localhost:8888`
 
-| Dịch vụ | URL |
-|---|---|
-| Web Management | `http://localhost:8080` |
-| Adminer (DB Admin) | `http://localhost:8888` |
+## 🗄️ Database Schema (chính)
 
-## 🗄️ Database Schema
-
-| Bảng | Mô tả |
-|---|---|
-| `roles` | RBAC roles + allowed_menus |
-| `users` | Users + remember_token + site_ids |
-| `sites` | Địa điểm bãi xe + total_slots |
-| `cameras` | Camera config + site_ids (multi-site) |
-| `plate_events` | Sự kiện nhận diện biển số |
-| `vehicle_sessions` | Phiên đỗ xe |
-| `plate_whitelist` | Whitelist biển số |
-| `pending_plates` | Biển số lạ chờ duyệt |
-| `app_settings` | Key-value settings |
-| `telegram_bots` | Multi-bot Telegram config |
-| `camera_providers` | Nhà cung cấp camera |
-| `door_providers` | Nhà cung cấp cửa cuốn (7 loại) |
-| `stranger_logs` | Log phát hiện người lạ |
-| `ocr_training_samples` | OCR active learning samples |
-| `cameras_asset` | CMDB camera assets |
-
-## 📋 Tính năng chi tiết
-
-### 🔍 AI Detection
-![LPR Technical Demo](assets/lpr_demo.png)
-- **YOLOv2.6 INT8** — Tối ưu cho ARM (Orange Pi 4 Pro)
-- **RapidOCR** — Nhận diện chữ trên biển số Việt Nam
-- **InsightFace buffalo_sc** — Nhận diện khuôn mặt, phát hiện người lạ (stranger detection)
-- **OCR Active Learning** — Confidence 0.3–0.7 lưu sample, admin review qua web
-
-### 🚗 Quản lý xe
-- **Whitelist**: Biển số đã đăng ký → hiển thị màu xanh
-- **Unknown Plate → Pending**: Biển số lạ tự động vào hàng chờ duyệt (cooldown 60s)
-- **Vehicle Sessions**: Theo dõi phiên đỗ xe
-
-### 🚪 Điều khiển cửa cuốn
-- 7 nhà cung cấp: **Tuya**, **Tasmota**, **Shelly**, **Sonoff**, **BroadLink**, **GPIO**, **MQTT**
-- Tuya local SDK (tinytuya), toggle relay DPS "1"
-
-### 📱 Telegram Alerts
-- Multi-bot configuration
-- 2 kênh cảnh báo: **Quan trọng** & **Thường**
-- Bot username verification
-
-### 🌐 Web Management
-![Mobile Responsive Mockup](assets/mobile.png)
-- **Mobile responsive** — CSS breakpoints 768px + 480px
-- **RBAC** — Phân quyền menu theo role từ DB
-- **Remember login** — Token-based, localStorage + DB
-- **17 route handlers** — Quản lý toàn diện
+`roles`, `users`, `sites`, `cameras`, `plate_events`, `vehicle_sessions`, `plate_whitelist`, `pending_plates`, `app_settings`, `telegram_bots`, `camera_providers`, `door_providers`, `stranger_logs`, `ocr_training_samples`, `cameras_asset`
 
 ## ⚙️ Thông số kỹ thuật
 
 | Thông số | Giá trị |
 |---|---|
-| Python | 3.10.x (production), 3.11.x (dev) |
-| Model | `backend/models/yolo26_plate_people_door_int8.onnx` (YOLOv2.6 INT8) |
+| Python | 3.10 (prod), 3.11 (dev) |
+| Model | `yolo26_plate_people_door_int8.onnx` (YOLOv2.6 INT8) |
 | Face threshold | 0.25 |
-| Stranger cooldown | 60s per camera |
-| Pending plate cooldown | 60s per plate |
-| OCR sample range | Confidence 0.3–0.7 |
+| Stranger / pending cooldown | 60s |
+| OCR sample range | confidence 0.3–0.7 |
 | Remember token | `secrets.token_urlsafe(32)` |
 | Data retention | 30 ngày (legal hold không xóa) |

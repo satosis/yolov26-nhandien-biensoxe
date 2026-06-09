@@ -1,101 +1,52 @@
 {% extends "landing_base.html" %}
 
-{% block title %}{{ 'Về THÉP SƠN LÂM' }} — Industrial Core{% endblock %}
+{% block title %}Về THÉP SƠN LÂM Industrial Core — Giới thiệu{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Giới thiệu THÉP SƠN LÂM Industrial Core — đơn vị hàng đầu cung cấp giải pháp nhà xưởng xây sẵn và hạ tầng công nghiệp tại Phú Thọ, miền Bắc Việt Nam.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.url }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Về THÉP SƠN LÂM Industrial Core">
+<meta property="og:description" content="Đơn vị hàng đầu cung cấp giải pháp nhà xưởng và hạ tầng công nghiệp tại miền Bắc.">
+{% endblock %}
 
 {% block content %}
-<section class="relative pt-32 pb-20 bg-primary-container overflow-hidden">
-    <div class="absolute inset-0 opacity-10">
-        <div
-            class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
-        </div>
-    </div>
-
-    <div class="relative z-10 max-w-4xl mx-auto px-6 text-center">
-        <h1 class="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter mb-6"
-            x-text="$store.i18n.t('about_title')">Về THÉP SƠN LÂM</h1>
-        <p class="text-lg text-slate-300 leading-relaxed max-w-2xl mx-auto" x-text="$store.i18n.t('about_desc')">
-            Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.
-        </p>
-    </div>
+<section class="page-header">
+  <div class="container">
+    <h1 class="page-title">Về THÉP SƠN LÂM</h1>
+    <p class="page-subtitle">Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.</p>
+  </div>
 </section>
 
-<section class="py-20 px-6 max-w-6xl mx-auto">
-    <div class="grid md:grid-cols-3 gap-12">
-        <div class="flex flex-col items-center text-center group">
-            <div
-                class="w-16 h-16 bg-orange-600/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500">
-                <span
-                    class="material-symbols-outlined text-3xl text-orange-500 group-hover:text-white">visibility</span>
-            </div>
-            <h3 class="text-xl font-black uppercase tracking-wider mb-4" x-text="$store.i18n.t('vision')">Tầm nhìn</h3>
-            <p class="text-slate-500 leading-relaxed">
-                Trở thành biểu tượng tin cậy hàng đầu trong lĩnh vực hạ tầng công nghiệp và vận tải nặng tại Việt Nam.
-            </p>
-        </div>
-
-        <div class="flex flex-col items-center text-center group">
-            <div
-                class="w-16 h-16 bg-orange-600/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500">
-                <span
-                    class="material-symbols-outlined text-3xl text-orange-500 group-hover:text-white">rocket_launch</span>
-            </div>
-            <h3 class="text-xl font-black uppercase tracking-wider mb-4" x-text="$store.i18n.t('mission')">Sứ mệnh</h3>
-            <p class="text-slate-500 leading-relaxed">
-                Cung cấp giải pháp tối ưu giúp doanh nghiệp tối đa hóa hiệu suất vận hành thông qua hệ thống nhà xưởng
-                và thiết bị hiện đại.
-            </p>
-        </div>
-
-        <div class="flex flex-col items-center text-center group">
-            <div
-                class="w-16 h-16 bg-orange-600/10 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-orange-600 group-hover:text-white transition-all duration-500">
-                <span class="material-symbols-outlined text-3xl text-orange-500 group-hover:text-white">verified</span>
-            </div>
-            <h3 class="text-xl font-black uppercase tracking-wider mb-4" x-text="$store.i18n.t('core_values')">Giá trị
-                cốt lõi</h3>
-            <p class="text-slate-500 leading-relaxed">
-                An toàn là số 1 - Chuyên nghiệp trong từng bước - Tận tâm với mọi đối tác.
-            </p>
-        </div>
+<section class="section">
+  <div class="container">
+    <div class="news-grid">
+      <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">visibility</span><h3 class="news-title">Tầm nhìn</h3><p class="news-excerpt">Trở thành biểu tượng tin cậy hàng đầu trong lĩnh vực hạ tầng công nghiệp và vận tải nặng tại Việt Nam.</p></div></article>
+      <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">rocket_launch</span><h3 class="news-title">Sứ mệnh</h3><p class="news-excerpt">Cung cấp giải pháp tối ưu giúp doanh nghiệp tối đa hóa hiệu suất vận hành thông qua hệ thống nhà xưởng và thiết bị hiện đại.</p></div></article>
+      <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">verified</span><h3 class="news-title">Giá trị cốt lõi</h3><p class="news-excerpt">An toàn là số 1 — Chuyên nghiệp trong từng bước — Tận tâm với mọi đối tác.</p></div></article>
     </div>
+  </div>
 </section>
 
-<section class="bg-slate-50 py-20 px-6">
-    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-12">
-        <div class="flex-1">
-            <img src="/static/brain/about_team.jpg" class="rounded-3xl shadow-2xl w-full h-[400px] object-cover"
-                alt="THÉP SƠN LÂM Team">
-        </div>
-        <div class="flex-1 flex flex-col gap-6">
-            <h2 class="text-3xl font-black uppercase tracking-tighter" x-text="$store.i18n.t('inspection')">HẸN LỊCH XEM
-                XƯỞNG</h2>
-            <p class="text-slate-600">
-                Với hơn 10 năm kinh nghiệm, chúng tôi hiểu rõ nhu cầu của các doanh nghiệp FDI và nội địa. Hệ thống nhà
-                xưởng của chúng tôi tại Vĩnh Phúc được xây dựng theo tiêu chuẩn quốc tế, sẵn sàng bàn giao ngay.
-            </p>
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-orange-500">check_circle</span>
-                    <span class="font-bold text-slate-800">100,000+ m² diện tích nhà xưởng</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-orange-500">check_circle</span>
-                    <span class="font-bold text-slate-800">Đội ngũ lái cẩu chứng chỉ quốc tế</span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="material-symbols-outlined text-orange-500">check_circle</span>
-                    <span class="font-bold text-slate-800">Hỗ trợ pháp lý đầu tư trọn gói</span>
-                </div>
-            </div>
-            <a href="tel:{{ settings.phone if settings else '' }}"
-                class="inline-flex bg-primary text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all text-center justify-center">
-                <span x-text="$store.i18n.t('contact_now')">Liên hệ ngay</span>
-            </a>
-        </div>
+<section class="section about bg-light">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-content">
+        <h4 class="subtitle text-primary">Hẹn lịch xem xưởng</h4>
+        <h2 class="section-title">Sẵn sàng bàn giao ngay tại Phú Thọ</h2>
+        <p class="about-desc">Với hơn 10 năm kinh nghiệm, chúng tôi hiểu rõ nhu cầu của các doanh nghiệp FDI và nội địa. Hệ thống nhà xưởng của chúng tôi tại Phú Thọ được xây dựng theo tiêu chuẩn quốc tế, sẵn sàng bàn giao ngay.</p>
+        <ul class="feature-list">
+          <li>100,000+ m² diện tích nhà xưởng.</li>
+          <li>Đội ngũ kỹ thuật &amp; hỗ trợ chuyên nghiệp.</li>
+          <li>Hỗ trợ pháp lý đầu tư trọn gói.</li>
+        </ul>
+        <a href="/#lien-he" class="btn btn-primary">Liên hệ ngay</a>
+      </div>
+      <div class="about-image"><div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Nhà xưởng THÉP SƠN LÂM" class="lightbox-trigger"></div></div>
     </div>
+  </div>
 </section>
 
-{% set source_page = "about" %}
 {% include "partials/contact_section.html" %}
-
 {% endblock %}

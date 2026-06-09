@@ -1,446 +1,135 @@
 {% extends "landing_base.html" %}
-{% block title %}Nhà xưởng cho thuê tại KCN Trung Hà — Phú Thọ{% endblock %}
+
+{% block title %}Cho thuê nhà xưởng KCN Trung Hà — Phú Thọ | THÉP SƠN LÂM{% endblock %}
 
 {% block seo %}
-<meta name="description" content="Cho thuê nhà xưởng KCN Trung Hà, Tỉnh Phú Thọ. 02 nhà xưởng 4.032 m² và 2.730 m². Trạm điện 5.000 KVA, PCCC tự động, sử dụng đất còn hơn 45 năm. Phù hợp may mặc, điện tử, cơ khí sạch.">
-<meta name="keywords" content="nhà xưởng cho thuê Phú Thọ, thuê xưởng KCN Trung Hà, kho xưởng may mặc điện tử, factory for rent Phu Tho, khu công nghiệp Trung Hà, nhà xưởng xây sẵn">
+<meta name="description" content="Cho thuê nhà xưởng KCN Trung Hà, tỉnh Phú Thọ. 02 nhà xưởng 4.032 m² và 2.730 m². Trạm điện 5.000 KVA, PCCC tự động, đất còn hơn 45 năm. Phù hợp may mặc, điện tử, cơ khí sạch.">
 <meta name="robots" content="index, follow">
-<meta name="author" content="THÉP SƠN LÂM Industrial Core">
 <link rel="canonical" href="{{ request.url }}">
 <meta property="og:type" content="website">
-<meta property="og:locale" content="vi_VN">
-<meta property="og:locale:alternate" content="zh_CN">
-<meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
-<meta property="og:title" content="Nhà xưởng cho thuê KCN Trung Hà — Phú Thọ — THÉP SƠN LÂM">
-<meta property="og:description" content="02 nhà xưởng 4.032 m² và 2.730 m² tại KCN Trung Hà - Phú Thọ. Trạm điện 5.000 KVA, PCCC tự động. Phù hợp may mặc, điện tử, cơ khí sạch.">
-<meta property="og:image" content="{{ request.base_url }}static/brain/wh_real2.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:url" content="{{ request.url }}">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Nhà xưởng cho thuê KCN Trung Hà — Phú Thọ">
-<meta name="twitter:description" content="02 nhà xưởng 4.032 m² & 2.730 m². Trạm điện 5.000 KVA, PCCC tự động nghiệm thu, sử dụng đất 45+ năm.">
-<meta name="twitter:image" content="{{ request.base_url }}static/brain/wh_real2.jpg">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "RealEstateListing",
-      "@id": "{{ request.url }}#listing",
-      "name": "Nhà xưởng cho thuê tại KCN Trung Hà - Phú Thọ",
-      "description": "Cho thuê 02 nhà xưởng 4.032 m² và 2.730 m² tại KCN Trung Hà, Tỉnh Phú Thọ. Trạm điện 5.000 KVA, PCCC tự động đã nghiệm thu, sử dụng đất còn hơn 45 năm. Ưu tiên may mặc, điện tử, cơ khí sạch.",
-      "image": "{{ request.base_url }}static/brain/wh_real2.jpg",
-      "url": "{{ request.url }}",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "Khu công nghiệp Trung Hà",
-        "addressLocality": "Phú Thọ",
-        "addressRegion": "Phú Thọ",
-        "addressCountry": "VN"
-      },
-      "floorSize": {
-        "@type": "QuantitativeValue",
-        "minValue": 2730,
-        "maxValue": 4032,
-        "unitCode": "MTK"
-      },
-      "numberOfRooms": 2,
-      "seller": {
-        "@type": "Organization",
-        "@id": "{{ request.base_url }}#organization",
-        "name": "THÉP SƠN LÂM Industrial Core",
-        "telephone": "0986565666"
-      }
-    },
-    {
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Diện tích nhà xưởng cho thuê tại KCN Trung Hà - Phú Thọ là bao nhiêu?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Có 02 nhà xưởng: nhà xưởng 1 diện tích 4.032 m² và nhà xưởng 2 diện tích 2.730 m²."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Nhà xưởng KCN Trung Hà có đầy đủ hạ tầng không?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Có. Trạm điện 5.000 KVA, hệ thống PCCC tự động đã được nghiệm thu, đã có Giấy chứng nhận quyền sử dụng đất với thời hạn còn hơn 45 năm, Giấy chứng nhận đầu tư cho thuê nhà xưởng dư thừa."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Ngành nghề nào được ưu tiên thuê nhà xưởng tại KCN Trung Hà?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Ưu tiên các ngành sản xuất sạch: may mặc, lắp ráp điện tử, cơ khí chính xác và các ngành nghề không gây ô nhiễm môi trường. Không cho thuê đối với ngành nghề gây ô nhiễm."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Vị trí KCN Trung Hà có thuận lợi tuyển lao động không?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Rất thuận lợi. Giao thông đi lại thuận tiện, dễ tuyển lao động, phù hợp cho các ngành cần nhiều lao động như may mặc và lắp ráp điện tử."
-          }
-        }
-      ]
-    }
-  ]
-}
-</script>
-{% endblock %}
-
-{% block head %}
-<style>
-  .spec-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 1.5rem;
-    padding: 2rem 1.5rem;
-    text-align: center;
-    transition: box-shadow 0.2s, transform 0.2s;
-  }
-  .spec-card:hover {
-    box-shadow: 0 8px 32px rgba(249, 115, 22, 0.10);
-    transform: translateY(-3px);
-  }
-  .gallery-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.5s;
-  }
-  .gallery-img:hover {
-    transform: scale(1.05);
-  }
-  .advantage-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 1rem 0;
-    border-bottom: 1px solid #f1f5f9;
-  }
-  .advantage-item:last-child { border-bottom: none; }
-  .tax-badge {
-    background: linear-gradient(135deg, #fff7ed, #fed7aa);
-    border: 1px solid #f97316;
-    border-radius: 1rem;
-    padding: 1rem 1.25rem;
-  }
-</style>
+<meta property="og:title" content="Cho thuê nhà xưởng KCN Trung Hà — Phú Thọ">
+<meta property="og:description" content="02 nhà xưởng 4.032 m² và 2.730 m². Trạm điện 5000 KVA, PCCC tự động. Bàn giao ngay.">
+<meta property="og:image" content="{{ request.base_url }}static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg">
 {% endblock %}
 
 {% block content %}
-
-{# ── HERO ── #}
-<section class="relative w-full min-h-[580px] flex items-end overflow-hidden bg-[#0b1c30]" x-data="{
-  slides: ['/static/brain/wh_real1.jpg','/static/brain/wh_real2.jpg','/static/brain/wh_real3.jpg','/static/brain/wh_real4.jpg'],
-  cur: 0,
-  init(){ setInterval(()=> this.cur=(this.cur+1)%this.slides.length, 5000) }
-}">
-  <div class="absolute inset-0">
-    <template x-for="(s,i) in slides" :key="i">
-      <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
-        <img :src="s" class="w-full h-full object-cover" style="opacity:.55" alt="Nhà xưởng KCN Trung Hà - Phú Thọ">
+<section class="hero">
+  <div class="hero-bg" style="background-image:url('/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg');"></div>
+  <div class="hero-overlay"></div>
+  <div class="container hero-content">
+    <div class="hero-text-content">
+      <p class="subtitle text-accent">KCN Trung Hà · Phú Thọ</p>
+      <h1 class="hero-title">Cho thuê <span class="highlight">nhà xưởng KCN Trung Hà</span></h1>
+      <p class="hero-subtitle">Diện tích 4.032 m² và 2.730 m², phù hợp may mặc, điện tử, cơ khí chính xác, đóng gói và các ngành sản xuất sạch.</p>
+      <div class="hero-buttons">
+        <a href="/#lien-he" class="btn btn-primary btn-lg">Hẹn xem xưởng</a>
+        <a href="tel:0986565666" class="btn btn-outline btn-lg">0986 565 666</a>
       </div>
-    </template>
-    <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/20 to-transparent"></div>
-  </div>
-
-  <div class="relative z-10 max-w-6xl mx-auto px-6 pb-16 pt-32 w-full">
-    <span class="inline-block bg-orange-500 text-white text-[10px] font-black uppercase tracking-[0.4em] px-4 py-1.5 rounded-full mb-5">Nhà xưởng cho thuê · KCN Trung Hà · Phú Thọ</span>
-    <h1 class="text-4xl md:text-6xl font-black text-white leading-[1.1] mb-5 max-w-3xl">
-      Nhà xưởng xây sẵn<br><span class="text-orange-400">Vào là sản xuất được</span>
-    </h1>
-    <p class="text-slate-300 text-lg max-w-2xl mb-8 leading-relaxed">
-      <strong class="text-white">02 nhà xưởng 4.032 m² và 2.730 m²</strong> · Trạm điện 5.000 KVA · PCCC tự động nghiệm thu · Sử dụng đất còn hơn 45 năm.
-    </p>
-    <div class="flex flex-wrap gap-4">
-      <a href="#lien-he"
-        class="px-8 py-4 bg-orange-500 hover:bg-orange-600 text-white font-black uppercase tracking-widest text-sm rounded-xl transition-all shadow-lg shadow-orange-500/30">
-        Hẹn xem xưởng ngay
-      </a>
-      <a href="tel:0986565666"
-        class="px-8 py-4 bg-white/10 border border-white/20 hover:bg-white/20 text-white font-bold text-sm rounded-xl transition-all backdrop-blur-sm flex items-center gap-2">
-        <span class="material-symbols-outlined text-orange-400 text-lg">call</span>
-        0986 565 666 — Mr. Lâm
-      </a>
     </div>
-  </div>
-
-  <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-    <template x-for="(_,i) in slides" :key="i">
-      <button @click="cur=i" :class="cur===i?'bg-orange-500 w-6':'bg-white/30 w-2'"
-        class="h-2 rounded-full transition-all duration-300"></button>
-    </template>
-  </div>
-</section>
-
-{# ── QUICK STATS BAR ── #}
-<section class="bg-[#0b1c30] border-t border-white/10">
-  <div class="max-w-6xl mx-auto px-6 py-6 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-    <div>
-      <p class="text-2xl font-black text-orange-400">6.762 m²</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Tổng 02 nhà xưởng</p>
-    </div>
-    <div>
-      <p class="text-2xl font-black text-orange-400">5.000 KVA</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Trạm điện</p>
-    </div>
-    <div>
-      <p class="text-2xl font-black text-orange-400">45+ năm</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Thời hạn sử dụng đất</p>
-    </div>
-    <div>
-      <p class="text-2xl font-black text-orange-400">Sạch</p>
-      <p class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">May mặc · Điện tử · Cơ khí</p>
+    <div class="hero-stats">
+      <div class="stat-card glass-panel"><span class="stat-value">4.032</span><span class="stat-unit">m²</span><span class="stat-label">Diện tích khai thác</span></div>
+      <div class="stat-card glass-panel"><span class="stat-value">2.730</span><span class="stat-unit">m²</span><span class="stat-label">Diện tích khai thác</span></div>
+      <div class="stat-card glass-panel"><span class="stat-value">5000</span><span class="stat-unit">KVA</span><span class="stat-label">Trạm điện</span></div>
+      <div class="stat-card glass-panel"><span class="stat-value">45+</span><span class="stat-unit">năm</span><span class="stat-label">Thời hạn đất</span></div>
     </div>
   </div>
 </section>
 
-{# ── 02 NHÀ XƯỞNG ── #}
-<section class="py-24 bg-slate-50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Available Units</span>
-      <h2 class="text-4xl font-black text-slate-900">02 nhà xưởng cần cho thuê</h2>
-      <p class="text-slate-500 mt-3 max-w-xl mx-auto">Ưu tiên doanh nghiệp sản xuất sạch — may mặc, điện tử, lắp ráp, cơ khí. Không cho thuê ngành gây ô nhiễm môi trường.</p>
-    </div>
-
-    <div class="grid md:grid-cols-2 gap-8 mb-16">
-      <div class="spec-card group border-orange-200 bg-orange-50/30">
-        <div class="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <span class="material-symbols-outlined text-white text-2xl">warehouse</span>
-        </div>
-        <p class="text-[10px] text-orange-500 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 1 — Lớn</p>
-        <p class="text-5xl font-black text-slate-900 mb-2">4.032 m²</p>
-        <p class="text-sm text-slate-500 mb-4">Khu công nghiệp Trung Hà, Tỉnh Phú Thọ</p>
-        <div class="flex flex-wrap gap-2 justify-center">
-          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">May mặc</span>
-          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">Điện tử</span>
-          <span class="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">Cơ khí sạch</span>
-        </div>
-      </div>
-      <div class="spec-card group">
-        <div class="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:bg-orange-500 transition-colors">
-          <span class="material-symbols-outlined text-orange-500 text-2xl group-hover:text-white">warehouse</span>
-        </div>
-        <p class="text-[10px] text-slate-400 uppercase tracking-[0.3em] font-bold mb-2">Nhà xưởng 2</p>
-        <p class="text-5xl font-black text-slate-900 mb-2">2.730 m²</p>
-        <p class="text-sm text-slate-500 mb-4">Khu công nghiệp Trung Hà, Tỉnh Phú Thọ</p>
-        <div class="flex flex-wrap gap-2 justify-center">
-          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">May mặc</span>
-          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">Điện tử</span>
-          <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">Cơ khí sạch</span>
-        </div>
-      </div>
-    </div>
-
-    {# spec chi tiết #}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">bolt</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Trạm điện</p>
-        <p class="text-xl font-black text-slate-900">5.000 KVA</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">fire_extinguisher</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">PCCC</p>
-        <p class="text-xl font-black text-slate-900">Tự động · Nghiệm thu</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">verified</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giấy phép đất</p>
-        <p class="text-xl font-black text-slate-900">Còn 45+ năm</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">description</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giấy phép đầu tư</p>
-        <p class="text-xl font-black text-slate-900">Đầy đủ hợp lệ</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">people</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Tuyển lao động</p>
-        <p class="text-xl font-black text-slate-900">Dễ · Dồi dào</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">local_shipping</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Giao thông</p>
-        <p class="text-xl font-black text-slate-900">Thuận lợi</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">eco</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Môi trường</p>
-        <p class="text-xl font-black text-slate-900">Ngành sạch</p>
-      </div>
-      <div class="spec-card">
-        <span class="material-symbols-outlined text-orange-500 text-2xl mb-3">calendar_month</span>
-        <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Bàn giao</p>
-        <p class="text-xl font-black text-slate-900">Ngay lập tức</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ── PHÂN KHÚC KHÁCH HÀNG ── #}
-<section class="py-20 bg-white">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Phù hợp với</span>
-      <h2 class="text-4xl font-black text-slate-900">Ngành nghề được ưu tiên cho thuê</h2>
-    </div>
-    <div class="grid md:grid-cols-3 gap-6">
-      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
-        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
-          <span class="material-symbols-outlined text-white text-3xl">checkroom</span>
-        </div>
-        <h3 class="font-black text-slate-900 text-xl mb-3">Xưởng may mặc</h3>
-        <p class="text-slate-600 text-sm leading-relaxed">Diện tích lớn, thông thoáng, điện ổn định — lý tưởng cho dây chuyền may công nghiệp. Dễ tuyển lao động tại chỗ.</p>
-      </div>
-      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
-        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
-          <span class="material-symbols-outlined text-white text-3xl">memory</span>
-        </div>
-        <h3 class="font-black text-slate-900 text-xl mb-3">Lắp ráp điện tử</h3>
-        <p class="text-slate-600 text-sm leading-relaxed">Trạm biến áp 5.000 KVA đáp ứng dây chuyền điện tử. Môi trường sạch, lao động dồi dào, giao thông thuận lợi.</p>
-      </div>
-      <div class="bg-orange-50 border border-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
-        <div class="w-16 h-16 bg-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5">
-          <span class="material-symbols-outlined text-white text-3xl">precision_manufacturing</span>
-        </div>
-        <h3 class="font-black text-slate-900 text-xl mb-3">Cơ khí & ngành sạch</h3>
-        <p class="text-slate-600 text-sm leading-relaxed">Các ngành nghề sản xuất sạch sẽ không gây ô nhiễm môi trường đều được hoan nghênh. Hạ tầng hoàn chỉnh sẵn sàng.</p>
-      </div>
-    </div>
-    <div class="mt-8 p-5 rounded-2xl bg-red-50 border border-red-100 text-center">
-      <p class="text-red-700 font-bold text-sm">⚠ Không cho thuê đối với các ngành nghề gây ô nhiễm môi trường</p>
-    </div>
-  </div>
-</section>
-
-{# ── ẢNH THỰC TẾ ── #}
-<section class="py-20 bg-slate-50">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-12">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Gallery</span>
-      <h2 class="text-4xl font-black text-slate-900">Hình ảnh thực tế nhà xưởng</h2>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 h-[480px]">
-      <div class="col-span-2 row-span-2 rounded-3xl overflow-hidden">
-        <img src="/static/brain/wh_real1.jpg" class="gallery-img" alt="Nhà xưởng KCN Trung Hà - Phú Thọ toàn cảnh">
-      </div>
-      <div class="rounded-2xl overflow-hidden">
-        <img src="/static/brain/wh_real2.jpg" loading="lazy" class="gallery-img h-full" alt="Nội thất nhà xưởng KCN Trung Hà">
-      </div>
-      <div class="rounded-2xl overflow-hidden">
-        <img src="/static/brain/wh_real3.jpg" loading="lazy" class="gallery-img h-full" alt="Khu vực sản xuất nhà xưởng Phú Thọ">
-      </div>
-      <div class="rounded-2xl overflow-hidden">
-        <img src="/static/brain/warehouse1.jpg" loading="lazy" class="gallery-img h-full" alt="Mặt tiền nhà xưởng xây sẵn">
-      </div>
-      <div class="rounded-2xl overflow-hidden">
-        <img src="/static/brain/wh_real4.jpg" loading="lazy" class="gallery-img h-full" alt="Sân bãi rộng rãi nhà xưởng Trung Hà">
-      </div>
-    </div>
-  </div>
-</section>
-
-{# ── LỢI THẾ VỊ TRÍ ── #}
-<section class="py-24 bg-slate-900 relative overflow-hidden">
-  <div class="absolute inset-0 opacity-5">
-    <div class="w-full h-full"
-      style="background-image: repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 1px,transparent 60px), repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 1px,transparent 60px)">
-    </div>
-  </div>
-  <div class="max-w-6xl mx-auto px-6 relative z-10">
-    <div class="grid md:grid-cols-2 gap-16 items-center">
-      <div>
-        <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic Location</span>
-        <h2 class="text-4xl font-black text-white mb-8">Vị trí đắc địa<br>tại Phú Thọ</h2>
-        <p class="text-slate-400 mb-10 leading-relaxed">KCN Trung Hà - Tỉnh Phú Thọ, giao thông thuận lợi, dễ tuyển lao động địa phương — phù hợp cho các ngành cần nhiều nhân công như may mặc và lắp ráp điện tử.</p>
-        <div class="space-y-4">
-          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 text-2xl font-black w-10 shrink-0">
-              <span class="material-symbols-outlined text-3xl">location_on</span>
-            </div>
-            <div>
-              <p class="text-white font-bold text-sm">KCN Trung Hà — Tỉnh Phú Thọ</p>
-              <p class="text-slate-500 text-xs">Khu công nghiệp có hạ tầng hoàn chỉnh</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 font-black w-10 shrink-0">
-              <span class="material-symbols-outlined text-3xl">people</span>
-            </div>
-            <div>
-              <p class="text-white font-bold text-sm">Dễ tuyển lao động</p>
-              <p class="text-slate-500 text-xs">Nguồn lao động địa phương dồi dào, phù hợp may mặc & điện tử</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-5 p-5 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-            <div class="text-orange-500 font-black w-10 shrink-0">
-              <span class="material-symbols-outlined text-3xl">local_shipping</span>
-            </div>
-            <div>
-              <p class="text-white font-bold text-sm">Giao thông thuận lợi</p>
-              <p class="text-slate-500 text-xs">Kết nối cao tốc, quốc lộ, thuận tiện vận chuyển hàng hóa</p>
-            </div>
+<section class="section">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-content">
+        <h4 class="subtitle text-primary">Thông tin cho thuê</h4>
+        <h2 class="section-title">Nhà xưởng sẵn sàng bàn giao tại KCN Trung Hà</h2>
+        <p class="about-desc">Nhà xưởng nằm trong KCN Trung Hà, tỉnh Phú Thọ. Dự án có giấy chứng nhận đầu tư cho thuê nhà xưởng dư thừa và giấy chứng nhận quyền sử dụng đất đầy đủ.</p>
+        <ul class="feature-list">
+          <li>Diện tích khai thác: 4.032 m².</li>
+          <li>Diện tích khai thác: 2.730 m².</li>
+          <li>Trạm điện 5000 KVA phục vụ sản xuất.</li>
+          <li>Hệ thống PCCC tự động đã được nghiệm thu.</li>
+          <li>Thời hạn sử dụng đất còn hơn 45 năm.</li>
+          <li>Ưu tiên doanh nghiệp sản xuất sạch: may mặc, điện tử, cơ khí, đóng gói.</li>
+        </ul>
+        <div class="contact-info-item">
+          <div class="contact-icon"><span class="material-symbols-outlined">warning</span></div>
+          <div class="contact-details">
+            <h3>Không tiếp nhận ngành ô nhiễm</h3>
+            <p>Không cho thuê đối với hóa chất độc hại, nhuộm, thuộc da và các ngành nghề gây ô nhiễm môi trường.</p>
           </div>
         </div>
       </div>
-      <div>
-        <div class="rounded-3xl overflow-hidden shadow-2xl border border-white/10 h-[420px]">
-          <iframe src="https://maps.google.com/maps?q=Khu+cong+nghiep+Trung+Ha+Phu+Tho+Vietnam&z=13&output=embed"
-            class="w-full h-full" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-            title="Vị trí KCN Trung Hà - Phú Thọ">
-          </iframe>
+      <div class="about-image">
+        <div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg" alt="Nhà xưởng KCN Trung Hà" class="lightbox-trigger"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section bg-light">
+  <div class="container">
+    <div class="section-header text-center">
+      <h4 class="subtitle text-primary">Diện tích</h4>
+      <h2 class="section-title">Phương án diện tích khai thác</h2>
+      <p class="section-desc">Chọn diện tích phù hợp với quy mô dây chuyền sản xuất và nhu cầu vận hành.</p>
+    </div>
+    <div class="news-grid">
+      <article class="news-card"><div class="news-content"><span class="news-date">Phương án 1</span><h3 class="news-title">4.032 m²</h3><p class="news-excerpt">Phù hợp doanh nghiệp may mặc, điện tử hoặc dây chuyền cần diện tích sản xuất lớn. Tải trọng sàn 3 tấn/m², chiều cao 10.85 m.</p><a href="/#lien-he" class="btn btn-primary">Hỏi thuê diện tích này</a></div></article>
+      <article class="news-card"><div class="news-content"><span class="news-date">Phương án 2</span><h3 class="news-title">2.730 m²</h3><p class="news-excerpt">Phù hợp cơ khí nhẹ, đóng gói, lắp ráp điện tử hoặc doanh nghiệp cần mặt bằng gọn hơn. Tải trọng sàn 3 tấn/m², chiều cao 10.85 m.</p><a href="/#lien-he" class="btn btn-primary">Hỏi thuê diện tích này</a></div></article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-header text-center">
+      <h4 class="subtitle text-primary">Thông số kỹ thuật</h4>
+      <h2 class="section-title">Hạ tầng nhà xưởng Trung Hà</h2>
+    </div>
+    <div class="project-highlights">
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">straighten</span><strong>Diện tích: 4.032 m² và 2.730 m²</strong></div>
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">height</span><strong>Chiều cao: 10.85 m</strong></div>
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">foundation</span><strong>Tải trọng sàn: 3 tấn/m²</strong></div>
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">bolt</span><strong>Trạm điện: 5000 KVA</strong></div>
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">fire_extinguisher</span><strong>PCCC tự động đã nghiệm thu</strong></div>
+      <div class="highlight-item"><span class="material-symbols-outlined icon-check">description</span><strong>Pháp lý đất và đầu tư đầy đủ</strong></div>
+    </div>
+  </div>
+</section>
+
+<section class="section bg-light">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-content">
+        <h4 class="subtitle text-primary">Vị trí</h4>
+        <h2 class="section-title">KCN Trung Hà, Tam Nông, Phú Thọ</h2>
+        <p class="about-desc">Kết nối thuận tiện qua QL2, QL32C và cao tốc Nội Bài - Lào Cai. Khu vực có nguồn lao động dồi dào và chi phí cạnh tranh hơn các khu công nghiệp tại Hà Nội, Bắc Ninh, Hải Dương.</p>
+        <div class="location-distances">
+          <div class="distance-item"><div class="distance-icon">20</div><div class="distance-info"><span class="distance-label">km đến TP. Việt Trì</span><span class="distance-value">Trung tâm hành chính tỉnh Phú Thọ.</span></div></div>
+          <div class="distance-item"><div class="distance-icon">65</div><div class="distance-info"><span class="distance-label">km đến sân bay Nội Bài</span><span class="distance-value">Thuận lợi cho xuất nhập khẩu hàng không.</span></div></div>
+          <div class="distance-item"><div class="distance-icon">85</div><div class="distance-info"><span class="distance-label">km đến trung tâm Hà Nội</span><span class="distance-value">Kết nối qua cầu Trung Hà và Đại lộ Thăng Long.</span></div></div>
         </div>
       </div>
-    </div>
-  </div>
-</section>
-
-{# ── PHÁP LÝ & HẠ TẦNG ── #}
-<section class="py-24 bg-white">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="text-center mb-16">
-      <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Legal & Infrastructure</span>
-      <h2 class="text-4xl font-black text-slate-900">Pháp lý đầy đủ — Hạ tầng sẵn sàng</h2>
-    </div>
-    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-      <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">description</span>
-        <p class="font-black text-slate-900 text-base mb-1">Giấy chứng nhận đầu tư</p>
-        <p class="text-sm text-slate-600">Dự án có GCN đầu tư cho thuê nhà xưởng dư thừa hợp lệ</p>
-      </div>
-      <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">home_work</span>
-        <p class="font-black text-slate-900 text-base mb-1">GCN quyền sử dụng đất</p>
-        <p class="text-sm text-slate-600">Đã có sổ đỏ, thời hạn sử dụng đất còn hơn 45 năm</p>
-      </div>
-      <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">bolt</span>
-        <p class="font-black text-slate-900 text-base mb-1">Trạm điện 5.000 KVA</p>
-        <p class="text-sm text-slate-600">Công suất điện lớn, ổn định cho dây chuyền sản xuất</p>
-      </div>
-      <div class="tax-badge text-center">
-        <span class="material-symbols-outlined text-orange-500 text-3xl mb-3 block">fire_extinguisher</span>
-        <p class="font-black text-slate-900 text-base mb-1">PCCC tự động</p>
-        <p class="text-sm text-slate-600">Hệ thống PCCC tự động đã được nghiệm thu đầy đủ</p>
+      <div class="about-image">
+        <div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Vị trí KCN Trung Hà" class="lightbox-trigger"></div>
       </div>
     </div>
   </div>
 </section>
 
-{# ── FORM LIÊN HỆ ── #}
-<div id="lien-he">
-  {% set source_page = "warehouse" %}
-  {% include "partials/contact_section_warehouse.html" %}
-</div>
+<section class="section">
+  <div class="container">
+    <div class="section-header text-center">
+      <h4 class="subtitle text-primary">Hỏi đáp</h4>
+      <h2 class="section-title">Câu hỏi thường gặp về KCN Trung Hà</h2>
+    </div>
+    <div class="contact-info-list">
+      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">help</span></div><div class="contact-details"><h3>Nhà xưởng ưu tiên ngành nghề nào?</h3><p>Ưu tiên may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm và các ngành sản xuất sạch.</p></div></div>
+      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">bolt</span></div><div class="contact-details"><h3>Điện và PCCC đã sẵn sàng chưa?</h3><p>Có. Nhà xưởng có trạm điện 5000 KVA và hệ thống PCCC tự động đã nghiệm thu.</p></div></div>
+      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">calendar_month</span></div><div class="contact-details"><h3>Có thuê dài hạn được không?</h3><p>Có. Thời hạn sử dụng đất còn hơn 45 năm, phù hợp doanh nghiệp lên kế hoạch đầu tư dài hạn.</p></div></div>
+      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">call</span></div><div class="contact-details"><h3>Liên hệ xem xưởng như thế nào?</h3><p>Liên hệ Mr Lâm: 0986 565 666 để hẹn lịch xem xưởng tại KCN Trung Hà, Phú Thọ.</p></div></div>
+    </div>
+  </div>
+</section>
 
+{% include "partials/contact_section.html" %}
 {% endblock %}
