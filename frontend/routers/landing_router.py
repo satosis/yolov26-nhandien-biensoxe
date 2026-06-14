@@ -144,6 +144,45 @@ async def landing_services(request: Request):
     )
 
 
+@router.get("/du-an", response_class=HTMLResponse)
+async def landing_projects(request: Request):
+    """Tổng quan nhà xưởng — hub liệt kê KCN Trung Hà & Cổ Tiết."""
+    return templates.TemplateResponse(
+        "pages/landing_projects.html",
+        {"request": request, "source_page": "warehouse", "user": get_optional_user(request)},
+    )
+
+
+@router.get("/xe-cau", response_class=HTMLResponse)
+async def landing_crane(request: Request):
+    """Spoke (legacy) — Dịch vụ xe cẩu. Giao diện gốc (landing.css), tách khỏi Tailwind."""
+    return templates.TemplateResponse(
+        "pages/landing_crane.html",
+        {"request": request, "source_page": "crane", "user": get_optional_user(request)},
+    )
+
+
+@router.get("/kiem-dinh-can", response_class=HTMLResponse)
+async def landing_scale(request: Request):
+    """Spoke (legacy) — Kiểm định cân & cho thuê quả cân. Giao diện gốc (landing.css)."""
+    return templates.TemplateResponse(
+        "pages/landing_scale.html",
+        {"request": request, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
+    )
+
+
+@router.get("/lien-he", response_class=HTMLResponse)
+async def landing_contact(request: Request):
+    """Trang Liên hệ độc lập (GET). Form submit dùng POST /lien-he bên dưới."""
+    db = get_db()
+    raw_settings = db.get_landing_settings()
+    settings = {"phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", "")}
+    return templates.TemplateResponse(
+        "pages/landing_contact.html",
+        {"request": request, "settings": settings, "source_page": "contact", "user": get_optional_user(request)},
+    )
+
+
 @router.get("/tin-tuc/{slug}", response_class=HTMLResponse)
 async def landing_news_detail(request: Request, slug: str):
     """Chi tiet bai viet tin tuc — slug hoac legacy numeric ID."""
@@ -209,10 +248,14 @@ async def sitemap(request: Request):
 
     static_urls = [
         ("", "1.0", "weekly"),
+        ("/du-an", "0.9", "weekly"),
         ("/nha-xuong", "0.9", "weekly"),
         ("/nha-xuong-co-tiet", "0.9", "weekly"),
         ("/dich-vu", "0.8", "monthly"),
+        ("/xe-cau", "0.8", "monthly"),
+        ("/kiem-dinh-can", "0.8", "monthly"),
         ("/tin-tuc", "0.8", "daily"),
+        ("/lien-he", "0.7", "monthly"),
         ("/gioi-thieu", "0.7", "monthly"),
     ]
     urls_xml = ""

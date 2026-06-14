@@ -1,0 +1,26 @@
+{% extends "landing_base.html" %}
+
+{% block title %}Liên hệ — THÉP SƠN LÂM Industrial Core{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Liên hệ THÉP SƠN LÂM Industrial Core để được tư vấn thuê nhà xưởng tại KCN Trung Hà và KCN Cổ Tiết, Phú Thọ. Hotline 24/7: 0986 565 666.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.url }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Liên hệ — THÉP SƠN LÂM Industrial Core">
+<meta property="og:description" content="Hotline 24/7: 0986 565 666 — tư vấn thuê nhà xưởng KCN Trung Hà & Cổ Tiết, Phú Thọ.">
+{% endblock %}
+
+{% block content %}
+<!-- PAGE HEADER -->
+<section class="relative pt-40 pb-20 bg-tsl-ink text-white text-center overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-br from-tsl-primary-dark to-tsl-ink opacity-80"></div>
+  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4">
+    <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4rem)] mb-4">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h1>
+    <p class="text-xl text-white/80 max-w-[640px] mx-auto">Để lại thông tin, đội ngũ chuyên gia của chúng tôi sẽ liên hệ tư vấn giải pháp hạ tầng tối ưu nhất trong vòng 24h.</p>
+  </div>
+</section>
+
+{% set source_page = "contact" %}
+{% include "partials/contact_section.html" %}
+{% endblock %}

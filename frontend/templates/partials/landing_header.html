@@ -24,26 +24,35 @@
              x-text="$store.i18n.t('about')">Giới thiệu</a>
         </li>
         <li class="relative group">
-          <a href="/nha-xuong" class="tsl-navlink inline-flex items-center gap-1 h-11 text-tsl-text hover:text-tsl-accent {% if '/nha-xuong' in path %}active text-tsl-accent{% endif %}">
+          <a href="/du-an" class="tsl-navlink inline-flex items-center gap-1 h-11 text-tsl-text hover:text-tsl-accent {% if '/nha-xuong' in path or path == '/du-an' %}active text-tsl-accent{% endif %}">
             <span x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
             <span class="material-symbols-outlined text-lg transition-transform group-hover:rotate-180">expand_more</span>
           </a>
           <ul class="absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 min-w-[240px] p-2 bg-white border border-tsl-border rounded-lg shadow-xl
                      opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all z-[1100]">
+            <li><a href="/du-an" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/du-an' %}bg-tsl-light text-tsl-accent{% endif %}">Tổng quan nhà xưởng</a></li>
             <li><a href="/nha-xuong" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Trung Hà</a></li>
             <li><a href="/nha-xuong-co-tiet" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Cổ Tiết</a></li>
           </ul>
         </li>
-        <li>
-          <a href="/dich-vu" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if path == '/dich-vu' %}active text-tsl-accent{% endif %}"
-             x-text="$store.i18n.t('services')">Dịch vụ</a>
+        <li class="relative group">
+          <a href="/dich-vu" class="tsl-navlink inline-flex items-center gap-1 h-11 text-tsl-text hover:text-tsl-accent {% if path in ['/dich-vu', '/xe-cau', '/kiem-dinh-can'] %}active text-tsl-accent{% endif %}">
+            <span x-text="$store.i18n.t('services')">Dịch vụ</span>
+            <span class="material-symbols-outlined text-lg transition-transform group-hover:rotate-180">expand_more</span>
+          </a>
+          <ul class="absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 min-w-[220px] p-2 bg-white border border-tsl-border rounded-lg shadow-xl
+                     opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all z-[1100]">
+            <li><a href="/dich-vu" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Hạ tầng &amp; dịch vụ KCN</a></li>
+            <li><a href="/xe-cau" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/xe-cau' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch vụ xe cẩu</a></li>
+            <li><a href="/kiem-dinh-can" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/kiem-dinh-can' %}bg-tsl-light text-tsl-accent{% endif %}">Kiểm định cân</a></li>
+          </ul>
         </li>
         <li>
           <a href="/tin-tuc" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if '/tin-tuc' in path %}active text-tsl-accent{% endif %}"
              x-text="$store.i18n.t('news')">Tin tức</a>
         </li>
         <li>
-          <a href="/#lien-he" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent">Liên hệ</a>
+          <a href="/lien-he" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if path == '/lien-he' %}active text-tsl-accent{% endif %}">Liên hệ</a>
         </li>
       </ul>
     </nav>
@@ -101,13 +110,17 @@
       <li><a href="/" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/' %}bg-tsl-light text-tsl-accent{% endif %}">Trang chủ</a></li>
       <li><a href="/gioi-thieu" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/gioi-thieu' %}bg-tsl-light text-tsl-accent{% endif %}">Giới thiệu</a></li>
       <li>
-        <span class="block px-3 pt-3 pb-1 text-xs uppercase tracking-wide text-tsl-faint">Nhà xưởng</span>
+        <a href="/du-an" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/du-an' %}bg-tsl-light text-tsl-accent{% endif %}">Nhà xưởng</a>
         <a href="/nha-xuong" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Trung Hà</a>
         <a href="/nha-xuong-co-tiet" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Cổ Tiết</a>
       </li>
-      <li><a href="/dich-vu" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch vụ</a></li>
+      <li>
+        <a href="/dich-vu" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch vụ</a>
+        <a href="/xe-cau" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/xe-cau' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch vụ xe cẩu</a>
+        <a href="/kiem-dinh-can" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/kiem-dinh-can' %}bg-tsl-light text-tsl-accent{% endif %}">Kiểm định cân</a>
+      </li>
       <li><a href="/tin-tuc" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if '/tin-tuc' in path %}bg-tsl-light text-tsl-accent{% endif %}">Tin tức</a></li>
-      <li><a href="/#lien-he" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent">Liên hệ</a></li>
+      <li><a href="/lien-he" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/lien-he' %}bg-tsl-light text-tsl-accent{% endif %}">Liên hệ</a></li>
       <li class="pt-2 mt-1 border-t border-tsl-border">
         {% if user %}
         <a href="/camera/detection" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent">Dashboard</a>

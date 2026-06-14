@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>{% block title %}THÉP SƠN LÂM Industrial Core{% endblock %}</title>
+
+  <!-- Preconnect external font hosts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Fonts: Outfit (headings) + Inter (body) + Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+
+  <!-- THÉP SƠN LÂM design system -->
+  <link rel="stylesheet" href="/static/css/landing.css?v=1.0">
+
+  <!-- Alpine.js (lang selector + user menu) -->
+  <script defer src="/static/vendor/alpine.min.js"></script>
+
+  <link rel="shortcut icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  {% block seo %}
+  <meta name="description" content="THÉP SƠN LÂM Industrial Core — Cho thuê nhà xưởng xây sẵn tại KCN Trung Hà và KCN Cổ Tiết, tỉnh Phú Thọ. Hạ tầng đồng bộ, PCCC tự động, trạm điện 5000 KVA.">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="THÉP SƠN LÂM Industrial Core">
+  <link rel="canonical" href="{{ request.url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
+  <meta property="og:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng xây sẵn Phú Thọ">
+  <meta property="og:description" content="Cho thuê nhà xưởng xây sẵn KCN Trung Hà & Cổ Tiết, Phú Thọ. Hạ tầng đồng bộ, bàn giao ngay.">
+  <meta property="og:image" content="{{ request.base_url }}static/brain/tsl/hero_factory.png">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {% endblock %}
+
+  {% include "partials/landing_i18n.html" %}
+  {% block head %}{% endblock %}
+</head>
+<body class="notranslate-root">
+
+  {% include "partials/landing_header_legacy.html" %}
+
+  <!-- Google Translate (hidden widget, controlled by lang selector) -->
+  <div id="google_translate_element" style="display:none"></div>
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'vi', includedLanguages: 'vi,zh-CN,en', autoDisplay: false
+      }, 'google_translate_element');
+    }
+    function _setCookie(name, value, days, domain) {
+      const exp = new Date(Date.now() + days * 864e5).toUTCString();
+      let c = name + '=' + value + '; expires=' + exp + '; path=/; SameSite=Lax';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+    function _delCookie(name, domain) {
+      let c = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+      if (domain) c += '; domain=' + domain;
+      document.cookie = c;
+    }
+    function setGoogleLang(langCode) {
+      if (langCode === 'vi') {
+        _delCookie('googtrans'); _delCookie('googtrans', location.hostname);
+        _delCookie('lang_pref'); _delCookie('lang_pref', location.hostname);
+      } else {
+        const val = '/vi/' + langCode;
+        _setCookie('googtrans', val, 7); _setCookie('googtrans', val, 7, location.hostname);
+        _setCookie('lang_pref', langCode, 7); _setCookie('lang_pref', langCode, 7, location.hostname);
+      }
+      location.reload();
+    }
+    document.addEventListener('alpine:init', () => {
+      const m = document.cookie.match(/lang_pref=([^;]+)/);
+      if (m && m[1] && m[1] !== 'vi') { Alpine.store('i18n').lang = 'zh'; }
+    });
+  </script>
+  <script type="text/javascript"
+          src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+  <style>
+    .goog-te-banner-frame, .skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+    .goog-te-gadget { display: none !important; }
+  </style>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "partials/landing_footer_legacy.html" %}
+
+  <!-- Lightbox (used by gallery images) -->
+  <div class="lightbox" id="lightbox">
+    <span class="lightbox-close" id="lightbox-close">&times;</span>
+    <img class="lightbox-content" id="lightbox-img" src="" alt="Phóng to hình ảnh">
+  </div>
+
+  <script src="/static/js/landing.js?v=1.0"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,71 @@
+{% extends "landing_base.html" %}
+
+{% block title %}Nhà xưởng cho thuê tại Phú Thọ — KCN Trung Hà & Cổ Tiết | THÉP SƠN LÂM{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Hai nhà xưởng cho thuê tại Phú Thọ: KCN Trung Hà và KCN Cổ Tiết. Trạm điện 5000 KVA, PCCC tự động, hạ tầng đồng bộ — sẵn sàng bàn giao cho doanh nghiệp sản xuất sạch.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.url }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nhà xưởng cho thuê tại Phú Thọ — THÉP SƠN LÂM">
+<meta property="og:description" content="KCN Trung Hà & KCN Cổ Tiết — nhà xưởng xây sẵn, hạ tầng đồng bộ, bàn giao ngay.">
+{% endblock %}
+
+{% block content %}
+<!-- PAGE HEADER -->
+<section class="relative pt-40 pb-20 bg-tsl-ink text-white text-center overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-br from-tsl-primary-dark to-tsl-ink opacity-80"></div>
+  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4">
+    <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4rem)] mb-4">Nhà xưởng cho thuê tại Phú Thọ</h1>
+    <p class="text-xl text-white/80 max-w-[640px] mx-auto">Hai nhà xưởng chính: KCN Trung Hà và KCN Cổ Tiết, sẵn sàng bàn giao cho doanh nghiệp sản xuất sạch.</p>
+  </div>
+</section>
+
+<!-- DANH SÁCH NHÀ XƯỞNG -->
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-[1000px] mx-auto">
+      <article class="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <a href="/nha-xuong" class="block h-[clamp(180px,22vw,240px)] overflow-hidden">
+          <img src="/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg" alt="Nhà xưởng KCN Trung Hà" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+        </a>
+        <div class="p-6">
+          <span class="text-sm text-tsl-faint block mb-2">KCN Trung Hà</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary mb-3"><a href="/nha-xuong" class="hover:text-tsl-accent transition-colors">Nhà xưởng KCN Trung Hà</a></h3>
+          <p class="text-tsl-muted text-[0.95rem] mb-4">Trạm điện 5000 KVA, PCCC tự động, thời hạn sử dụng đất hơn 45 năm. Phù hợp may mặc, điện tử, cơ khí, đóng gói và các ngành nghề sạch.</p>
+          <a href="/nha-xuong" class="tsl-btn tsl-btn-primary">Xem chi tiết</a>
+        </div>
+      </article>
+      <article class="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <a href="/nha-xuong-co-tiet" class="block h-[clamp(180px,22vw,240px)] overflow-hidden">
+          <img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Nhà xưởng KCN Cổ Tiết" class="w-full h-full object-cover group-hover:scale-105 transition-transform">
+        </a>
+        <div class="p-6">
+          <span class="text-sm text-tsl-faint block mb-2">KCN Cổ Tiết</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary mb-3"><a href="/nha-xuong-co-tiet" class="hover:text-tsl-accent transition-colors">Nhà xưởng KCN Cổ Tiết</a></h3>
+          <p class="text-tsl-muted text-[0.95rem] mb-4">Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết. Có TBA 110KV, XLNT, PCCC &amp; CHCN, bãi xe, bảo vệ 24/7.</p>
+          <a href="/nha-xuong-co-tiet" class="tsl-btn tsl-btn-primary">Xem chi tiết</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- NGÀNH NGHỀ ƯU TIÊN -->
+<section class="py-24 bg-tsl-light">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Ưu tiên ngành nghề sạch</h2>
+      <p class="text-tsl-muted text-lg">Nhà xưởng phù hợp với may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm và các ngành không gây ô nhiễm môi trường.</p>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-[860px] mx-auto">
+      {% for ic, t in [('checkroom','May mặc'),('memory','Điện tử'),('precision_manufacturing','Cơ khí'),('inventory_2','Đóng gói'),('restaurant','Thực phẩm'),('local_pharmacy','Dược phẩm')] %}
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">{{ ic }}</span><strong>{{ t }}</strong></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% set source_page = "warehouse" %}
+{% include "partials/contact_section.html" %}
+{% endblock %}
