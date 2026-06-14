@@ -1,42 +1,41 @@
-{# THÉP SƠN LÂM Footer — ported from static design, clean URLs #}
-<footer class="site-footer" translate="no">
-  <div class="container">
-    <div class="footer-grid">
-      <div class="footer-col brand-col">
-        <a href="/" class="logo footer-logo">
-          <span class="logo-text text-white">THÉP SƠN LÂM</span>
-          <span class="logo-sub text-gray">Industrial Core</span>
+{# THÉP SƠN LÂM Footer — Tailwind, clean URLs #}
+<footer class="bg-tsl-primary-dark text-white/70 pt-24 pb-8" translate="no">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1.5fr] gap-12 mb-20">
+      <div>
+        <a href="/" class="flex flex-col leading-none mb-4">
+          <span class="font-display font-extrabold text-xl text-white tracking-tight">THÉP SƠN LÂM</span>
+          <span class="text-xs font-semibold uppercase tracking-[1px] text-tsl-faint">Industrial Core</span>
         </a>
-        <p class="footer-desc">Khu công nghiệp &amp; nhà xưởng xây sẵn tại Phú Thọ — sẵn sàng cho sản xuất ngay từ ngày đầu.</p>
+        <p class="max-w-[300px] text-white/70">Khu công nghiệp &amp; nhà xưởng xây sẵn tại Phú Thọ — sẵn sàng cho sản xuất ngay từ ngày đầu.</p>
       </div>
-      <div class="footer-col">
-        <h4 class="footer-title">Dịch vụ</h4>
-        <ul class="footer-links">
-          <li><a href="/nha-xuong">Xưởng KCN Trung Hà</a></li>
-          <li><a href="/nha-xuong-co-tiet">Xưởng KCN Cổ Tiết</a></li>
-          <li><a href="/xe-cau">Dịch vụ xe cẩu</a></li>
-          <li><a href="/kiem-dinh-can">Kiểm định cân</a></li>
+      <div>
+        <h4 class="font-display text-white text-xl font-bold mb-6">Dịch vụ</h4>
+        <ul class="flex flex-col gap-3">
+          <li><a href="/nha-xuong" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Xưởng KCN Trung Hà</a></li>
+          <li><a href="/nha-xuong-co-tiet" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Xưởng KCN Cổ Tiết</a></li>
+          <li><a href="/dich-vu" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Hạ tầng &amp; dịch vụ KCN</a></li>
         </ul>
       </div>
-      <div class="footer-col">
-        <h4 class="footer-title">Công ty</h4>
-        <ul class="footer-links">
-          <li><a href="/gioi-thieu">Giới thiệu</a></li>
-          <li><a href="/tin-tuc">Tin tức</a></li>
-          <li><a href="/#lien-he">Liên hệ</a></li>
-          <li><a href="/login">Cổng quản trị</a></li>
+      <div>
+        <h4 class="font-display text-white text-xl font-bold mb-6">Công ty</h4>
+        <ul class="flex flex-col gap-3">
+          <li><a href="/gioi-thieu" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Giới thiệu</a></li>
+          <li><a href="/tin-tuc" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Tin tức</a></li>
+          <li><a href="/#lien-he" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Liên hệ</a></li>
+          <li><a href="/login" class="text-white/70 hover:text-tsl-accent hover:pl-1 transition-all">Cổng quản trị</a></li>
         </ul>
       </div>
-      <div class="footer-col">
-        <h4 class="footer-title">Liên hệ</h4>
-        <ul class="contact-info">
-          <li><span class="material-symbols-outlined">location_on</span><span>Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ</span></li>
-          <li><span class="material-symbols-outlined">call</span><a href="tel:0986565666">0986 565 666</a></li>
-          <li><span class="material-symbols-outlined">schedule</span><span>T2 – T7 · 8:00 – 17:30</span></li>
+      <div>
+        <h4 class="font-display text-white text-xl font-bold mb-6">Liên hệ</h4>
+        <ul class="flex flex-col gap-4">
+          <li class="flex items-start gap-3"><span class="material-symbols-outlined text-tsl-accent">location_on</span><span>Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ</span></li>
+          <li class="flex items-start gap-3"><span class="material-symbols-outlined text-tsl-accent">call</span><a href="tel:0986565666" class="text-white/70 hover:text-tsl-accent">0986 565 666</a></li>
+          <li class="flex items-start gap-3"><span class="material-symbols-outlined text-tsl-accent">schedule</span><span>T2 – T7 · 8:00 – 17:30</span></li>
         </ul>
       </div>
     </div>
-    <div class="footer-bottom">
+    <div class="text-center pt-8 border-t border-white/10 text-sm">
       <p>&copy; <span id="footer-year">2026</span> THÉP SƠN LÂM Industrial Core. Bảo lưu mọi quyền.</p>
     </div>
   </div>

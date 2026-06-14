@@ -13,129 +13,134 @@
 {% endblock %}
 
 {% block content %}
-<section class="hero">
-  <div class="hero-bg" style="background-image:url('/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg');"></div>
-  <div class="hero-overlay"></div>
-  <div class="container hero-content">
-    <div class="hero-text-content">
-      <p class="subtitle text-accent">Khu Đồng Dâu · Xã Vạn Xuân · KCN Cổ Tiết · Phú Thọ</p>
-      <h1 class="hero-title">Cho thuê <span class="highlight">nhà xưởng KCN Cổ Tiết</span></h1>
-      <p class="hero-subtitle">Nhà xưởng tại KCN Cổ Tiết, Phú Thọ. Phù hợp may mặc, điện tử, cơ khí, đóng gói và ngành sản xuất sạch.</p>
-      <div class="hero-buttons">
-        <a href="/#lien-he" class="btn btn-primary btn-lg">Hẹn xem xưởng</a>
-        <a href="tel:0986565666" class="btn btn-outline btn-lg">0986 565 666</a>
-        <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" class="btn btn-outline btn-lg">Bản vẽ mặt bằng</a>
+<!-- HERO -->
+<section class="relative min-h-[max(600px,100vh)] flex items-center pt-20 overflow-hidden">
+  <div class="absolute inset-0 bg-cover bg-center hero-zoom" style="background-image:url('/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg');"></div>
+  <div class="absolute inset-0 bg-gradient-to-r from-tsl-ink/90 to-tsl-ink/50"></div>
+  <div class="relative z-10 mx-auto w-full max-w-[1280px] px-4 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <div class="text-white">
+      <p class="font-display uppercase tracking-[2px] text-sm text-tsl-accent mb-2">Khu Đồng Dâu · Xã Vạn Xuân · KCN Cổ Tiết · Phú Thọ</p>
+      <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4.5rem)] leading-[1.1] mb-4">Cho thuê <span class="text-tsl-accent">nhà xưởng KCN Cổ Tiết</span></h1>
+      <p class="text-xl text-white/90 max-w-[500px] mb-12">Nhà xưởng tại KCN Cổ Tiết, Phú Thọ. Phù hợp may mặc, điện tử, cơ khí, đóng gói và ngành sản xuất sạch.</p>
+      <div class="flex flex-wrap gap-4">
+        <a href="/#lien-he" class="tsl-btn tsl-btn-primary tsl-btn-lg">Hẹn xem xưởng</a>
+        <a href="tel:0986565666" class="tsl-btn tsl-btn-ondark tsl-btn-lg">0986 565 666</a>
+        <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" class="tsl-btn tsl-btn-ondark tsl-btn-lg">Bản vẽ mặt bằng</a>
       </div>
     </div>
-    <div class="hero-stats">
-      <div class="stat-card glass-panel"><span class="stat-value">KCN</span><span class="stat-unit">Cổ Tiết</span><span class="stat-label">Vị trí nhà xưởng</span></div>
-      <div class="stat-card glass-panel"><span class="stat-value">5</span><span class="stat-unit">tấn/m²</span><span class="stat-label">Tải trọng sàn</span></div>
-      <div class="stat-card glass-panel"><span class="stat-value">24/7</span><span class="stat-unit">bảo vệ</span><span class="stat-label">Vận hành an toàn</span></div>
-      <div class="stat-card glass-panel"><span class="stat-value">5000</span><span class="stat-unit">KVA</span><span class="stat-label">Trạm điện</span></div>
+    <div class="grid grid-cols-2 gap-4">
+      {% for v, u, l in [('KCN','Cổ Tiết','Vị trí nhà xưởng'),('5','tấn/m²','Tải trọng sàn'),('24/7','bảo vệ','Vận hành an toàn'),('5000','KVA','Trạm điện')] %}
+      <div class="p-8 rounded-2xl bg-white/85 backdrop-blur-[10px] border border-white/30 flex flex-col items-start">
+        <span class="font-display font-extrabold text-5xl text-tsl-accent leading-none">{{ v }}</span>
+        <span class="font-bold text-tsl-primary">{{ u }}</span>
+        <span class="text-sm text-tsl-muted font-medium">{{ l }}</span>
+      </div>
+      {% endfor %}
     </div>
   </div>
 </section>
 
-<section class="section">
-  <div class="container">
-    <div class="about-grid">
-      <div class="about-content">
-        <h4 class="subtitle text-primary">Thông tin cho thuê</h4>
-        <h2 class="section-title">Nhà xưởng tại KCN Cổ Tiết</h2>
-        <p class="about-desc">Dự án nằm tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ. Nhà xưởng xây sẵn cùng hạ tầng phụ trợ phục vụ sản xuất sạch.</p>
-        <ul class="feature-list">
-          <li>Trạm biến áp 5000 KVA và kết nối TBA 110KV Tam Nông.</li>
-          <li>PCCC &amp; CHCN gồm nhà bơm và bể nước chuyên dụng.</li>
-          <li>Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT.</li>
-          <li>02 nhà để xe, 02 nhà bảo vệ 24/7, hệ thống WC riêng biệt.</li>
+<!-- THÔNG TIN CHO THUÊ -->
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+      <div>
+        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Thông tin cho thuê</h4>
+        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Nhà xưởng tại KCN Cổ Tiết</h2>
+        <p class="text-tsl-muted text-lg mb-6">Dự án nằm tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ. Nhà xưởng xây sẵn cùng hạ tầng phụ trợ phục vụ sản xuất sạch.</p>
+        <ul class="flex flex-col gap-3 mb-8">
+          {% for t in ['Trạm biến áp 5000 KVA và kết nối TBA 110KV Tam Nông.','PCCC & CHCN gồm nhà bơm và bể nước chuyên dụng.','Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT.','02 nhà để xe, 02 nhà bảo vệ 24/7, hệ thống WC riêng biệt.'] %}
+          <li class="relative pl-6 text-tsl-text before:content-[''] before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:rounded-full before:bg-tsl-accent">{{ t }}</li>
+          {% endfor %}
         </ul>
-        <div class="contact-info-item">
-          <div class="contact-icon"><span class="material-symbols-outlined">warning</span></div>
-          <div class="contact-details">
-            <h3>Không tiếp nhận ngành ô nhiễm</h3>
-            <p>Không cho thuê đối với hóa chất độc hại, nhuộm, thuộc da và các ngành nghề gây ô nhiễm môi trường.</p>
+        <div class="flex gap-6">
+          <div class="w-14 h-14 shrink-0 bg-tsl-surface text-tsl-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">warning</span></div>
+          <div>
+            <h3 class="font-display font-bold text-lg text-tsl-primary mb-1">Không tiếp nhận ngành ô nhiễm</h3>
+            <p class="text-tsl-muted">Không cho thuê đối với hóa chất độc hại, nhuộm, thuộc da và các ngành nghề gây ô nhiễm môi trường.</p>
           </div>
         </div>
       </div>
-      <div class="about-image">
-        <div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg" alt="Nhà xưởng KCN Cổ Tiết" class="lightbox-trigger"></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section bg-light">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Diện tích</h4>
-      <h2 class="section-title">Nhà xưởng KCN Cổ Tiết</h2>
-      <p class="section-desc">Không gian nhà xưởng phù hợp cho doanh nghiệp cần mặt bằng sản xuất sạch, hạ tầng điện nước và PCCC đồng bộ.</p>
-    </div>
-    <div class="news-grid">
-      <article class="news-card"><div class="news-content"><span class="news-date">KCN Cổ Tiết</span><h3 class="news-title">Nhà xưởng xây sẵn</h3><p class="news-excerpt">Phù hợp doanh nghiệp may mặc, điện tử, cơ khí nhẹ, đóng gói hoặc các ngành sản xuất sạch.</p><a href="/#lien-he" class="btn btn-primary">Hỏi thuê xưởng</a></div></article>
-    </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Thông số kỹ thuật</h4>
-      <h2 class="section-title">Hạ tầng nhà xưởng Cổ Tiết</h2>
-    </div>
-    <div class="project-highlights">
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">warehouse</span><strong>Nhà xưởng KCN Cổ Tiết</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">height</span><strong>Chiều cao cột biên: 8,75 m</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">foundation</span><strong>Sàn bê tông cốt thép 5 tấn/m²</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">bolt</span><strong>Trạm biến áp 5000 KVA</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">fire_extinguisher</span><strong>PCCC &amp; CHCN: bể và nhà bơm chuyên dụng</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">water</span><strong>Trạm XLNT đạt chuẩn</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">directions_car</span><strong>02 khu để xe tập trung</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">security</span><strong>02 nhà bảo vệ 24/7</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">wc</span><strong>Hệ thống WC riêng biệt</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">conversion_path</span><strong>Đường giao thông nội bộ</strong></div>
-    </div>
-  </div>
-</section>
-
-<section class="section bg-light">
-  <div class="container">
-    <div class="about-grid">
-      <div class="about-content">
-        <h4 class="subtitle text-primary">Vị trí</h4>
-        <h2 class="section-title">Khu Đồng Dâu, xã Vạn Xuân, Phú Thọ</h2>
-        <p class="about-desc">KCN Cổ Tiết có kết nối thuận tiện qua QL2, QL32C và cao tốc Nội Bài - Lào Cai. Khu vực Tam Nông có nguồn lao động dồi dào và chi phí vận hành cạnh tranh.</p>
-        <div class="location-distances">
-          <div class="distance-item"><div class="distance-icon">20</div><div class="distance-info"><span class="distance-label">km đến TP. Việt Trì</span><span class="distance-value">Trung tâm hành chính tỉnh Phú Thọ.</span></div></div>
-          <div class="distance-item"><div class="distance-icon">65</div><div class="distance-info"><span class="distance-label">km đến sân bay Nội Bài</span><span class="distance-value">Thuận lợi cho xuất nhập khẩu hàng không.</span></div></div>
-          <div class="distance-item"><div class="distance-icon">85</div><div class="distance-info"><span class="distance-label">km đến trung tâm Hà Nội</span><span class="distance-value">Kết nối qua cầu Trung Hà và Đại lộ Thăng Long.</span></div></div>
+      <div>
+        <div class="rounded-2xl overflow-hidden shadow-xl max-w-[560px] mx-auto aspect-[4/3]">
+          <img src="/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg" alt="Nhà xưởng KCN Cổ Tiết"
+               class="w-full h-full object-cover cursor-pointer" @click="$dispatch('open-lightbox', { src: $el.src })">
         </div>
-        <p class="about-desc">Cao độ nền thiết kế 17.50 m, an toàn và không ngập lụt.</p>
-      </div>
-      <div class="about-content">
-        <h4 class="subtitle text-primary">Tài liệu dự án</h4>
-        <h2 class="section-title">Bản vẽ mặt bằng Cổ Tiết</h2>
-        <p class="about-desc">Tải bản vẽ quy hoạch sử dụng đất để xem vị trí các nhà xưởng, khu phụ trợ, giao thông nội bộ và hạ tầng kỹ thuật.</p>
-        <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" class="btn btn-outline"><span class="material-symbols-outlined">picture_as_pdf</span> Xem bản vẽ PDF</a>
       </div>
     </div>
   </div>
 </section>
 
-<section class="section">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Hỏi đáp</h4>
-      <h2 class="section-title">Câu hỏi thường gặp về Cổ Tiết</h2>
+<!-- THÔNG SỐ KỸ THUẬT -->
+<section class="py-24 bg-tsl-light">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Thông số kỹ thuật</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight">Hạ tầng nhà xưởng Cổ Tiết</h2>
     </div>
-    <div class="contact-info-list">
-      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">help</span></div><div class="contact-details"><h3>Nhà xưởng ưu tiên ngành nghề nào?</h3><p>Ưu tiên may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm và các ngành sản xuất sạch.</p></div></div>
-      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">bolt</span></div><div class="contact-details"><h3>Điện và PCCC đã sẵn sàng chưa?</h3><p>Có. Dự án có trạm điện 5000 KVA, kết nối TBA 110KV Tam Nông và hệ thống PCCC &amp; CHCN chuyên dụng.</p></div></div>
-      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">water</span></div><div class="contact-details"><h3>Có hệ thống xử lý nước thải không?</h3><p>Có. Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT, phục vụ yêu cầu vận hành sản xuất sạch.</p></div></div>
-      <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">call</span></div><div class="contact-details"><h3>Liên hệ xem xưởng như thế nào?</h3><p>Liên hệ Mr Lâm: 0986 565 666 để hẹn lịch xem nhà xưởng tại KCN Cổ Tiết, Phú Thọ.</p></div></div>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-[1000px] mx-auto">
+      {% for ic, t in [
+        ('warehouse','Nhà xưởng KCN Cổ Tiết'),('height','Chiều cao cột biên: 8,75 m'),('foundation','Sàn bê tông cốt thép 5 tấn/m²'),
+        ('bolt','Trạm biến áp 5000 KVA'),('fire_extinguisher','PCCC & CHCN: bể và nhà bơm chuyên dụng'),('water','Trạm XLNT đạt chuẩn'),
+        ('directions_car','02 khu để xe tập trung'),('security','02 nhà bảo vệ 24/7'),('wc','Hệ thống WC riêng biệt')
+      ] %}
+      <div class="flex items-start gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">{{ ic }}</span><strong>{{ t }}</strong></div>
+      {% endfor %}
     </div>
   </div>
 </section>
 
+<!-- VỊ TRÍ + TÀI LIỆU -->
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24">
+      <div>
+        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Vị trí</h4>
+        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Khu Đồng Dâu, xã Vạn Xuân, Phú Thọ</h2>
+        <p class="text-tsl-muted text-lg mb-6">KCN Cổ Tiết có kết nối thuận tiện qua QL2, QL32C và cao tốc Nội Bài - Lào Cai. Khu vực Tam Nông có nguồn lao động dồi dào và chi phí vận hành cạnh tranh.</p>
+        <div class="flex flex-col gap-4 mb-6">
+          {% for n, l, d in [('20','km đến TP. Việt Trì','Trung tâm hành chính tỉnh Phú Thọ.'),('65','km đến sân bay Nội Bài','Thuận lợi cho xuất nhập khẩu hàng không.'),('85','km đến trung tâm Hà Nội','Kết nối qua cầu Trung Hà và Đại lộ Thăng Long.')] %}
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center font-display font-bold">{{ n }}</div>
+            <div class="flex flex-col"><span class="text-sm text-tsl-muted">{{ l }}</span><span class="font-bold text-tsl-primary text-lg">{{ d }}</span></div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-tsl-muted text-lg">Cao độ nền thiết kế 17.50 m, an toàn và không ngập lụt.</p>
+      </div>
+      <div>
+        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Tài liệu dự án</h4>
+        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Bản vẽ mặt bằng Cổ Tiết</h2>
+        <p class="text-tsl-muted text-lg mb-6">Tải bản vẽ quy hoạch sử dụng đất để xem vị trí các nhà xưởng, khu phụ trợ, giao thông nội bộ và hạ tầng kỹ thuật.</p>
+        <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" class="tsl-btn tsl-btn-outline"><span class="material-symbols-outlined">picture_as_pdf</span> Xem bản vẽ PDF</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HỎI ĐÁP -->
+<section class="py-24 bg-tsl-light">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Hỏi đáp</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight">Câu hỏi thường gặp về Cổ Tiết</h2>
+    </div>
+    <div class="max-w-[800px] mx-auto">
+      {% for ic, q, a in [
+        ('help','Nhà xưởng ưu tiên ngành nghề nào?','Ưu tiên may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm và các ngành sản xuất sạch.'),
+        ('bolt','Điện và PCCC đã sẵn sàng chưa?','Có. Dự án có trạm điện 5000 KVA, kết nối TBA 110KV Tam Nông và hệ thống PCCC & CHCN chuyên dụng.'),
+        ('water','Có hệ thống xử lý nước thải không?','Có. Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT, phục vụ yêu cầu vận hành sản xuất sạch.'),
+        ('call','Liên hệ xem xưởng như thế nào?','Liên hệ Mr Lâm: 0986 565 666 để hẹn lịch xem nhà xưởng tại KCN Cổ Tiết, Phú Thọ.')
+      ] %}
+      <div class="flex gap-6 mb-6">
+        <div class="w-14 h-14 shrink-0 bg-white text-tsl-primary rounded-full flex items-center justify-center shadow-sm"><span class="material-symbols-outlined text-[28px]">{{ ic }}</span></div>
+        <div><h3 class="font-display font-bold text-lg text-tsl-primary mb-1">{{ q }}</h3><p class="text-tsl-muted">{{ a }}</p></div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{% set source_page = "co_tiet" %}
 {% include "partials/contact_section.html" %}
 {% endblock %}

@@ -13,76 +13,54 @@
 <meta property="og:url" content="{{ request.url }}">
 {% endblock %}
 
-{% block head %}
-<style>
-  .article-hero {
-    position: relative;
-    min-height: 420px;
-    display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-    background-color: var(--c-bg-dark);
-    padding-top: 80px;
-  }
-  .article-hero .article-hero-bg { position: absolute; inset: 0; }
-  .article-hero .article-hero-bg img { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; }
-  .article-hero .article-hero-overlay {
-    position: absolute; inset: 0;
-    background: linear-gradient(to top, var(--c-bg-dark) 0%, rgba(11,28,48,0.4) 60%, transparent 100%);
-  }
-  .article-hero .container { position: relative; z-index: 2; padding-bottom: var(--space-lg); }
-  .article-back {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-    color: rgba(255,255,255,0.7); font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem;
-  }
-  .article-back:hover { color: var(--c-accent); }
-  .article-title { color: #fff; font-size: clamp(1.8rem, 4vw, 3rem); margin-bottom: 0.75rem; max-width: 800px; }
-  .article-meta { color: rgba(255,255,255,0.7); font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; }
-
-  .prose { max-width: 760px; margin: 0 auto; color: var(--c-text-main); font-size: 1.0625rem; }
-  .prose h2 { font-size: 1.5rem; margin: 2rem 0 1rem; }
-  .prose h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; }
-  .prose p { margin-bottom: 1.25rem; line-height: 1.8; }
-  .prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; }
-  .prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1.25rem; }
-  .prose li { margin-bottom: 0.5rem; line-height: 1.7; }
-  .prose img { border-radius: var(--radius-md); width: 100%; margin: 1.5rem 0; }
-  .prose a { color: var(--c-accent); text-decoration: underline; }
-  .prose blockquote { border-left: 4px solid var(--c-accent); padding-left: 1rem; color: var(--c-text-muted); font-style: italic; margin: 1.5rem 0; }
-  .prose strong { font-weight: 700; color: var(--c-primary-dark); }
-  .article-actions { max-width: 760px; margin: var(--space-lg) auto 0; padding-top: var(--space-md); border-top: 1px solid var(--c-border); display: flex; flex-wrap: wrap; gap: 1rem; }
-</style>
-{% endblock %}
-
 {% block content %}
-<section class="article-hero">
-  <div class="article-hero-bg"><img src="{{ item.image or '/static/brain/tsl/hero_factory.png' }}" alt="{{ item.title }}"></div>
-  <div class="article-hero-overlay"></div>
-  <div class="container">
-    <a href="/tin-tuc" class="article-back"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span> Quay lại tin tức</a>
-    {% if item.category %}<span class="badge badge-primary" style="text-transform:uppercase;letter-spacing:0.15em;">{{ item.category }}</span>{% endif %}
-    <h1 class="article-title">{{ item.title }}</h1>
-    <p class="article-meta"><span class="material-symbols-outlined" style="font-size:16px;">calendar_today</span> {{ item.publish_date_str or '' }}</p>
+<!-- ARTICLE HERO -->
+<section class="relative min-h-[420px] flex items-end overflow-hidden bg-tsl-ink pt-20">
+  <div class="absolute inset-0"><img src="{{ item.image or '/static/brain/tsl/hero_factory.png' }}" alt="{{ item.title }}" class="w-full h-full object-cover opacity-40"></div>
+  <div class="absolute inset-0 bg-gradient-to-t from-tsl-ink via-tsl-ink/40 to-transparent"></div>
+  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4 pb-16">
+    <a href="/tin-tuc" class="inline-flex items-center gap-1.5 text-white/70 hover:text-tsl-accent font-semibold text-sm mb-4">
+      <span class="material-symbols-outlined text-base">arrow_back</span> Quay lại tin tức
+    </a>
+    {% if item.category %}<div><span class="inline-block bg-tsl-accent text-white px-4 py-1 rounded-full text-xs font-extrabold uppercase tracking-[0.15em] mb-3">{{ item.category }}</span></div>{% endif %}
+    <h1 class="font-display font-bold text-white text-[clamp(1.8rem,4vw,3rem)] max-w-[800px] mb-3">{{ item.title }}</h1>
+    <p class="text-white/70 text-sm flex items-center gap-1.5"><span class="material-symbols-outlined text-base">calendar_today</span> {{ item.publish_date_str or '' }}</p>
   </div>
 </section>
 
-<section class="section">
-  <div class="container">
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
     {% if item.content %}
-    <div class="prose">{{ item.content | safe }}</div>
+    <div class="tsl-prose max-w-[760px] mx-auto text-tsl-text text-[1.0625rem]">{{ item.content | safe }}</div>
     {% elif item.summary %}
-    <div class="prose"><p>{{ item.summary }}</p></div>
+    <div class="tsl-prose max-w-[760px] mx-auto text-tsl-text text-[1.0625rem]"><p>{{ item.summary }}</p></div>
     {% else %}
-    <p class="text-center" style="color:var(--c-text-light);font-style:italic;">Nội dung đang được cập nhật…</p>
+    <p class="text-center text-tsl-faint italic">Nội dung đang được cập nhật…</p>
     {% endif %}
 
-    <div class="article-actions">
-      <a href="/tin-tuc" class="btn btn-outline"><span class="material-symbols-outlined">arrow_back</span> Tất cả tin tức</a>
-      <a href="/#lien-he" class="btn btn-primary"><span class="material-symbols-outlined">call</span> Liên hệ ngay</a>
+    <div class="max-w-[760px] mx-auto mt-16 pt-8 border-t border-tsl-border flex flex-wrap gap-4">
+      <a href="/tin-tuc" class="tsl-btn tsl-btn-outline"><span class="material-symbols-outlined">arrow_back</span> Tất cả tin tức</a>
+      <a href="/#lien-he" class="tsl-btn tsl-btn-primary"><span class="material-symbols-outlined">call</span> Liên hệ ngay</a>
     </div>
   </div>
 </section>
 
 {% set source_page = "news" %}
 {% include "partials/contact_section.html" %}
+{% endblock %}
+
+{% block head %}
+<style>
+  /* Article prose styles (DB-driven HTML content) */
+  .tsl-prose h2 { font-family: var(--font-display); font-weight: 700; color: var(--color-tsl-primary); font-size: 1.5rem; margin: 2rem 0 1rem; }
+  .tsl-prose h3 { font-family: var(--font-display); font-weight: 700; color: var(--color-tsl-primary); font-size: 1.25rem; margin: 1.5rem 0 .75rem; }
+  .tsl-prose p { margin-bottom: 1.25rem; line-height: 1.8; }
+  .tsl-prose ul { list-style: disc; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+  .tsl-prose ol { list-style: decimal; padding-left: 1.5rem; margin-bottom: 1.25rem; }
+  .tsl-prose li { margin-bottom: .5rem; line-height: 1.7; }
+  .tsl-prose img { border-radius: 8px; width: 100%; margin: 1.5rem 0; }
+  .tsl-prose a { color: var(--color-tsl-accent); text-decoration: underline; }
+  .tsl-prose blockquote { border-left: 4px solid var(--color-tsl-accent); padding-left: 1rem; color: var(--color-tsl-muted); font-style: italic; margin: 1.5rem 0; }
+  .tsl-prose strong { font-weight: 700; color: var(--color-tsl-primary-dark); }
+</style>
 {% endblock %}

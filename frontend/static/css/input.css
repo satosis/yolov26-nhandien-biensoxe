@@ -27,6 +27,27 @@
   --radius-lg: 12px;
 }
 
+/* ==========================================================================
+   THÉP SƠN LÂM landing — design tokens (public/user-facing site)
+   Light corporate theme, ported from the thepsonlam design into Tailwind.
+   ========================================================================== */
+@theme {
+  --color-tsl-primary: #004b41;
+  --color-tsl-primary-light: #3a6e64;
+  --color-tsl-primary-dark: #00332c;
+  --color-tsl-accent: #fd761a;
+  --color-tsl-accent-hover: #e06310;
+  --color-tsl-ink: #0b1c30;
+  --color-tsl-surface: #e5eeff;
+  --color-tsl-light: #f8f9ff;
+  --color-tsl-text: #333333;
+  --color-tsl-muted: #6b7280;
+  --color-tsl-faint: #9ca3af;
+  --color-tsl-border: #e5e7eb;
+
+  --font-display: "Outfit", "Inter", system-ui, sans-serif;
+}
+
 @layer base {
   [x-cloak] { display: none !important; }
   
@@ -102,4 +123,55 @@
   .minimalist-btn-primary:active {
     background: #0891b2;
   }
+
+  /* ========================================================================
+     THÉP SƠN LÂM landing components (used only by public landing templates)
+     ======================================================================== */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .icon-check {
+    color: var(--color-tsl-accent);
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* Buttons */
+  .tsl-btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3
+           font-display font-semibold rounded-lg border-2 border-transparent
+           transition-all duration-300 cursor-pointer text-center;
+  }
+  .tsl-btn-lg { @apply px-8 py-4 text-lg; }
+  .tsl-btn-primary { background-color: var(--color-tsl-accent); color: #fff; }
+  .tsl-btn-primary:hover {
+    background-color: var(--color-tsl-accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06);
+  }
+  .tsl-btn-outline { background: transparent; color: var(--color-tsl-primary); border-color: var(--color-tsl-primary); }
+  .tsl-btn-outline:hover { background-color: var(--color-tsl-primary); color: #fff; }
+  /* Outline variant on dark/hero backgrounds */
+  .tsl-btn-ondark { background: transparent; color: #fff; border-color: #fff; }
+  .tsl-btn-ondark:hover { background: #fff; color: var(--color-tsl-primary); }
+  .tsl-btn-glow { box-shadow: 0 0 20px rgba(253,118,26,.4); }
+  .tsl-btn-glow:hover { box-shadow: 0 0 25px rgba(253,118,26,.6); }
+
+  /* Nav link underline animation */
+  .tsl-navlink { position: relative; }
+  .tsl-navlink::after {
+    content: ''; position: absolute; bottom: 0; left: 0; width: 0; height: 2px;
+    background-color: var(--color-tsl-accent); transition: width .3s ease;
+  }
+  .tsl-navlink:hover::after, .tsl-navlink.active::after { width: 100%; }
+
+  /* Hero background zoom-out intro */
+  .hero-zoom { animation: tslZoomOut 20s ease-out forwards; }
+
+  /* Distance / step item hover */
+  .tsl-distance:hover { transform: translateX(10px); background-color: var(--color-tsl-surface); }
 }
+
+@keyframes tslZoomOut { from { transform: scale(1.05); } to { transform: scale(1); } }
+@keyframes tslFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

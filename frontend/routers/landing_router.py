@@ -135,21 +135,12 @@ async def landing_co_tiet(request: Request):
     )
 
 
-@router.get("/xe-cau", response_class=HTMLResponse)
-async def landing_crane(request: Request):
-    """Spoke 2 — Xe cau chuyen nghiep."""
+@router.get("/dich-vu", response_class=HTMLResponse)
+async def landing_services(request: Request):
+    """Dịch vụ & giải pháp — build-to-suit, vận hành, pháp lý FDI, hạ tầng."""
     return templates.TemplateResponse(
-        "pages/landing_crane.html",
-        {"request": request, "source_page": "crane", "user": get_optional_user(request)},
-    )
-
-
-@router.get("/kiem-dinh-can", response_class=HTMLResponse)
-async def landing_scale(request: Request):
-    """Spoke 3 — Kiem dinh can & cho thue qua can Dai Lo Xanh."""
-    return templates.TemplateResponse(
-        "pages/landing_scale.html",
-        {"request": request, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
+        "pages/landing_services.html",
+        {"request": request, "source_page": "services", "user": get_optional_user(request)},
     )
 
 
@@ -220,8 +211,7 @@ async def sitemap(request: Request):
         ("", "1.0", "weekly"),
         ("/nha-xuong", "0.9", "weekly"),
         ("/nha-xuong-co-tiet", "0.9", "weekly"),
-        ("/xe-cau", "0.9", "weekly"),
-        ("/kiem-dinh-can", "0.9", "weekly"),
+        ("/dich-vu", "0.8", "monthly"),
         ("/tin-tuc", "0.8", "daily"),
         ("/gioi-thieu", "0.7", "monthly"),
     ]

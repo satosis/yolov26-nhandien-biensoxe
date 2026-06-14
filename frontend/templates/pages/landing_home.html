@@ -31,72 +31,72 @@
 
 {% block content %}
 <!-- HERO -->
-<section class="hero" id="home">
-  <div class="hero-bg" style="background-image: url('/static/brain/tsl/hero_factory.png');"></div>
-  <div class="hero-overlay"></div>
-  <div class="container hero-content">
-    <div class="hero-text-content">
-      <p class="subtitle text-accent">Industrial Core Excellence</p>
-      <h1 class="hero-title">Kết nối giá trị <span class="highlight">công nghiệp tương lai</span></h1>
-      <p class="hero-subtitle">Cung cấp giải pháp hạ tầng công nghiệp đột phá, giúp doanh nghiệp bứt phá trong kỷ nguyên sản xuất thông minh 4.0.</p>
-      <div class="hero-buttons">
-        <a href="/nha-xuong" class="btn btn-primary btn-lg">Khám phá dự án</a>
-        <a href="/#lien-he" class="btn btn-outline btn-lg">Hẹn xem xưởng</a>
+<section id="home" class="relative min-h-[max(600px,100vh)] flex items-center pt-20 overflow-hidden">
+  <div class="absolute inset-0 bg-cover bg-center hero-zoom" style="background-image:url('/static/brain/tsl/hero_factory.png');"></div>
+  <div class="absolute inset-0 bg-gradient-to-r from-tsl-ink/90 to-tsl-ink/50"></div>
+  <div class="relative z-10 mx-auto w-full max-w-[1280px] px-4 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <div class="text-white">
+      <p class="font-display uppercase tracking-[2px] text-sm text-tsl-accent mb-2">Industrial Core Excellence</p>
+      <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4.5rem)] leading-[1.1] mb-4">Kết nối giá trị <span class="text-tsl-accent">công nghiệp tương lai</span></h1>
+      <p class="text-xl text-white/90 max-w-[500px] mb-12">Cung cấp giải pháp hạ tầng công nghiệp đột phá, giúp doanh nghiệp bứt phá trong kỷ nguyên sản xuất thông minh 4.0.</p>
+      <div class="flex flex-wrap gap-4">
+        <a href="/nha-xuong" class="tsl-btn tsl-btn-primary tsl-btn-lg">Khám phá dự án</a>
+        <a href="/#lien-he" class="tsl-btn tsl-btn-ondark tsl-btn-lg">Hẹn xem xưởng</a>
       </div>
     </div>
-    <div class="hero-stats">
-      <div class="stat-card glass-panel">
-        <span class="stat-value">1M+</span>
-        <span class="stat-label">m² quỹ đất công nghiệp</span>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="p-8 rounded-2xl bg-white/85 backdrop-blur-[10px] border border-white/30 flex flex-col items-start">
+        <span class="font-display font-extrabold text-5xl text-tsl-accent leading-none">1M+</span>
+        <span class="text-sm text-tsl-muted font-medium mt-2">m² quỹ đất công nghiệp</span>
       </div>
-      <div class="stat-card glass-panel">
-        <span class="stat-value">50+</span>
-        <span class="stat-label">Đối tác FDI quốc tế</span>
+      <div class="p-8 rounded-2xl bg-white/85 backdrop-blur-[10px] border border-white/30 flex flex-col items-start">
+        <span class="font-display font-extrabold text-5xl text-tsl-accent leading-none">50+</span>
+        <span class="text-sm text-tsl-muted font-medium mt-2">Đối tác FDI quốc tế</span>
       </div>
-      <div class="stat-card glass-panel">
-        <span class="stat-value">15+</span>
-        <span class="stat-label">Tỉnh trong mạng lưới hạ tầng</span>
+      <div class="p-8 rounded-2xl bg-white/85 backdrop-blur-[10px] border border-white/30 flex flex-col items-start">
+        <span class="font-display font-extrabold text-5xl text-tsl-accent leading-none">15+</span>
+        <span class="text-sm text-tsl-muted font-medium mt-2">Tỉnh trong mạng lưới hạ tầng</span>
       </div>
-      <div class="stat-card glass-panel">
-        <span class="stat-value">5000</span>
-        <span class="stat-unit">KVA</span>
-        <span class="stat-label">Trạm điện</span>
+      <div class="p-8 rounded-2xl bg-white/85 backdrop-blur-[10px] border border-white/30 flex flex-col items-start">
+        <span class="font-display font-extrabold text-5xl text-tsl-accent leading-none">5000</span>
+        <span class="font-bold text-tsl-primary">KVA</span>
+        <span class="text-sm text-tsl-muted font-medium">Trạm điện</span>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ECOSYSTEM -->
-<section class="section bg-light">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Ecosystem</h4>
-      <h2 class="section-title">Giải pháp hạ tầng toàn diện &amp; đột phá</h2>
-      <p class="section-desc">Chúng tôi không chỉ cung cấp diện tích mặt bằng, mà còn cung cấp một hệ sinh thái hỗ trợ doanh nghiệp từ khâu khởi đầu đến lúc vận hành sản xuất ổn định.</p>
+<section class="py-24 bg-tsl-light">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Ecosystem</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Giải pháp hạ tầng toàn diện &amp; đột phá</h2>
+      <p class="text-tsl-muted text-lg">Chúng tôi không chỉ cung cấp diện tích mặt bằng, mà còn cung cấp một hệ sinh thái hỗ trợ doanh nghiệp từ khâu khởi đầu đến lúc vận hành sản xuất ổn định.</p>
     </div>
-    <div class="news-grid">
-      <article class="news-card">
-        <div class="news-content">
-          <span class="material-symbols-outlined icon-check">warehouse</span>
-          <h3 class="news-title">Nhà xưởng KCN Trung Hà</h3>
-          <p class="news-excerpt">Nhà xưởng xây sẵn tại Lô E5, KCN Trung Hà. Tiêu chuẩn quốc tế, cao 10.85m, tải trọng 3 tấn/m². Diện tích khai thác 4.032 m² và 2.730 m², sẵn sàng bàn giao ngay.</p>
-          <a href="/nha-xuong" class="btn btn-outline">Xem chi tiết</a>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <article class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <div class="p-6">
+          <span class="material-symbols-outlined icon-check text-4xl">warehouse</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Nhà xưởng KCN Trung Hà</h3>
+          <p class="text-tsl-muted text-[0.95rem] mb-4">Nhà xưởng xây sẵn tại Lô E5, KCN Trung Hà. Tiêu chuẩn quốc tế, cao 10.85m, tải trọng 3 tấn/m². Diện tích khai thác 4.032 m² và 2.730 m², sẵn sàng bàn giao ngay.</p>
+          <a href="/nha-xuong" class="tsl-btn tsl-btn-outline">Xem chi tiết</a>
         </div>
       </article>
-      <article class="news-card">
-        <div class="news-content">
-          <span class="material-symbols-outlined icon-check">factory</span>
-          <h3 class="news-title">Nhà xưởng KCN Cổ Tiết</h3>
-          <p class="news-excerpt">Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết. Hạ tầng đồng bộ, có PCCC, XLNT, TBA 110KV và phù hợp các ngành sản xuất sạch.</p>
-          <a href="/nha-xuong-co-tiet" class="btn btn-outline">Xem chi tiết</a>
+      <article class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <div class="p-6">
+          <span class="material-symbols-outlined icon-check text-4xl">factory</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Nhà xưởng KCN Cổ Tiết</h3>
+          <p class="text-tsl-muted text-[0.95rem] mb-4">Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết. Hạ tầng đồng bộ, có PCCC, XLNT, TBA 110KV và phù hợp các ngành sản xuất sạch.</p>
+          <a href="/nha-xuong-co-tiet" class="tsl-btn tsl-btn-outline">Xem chi tiết</a>
         </div>
       </article>
-      <article class="news-card">
-        <div class="news-content">
-          <span class="material-symbols-outlined icon-check">settings_input_component</span>
-          <h3 class="news-title">Hạ tầng &amp; tiện ích</h3>
-          <p class="news-excerpt">Hệ thống hỗ trợ toàn diện: trạm điện 5000 KVA, xử lý nước thải tiêu chuẩn, PCCC tự động, bể ngầm, nhà bảo vệ, nhà để xe và khu văn phòng.</p>
-          <a href="/xe-cau" class="btn btn-outline">Xem dịch vụ</a>
+      <article class="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <div class="p-6">
+          <span class="material-symbols-outlined icon-check text-4xl">settings_input_component</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Hạ tầng &amp; tiện ích</h3>
+          <p class="text-tsl-muted text-[0.95rem] mb-4">Hệ thống hỗ trợ toàn diện: trạm điện 5000 KVA, xử lý nước thải tiêu chuẩn, PCCC tự động, bể ngầm, nhà bảo vệ, nhà để xe và khu văn phòng.</p>
+          <a href="/dich-vu" class="tsl-btn tsl-btn-outline">Xem dịch vụ</a>
         </div>
       </article>
     </div>
@@ -104,62 +104,117 @@
 </section>
 
 <!-- PREMIUM PROJECTS SLIDER (dynamic from DB) -->
-<script>window.__projects__ = {{ projects | tojson }};</script>
-<section class="section premium-slider-section bg-dark" id="premium-projects">
-  <div class="container">
-    <div class="slider-header">
-      <div class="slider-title-wrapper">
-        <span class="highlight-badge">Featured Assets</span>
-        <h2 class="section-title text-white">Dự án trọng điểm</h2>
+<section class="py-16 bg-tsl-ink overflow-hidden" {% if projects %}x-data="{ i: 0, n: {{ projects|length }} }"{% endif %}>
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="flex justify-between items-end mb-16">
+      <div>
+        <span class="font-display uppercase tracking-[0.2em] text-xs text-tsl-accent">Featured Assets</span>
+        <h2 class="font-display font-bold text-white text-[clamp(2rem,4vw,3rem)] leading-tight">Dự án trọng điểm</h2>
       </div>
-      <div class="slider-controls">
-        <button id="slider-prev" class="slider-btn" aria-label="Previous">
+      {% if projects and projects|length > 1 %}
+      <div class="flex gap-4">
+        <button type="button" @click="i = (i - 1 + n) % n" aria-label="Previous"
+                class="w-14 h-14 rounded-full border border-white/10 bg-white/5 text-white flex items-center justify-center hover:bg-tsl-accent hover:border-tsl-accent hover:scale-105 transition-all">
           <span class="material-symbols-outlined">west</span>
         </button>
-        <button id="slider-next" class="slider-btn" aria-label="Next">
+        <button type="button" @click="i = (i + 1) % n" aria-label="Next"
+                class="w-14 h-14 rounded-full border border-white/10 bg-white/5 text-white flex items-center justify-center hover:bg-tsl-accent hover:border-tsl-accent hover:scale-105 transition-all">
           <span class="material-symbols-outlined">east</span>
         </button>
       </div>
+      {% endif %}
     </div>
-    <div class="premium-slider-container" id="projects-slider"></div>
+
+    <div class="relative max-w-[1080px] mx-auto bg-tsl-ink/95 rounded-2xl border border-white/10 overflow-hidden min-h-[360px]">
+      {% if not projects %}
+      <div class="p-12 text-center text-white/60">Chưa có dự án nào được cập nhật.</div>
+      {% endif %}
+      {% for p in projects %}
+      <div x-show="i === {{ loop.index0 }}" x-transition.opacity.duration.500ms class="flex flex-col lg:flex-row min-h-[360px]">
+        <div class="relative overflow-hidden min-h-[220px] lg:w-[52%]">
+          <img src="{{ p.image or '/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg' }}" alt="{{ p.name }}" class="w-full h-full object-cover">
+          <div class="absolute inset-0 bg-gradient-to-r from-tsl-ink/80 to-transparent"></div>
+          <div class="absolute bottom-8 left-8 z-[2]">
+            <span class="inline-block bg-tsl-accent text-white px-4 py-1 rounded-full text-[0.7rem] font-extrabold uppercase tracking-widest mb-2">Available Now</span>
+            <p class="text-white font-bold text-lg flex items-center gap-2"><span class="material-symbols-outlined text-tsl-accent">location_on</span> {{ p.location }}</p>
+          </div>
+        </div>
+        <div class="p-7 lg:w-[48%] flex flex-col justify-between">
+          <div>
+            <h3 class="font-display text-white text-[1.65rem] font-extrabold leading-tight mb-3">{{ p.name }}</h3>
+            <p class="text-white/70 text-sm mb-6">{{ p.description or 'Nhà xưởng xây sẵn, hạ tầng đồng bộ, sẵn sàng bàn giao.' }}</p>
+            <div class="grid grid-cols-2 gap-5">
+              <div class="flex flex-col gap-1">
+                <span class="text-[0.65rem] text-tsl-muted uppercase font-bold tracking-[0.1em]">Diện tích tổng</span>
+                <strong class="text-[1.1rem] text-white font-extrabold">{{ p.area or '—' }}</strong>
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-[0.65rem] text-tsl-muted uppercase font-bold tracking-[0.1em]">Chiều cao</span>
+                <strong class="text-[1.1rem] text-white font-extrabold">{{ p.height or '—' }}</strong>
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-[0.65rem] text-tsl-muted uppercase font-bold tracking-[0.1em]">Vị trí</span>
+                <strong class="text-[1.1rem] text-white font-extrabold">{{ p.location or '—' }}</strong>
+              </div>
+              <div class="flex flex-col gap-1">
+                <span class="text-[0.65rem] text-tsl-muted uppercase font-bold tracking-[0.1em]">Sức chịu tải</span>
+                <strong class="text-[1.1rem] text-white font-extrabold">{{ p.load or '—' }}</strong>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-4 mt-7">
+            <a href="/#lien-he" class="tsl-btn tsl-btn-primary flex-1 rounded-2xl !py-4 uppercase tracking-[0.1em] text-xs">
+              <span class="material-symbols-outlined">call</span> Liên hệ ngay
+            </a>
+            <a href="/nha-xuong" aria-label="Xem chi tiết {{ p.name }}"
+               class="w-14 h-14 rounded-2xl border border-white/10 bg-white/5 text-white flex items-center justify-center hover:bg-white/10 transition-colors">
+              <span class="material-symbols-outlined">info</span>
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 </section>
+
 <!-- ABOUT -->
-<section class="section">
-  <div class="container">
-    <div class="about-grid">
-      <div class="about-content">
-        <h4 class="subtitle text-primary">Về THÉP SƠN LÂM</h4>
-        <h2 class="section-title">Đối tác hạ tầng công nghiệp tại Phú Thọ</h2>
-        <p class="about-desc">THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh nhất Việt Nam, đảm bảo khả năng kết nối đa phương thức.</p>
-        <p class="about-desc">Với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển khu công nghiệp và cho thuê nhà xưởng, THÉP SƠN LÂM cam kết mang đến giải pháp tối ưu nhất cho doanh nghiệp.</p>
-        <div class="location-distances">
-          <div class="distance-item">
-            <div class="distance-icon"><span class="material-symbols-outlined">verified</span></div>
-            <div class="distance-info">
-              <span class="distance-label">Pháp lý</span>
-              <span class="distance-value">Giấy chứng nhận đầu tư và quyền sử dụng đất đầy đủ.</span>
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+      <div>
+        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Về THÉP SƠN LÂM</h4>
+        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Đối tác hạ tầng công nghiệp tại Phú Thọ</h2>
+        <p class="text-tsl-muted text-lg mb-4">THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh nhất Việt Nam, đảm bảo khả năng kết nối đa phương thức.</p>
+        <p class="text-tsl-muted text-lg mb-4">Với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển khu công nghiệp và cho thuê nhà xưởng, THÉP SƠN LÂM cam kết mang đến giải pháp tối ưu nhất cho doanh nghiệp.</p>
+        <div class="mt-16 flex flex-col gap-4">
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center"><span class="material-symbols-outlined">verified</span></div>
+            <div class="flex flex-col">
+              <span class="text-sm text-tsl-muted">Pháp lý</span>
+              <span class="font-bold text-tsl-primary text-lg">Giấy chứng nhận đầu tư và quyền sử dụng đất đầy đủ.</span>
             </div>
           </div>
-          <div class="distance-item">
-            <div class="distance-icon"><span class="material-symbols-outlined">speed</span></div>
-            <div class="distance-info">
-              <span class="distance-label">Phản hồi</span>
-              <span class="distance-value">Tư vấn miễn phí và báo giá trong ngày làm việc.</span>
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center"><span class="material-symbols-outlined">speed</span></div>
+            <div class="flex flex-col">
+              <span class="text-sm text-tsl-muted">Phản hồi</span>
+              <span class="font-bold text-tsl-primary text-lg">Tư vấn miễn phí và báo giá trong ngày làm việc.</span>
             </div>
           </div>
-          <div class="distance-item">
-            <div class="distance-icon"><span class="material-symbols-outlined">calendar_month</span></div>
-            <div class="distance-info">
-              <span class="distance-label">Thời hạn</span>
-              <span class="distance-value">Thời hạn sử dụng đất còn hơn 45 năm.</span>
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center"><span class="material-symbols-outlined">calendar_month</span></div>
+            <div class="flex flex-col">
+              <span class="text-sm text-tsl-muted">Thời hạn</span>
+              <span class="font-bold text-tsl-primary text-lg">Thời hạn sử dụng đất còn hơn 45 năm.</span>
             </div>
           </div>
         </div>
       </div>
-      <div class="about-image">
-        <div class="img-wrapper shadow-lg">
-          <img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Khu công nghiệp và nhà xưởng THÉP SƠN LÂM" class="lightbox-trigger">
+      <div>
+        <div class="rounded-2xl overflow-hidden shadow-xl max-w-[560px] mx-auto aspect-[4/3]">
+          <img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Khu công nghiệp và nhà xưởng THÉP SƠN LÂM"
+               class="w-full h-full object-cover cursor-pointer" @click="$dispatch('open-lightbox', { src: $el.src })">
         </div>
       </div>
     </div>
@@ -167,127 +222,175 @@
 </section>
 
 <!-- CTA -->
-<section class="cta-section">
-  <div class="container">
-    <div class="cta-card glass-card">
-      <div class="cta-content">
-        <h2 class="cta-title">Hệ thống nhà xưởng tại Phú Thọ</h2>
-        <p class="cta-desc">Hai nhà xưởng tại KCN Trung Hà và KCN Cổ Tiết, tỉnh Phú Thọ. Trang bị đồng bộ: trạm điện 5000 KVA, hệ thống xử lý nước thải, PCCC tự động và bể ngầm.</p>
-      </div>
-      <div class="cta-action">
-        <a href="/nha-xuong" class="btn btn-primary btn-lg btn-glow">
-          <span class="material-symbols-outlined">warehouse</span>
-          Xem nhà xưởng
-        </a>
-      </div>
+<section class="relative py-24 bg-fixed bg-cover bg-center" style="background-image:url('/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg');">
+  <div class="absolute inset-0 bg-tsl-ink/85"></div>
+  <div class="relative z-10 mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[800px] mx-auto text-center p-12 md:p-16 rounded-2xl bg-tsl-ink/70 backdrop-blur-[12px] border border-white/10">
+      <h2 class="font-display font-bold text-white text-4xl mb-4">Hệ thống nhà xưởng tại Phú Thọ</h2>
+      <p class="text-white/80 text-lg mb-16">Hai nhà xưởng tại KCN Trung Hà và KCN Cổ Tiết, tỉnh Phú Thọ. Trang bị đồng bộ: trạm điện 5000 KVA, hệ thống xử lý nước thải, PCCC tự động và bể ngầm.</p>
+      <a href="/nha-xuong" class="tsl-btn tsl-btn-primary tsl-btn-lg tsl-btn-glow">
+        <span class="material-symbols-outlined">warehouse</span> Xem nhà xưởng
+      </a>
     </div>
   </div>
 </section>
 
 <!-- STRATEGIC REACH -->
-<section class="section">
-  <div class="container">
-    <div class="about-grid">
-      <div class="about-content">
-        <h4 class="subtitle text-primary">Strategic Reach</h4>
-        <h2 class="section-title">Vị trí đắc địa tại các vùng kinh tế trọng điểm</h2>
-        <p class="about-desc">THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh nhất Việt Nam, đảm bảo khả năng kết nối đa phương thức.</p>
-        <div class="location-distances">
-          <div class="distance-item">
-            <div class="distance-icon">01</div>
-            <div class="distance-info">
-              <span class="distance-label">Vùng kinh tế trọng điểm phía Bắc</span>
-              <span class="distance-value">Hà Nội, Hải Phòng, Bắc Ninh, Phú Thọ, Hải Dương.</span>
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+      <div>
+        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Strategic Reach</h4>
+        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Vị trí đắc địa tại các vùng kinh tế trọng điểm</h2>
+        <p class="text-tsl-muted text-lg mb-4">THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh nhất Việt Nam, đảm bảo khả năng kết nối đa phương thức.</p>
+        <div class="mt-16 flex flex-col gap-4">
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center font-display font-bold">01</div>
+            <div class="flex flex-col">
+              <span class="text-sm text-tsl-muted">Vùng kinh tế trọng điểm phía Bắc</span>
+              <span class="font-bold text-tsl-primary text-lg">Hà Nội, Hải Phòng, Bắc Ninh, Phú Thọ, Hải Dương.</span>
             </div>
           </div>
-          <div class="distance-item">
-            <div class="distance-icon">02</div>
-            <div class="distance-info">
-              <span class="distance-label">Vùng kinh tế trọng điểm phía Nam</span>
-              <span class="distance-value">TP. Hồ Chí Minh, Bình Dương, Đồng Nai, Long An.</span>
+          <div class="tsl-distance flex items-center gap-4 p-4 bg-tsl-light rounded-lg transition-all">
+            <div class="w-12 h-12 shrink-0 bg-tsl-primary text-white rounded-full flex items-center justify-center font-display font-bold">02</div>
+            <div class="flex flex-col">
+              <span class="text-sm text-tsl-muted">Vùng kinh tế trọng điểm phía Nam</span>
+              <span class="font-bold text-tsl-primary text-lg">TP. Hồ Chí Minh, Bình Dương, Đồng Nai, Long An.</span>
             </div>
           </div>
         </div>
       </div>
-      <div class="about-image">
-        <div class="img-wrapper shadow-lg">
-          <img src="/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg" alt="Hạ tầng nhà xưởng THÉP SƠN LÂM" class="lightbox-trigger">
+      <div>
+        <div class="rounded-2xl overflow-hidden shadow-xl max-w-[560px] mx-auto aspect-[4/3]">
+          <img src="/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg" alt="Hạ tầng nhà xưởng THÉP SƠN LÂM"
+               class="w-full h-full object-cover cursor-pointer" @click="$dispatch('open-lightbox', { src: $el.src })">
         </div>
       </div>
     </div>
   </div>
 </section>
+
 <!-- QUY TRÌNH 4 BƯỚC -->
-<section class="section bg-light">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Quy trình</h4>
-      <h2 class="section-title">4 bước để sở hữu mặt bằng sản xuất</h2>
-      <p class="section-desc">Quy trình thuê nhà xưởng đơn giản, nhanh chóng — từ liên hệ đến bàn giao trong khoảng 2 tuần.</p>
+<section class="py-24 bg-tsl-light">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Quy trình</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">4 bước để sở hữu mặt bằng sản xuất</h2>
+      <p class="text-tsl-muted text-lg">Quy trình thuê nhà xưởng đơn giản, nhanh chóng — từ liên hệ đến bàn giao trong khoảng 2 tuần.</p>
     </div>
-    <div class="news-grid">
-      <article class="news-card"><div class="news-content"><span class="news-date">01</span><h3 class="news-title">Liên hệ tư vấn</h3><p class="news-excerpt">Gọi hotline hoặc gửi form, đội ngũ tư vấn sẽ phản hồi trong 24h với đầy đủ thông tin dự án.</p></div></article>
-      <article class="news-card"><div class="news-content"><span class="news-date">02</span><h3 class="news-title">Khảo sát thực tế</h3><p class="news-excerpt">Hẹn lịch tham quan nhà xưởng trực tiếp, đánh giá hạ tầng điện nước, PCCC và giao thông.</p></div></article>
-      <article class="news-card"><div class="news-content"><span class="news-date">03</span><h3 class="news-title">Thương thảo hợp đồng</h3><p class="news-excerpt">Đàm phán giá thuê, thời hạn và các điều khoản ưu đãi. Hỗ trợ pháp lý trọn gói.</p></div></article>
-      <article class="news-card"><div class="news-content"><span class="news-date">04</span><h3 class="news-title">Bàn giao &amp; vận hành</h3><p class="news-excerpt">Ký hợp đồng và bàn giao nhà xưởng. Hỗ trợ kỹ thuật 24/7 trong suốt thời gian thuê.</p></div></article>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+      {% for step in [
+        ('01', 'Liên hệ tư vấn', 'Gọi hotline hoặc gửi form, đội ngũ tư vấn sẽ phản hồi trong 24h với đầy đủ thông tin dự án.'),
+        ('02', 'Khảo sát thực tế', 'Hẹn lịch tham quan nhà xưởng trực tiếp, đánh giá hạ tầng điện nước, PCCC và giao thông.'),
+        ('03', 'Thương thảo hợp đồng', 'Đàm phán giá thuê, thời hạn và các điều khoản ưu đãi. Hỗ trợ pháp lý trọn gói.'),
+        ('04', 'Bàn giao & vận hành', 'Ký hợp đồng và bàn giao nhà xưởng. Hỗ trợ kỹ thuật 24/7 trong suốt thời gian thuê.')
+      ] %}
+      <article class="bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6">
+        <span class="text-sm text-tsl-faint block mb-2">{{ step[0] }}</span>
+        <h3 class="font-display font-bold text-xl text-tsl-primary mb-4">{{ step[1] }}</h3>
+        <p class="text-tsl-muted text-[0.95rem]">{{ step[2] }}</p>
+      </article>
+      {% endfor %}
     </div>
   </div>
 </section>
 
 <!-- NGÀNH NGHỀ PHÙ HỢP -->
-<section class="section">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Ngành nghề phù hợp</h4>
-      <h2 class="section-title">Phục vụ đa dạng lĩnh vực sản xuất</h2>
-      <p class="section-desc">Nhà xưởng được thiết kế phù hợp cho nhiều ngành công nghiệp sạch, đáp ứng tiêu chuẩn quốc tế.</p>
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Ngành nghề phù hợp</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Phục vụ đa dạng lĩnh vực sản xuất</h2>
+      <p class="text-tsl-muted text-lg">Nhà xưởng được thiết kế phù hợp cho nhiều ngành công nghiệp sạch, đáp ứng tiêu chuẩn quốc tế.</p>
     </div>
-    <div class="project-highlights">
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">checkroom</span><strong>May mặc</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">memory</span><strong>Điện tử</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">precision_manufacturing</span><strong>Cơ khí</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">inventory_2</span><strong>Đóng gói</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">local_pharmacy</span><strong>Dược phẩm</strong></div>
-      <div class="highlight-item"><span class="material-symbols-outlined icon-check">restaurant</span><strong>Thực phẩm</strong></div>
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-12">
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">checkroom</span><strong>May mặc</strong></div>
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">memory</span><strong>Điện tử</strong></div>
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">precision_manufacturing</span><strong>Cơ khí</strong></div>
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">inventory_2</span><strong>Đóng gói</strong></div>
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">local_pharmacy</span><strong>Dược phẩm</strong></div>
+      <div class="flex items-center gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">restaurant</span><strong>Thực phẩm</strong></div>
     </div>
-    <div class="contact-info-item">
-      <div class="contact-icon"><span class="material-symbols-outlined">info</span></div>
-      <div class="contact-details">
-        <h3>Lưu ý</h3>
-        <p>Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ không cho thuê đối với các ngành nghề gây ô nhiễm môi trường như hóa chất độc hại, nhuộm, thuộc da.</p>
+    <div class="flex gap-6 max-w-[860px] mx-auto">
+      <div class="w-14 h-14 shrink-0 bg-tsl-surface text-tsl-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">info</span></div>
+      <div>
+        <h3 class="font-display font-bold text-lg text-tsl-primary mb-1">Lưu ý</h3>
+        <p class="text-tsl-muted">Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ không cho thuê đối với các ngành nghề gây ô nhiễm môi trường như hóa chất độc hại, nhuộm, thuộc da.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THƯ VIỆN HIỆN TRƯỜNG (gallery) -->
+<section class="py-24 bg-tsl-light"
+         x-data="{ g: 0, imgs: [
+           '/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg',
+           '/static/brain/tsl/z7785901893692_ce870fb0a67e3705c5ea4971473e8f4d.jpg',
+           '/static/brain/tsl/z7785901896602_7160ecbbe0b509e4b09bf8e685a6c390.jpg',
+           '/static/brain/tsl/z7785901896783_8ba7b3d8cff2e2b8f248b5a9278222f4.jpg',
+           '/static/brain/tsl/z7785901902857_92e4ab3e55a4618fb2c6270025dbe740.jpg',
+           '/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg' ] }"
+         x-init="setInterval(() => { g = (g + 1) % imgs.length }, 6000)">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Hình ảnh nhà xưởng</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Thư viện hiện trường</h2>
+      <p class="text-tsl-muted text-lg">Một vài hình ảnh thực tế từ nhà xưởng — bấm để phóng to.</p>
+    </div>
+    <div class="max-w-[880px] mx-auto">
+      <div class="relative overflow-hidden rounded-2xl bg-tsl-ink shadow-xl">
+        <template x-for="(src, idx) in imgs" :key="idx">
+          <img x-show="g === idx" x-transition.opacity :src="src" alt="Hình ảnh nhà xưởng THÉP SƠN LÂM"
+               class="w-full h-[clamp(220px,36vw,420px)] object-cover cursor-pointer"
+               @click="$dispatch('open-lightbox', { src: src })">
+        </template>
+        <button type="button" @click="g = (g - 1 + imgs.length) % imgs.length" aria-label="Ảnh trước"
+                class="absolute top-1/2 left-4 -translate-y-1/2 z-[3] w-12 h-12 rounded-full border border-white/30 bg-tsl-ink/65 text-white flex items-center justify-center hover:bg-tsl-accent hover:border-tsl-accent transition-all">
+          <span class="material-symbols-outlined">west</span>
+        </button>
+        <button type="button" @click="g = (g + 1) % imgs.length" aria-label="Ảnh tiếp theo"
+                class="absolute top-1/2 right-4 -translate-y-1/2 z-[3] w-12 h-12 rounded-full border border-white/30 bg-tsl-ink/65 text-white flex items-center justify-center hover:bg-tsl-accent hover:border-tsl-accent transition-all">
+          <span class="material-symbols-outlined">east</span>
+        </button>
+      </div>
+      <div class="flex justify-center gap-2.5 mt-4">
+        <template x-for="(src, idx) in imgs" :key="idx">
+          <button type="button" @click="g = idx" :aria-label="'Xem ảnh ' + (idx+1)"
+                  class="h-3 rounded-full transition-all" :class="g === idx ? 'w-8 bg-tsl-accent' : 'w-3 bg-tsl-border'"></button>
+        </template>
       </div>
     </div>
   </div>
 </section>
 
 <!-- TIN TỨC (dynamic from DB) -->
-<section class="section bg-light">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Market Insights</h4>
-      <h2 class="section-title">Tin tức &amp; báo cáo</h2>
-      <p class="section-desc">Cập nhật thông tin dự án, thị trường và xu hướng nhà xưởng xây sẵn tại Việt Nam.</p>
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Market Insights</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Tin tức &amp; báo cáo</h2>
+      <p class="text-tsl-muted text-lg">Cập nhật thông tin dự án, thị trường và xu hướng nhà xưởng xây sẵn tại Việt Nam.</p>
     </div>
-    <div class="news-grid">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {% if news_items|length == 0 %}
-      <p style="grid-column:1/-1;text-align:center;color:var(--c-text-light);font-style:italic;">Chưa có tin tức nào được cập nhật.</p>
+      <p class="col-span-full text-center text-tsl-faint italic">Chưa có tin tức nào được cập nhật.</p>
       {% endif %}
       {% for item in news_items %}
-      <a href="/tin-tuc/{{ item.slug or item.id }}" class="news-card" style="text-decoration:none;display:block;">
-        <div class="news-image"><img src="{{ item.image }}" loading="lazy" alt="{{ item.title }}"></div>
-        <div class="news-content">
-          <span class="news-date">{{ item.category }} • {{ item.publish_date_str or item.publish_date }}</span>
-          <h3 class="news-title">{{ item.title }}</h3>
+      <a href="/tin-tuc/{{ item.slug or item.id }}" class="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        <div class="h-[clamp(160px,18vw,210px)] overflow-hidden"><img src="{{ item.image }}" loading="lazy" alt="{{ item.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform"></div>
+        <div class="p-6">
+          <span class="text-sm text-tsl-faint block mb-2">{{ item.category }} • {{ item.publish_date_str or item.publish_date }}</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary group-hover:text-tsl-accent transition-colors">{{ item.title }}</h3>
         </div>
       </a>
       {% endfor %}
     </div>
-    <div class="text-center" style="margin-top:var(--space-lg);">
-      <a href="/tin-tuc" class="btn btn-outline">Xem tất cả tin tức</a>
+    <div class="text-center mt-16">
+      <a href="/tin-tuc" class="tsl-btn tsl-btn-outline">Xem tất cả tin tức</a>
     </div>
   </div>
 </section>
 
-<!-- CONTACT (dynamic HTMX form) -->
+<!-- CONTACT (dynamic form) -->
 {% include "partials/contact_section.html" %}
 {% endblock %}

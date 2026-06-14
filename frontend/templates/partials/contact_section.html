@@ -1,55 +1,56 @@
-{# Contact / Lead-gen section — ported to static design. Keeps POST /lien-he + JS validation.
+{# Contact / Lead-gen section — Tailwind. Keeps POST /lien-he + JS validation + toast.
    Requires: source_page (string) passed from route context. #}
-<section id="lien-he" class="section">
-  <div class="container">
-    <div class="section-header text-center">
-      <h4 class="subtitle text-primary">Liên hệ</h4>
-      <h2 class="section-title">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h2>
-      <p class="section-desc">Để lại thông tin, đội ngũ chuyên gia sẽ liên hệ tư vấn giải pháp hạ tầng tối ưu nhất trong vòng 24h.</p>
+<section id="lien-he" class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
+    <div class="max-w-[700px] mx-auto text-center mb-16">
+      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Liên hệ</h4>
+      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h2>
+      <p class="text-tsl-muted text-lg">Để lại thông tin, đội ngũ chuyên gia sẽ liên hệ tư vấn giải pháp hạ tầng tối ưu nhất trong vòng 24h.</p>
     </div>
-    <div class="contact-grid">
-      <div class="contact-info-wrapper">
-        <div class="contact-info-list">
-          <div class="contact-info-item">
-            <div class="contact-icon"><span class="material-symbols-outlined">mail</span></div>
-            <div class="contact-details"><h3>Email</h3><p>contact@thepsonlam.com</p></div>
-          </div>
-          <div class="contact-info-item">
-            <div class="contact-icon"><span class="material-symbols-outlined">support_agent</span></div>
-            <div class="contact-details"><h3>Hotline 24/7</h3><p>{{ settings.phone if settings and settings.phone else '0986 565 666' }}</p></div>
-          </div>
-          <div class="contact-info-item">
-            <div class="contact-icon"><span class="material-symbols-outlined">location_on</span></div>
-            <div class="contact-details"><h3>Địa chỉ</h3><p>Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ</p></div>
-          </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24">
+      <div>
+        <div class="flex gap-6 mb-6">
+          <div class="w-14 h-14 shrink-0 bg-tsl-surface text-tsl-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">mail</span></div>
+          <div><h3 class="font-display font-bold text-lg text-tsl-primary mb-0.5">Email</h3><p class="text-tsl-muted">contact@thepsonlam.com</p></div>
+        </div>
+        <div class="flex gap-6 mb-6">
+          <div class="w-14 h-14 shrink-0 bg-tsl-surface text-tsl-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">support_agent</span></div>
+          <div><h3 class="font-display font-bold text-lg text-tsl-primary mb-0.5">Hotline 24/7</h3><p class="text-tsl-muted">{{ settings.phone if settings and settings.phone else '0986 565 666' }}</p></div>
+        </div>
+        <div class="flex gap-6 mb-6">
+          <div class="w-14 h-14 shrink-0 bg-tsl-surface text-tsl-primary rounded-full flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">location_on</span></div>
+          <div><h3 class="font-display font-bold text-lg text-tsl-primary mb-0.5">Địa chỉ</h3><p class="text-tsl-muted">Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ</p></div>
         </div>
       </div>
-      <div class="contact-form-wrapper">
+      <div class="bg-white p-8 lg:p-12 rounded-2xl shadow-xl">
         <form id="contact-form" novalidate>
           <input type="hidden" name="source_page" value="{{ source_page | default('home') }}">
-          <div class="form-group">
-            <label class="form-label" for="full_name">Họ và tên *</label>
-            <input type="text" id="full_name" name="full_name" class="form-control" placeholder="Nguyễn Văn A" required>
+          <div class="mb-6">
+            <label class="block mb-2 font-medium text-tsl-text" for="full_name">Họ và tên *</label>
+            <input type="text" id="full_name" name="full_name" placeholder="Nguyễn Văn A" required
+                   class="w-full px-4 py-3 border border-tsl-border rounded-lg text-base outline-none transition-all focus:border-tsl-primary focus:ring-4 focus:ring-tsl-primary/10">
           </div>
-          <div class="form-group">
-            <label class="form-label" for="phone">Số điện thoại *</label>
-            <input type="tel" id="phone" name="phone" class="form-control" placeholder="090 123 4567" required>
+          <div class="mb-6">
+            <label class="block mb-2 font-medium text-tsl-text" for="phone">Số điện thoại *</label>
+            <input type="tel" id="phone" name="phone" placeholder="090 123 4567" required
+                   class="w-full px-4 py-3 border border-tsl-border rounded-lg text-base outline-none transition-all focus:border-tsl-primary focus:ring-4 focus:ring-tsl-primary/10">
           </div>
-          <div class="form-group">
-            <label class="form-label" for="company_name">Tên doanh nghiệp</label>
-            <input type="text" id="company_name" name="company_name" class="form-control" placeholder="Công ty TNHH ...">
+          <div class="mb-6">
+            <label class="block mb-2 font-medium text-tsl-text" for="company_name">Tên doanh nghiệp</label>
+            <input type="text" id="company_name" name="company_name" placeholder="Công ty TNHH ..."
+                   class="w-full px-4 py-3 border border-tsl-border rounded-lg text-base outline-none transition-all focus:border-tsl-primary focus:ring-4 focus:ring-tsl-primary/10">
           </div>
-          <div class="form-group">
-            <label class="form-label" for="demand">Nhu cầu tư vấn</label>
-            <select id="demand" name="demand" class="form-control">
+          <div class="mb-6">
+            <label class="block mb-2 font-medium text-tsl-text" for="demand">Nhu cầu tư vấn</label>
+            <select id="demand" name="demand"
+                    class="w-full px-4 py-3 border border-tsl-border rounded-lg text-base outline-none transition-all focus:border-tsl-primary focus:ring-4 focus:ring-tsl-primary/10 bg-white">
               <option value="Cho thuê nhà xưởng xây sẵn">Cho thuê nhà xưởng xây sẵn</option>
               <option value="Tư vấn đầu tư FDI">Tư vấn đầu tư FDI</option>
               <option value="Thuê kho bãi logistics">Thuê kho bãi logistics</option>
-              <option value="Dịch vụ xe cẩu">Dịch vụ xe cẩu</option>
               <option value="Khác">Khác</option>
             </select>
           </div>
-          <button type="submit" id="contact-submit-btn" class="btn btn-primary btn-lg" style="width:100%;">Gửi yêu cầu tư vấn</button>
+          <button type="submit" id="contact-submit-btn" class="tsl-btn tsl-btn-primary tsl-btn-lg w-full">Gửi yêu cầu tư vấn</button>
         </form>
       </div>
     </div>

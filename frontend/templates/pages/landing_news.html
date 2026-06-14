@@ -11,26 +11,28 @@
 {% endblock %}
 
 {% block content %}
-<section class="page-header">
-  <div class="container">
-    <h1 class="page-title">Tin tức &amp; báo cáo</h1>
-    <p class="page-subtitle">Cập nhật thông tin dự án, thị trường và xu hướng nhà xưởng xây sẵn tại Việt Nam.</p>
+<!-- PAGE HEADER -->
+<section class="relative pt-40 pb-20 bg-tsl-ink text-white text-center overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-br from-tsl-primary-dark to-tsl-ink opacity-80"></div>
+  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4">
+    <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4rem)] mb-4">Tin tức &amp; báo cáo</h1>
+    <p class="text-xl text-white/80 max-w-[600px] mx-auto">Cập nhật thông tin dự án, thị trường và xu hướng nhà xưởng xây sẵn tại Việt Nam.</p>
   </div>
 </section>
 
-<section class="section">
-  <div class="container">
+<section class="py-24">
+  <div class="mx-auto w-full max-w-[1280px] px-4">
     {% if news_items|length == 0 %}
-    <p class="text-center" style="color:var(--c-text-light);font-style:italic;padding:var(--space-lg) 0;">Chưa có tin tức nào được cập nhật.</p>
+    <p class="text-center text-tsl-faint italic py-16">Chưa có tin tức nào được cập nhật.</p>
     {% else %}
-    <div class="news-grid">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
       {% for item in news_items %}
-      <a href="/tin-tuc/{{ item.slug or item.id }}" class="news-card" style="text-decoration:none;display:block;">
-        {% if item.image %}<div class="news-image"><img src="{{ item.image }}" loading="lazy" alt="{{ item.title }}"></div>{% endif %}
-        <div class="news-content">
-          <span class="news-date">{{ item.category }} • {{ item.publish_date_str or item.publish_date }}</span>
-          <h3 class="news-title">{{ item.title }}</h3>
-          {% if item.summary %}<p class="news-excerpt">{{ item.summary }}</p>{% endif %}
+      <a href="/tin-tuc/{{ item.slug or item.id }}" class="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all">
+        {% if item.image %}<div class="h-[clamp(160px,18vw,210px)] overflow-hidden"><img src="{{ item.image }}" loading="lazy" alt="{{ item.title }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform"></div>{% endif %}
+        <div class="p-6">
+          <span class="text-sm text-tsl-faint block mb-2">{{ item.category }} • {{ item.publish_date_str or item.publish_date }}</span>
+          <h3 class="font-display font-bold text-xl text-tsl-primary group-hover:text-tsl-accent transition-colors mb-2">{{ item.title }}</h3>
+          {% if item.summary %}<p class="text-tsl-muted text-[0.95rem] line-clamp-3">{{ item.summary }}</p>{% endif %}
         </div>
       </a>
       {% endfor %}
@@ -39,5 +41,6 @@
   </div>
 </section>
 
+{% set source_page = "news" %}
 {% include "partials/contact_section.html" %}
 {% endblock %}

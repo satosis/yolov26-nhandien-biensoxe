@@ -1,82 +1,121 @@
-{# THÉP SƠN LÂM Header — ported from static design, clean URLs + auth + i18n #}
+{# THÉP SƠN LÂM Header — Tailwind + Alpine, clean URLs + auth + i18n #}
 {% set path = request.url.path %}
-<header class="site-header" id="header">
-  <div class="container header-container">
-    <a href="/" class="logo">
-      <span class="logo-text">THÉP SƠN LÂM</span>
-      <span class="logo-sub">Industrial Core</span>
+<header x-data="{ open: false, scrolled: false }"
+        @scroll.window="scrolled = window.scrollY > 50"
+        :class="scrolled ? 'shadow-sm' : ''"
+        class="fixed top-0 left-0 w-full h-20 z-[1000] bg-white/95 backdrop-blur-md border-b border-tsl-border transition-all">
+  <div class="mx-auto w-full max-w-[1280px] px-4 h-full flex items-center justify-between">
+
+    <!-- Logo -->
+    <a href="/" class="flex flex-col leading-none">
+      <span class="font-display font-extrabold text-xl text-tsl-primary tracking-tight">THÉP SƠN LÂM</span>
+      <span class="text-xs font-semibold uppercase tracking-[1px] text-tsl-accent">Industrial Core</span>
     </a>
 
-    <nav class="main-nav">
-      <ul class="nav-list">
-        <li class="nav-item">
-          <a href="/" class="nav-link {% if path == '/' %}active{% endif %}"
+    <!-- Desktop nav -->
+    <nav class="hidden lg:block" translate="no">
+      <ul class="flex items-center gap-8 font-display font-medium">
+        <li>
+          <a href="/" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if path == '/' %}active text-tsl-accent{% endif %}"
              x-text="$store.i18n.t('home')">Trang chủ</a>
         </li>
-        <li class="nav-item">
-          <a href="/gioi-thieu" class="nav-link {% if path == '/gioi-thieu' %}active{% endif %}"
+        <li>
+          <a href="/gioi-thieu" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if path == '/gioi-thieu' %}active text-tsl-accent{% endif %}"
              x-text="$store.i18n.t('about')">Giới thiệu</a>
         </li>
-        <li class="nav-item has-dropdown">
-          <a href="/nha-xuong" class="nav-link {% if '/nha-xuong' in path %}active{% endif %}">
+        <li class="relative group">
+          <a href="/nha-xuong" class="tsl-navlink inline-flex items-center gap-1 h-11 text-tsl-text hover:text-tsl-accent {% if '/nha-xuong' in path %}active text-tsl-accent{% endif %}">
             <span x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
-            <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+            <span class="material-symbols-outlined text-lg transition-transform group-hover:rotate-180">expand_more</span>
           </a>
-          <ul class="dropdown-menu">
-            <li><a href="/nha-xuong" class="{% if path == '/nha-xuong' %}active{% endif %}">Xưởng KCN Trung Hà</a></li>
-            <li><a href="/nha-xuong-co-tiet" class="{% if path == '/nha-xuong-co-tiet' %}active{% endif %}">Xưởng KCN Cổ Tiết</a></li>
+          <ul class="absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 min-w-[240px] p-2 bg-white border border-tsl-border rounded-lg shadow-xl
+                     opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all z-[1100]">
+            <li><a href="/nha-xuong" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Trung Hà</a></li>
+            <li><a href="/nha-xuong-co-tiet" class="block px-4 py-3 rounded font-display font-semibold whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Cổ Tiết</a></li>
           </ul>
         </li>
-        <li class="nav-item has-dropdown">
-          <a href="/xe-cau" class="nav-link {% if path in ['/xe-cau', '/kiem-dinh-can'] %}active{% endif %}">
-            <span x-text="$store.i18n.t('services')">Dịch vụ</span>
-            <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
-          </a>
-          <ul class="dropdown-menu">
-            <li><a href="/xe-cau" class="{% if path == '/xe-cau' %}active{% endif %}">Dịch vụ xe cẩu</a></li>
-            <li><a href="/kiem-dinh-can" class="{% if path == '/kiem-dinh-can' %}active{% endif %}">Kiểm định cân</a></li>
-          </ul>
+        <li>
+          <a href="/dich-vu" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if path == '/dich-vu' %}active text-tsl-accent{% endif %}"
+             x-text="$store.i18n.t('services')">Dịch vụ</a>
         </li>
-        <li class="nav-item">
-          <a href="/tin-tuc" class="nav-link {% if '/tin-tuc' in path %}active{% endif %}"
+        <li>
+          <a href="/tin-tuc" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent {% if '/tin-tuc' in path %}active text-tsl-accent{% endif %}"
              x-text="$store.i18n.t('news')">Tin tức</a>
+        </li>
+        <li>
+          <a href="/#lien-he" class="tsl-navlink inline-flex items-center h-11 text-tsl-text hover:text-tsl-accent">Liên hệ</a>
         </li>
       </ul>
     </nav>
 
-    <div class="header-actions" translate="no">
-      {# Language selector #}
-      <div class="lang-selector" x-data="{ open: false }" @click.away="open = false" style="position:relative;">
-        <button type="button" @click="open = !open"
-                class="btn btn-outline" style="padding:0.4rem 0.7rem; gap:0.4rem;">
-          <span class="flag" :class="$store.i18n.lang === 'vi' ? 'flag-vn' : 'flag-cn'"></span>
-          <span class="material-symbols-outlined" style="font-size:18px;" :class="open ? 'dropdown-arrow' : ''">expand_more</span>
+    <!-- Right actions -->
+    <div class="hidden lg:flex items-center gap-3" translate="no">
+      <!-- Language selector -->
+      <div class="relative" x-data="{ lo: false }" @click.away="lo = false">
+        <button type="button" @click="lo = !lo"
+                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 border-tsl-border text-sm font-display font-semibold text-tsl-text hover:border-tsl-primary transition-colors">
+          <span class="material-symbols-outlined text-lg">language</span>
+          <span x-text="$store.i18n.lang === 'vi' ? 'VI' : '中文'">VI</span>
+          <span class="material-symbols-outlined text-base" :class="lo ? 'rotate-180' : ''">expand_more</span>
         </button>
-        <div x-show="open" x-cloak class="dropdown-menu" style="opacity:1;visibility:visible;transform:translate(-50%,0);min-width:140px;left:50%;">
-          <a href="#" @click.prevent="$store.i18n.lang='vi'; open=false; setGoogleLang('vi')"><span class="flag flag-vn"></span> Tiếng Việt</a>
-          <a href="#" @click.prevent="$store.i18n.lang='zh'; open=false; setGoogleLang('zh-CN')"><span class="flag flag-cn"></span> 中文</a>
+        <div x-show="lo" x-cloak x-transition
+             class="absolute right-0 top-[calc(100%+0.5rem)] min-w-[150px] p-2 bg-white border border-tsl-border rounded-lg shadow-xl z-[1100]">
+          <a href="#" @click.prevent="$store.i18n.lang='vi'; lo=false; setGoogleLang('vi')"
+             class="block px-3 py-2 rounded text-tsl-text font-display font-semibold hover:bg-tsl-light hover:text-tsl-accent">Tiếng Việt</a>
+          <a href="#" @click.prevent="$store.i18n.lang='zh'; lo=false; setGoogleLang('zh-CN')"
+             class="block px-3 py-2 rounded text-tsl-text font-display font-semibold hover:bg-tsl-light hover:text-tsl-accent">中文</a>
         </div>
       </div>
 
       {% if user %}
-      <div class="user-menu" x-data="{ open: false }" @click.away="open = false" style="position:relative;">
-        <button type="button" @click="open = !open" class="btn btn-outline" style="gap:0.5rem;">
-          <span class="avatar">{{ (user.username or user.full_name or "U")[0] | upper }}</span>
-          <span style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ user.full_name or user.username }}</span>
-          <span class="material-symbols-outlined" style="font-size:18px;">expand_more</span>
+      <div class="relative" x-data="{ uo: false }" @click.away="uo = false">
+        <button type="button" @click="uo = !uo"
+                class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-tsl-border text-sm font-display font-semibold text-tsl-text hover:border-tsl-primary transition-colors">
+          <span class="w-7 h-7 rounded-full bg-tsl-accent text-white font-extrabold text-xs inline-flex items-center justify-center">{{ (user.username or user.full_name or "U")[0] | upper }}</span>
+          <span class="max-w-[100px] truncate">{{ user.full_name or user.username }}</span>
+          <span class="material-symbols-outlined text-base">expand_more</span>
         </button>
-        <div x-show="open" x-cloak class="dropdown-menu" style="opacity:1;visibility:visible;transform:translate(-50%,0);left:auto;right:0;min-width:180px;">
-          <a href="/camera/detection"><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;">dashboard</span> Dashboard</a>
-          <a href="/logout"><span class="material-symbols-outlined" style="font-size:18px;vertical-align:middle;">logout</span> Đăng xuất</a>
+        <div x-show="uo" x-cloak x-transition
+             class="absolute right-0 top-[calc(100%+0.5rem)] min-w-[180px] p-2 bg-white border border-tsl-border rounded-lg shadow-xl z-[1100]">
+          <a href="/camera/detection" class="flex items-center gap-2 px-3 py-2 rounded text-tsl-text font-display font-semibold hover:bg-tsl-light hover:text-tsl-accent"><span class="material-symbols-outlined text-lg">dashboard</span> Dashboard</a>
+          <a href="/logout" class="flex items-center gap-2 px-3 py-2 rounded text-tsl-text font-display font-semibold hover:bg-tsl-light hover:text-tsl-accent"><span class="material-symbols-outlined text-lg">logout</span> Đăng xuất</a>
         </div>
       </div>
       {% else %}
-      <a href="/login" class="btn btn-primary" x-text="$store.i18n.t('login')">Đăng nhập</a>
+      <a href="/login" class="tsl-btn tsl-btn-primary !px-5 !py-2.5" x-text="$store.i18n.t('login')">Đăng nhập</a>
       {% endif %}
     </div>
 
-    <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Mở menu" aria-expanded="false">
-      <span class="material-symbols-outlined">menu</span>
+    <!-- Mobile toggle -->
+    <button type="button" @click="open = !open" :aria-expanded="open ? 'true' : 'false'"
+            class="lg:hidden w-11 h-11 inline-flex items-center justify-center rounded-lg text-tsl-primary hover:bg-tsl-light" aria-label="Mở menu">
+      <span class="material-symbols-outlined" x-text="open ? 'close' : 'menu'">menu</span>
     </button>
   </div>
+
+  <!-- Mobile nav panel -->
+  <nav x-show="open" x-cloak x-transition
+       class="lg:hidden absolute top-[calc(100%+1px)] left-4 right-4 p-3 bg-white border border-tsl-border rounded-lg shadow-xl max-h-[calc(100vh-96px)] overflow-y-auto"
+       translate="no" @click="open = false">
+    <ul class="flex flex-col gap-1 font-display font-medium">
+      <li><a href="/" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/' %}bg-tsl-light text-tsl-accent{% endif %}">Trang chủ</a></li>
+      <li><a href="/gioi-thieu" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/gioi-thieu' %}bg-tsl-light text-tsl-accent{% endif %}">Giới thiệu</a></li>
+      <li>
+        <span class="block px-3 pt-3 pb-1 text-xs uppercase tracking-wide text-tsl-faint">Nhà xưởng</span>
+        <a href="/nha-xuong" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Trung Hà</a>
+        <a href="/nha-xuong-co-tiet" class="block pl-6 pr-3 py-2.5 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng KCN Cổ Tiết</a>
+      </li>
+      <li><a href="/dich-vu" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch vụ</a></li>
+      <li><a href="/tin-tuc" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if '/tin-tuc' in path %}bg-tsl-light text-tsl-accent{% endif %}">Tin tức</a></li>
+      <li><a href="/#lien-he" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent">Liên hệ</a></li>
+      <li class="pt-2 mt-1 border-t border-tsl-border">
+        {% if user %}
+        <a href="/camera/detection" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent">Dashboard</a>
+        <a href="/logout" class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent">Đăng xuất</a>
+        {% else %}
+        <a href="/login" class="block px-3 py-3 rounded-md text-tsl-accent font-semibold">Đăng nhập</a>
+        {% endif %}
+      </li>
+    </ul>
+  </nav>
 </header>
