@@ -57,8 +57,10 @@ docker compose --profile db_admin up -d       # kèm Adminer
 
 ```bash
 pip install -r requirements.txt
-cd frontend && uvicorn app:app --host 0.0.0.0 --port 8000   # Frontend
-export PYTHONPATH=$PYTHONPATH:$(pwd) && python main.py       # AI Core
+cd frontend
+uvicorn app:app --host 0.0.0.0 --port 8000   # Frontend
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+python main.py       # AI Core
 ```
 
 **Truy cập:** Web Management `http://localhost:8080` · Adminer `http://localhost:8888`

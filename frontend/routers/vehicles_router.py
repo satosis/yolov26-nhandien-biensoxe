@@ -10,6 +10,17 @@ router = APIRouter(prefix="/vehicles")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
+def _parse_fuel(value: Optional[str]) -> Optional[float]:
+    """Parse fuel-consumption input (L/100km) -> float, or None if empty/invalid."""
+    if not value or not value.strip():
+        return None
+    try:
+        fc = float(value.strip().replace(",", "."))
+    except ValueError:
+        return None
+    return fc if fc >= 0 else None
+
+
 @router.get("")
 async def vehicles_page(request: Request, user: dict = Depends(require_menu("vehicles"))):
     ctx = get_menu_context(request, user)
@@ -34,6 +45,7 @@ async def add_vehicle(
     site_ids: List[str] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
+    fuel_consumption: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
     added_by = user.get("username", "admin")
@@ -44,6 +56,7 @@ async def add_vehicle(
         added_by=added_by,
         site_ids=site_ids_int,
         note=note,
+        fuel_consumption=_parse_fuel(fuel_consumption),
     )
     return RedirectResponse(url="/camera/vehicles", status_code=303)
 
@@ -76,6 +89,7 @@ async def edit_vehicle(
     site_ids: List[str] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
+    fuel_consumption: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
@@ -85,5 +99,6 @@ async def edit_vehicle(
         label=owner_name or None,
         site_ids=site_ids_int,
         note=note,
+        fuel_consumption=_parse_fuel(fuel_consumption),
     )
     return RedirectResponse(url="/camera/vehicles", status_code=303)

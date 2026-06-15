@@ -144,6 +144,7 @@ REQUIRED_COLUMNS = {
         "added_by": "TEXT",
         "site_ids": "JSONB NOT NULL DEFAULT '[]'::JSONB",
         "note": "TEXT",
+        "fuel_consumption": "NUMERIC(6,2)",
         "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
         "created_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
         "updated_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",

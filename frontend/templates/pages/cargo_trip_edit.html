@@ -4,9 +4,16 @@
 {% block content %}
 <div class="flex flex-col gap-5" x-data="{
   loadingPrice: false,
-  fuelTotal: {{ trip.fuel_cost_total or 0 }},
   revenue: {{ trip.freight_revenue or 0 }},
-  profit: 0,
+  fuelRate: {{ vehicle.fuel_consumption or 0 }},
+  fuelPrice: {{ trip.fuel_price_per_liter or 0 }},
+  get fuelLiters() {
+    const km = parseFloat(this.distance_km) || 0;
+    const r = parseFloat(this.fuelRate) || 0;
+    return (r > 0 && km > 0) ? Math.round(r * km / 100 * 100) / 100 : 0;
+  },
+  get fuelTotal() { return this.fuelLiters * (parseFloat(this.fuelPrice) || 0); },
+  get profit() { return (parseFloat(this.revenue) || 0) - this.fuelTotal; },
   origin: '{{ trip.origin or "" }}',
   destination: '{{ trip.destination or "" }}',
   originCoords: null,
@@ -114,7 +121,7 @@
     this.calculatingKM = false;
   },
 
-  async fetchFuelPrice(dateVal, targetField) {
+  async fetchFuelPrice(dateVal) {
     if (!dateVal) return;
     const d = dateVal.substring(0, 10);
     this.loadingPrice = true;
@@ -122,29 +129,17 @@
       const res = await fetch('/camera/vehicles/api/fuel-price?target_date=' + d);
       const json = await res.json();
       if (json.ok && json.price) {
-        document.getElementById('display-fuel-price').innerText = json.price.toLocaleString('vi-VN') + ' ₫/lít';
-        document.getElementById('edit-fuel-price').value = json.price;
-        this.updateTotal();
+        this.fuelPrice = json.price;
         window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + json.price.toLocaleString('vi-VN') + ' ₫/lít', type:'info'}}));
       }
     } catch(e) {}
     this.loadingPrice = false;
-  },
-
-  updateTotal() {
-    const liters = parseFloat(document.getElementById('edit-fuel-liters').value) || 0;
-    const price = parseFloat(document.getElementById('edit-fuel-price').value) || 0;
-    this.fuelTotal = liters * price;
-    this.updateProfit();
-  },
-  updateProfit() {
-    this.profit = this.revenue - this.fuelTotal;
   }
 } " x-init="
   if (origin) handleLocationChange(origin, 'origin');
   if (destination) handleLocationChange(destination, 'dest');
   scheduleDistanceCalculation();
-  updateProfit();
+  if (!(parseFloat(fuelPrice) > 0)) fetchFuelPrice('{{ trip.departure_time[:10] if trip.departure_time else "" }}');
 ">
 
   <!-- Header -->
@@ -166,7 +161,7 @@
         <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Ngày xuất phát *</label>
         <input type="date" name="departure_time" required
                value="{{ trip.departure_time[:10] if trip.departure_time else '' }}"
-               @change="fetchFuelPrice($event.target.value, 'edit-fuel-price')"
+               @change="fetchFuelPrice($event.target.value)"
                class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
       </div>
       <div>
@@ -208,7 +203,6 @@
         <div>
           <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Cước vận chuyển (₫)</label>
           <input type="number" name="freight_revenue" x-model="revenue"
-                 @input="updateProfit()"
                  placeholder="0"
                  class="w-full bg-bg-inset border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
         </div>
@@ -228,22 +222,21 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div>
-          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Số lít</label>
-          <input type="number" name="fuel_liters" id="edit-fuel-liters" step="0.01" 
-                 value="{{ trip.fuel_liters or '' }}"
-                 @input="updateTotal()"
-                 class="w-full bg-bg-card border border-white/5 rounded-md px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
+          <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Số lít (tự tính theo km)</label>
+          <input type="hidden" name="fuel_liters" :value="fuelLiters">
+          <div class="w-full bg-bg-card border border-white/5 rounded-md px-4 py-2.5 text-sm h-[44px] flex items-center font-mono"
+               :class="fuelLiters > 0 ? 'text-white' : 'text-txt-ter'"
+               x-text="fuelRate > 0 ? (fuelLiters.toLocaleString('vi-VN') + ' lít') : 'Chưa có mức tiêu hao'"></div>
+          <div class="text-txt-ter text-[10px] mt-1" x-show="fuelRate > 0" x-text="'Định mức ' + fuelRate + ' L/100km × quãng đường'"></div>
+          <div class="text-status-yellow text-[10px] mt-1" x-show="!(fuelRate > 0)">
+            <a href="/camera/vehicles" class="underline hover:text-accent">Thiết lập mức tiêu hao cho xe {{ vehicle.plate_number }}</a>
+          </div>
         </div>
         <div>
           <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Giá dầu</label>
-          <input type="hidden" name="fuel_price_per_liter" id="edit-fuel-price" value="{{ trip.fuel_price_per_liter or '' }}">
-          <div id="display-fuel-price" class="w-full bg-bg-inset/30 border border-white/5 rounded-md px-4 py-2.5 text-sm text-txt-ter h-[44px] flex items-center font-mono">
-            {% if trip.fuel_price_per_liter %}
-              {{ "{:,.0f}".format(trip.fuel_price_per_liter).replace(',', '.') }} ₫/lít
-            {% else %}
-              —
-            {% endif %}
-          </div>
+          <input type="hidden" name="fuel_price_per_liter" :value="fuelPrice">
+          <div class="w-full bg-bg-inset/30 border border-white/5 rounded-md px-4 py-2.5 text-sm text-txt-ter h-[44px] flex items-center font-mono"
+               x-text="fuelPrice > 0 ? (Number(fuelPrice).toLocaleString('vi-VN') + ' ₫/lít') : '—'"></div>
         </div>
         <div>
           <label class="block text-txt-sec text-[12px] font-medium mb-1.5">Tổng chi phí dầu</label>

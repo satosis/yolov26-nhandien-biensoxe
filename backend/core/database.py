@@ -256,36 +256,37 @@ class DatabaseManager:
                     (pending_id, event_id, plate_raw, plate_norm, first_seen_utc, "pending", site_id, plate_type)
                 )
                 conn.commit()
-    def upsert_vehicle_whitelist(self, plate_norm, label, added_by, site_ids=None, note=None):
+    def upsert_vehicle_whitelist(self, plate_norm, label, added_by, site_ids=None, note=None, fuel_consumption=None):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
-                    INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, is_active)
-                    VALUES (%s, 'white', %s, %s, %s, %s, TRUE)
+                    INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, fuel_consumption, is_active)
+                    VALUES (%s, 'white', %s, %s, %s, %s, %s, TRUE)
                     ON CONFLICT(plate_number) DO UPDATE SET
                     owner_name=EXCLUDED.owner_name,
                     added_by=EXCLUDED.added_by,
                     site_ids=EXCLUDED.site_ids,
                     note=EXCLUDED.note,
+                    fuel_consumption=EXCLUDED.fuel_consumption,
                     updated_at=NOW()
                     ''',
-                    (plate_norm, label, added_by, json.dumps(site_ids) if site_ids else '[]', note)
+                    (plate_norm, label, added_by, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption)
                 )
             conn.commit()
             self._trigger_ai_reload()
             return True
-    def update_vehicle_whitelist(self, vehicle_id, plate_norm, label, site_ids=None, note=None):
+    def update_vehicle_whitelist(self, vehicle_id, plate_norm, label, site_ids=None, note=None, fuel_consumption=None):
         """Updates a whitelisted vehicle by ID."""
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''
                     UPDATE plate_whitelist
-                    SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, updated_at = NOW()
+                    SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, fuel_consumption = %s, updated_at = NOW()
                     WHERE id = %s
                     ''',
-                    (plate_norm, label, json.dumps(site_ids) if site_ids else '[]', note, vehicle_id)
+                    (plate_norm, label, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption, vehicle_id)
                 )
             conn.commit()
             self._trigger_ai_reload()
