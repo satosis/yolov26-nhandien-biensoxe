@@ -5,8 +5,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: camera_ai
-      POSTGRES_USER: camera_user
-      POSTGRES_PASSWORD: camera_password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
     ports:
       - "5433:5432"
     volumes:
@@ -35,7 +35,7 @@ services:
         condition: service_healthy
     environment:
       TZ: Asia/Ho_Chi_Minh
-      DATABASE_URL: postgresql://camera_user:camera_password@postgres:5432/camera_ai
+      DATABASE_URL: postgresql://postgres:mysecretpassword@postgres:5432/camera_ai
 
     # Camera discovery networking:
     # - Bridge network: ARP scan and unicast ONVIF work.

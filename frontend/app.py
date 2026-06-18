@@ -108,19 +108,16 @@ async def _periodic_discovery():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Professional Startup Logo
+    import sys
+    port = "8000"
+    if "--port" in sys.argv:
+        port = sys.argv[sys.argv.index("--port") + 1]
+    
     print("====================================================")
     print("   🅿  PARKING AI - FRONTEND WEB UI                 ")
-    print("   Starting server on: http://localhost:8000       ")
+    print(f"   Starting server on: http://localhost:{port}".ljust(52))
     print("====================================================")
-    # Start background periodic camera discovery
-    discovery_task = asyncio.create_task(_periodic_discovery())
     yield
-    discovery_task.cancel()
-    try:
-        await discovery_task
-    except asyncio.CancelledError:
-        pass
 
 
 app = FastAPI(title="Parking Camera", lifespan=lifespan)

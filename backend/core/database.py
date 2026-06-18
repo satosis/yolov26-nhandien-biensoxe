@@ -16,8 +16,6 @@ from backend.core.kyc_manager import KYCManager
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DATABASE_URL = "postgresql://camera_user:camera_password@localhost:5433/camera_ai"
-
 load_dotenv()
 load_dotenv(os.path.join(os.getcwd(), ".env"))
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"))
@@ -31,7 +29,7 @@ class DatabaseManager:
     _pool = None
 
     def __init__(self, dsn=None, max_pool_size=None):
-        self.dsn = dsn or os.environ.get("DATABASE_URL") or DEFAULT_DATABASE_URL
+        self.dsn = dsn or os.environ.get("DATABASE_URL")
         self.dsn = self.dsn.replace("postgresql+asyncpg://", "postgresql://")
 
         if not DatabaseManager._pool:
