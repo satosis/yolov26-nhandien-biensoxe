@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/output.css --minify",
-    "dev": "npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/output.css --watch",
+    "build": "npx @tailwindcss/cli -i ./static/admin/css/admin-input.css -o ./static/admin/css/admin-output.css --minify && npx @tailwindcss/cli -i ./static/user/css/user-input.css -o ./static/user/css/user-output.css --minify",
+    "dev": "npx @tailwindcss/cli -i ./static/admin/css/admin-input.css -o ./static/admin/css/admin-output.css --watch & npx @tailwindcss/cli -i ./static/user/css/user-input.css -o ./static/user/css/user-output.css --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
