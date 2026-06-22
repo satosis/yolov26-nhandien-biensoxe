@@ -1,7 +1,9 @@
 {% extends "layout.html" %}
+{% block title %}Nhật ký Ghi hình — Parking Camera{% endblock %}
+{% block page_title %}Nhật ký Ghi hình{% endblock %}
 
 {% block content %}
-<div class="space-y-6" x-data="{
+<div x-data="{
     playing: null,
     deleteRecording(id) {
         if(confirm('Bạn có chắc muốn xóa đoạn ghi hình này?')) {
@@ -13,105 +15,105 @@
         }
     }
 }">
-    <div class="flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-white">Nhật ký Ghi hình</h1>
-            <p class="text-txt-sec text-sm">Xem lại các đoạn video được ghi tự động theo sự kiện AI.
-                <span class="text-txt-ter ml-2">Tổng: {{ total }} bản ghi</span>
-            </p>
-        </div>
-    </div>
 
     <!-- Storage Info Banner -->
-    <div class="bg-bg-card border border-divider rounded-xl p-5 shadow-sm max-w-2xl">
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-accent/10 rounded-lg text-accent">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+    <div class="card mb-4" style="max-width:640px;">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center" style="gap:12px;">
+                    <div class="rounded p-2 bg-primary" style="line-height:1;">
+                        <svg class="text-white" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/></svg>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 font-weight-bold text-uppercase" style="font-size:13px; letter-spacing:.05em;">Trạng thái Lưu trữ Hệ thống</h6>
+                        <small class="text-muted">Tổng dung lượng: {{ storage.total }}</small>
+                    </div>
                 </div>
+                <div class="text-right">
+                    <span class="font-weight-bold text-primary" style="font-family:monospace;">{{ storage.percent }}%</span><br>
+                    <small class="text-muted">Đã dùng {{ storage.used }}</small>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress" style="height:10px;">
+                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ storage.percent }}%" aria-valuenow="{{ storage.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+
+            <!-- Detail Labels -->
+            <div class="d-flex justify-content-between mt-3">
                 <div>
-                    <h2 class="text-sm font-bold text-white uppercase tracking-wider">Trạng thái Lưu trữ Hệ thống</h2>
-                    <p class="text-[11px] text-txt-ter">Tổng dung lượng: {{ storage.total }}</p>
+                    <small class="text-muted text-uppercase font-weight-bold" style="font-size:10px; letter-spacing:.08em;">Đã sử dụng</small>
+                    <div class="font-weight-bold" style="font-size:14px;">{{ storage.used }}</div>
                 </div>
-            </div>
-            <div class="text-right">
-                <span class="text-xs font-mono font-bold text-accent">{{ storage.percent }}%</span>
-                <p class="text-[10px] text-txt-mut">Đã dùng {{ storage.used }}</p>
-            </div>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="h-2.5 bg-bg-inset rounded-full overflow-hidden border border-white/5 shadow-inner">
-            <div class="h-full bg-accent shadow-[0_0_10px_rgba(34,211,238,0.4)] transition-all duration-1000" style="width: {{ storage.percent }}%"></div>
-        </div>
-
-        <!-- Detail Labels -->
-        <div class="flex justify-between mt-3 px-1">
-            <div class="flex flex-col">
-                <span class="text-[10px] text-txt-mut uppercase tracking-wider font-semibold">Đã sử dụng</span>
-                <span class="text-sm font-bold text-white">{{ storage.used }}</span>
-            </div>
-            <div class="flex flex-col items-end">
-                <span class="text-[10px] text-txt-mut uppercase tracking-wider font-semibold">Dung lượng trống</span>
-                <span class="text-sm font-bold text-status-green">{{ storage.free }}</span>
+                <div class="text-right">
+                    <small class="text-muted text-uppercase font-weight-bold" style="font-size:10px; letter-spacing:.08em;">Dung lượng trống</small>
+                    <div class="font-weight-bold text-success" style="font-size:14px;">{{ storage.free }}</div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Gallery Grid -->
     {% if recordings %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div class="row">
         {% for rec in recordings %}
-        <div class="group relative bg-bg-card border border-divider rounded-xl overflow-hidden hover:border-accent/40 transition-all duration-300 shadow-lg hover:shadow-accent/5">
-            <!-- Thumbnail -->
-            <div class="aspect-video relative overflow-hidden bg-black cursor-pointer" @click="playing = '{{ rec.video_url }}'">
-                <img src="{{ rec.thumb_url }}" alt="Thumbnail" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500">
+        <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">
+            <div class="card h-100 shadow-sm" style="overflow:hidden; transition:box-shadow .2s;">
+                <!-- Thumbnail -->
+                <div style="position:relative; overflow:hidden; background:#000; cursor:pointer; aspect-ratio:16/9;"
+                     @click="playing = '{{ rec.video_url }}'">
+                    <img src="{{ rec.thumb_url }}" alt="Thumbnail"
+                         style="width:100%; height:100%; object-fit:cover; opacity:.8; transition:opacity .3s, transform .3s;"
+                         onmouseover="this.style.opacity=1;this.style.transform='scale(1.05)';"
+                         onmouseout="this.style.opacity=.8;this.style.transform='scale(1)';">
 
-                <!-- Overlay Elements -->
-                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60"></div>
+                    <!-- Gradient overlay -->
+                    <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.75),transparent);pointer-events:none;"></div>
 
-                <!-- Play Icon -->
-                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div class="w-12 h-12 bg-accent/90 rounded-full flex items-center justify-center text-bg-inset shadow-xl scale-90 group-hover:scale-100 transition-transform">
-                        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <!-- Play icon overlay -->
+                    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+                        <div style="width:44px;height:44px;background:rgba(99,102,241,.85);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                    </div>
+
+                    <!-- Duration & Size Badge -->
+                    <div style="position:absolute;bottom:8px;right:8px;display:flex;gap:4px;">
+                        <span class="badge badge-dark" style="font-family:monospace;font-size:10px;">{{ rec.duration_seconds }}s</span>
+                        {% if rec.formatted_size %}
+                        <span class="badge badge-primary" style="font-family:monospace;font-size:10px;">{{ rec.formatted_size }}</span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Event Type Badge -->
+                    <div style="position:absolute;top:8px;left:8px;">
+                        {% if rec.event_type == 'plate' %}
+                        <span class="badge badge-success badge-pill" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;">{{ rec.event_type }}</span>
+                        {% elif rec.event_type == 'person' %}
+                        <span class="badge badge-primary badge-pill" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;">{{ rec.event_type }}</span>
+                        {% elif rec.event_type == 'stranger' %}
+                        <span class="badge badge-danger badge-pill" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;">{{ rec.event_type }}</span>
+                        {% else %}
+                        <span class="badge badge-secondary badge-pill" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;">{{ rec.event_type }}</span>
+                        {% endif %}
                     </div>
                 </div>
 
-                <!-- Duration & Size Badge -->
-                <div class="absolute bottom-2 right-2 flex gap-1.5 items-center">
-                    <div class="px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-mono text-white border border-white/10">
-                        {{ rec.duration_seconds }}s
+                <!-- Content Info -->
+                <div class="card-body py-3 px-3">
+                    <div class="d-flex align-items-start justify-content-between">
+                        <h6 class="mb-1 font-weight-bold text-dark" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%;">{{ rec.event_text }}</h6>
+                        <button @click="deleteRecording({{ rec.id }})" class="btn btn-link btn-sm text-muted p-0 ml-1" title="Xóa" style="line-height:1;color:#adb5bd !important;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
                     </div>
-                    {% if rec.formatted_size %}
-                    <div class="px-1.5 py-0.5 bg-black/70 rounded text-[10px] font-mono text-accent border border-accent/20">
-                        {{ rec.formatted_size }}
-                    </div>
-                    {% endif %}
+                    <p class="text-muted mb-1 d-flex align-items-center" style="font-size:11px;gap:4px;">
+                        <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ rec.start_time.strftime('%H:%M:%S %d/%m/%Y') }}
+                    </p>
+                    <p class="text-muted mb-0" style="font-size:10px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Cam: {{ rec.cam_id }}</p>
                 </div>
-
-                <!-- Event Type Badge -->
-                <div class="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shadow-sm
-                    {% if rec.event_type == 'plate' %}bg-status-green/20 text-status-green border border-status-green/30
-                    {% elif rec.event_type == 'person' %}bg-accent/20 text-accent border border-accent/30
-                    {% elif rec.event_type == 'stranger' %}bg-status-red/20 text-status-red border border-status-red/30
-                    {% else %}bg-white/10 text-white/70 border border-white/20{% endif %}">
-                    {{ rec.event_type }}
-                </div>
-            </div>
-
-            <!-- Content Info -->
-            <div class="p-4 space-y-1">
-                <div class="flex items-start justify-between">
-                    <h3 class="text-sm font-semibold text-white truncate pr-2">{{ rec.event_text }}</h3>
-                    <button @click="deleteRecording({{ rec.id }})" class="text-txt-ter hover:text-status-red transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    </button>
-                </div>
-                <p class="text-[11px] text-txt-ter flex items-center gap-1">
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    {{ rec.start_time.strftime('%H:%M:%S %d/%m/%Y') }}
-                </p>
-                <p class="text-[10px] text-txt-mut font-mono truncate">Cam: {{ rec.cam_id }}</p>
             </div>
         </div>
         {% endfor %}
@@ -119,100 +121,90 @@
 
     <!-- Pagination -->
     {% if total_pages > 1 %}
-    <div class="flex items-center justify-center gap-2 pt-4 pb-2">
-        {# Previous #}
-        {% if page > 1 %}
-        <a href="{{ page_base_url }}page={{ page - 1 }}"
-           class="px-3 py-2 text-sm rounded-lg bg-bg-card border border-divider text-txt-sec hover:border-accent/40 hover:text-white transition-colors">
-            &laquo; Trước
-        </a>
-        {% else %}
-        <span class="px-3 py-2 text-sm rounded-lg bg-bg-card/50 border border-divider/50 text-txt-mut cursor-not-allowed">
-            &laquo; Trước
-        </span>
-        {% endif %}
+    <nav class="d-flex justify-content-center align-items-center mt-2 mb-2">
+        <ul class="pagination mb-0">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ page_base_url }}page={{ page - 1 }}">&laquo; Trước</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">&laquo; Trước</span></li>
+            {% endif %}
 
-        {# Page numbers #}
-        {% set start_page = [1, page - 2] | max %}
-        {% set end_page = [total_pages, page + 2] | min %}
+            {% set start_page = [1, page - 2] | max %}
+            {% set end_page = [total_pages, page + 2] | min %}
 
-        {% if start_page > 1 %}
-        <a href="{{ page_base_url }}page=1"
-           class="w-9 h-9 flex items-center justify-center text-sm rounded-lg bg-bg-card border border-divider text-txt-sec hover:border-accent/40 hover:text-white transition-colors">1</a>
-        {% if start_page > 2 %}
-        <span class="text-txt-mut text-sm px-1">...</span>
-        {% endif %}
-        {% endif %}
+            {% if start_page > 1 %}
+            <li class="page-item"><a class="page-link" href="{{ page_base_url }}page=1">1</a></li>
+            {% if start_page > 2 %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+            {% endif %}
 
-        {% for p in range(start_page, end_page + 1) %}
-        {% if p == page %}
-        <span class="w-9 h-9 flex items-center justify-center text-sm rounded-lg bg-accent text-bg-inset font-bold border border-accent shadow-lg shadow-accent/20">{{ p }}</span>
-        {% else %}
-        <a href="{{ page_base_url }}page={{ p }}"
-           class="w-9 h-9 flex items-center justify-center text-sm rounded-lg bg-bg-card border border-divider text-txt-sec hover:border-accent/40 hover:text-white transition-colors">{{ p }}</a>
-        {% endif %}
-        {% endfor %}
+            {% for p in range(start_page, end_page + 1) %}
+            {% if p == page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+            {% else %}
+            <li class="page-item"><a class="page-link" href="{{ page_base_url }}page={{ p }}">{{ p }}</a></li>
+            {% endif %}
+            {% endfor %}
 
-        {% if end_page < total_pages %}
-        {% if end_page < total_pages - 1 %}
-        <span class="text-txt-mut text-sm px-1">...</span>
-        {% endif %}
-        <a href="{{ page_base_url }}page={{ total_pages }}"
-           class="w-9 h-9 flex items-center justify-center text-sm rounded-lg bg-bg-card border border-divider text-txt-sec hover:border-accent/40 hover:text-white transition-colors">{{ total_pages }}</a>
-        {% endif %}
+            {% if end_page < total_pages %}
+            {% if end_page < total_pages - 1 %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+            {% endif %}
+            <li class="page-item"><a class="page-link" href="{{ page_base_url }}page={{ total_pages }}">{{ total_pages }}</a></li>
+            {% endif %}
 
-        {# Next #}
-        {% if page < total_pages %}
-        <a href="{{ page_base_url }}page={{ page + 1 }}"
-           class="px-3 py-2 text-sm rounded-lg bg-bg-card border border-divider text-txt-sec hover:border-accent/40 hover:text-white transition-colors">
-            Tiếp &raquo;
-        </a>
-        {% else %}
-        <span class="px-3 py-2 text-sm rounded-lg bg-bg-card/50 border border-divider/50 text-txt-mut cursor-not-allowed">
-            Tiếp &raquo;
-        </span>
-        {% endif %}
-    </div>
-    <p class="text-center text-[11px] text-txt-mut">
+            {% if page < total_pages %}
+            <li class="page-item"><a class="page-link" href="{{ page_base_url }}page={{ page + 1 }}">Tiếp &raquo;</a></li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">Tiếp &raquo;</span></li>
+            {% endif %}
+        </ul>
+    </nav>
+    <p class="text-center text-muted" style="font-size:11px;">
         Trang {{ page }}/{{ total_pages }} &middot; {{ total }} bản ghi
     </p>
     {% endif %}
 
     {% else %}
     <!-- Empty State -->
-    <div class="flex flex-col items-center justify-center py-20 bg-bg-card/50 border border-dashed border-divider rounded-2xl">
-        <div class="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-            <svg class="w-8 h-8 text-txt-ter" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <div class="mb-3">
+                <svg class="text-muted" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </div>
+            <p class="text-muted mb-1">Chưa có đoạn ghi hình nào.</p>
+            <p class="text-muted" style="font-size:13px;">Hệ thống sẽ tự động ghi hình khi phát hiện sự kiện.</p>
         </div>
-        <p class="text-txt-sec">Chưa có đoạn ghi hình nào.</p>
-        <p class="text-txt-ter text-sm">Hệ thống sẽ tự động ghi hình khi phát hiện sự kiện.</p>
     </div>
     {% endif %}
 
-    <!-- Video Player Modal -->
+    <!-- Video Player Modal (Alpine x-show) -->
     <div x-show="playing"
-         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+         style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.9);"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          @keydown.escape.window="playing = null"
-         style="display: none;">
+         style="display:none;">
 
-        <div class="relative w-full max-w-5xl bg-bg-inset rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+        <div class="card shadow" style="width:100%;max-width:900px;overflow:hidden;border:1px solid rgba(255,255,255,.1);"
              @click.away="playing = null">
 
             <!-- Modal Header -->
-            <div class="absolute top-0 inset-x-0 h-14 flex items-center justify-between px-6 bg-gradient-to-b from-black/80 to-transparent z-10">
-                <span class="text-white font-medium text-sm">Đang phát video</span>
-                <button @click="playing = null" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-white transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <div class="card-header d-flex align-items-center justify-content-between py-2 px-4" style="background:rgba(0,0,0,.7);border-bottom:none;">
+                <span class="text-white font-weight-medium" style="font-size:14px;">Đang phát video</span>
+                <button @click="playing = null" class="btn btn-sm" style="color:#fff;background:transparent;line-height:1;padding:4px;">
+                    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
 
             <!-- Video Stage -->
-            <div class="aspect-video bg-black flex items-center justify-center">
+            <div style="background:#000;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;">
                 <template x-if="playing">
-                    <video controls autoplay class="w-full h-full">
+                    <video controls autoplay style="width:100%;height:100%;">
                         <source :src="playing" type="video/mp4">
                         Trình duyệt không hỗ trợ xem video.
                     </video>

@@ -1,50 +1,60 @@
 {% extends "layout.html" %}
 {% block title %}Thống kê — Parking Camera{% endblock %}
+{% block page_title %}Thống kê bãi xe{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5">
-  <div class="flex items-center gap-2.5">
-    <span class="text-accent text-[28px]">📊</span>
-    <span class="text-2xl font-semibold text-white">Thống kê bãi xe</span>
-  </div>
 
-  <!-- Summary cards -->
-  <div class="grid grid-cols-4 gap-4">
-    {% for icon, label, val, color in [('🚗','Xe hôm nay', stats.today_count|default(0), '#22D3EE'),('📈','Xe tuần này', stats.week_count|default(0), '#22C55E'),('📅','Xe tháng này', stats.month_count|default(0), '#F59E0B'),('⏱','TB thời gian đỗ', stats.avg_duration|default('—'), '#A78BFA')] %}
-    <div class="bg-bg-card rounded-lg p-5 flex flex-col gap-2">
-      <span class="text-2xl">{{ icon }}</span>
-      <span class="font-mono text-[28px] font-bold" style="color:{{ color }}">{{ val }}</span>
-      <span class="text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">{{ label }}</span>
+<!-- Summary KPI cards -->
+<div class="row mb-4">
+  {% for icon, label, val, grad in [('fas fa-car','Xe hôm nay', stats.today_count|default(0), 'kpi-gradient-2'),('fas fa-chart-line','Xe tuần này', stats.week_count|default(0), 'kpi-gradient-1'),('fas fa-calendar-alt','Xe tháng này', stats.month_count|default(0), 'kpi-gradient-3'),('fas fa-stopwatch','TB thời gian đỗ', stats.avg_duration|default('—'), 'kpi-gradient-4')] %}
+  <div class="col-12 col-sm-6 col-xl-3 mb-3">
+    <div class="kpi-card {{ grad }} p-4 rounded">
+      <i class="{{ icon }} kpi-icon"></i>
+      <p class="kpi-label mb-1">{{ label }}</p>
+      <p class="kpi-value">{{ val }}</p>
     </div>
-    {% endfor %}
   </div>
+  {% endfor %}
+</div>
 
-  <!-- Peak hours -->
-  <div class="bg-bg-card rounded-lg p-5">
-    <div class="text-[14px] font-semibold text-white mb-4">⏰ Giờ cao điểm (hôm nay)</div>
-    <div class="flex items-end gap-1 h-32">
+<!-- Peak hours bar chart -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title font-weight-bold mb-3">
+      <i class="bx bx-time-five mr-1 text-primary"></i>Giờ cao điểm (hôm nay)
+    </h6>
+    <div class="d-flex align-items-end" style="height:128px; gap:3px;">
       {% for h in range(24) %}
       {% set count = peak_hours.get(h, 0) if peak_hours else 0 %}
       {% set max_h = peak_hours.values()|max if peak_hours and peak_hours.values()|list else 1 %}
       {% set pct = (count / max_h * 100)|int if max_h > 0 else 0 %}
-      <div class="flex-1 flex flex-col items-center gap-1">
-        <div class="w-full rounded-t-sm transition-all {% if pct > 70 %}bg-status-red{% elif pct > 40 %}bg-status-yellow{% else %}bg-accent/40{% endif %}" style="height:{{ pct }}%"></div>
-        {% if h % 3 == 0 %}<span class="text-[9px] text-txt-ter">{{ h }}h</span>{% endif %}
+      <div class="flex-grow-1 d-flex flex-column align-items-center" style="gap:3px;">
+        <div class="w-100 rounded"
+          style="height:{{ pct }}%; min-height:2px; background:{% if pct > 70 %}#dc3545{% elif pct > 40 %}#ffc107{% else %}rgba(99,102,241,.45){% endif %}; transition:height .3s;">
+        </div>
+        {% if h % 3 == 0 %}<span class="text-muted" style="font-size:9px;">{{ h }}h</span>{% else %}<span style="font-size:9px;">&nbsp;</span>{% endif %}
       </div>
       {% endfor %}
     </div>
   </div>
+</div>
 
-  <!-- Recent activity -->
-  <div class="bg-bg-card rounded-lg p-5">
-    <div class="text-[14px] font-semibold text-white mb-3">🕐 Hoạt động gần đây</div>
+<!-- Recent activity -->
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title font-weight-bold mb-3">
+      <i class="bx bx-history mr-1 text-primary"></i>Hoạt động gần đây
+    </h6>
     {% for e in recent_events[:10] %}
-    <div class="flex items-center gap-3 py-2 border-b border-divider last:border-0">
-      <span class="text-[11px] font-mono text-txt-ter w-[80px]">{{ e.detected_at.strftime('%H:%M:%S') if e.detected_at else '' }}</span>
-      <span class="bg-status-yellow/10 text-status-yellow px-2 py-0.5 rounded text-[12px] font-mono font-bold border border-status-yellow/20">{{ e.plate_number }}</span>
-      <span class="text-[11px] text-txt-sec">{{ e.camera_name or '' }}</span>
+    <div class="d-flex align-items-center py-2 border-bottom" style="gap:12px;">
+      <span class="text-muted font-monospace" style="font-size:11px; width:80px; flex-shrink:0;">{{ e.detected_at.strftime('%H:%M:%S') if e.detected_at else '' }}</span>
+      <span class="badge badge-pill badge-warning font-monospace font-weight-bold" style="font-size:12px;">{{ e.plate_number }}</span>
+      <span class="text-muted" style="font-size:11px;">{{ e.camera_name or '' }}</span>
     </div>
     {% endfor %}
-    {% if not recent_events %}<div class="text-txt-ter text-sm">Chưa có hoạt động.</div>{% endif %}
+    {% if not recent_events %}
+    <div class="text-muted" style="font-size:14px;">Chưa có hoạt động.</div>
+    {% endif %}
   </div>
 </div>
+
 {% endblock %}

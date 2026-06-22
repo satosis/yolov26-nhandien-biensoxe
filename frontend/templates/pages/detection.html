@@ -1,131 +1,153 @@
 {% extends "layout.html" %}
 {% block title %}Nhận diện — Parking Camera{% endblock %}
+{% block page_title %}Nhận diện AI{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5">
-  <div class="flex items-center gap-2.5">
-    <span class="text-accent text-[28px]">🔍</span>
-    <span class="text-2xl font-semibold text-white">Nhận diện AI</span>
-  </div>
+<div x-data="{ tab: 'webcam' }"
+  x-effect="if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
+  <div class="row no-gutters" style="height:calc(100vh - 200px); min-height:480px;">
 
-  <div class="flex gap-5 h-[calc(100vh-180px)]" x-data="{ tab: 'webcam' }"
-    x-effect="if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
     <!-- Video area -->
-    <div class="flex-1 flex flex-col bg-bg-card rounded-lg overflow-hidden">
-      <div class="flex border-b border-divider">
-        <button @click="tab='webcam'" :class="tab==='webcam' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
-          class="px-4 py-2.5 text-[13px] font-medium">📹 Live Webcam</button>
-        <button @click="tab='rtsp'" :class="tab==='rtsp' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
-          class="px-4 py-2.5 text-[13px] font-medium">📡 Camera khu vực</button>
-        <button @click="tab='upload'" :class="tab==='upload' ? 'border-b-2 border-accent text-accent' : 'text-txt-sec'"
-          class="px-4 py-2.5 text-[13px] font-medium">📁 Upload ảnh</button>
-      </div>
-      <div x-show="tab==='webcam'" class="flex-1 flex flex-col p-4 gap-3">
-        <div
-          class="relative flex-1 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden cursor-pointer hover:bg-white/[0.02] transition-colors group"
-          onclick="window.toggleWebcam()">
-          <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-contain hidden"
-            style="image-rendering:auto;filter:contrast(1.05) brightness(1.02) saturate(1.1)"></video>
-          <canvas id="webcam-overlay" class="absolute inset-0 w-full h-full hidden"></canvas>
-          <div id="webcam-placeholder"
-            class="flex flex-col items-center gap-3 transition-transform group-hover:scale-105">
-            <div
-              class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z" />
-              </svg>
+    <div class="col-12 col-lg-8 d-flex flex-column pr-lg-2 mb-3 mb-lg-0">
+      <div class="card h-100 mb-0">
+        <!-- Tabs nav -->
+        <div class="card-header p-0" style="border-bottom:1px solid #e9ecef;">
+          <ul class="nav nav-tabs card-header-tabs border-0 ml-2">
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="tab==='webcam' ? 'active' : ''"
+                @click.prevent="tab='webcam'" style="font-size:13px;">
+                <i class="bx bx-camera mr-1"></i>Live Webcam
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="tab==='rtsp' ? 'active' : ''"
+                @click.prevent="tab='rtsp'" style="font-size:13px;">
+                <i class="bx bx-broadcast mr-1"></i>Camera khu vực
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" :class="tab==='upload' ? 'active' : ''"
+                @click.prevent="tab='upload'" style="font-size:13px;">
+                <i class="bx bx-image-add mr-1"></i>Upload ảnh
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Webcam tab -->
+        <div x-show="tab==='webcam'" class="card-body d-flex flex-column p-3 h-100">
+          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
+            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
+            onclick="window.toggleWebcam()">
+            <video id="webcam-video" autoplay playsinline muted class="w-100 h-100 d-none"
+              style="object-fit:contain; image-rendering:auto; filter:contrast(1.05) brightness(1.02) saturate(1.1);"></video>
+            <canvas id="webcam-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;"></canvas>
+            <div id="webcam-placeholder" class="text-center">
+              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
+                style="width:64px;height:64px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#6366f1">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <div class="text-primary font-weight-bold" style="font-size:12px;letter-spacing:.08em;">NHẤN ĐỂ MỞ CAMERA</div>
             </div>
-            <span class="text-accent text-[13px] font-semibold tracking-wide uppercase">Nhấn để mở Camera</span>
+          </div>
+          <div class="d-flex align-items-center justify-content-end mt-2">
+            <button id="btn-select-device" class="btn btn-light btn-sm" style="font-size:12px;">
+              <i class="bx bx-devices mr-1"></i>SELECT DEVICE
+            </button>
           </div>
         </div>
-        <div class="flex items-center justify-between min-h-[36px]">
-          <div>
-            <!-- Hidden button for script compatibility or removed -->
+
+        <!-- RTSP tab -->
+        <div x-show="tab==='rtsp'" x-cloak class="card-body d-flex flex-column p-3 h-100">
+          <div class="d-flex mb-2" style="gap:8px;">
+            <select id="rtsp-camera" class="form-control form-control-sm flex-grow-1">
+              <option value="">Chọn camera...</option>
+              {% for cam in cameras %}
+              <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
+              {% endfor %}
+            </select>
           </div>
-          <button id="btn-select-device" class="text-txt-sec text-[13px] hover:text-accent">SELECT DEVICE</button>
-        </div>
-      </div>
-      <div x-show="tab==='rtsp'" x-cloak class="flex-1 flex flex-col p-4 gap-3">
-        <div class="flex gap-3 min-h-[36px]">
-          <select id="rtsp-camera"
-            class="flex-1 bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-            <option value="">Chọn camera...</option>
-            {% for cam in cameras %}
-            <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
-            {% endfor %}
-          </select>
-          <div>
-            <!-- Hidden button for script compatibility or removed -->
-          </div>
-        </div>
-        <div
-          class="flex-1 bg-bg-inset rounded-lg flex items-center justify-center relative overflow-hidden cursor-pointer hover:bg-white/[0.02] transition-colors group"
-          onclick="window.toggleRtsp()">
-          <video id="rtsp-feed" autoplay playsinline muted class="w-full h-full object-contain hidden relative z-0"></video>
-          <canvas id="rtsp-overlay" class="absolute inset-0 w-full h-full hidden z-10"></canvas>
-          <div id="rtsp-placeholder"
-            class="flex flex-col items-center gap-3 transition-transform group-hover:scale-105 z-20">
-            <div
-              class="h-16 w-16 rounded-full bg-accent/20 border border-accent/20 text-accent flex items-center justify-center shadow-lg shadow-accent/20">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 ml-1" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z" />
-              </svg>
+          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
+            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
+            onclick="window.toggleRtsp()">
+            <video id="rtsp-feed" autoplay playsinline muted class="w-100 h-100 d-none" style="object-fit:contain; position:relative; z-index:0;"></video>
+            <canvas id="rtsp-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;z-index:10;"></canvas>
+            <div id="rtsp-placeholder" class="text-center" style="z-index:20; position:relative;">
+              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
+                style="width:64px;height:64px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#6366f1">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+              <div class="text-primary font-weight-bold" style="font-size:12px;letter-spacing:.08em;">NHẤN ĐỂ MỞ CAMERA</div>
             </div>
-            <span class="text-accent text-[13px] font-semibold tracking-wide uppercase">Nhấn để mở Camera</span>
           </div>
         </div>
-      </div>
-      <div x-show="tab==='upload'" x-cloak class="flex-1 min-h-0 flex flex-col p-4 gap-3">
-        <input type="file" id="upload-input" accept="image/*" class="hidden">
-        <div
-          class="flex-1 min-h-0 bg-bg-inset rounded-lg flex items-center justify-center overflow-hidden relative cursor-pointer hover:bg-white/[0.02] transition-colors group"
-          onclick="document.getElementById('upload-input').click()">
-          <canvas id="upload-canvas" class="max-w-full max-h-full hidden" style="object-fit: contain;"></canvas>
-          <div id="upload-placeholder"
-            class="flex flex-col items-center gap-3 text-txt-ter text-sm transition-transform group-hover:scale-105">
-            <div class="h-12 w-12 rounded-full bg-txt-ter/10 border border-txt-ter/20 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
+
+        <!-- Upload tab -->
+        <div x-show="tab==='upload'" x-cloak class="card-body d-flex flex-column p-3 h-100">
+          <input type="file" id="upload-input" accept="image/*" class="d-none">
+          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
+            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
+            onclick="document.getElementById('upload-input').click()">
+            <canvas id="upload-canvas" class="d-none mw-100 mh-100" style="object-fit:contain;"></canvas>
+            <div id="upload-placeholder" class="text-center text-muted">
+              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
+                style="width:48px;height:48px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.1);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div style="font-size:13px;">Chọn ảnh hoặc click để thay đổi</div>
             </div>
-            <span>Chọn ảnh hoặc click để thay đổi</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Detection sidebar -->
-    <div class="w-[320px] flex-shrink-0 flex flex-col gap-3">
-      <div class="flex items-center justify-between">
-        <div class="text-[14px] font-semibold text-white">Kết quả nhận diện</div>
-        <div class="flex items-center gap-2">
-          <div id="loading-indicator" class="hidden flex items-center gap-2 text-accent text-[11px] animate-pulse">
-            <svg class="animate-spin h-3.5 w-3.5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none"
-              viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-              </path>
-            </svg>
+    <div class="col-12 col-lg-4 d-flex flex-column pl-lg-2">
+      <div class="card h-100 mb-0">
+        <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
+          <span class="font-weight-bold" style="font-size:14px;">Kết quả nhận diện</span>
+          <div class="d-flex align-items-center" style="gap:8px;">
+            <div id="loading-indicator" class="d-none d-flex align-items-center text-primary" style="font-size:11px;gap:6px;">
+              <svg class="spin-anim" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                style="width:14px;height:14px;">
+                <circle style="opacity:.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path style="opacity:.75;" fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+              </svg>
+            </div>
+            <button id="btn-clear-results" class="btn btn-light btn-sm p-1" title="Xoá kết quả" style="line-height:1;">
+              <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
-          <button id="btn-clear-results" class="text-txt-ter hover:text-rose-400 p-1 transition-colors"
-            title="Xoá kết quả">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+        </div>
+        <div class="card-body p-2 overflow-auto" id="detection-results" style="max-height:calc(100vh - 280px);">
+          <div class="card mb-2">
+            <div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Chưa có kết quả</div>
+          </div>
         </div>
       </div>
-      <div id="detection-results" class="flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-240px)]">
-        <div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>
-      </div>
     </div>
+
   </div>
 </div>
+
+<style>
+@keyframes spin-kf { to { transform: rotate(360deg); } }
+.spin-anim { animation: spin-kf 1s linear infinite; }
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -149,9 +171,9 @@
 
     function renderResults(data, append = false) {
       if (data.error) {
-        resultsDiv.innerHTML = `<div class="bg-bg-card rounded-md p-3.5 border border-rose-500/30 text-rose-400 text-[13px]">
+        resultsDiv.innerHTML = `<div class="card mb-2"><div class="card-body py-2 px-3 text-danger" style="font-size:13px;border-left:3px solid #dc3545;">
         <strong>Lỗi:</strong> ${data.error}
-      </div>`;
+      </div></div>`;
         return;
       }
 
@@ -165,23 +187,23 @@
       const finalResults = Object.values(uniqueMap);
 
       if (finalResults.length === 0) {
-        resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Không phát hiện đối tượng</div>';
+        resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Không phát hiện đối tượng</div></div>';
         return;
       }
 
       const html = finalResults.map(r => {
-        const colors = { whitelist: 'bg-emerald-500', unknown: 'bg-amber-500', known: 'bg-blue-600', stranger: 'bg-rose-500' };
+        const colors = { whitelist: 'badge-success', unknown: 'badge-warning', known: 'badge-primary', stranger: 'badge-danger' };
         const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ' };
-        
-        // Define plate color styles
+
+        // Define plate color styles (kept as inline for exact visual fidelity)
         const plateStyles = {
-          white: 'bg-white/10 text-white border-white/40',
-          yellow: 'bg-amber-400/20 text-white border-amber-400/50',
-          blue: 'bg-blue-600/20 text-white border-blue-400/40',
-          red: 'bg-rose-600/20 text-white border-rose-400/40'
+          white: 'background:rgba(255,255,255,.15);color:#212529;border-color:rgba(255,255,255,.5);',
+          yellow: 'background:rgba(245,158,11,.15);color:#856404;border-color:rgba(245,158,11,.4);',
+          blue: 'background:rgba(59,130,246,.15);color:#1a4bb0;border-color:rgba(59,130,246,.35);',
+          red: 'background:rgba(239,68,68,.15);color:#b02a37;border-color:rgba(239,68,68,.35);'
         };
 
-        const bg = colors[r.status] || 'bg-slate-500';
+        const badgeCls = colors[r.status] || 'badge-secondary';
 
         let badgeText = '—';
         let mainLabel = labels[r.status] || r.status;
@@ -206,18 +228,20 @@
           }
         }
 
-        let badgeClass = `${bg} text-white`;
+        let badgeInline = '';
         if (r.type === 'plate' && r.plate_type && plateStyles[r.plate_type]) {
-          badgeClass = plateStyles[r.plate_type];
+          badgeInline = plateStyles[r.plate_type];
         }
 
-        return `<div class="bg-bg-card rounded-md p-3 flex items-center gap-3 border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
-        <span class="${badgeClass} text-[11px] font-bold px-2 py-1 rounded min-w-[60px] text-center uppercase border border-white/10 transition-colors">${icon} ${badgeText}</span>
-        <div class="flex flex-col gap-0.5 flex-1 min-w-0">
-          <span class="text-white text-[13px] font-medium break-words">${mainLabel}</span>
-          <span class="text-txt-ter text-[11px]">${r.confidence}% tin cậy</span>
-        </div>
-      </div>`;
+        return `<div class="card mb-2">
+          <div class="card-body py-2 px-3 d-flex align-items-center" style="gap:10px;">
+            <span class="badge badge-pill ${badgeCls} text-uppercase" style="font-size:11px;min-width:60px;${badgeInline}">${icon} ${badgeText}</span>
+            <div class="flex-grow-1" style="min-width:0;">
+              <div class="font-weight-medium text-dark" style="font-size:13px;word-break:break-word;">${mainLabel}</div>
+              <div class="text-muted" style="font-size:11px;">${r.confidence}% tin cậy</div>
+            </div>
+          </div>
+        </div>`;
       }).join('');
 
       resultsDiv.innerHTML = html;
@@ -301,8 +325,8 @@
         stream.getTracks().forEach(t => t.stop()); stream = null;
         if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
         webcamInterval = false;
-        video.classList.add('hidden'); overlay.classList.add('hidden'); placeholder.classList.remove('hidden');
-        // btnStart.classList.add('hidden'); // Removed
+        video.classList.add('d-none'); overlay.classList.add('d-none'); placeholder.classList.remove('d-none');
+        // btnStart.classList.add('d-none'); // Removed
       }
     };
 
@@ -324,7 +348,7 @@
         audio: false
       };
       stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream; video.classList.remove('hidden'); placeholder.classList.add('hidden');
+      video.srcObject = stream; video.classList.remove('d-none'); placeholder.classList.add('d-none');
       webcamInterval = true;
       let isProcessing = false;
       let lastResults = [];
@@ -354,7 +378,7 @@
       const drawOverlay = () => {
         if (!stream || !webcamInterval) return;
         if (video.videoWidth && lastResults.length > 0) {
-          overlay.classList.remove('hidden');
+          overlay.classList.remove('d-none');
           overlay.width = video.clientWidth;
           overlay.height = video.clientHeight;
           drawBoxes(overlay, video, lastResults, 480, 360);
@@ -413,7 +437,7 @@
     const drawRtspOverlay = () => {
       if (!rtspActive) return;
       if (rtspFeed.videoWidth && rtspLastResults.length > 0) {
-        rtspOverlay.classList.remove('hidden');
+        rtspOverlay.classList.remove('d-none');
         rtspOverlay.width = rtspFeed.clientWidth;
         rtspOverlay.height = rtspFeed.clientHeight;
         drawBoxes(rtspOverlay, rtspFeed, rtspLastResults, 640, 480);
@@ -505,16 +529,16 @@
         rtspFeed.srcObject = null;
         rtspFeed.src = '';
         await fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST' });
-        rtspPlaceholder.classList.remove('hidden');
-        rtspFeed.classList.add('hidden');
-        rtspOverlay.classList.add('hidden');
+        rtspPlaceholder.classList.remove('d-none');
+        rtspFeed.classList.add('d-none');
+        rtspOverlay.classList.add('d-none');
         const ctx = rtspOverlay.getContext('2d');
         ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
       } else {
         // START
         rtspActive = true;
-        rtspPlaceholder.classList.add('hidden');
-        rtspFeed.classList.remove('hidden');
+        rtspPlaceholder.classList.add('d-none');
+        rtspFeed.classList.remove('d-none');
 
         await fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
 
@@ -532,7 +556,7 @@
     };
 
     window.clearResults = function () {
-      resultsDiv.innerHTML = '<div class="bg-bg-card rounded-md p-3.5 text-txt-ter text-[13px]">Chưa có kết quả</div>';
+      resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Chưa có kết quả</div></div>';
       const ctx = overlay.getContext('2d');
       ctx.clearRect(0, 0, overlay.width, overlay.height);
       const uCtx = uploadCanvas.getContext('2d');
@@ -559,7 +583,7 @@
     // --- Upload ---
     uploadInput.addEventListener('change', async (e) => {
       const file = e.target.files[0]; if (!file) return;
-      uploadPlaceholder.classList.add('hidden'); uploadCanvas.classList.remove('hidden');
+      uploadPlaceholder.classList.add('d-none'); uploadCanvas.classList.remove('d-none');
       const img = new Image();
       img.onload = async () => {
         // Display canvas at original resolution (for visual quality)
@@ -585,7 +609,7 @@
           const data = await sendFrame(blob);
           renderResults(data, false);
           drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
-          
+
           // RAM Optimization: Revoke object URL after processing
           URL.revokeObjectURL(img.src);
         }, 'image/jpeg', 0.9);

@@ -1,167 +1,129 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Parking Camera{% endblock %}</title>
-  <link rel="shortcut icon" href="{{ url_for('static', path='/favicon.png') }}" type="image/x-icon">
-  <link rel="stylesheet" href="/static/admin/css/admin-output.css?v=5.0">
-  <link rel="stylesheet" href="/static/admin/css/tom-select.css?v=5.0">
-  <link rel="stylesheet" href="/static/admin/css/fonts.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="csrf-token" content="">
+  <title>{% block title %}Quản trị | Parking Camera{% endblock %}</title>
+  <link rel="shortcut icon" href="/static/favicon.png" type="image/x-icon">
+
+  <!-- App css (Opatix admin theme) -->
+  <link href="/static/admin-assets/css/bootstrap.min.css?v=opatix" rel="stylesheet" type="text/css" />
+  <link href="/static/admin-assets/css/icons.min.css?v=opatix" rel="stylesheet" type="text/css" />
+  <link href="/static/admin-assets/css/theme.min.css?v=opatix" rel="stylesheet" type="text/css" />
+  <link href="/static/admin-assets/css/admin-custom.css?v=opatix" rel="stylesheet" type="text/css" />
+  <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
+  <link href="/static/vendor/fonts-inter/index.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/vendor/toastr/toastr.min.css" />
+  <link rel="stylesheet" href="/static/admin/css/tom-select.css?v=opatix">
+
+  <!-- JS libs used by pages (kept for HTMX/Alpine driven views) -->
   <script src="/static/admin/js/htmx.min.js?v=2.1"></script>
   <script src="/static/admin/js/alpine.min.js?v=2.1" defer></script>
   <script src="/static/admin/js/tom-select.complete.min.js?v=2.4.1"></script>
   <style>[x-cloak]{display:none!important}</style>
   {% block head %}{% endblock %}
 </head>
-<body class="bg-bg-page text-white font-sans antialiased">
+<body>
   {% block body %}{% endblock %}
 
-
-  <!-- Global Image Preview Modal (Alpine.js) -->
-  <div x-data="{ 
-    open: false, 
-    imgSrc: '',
-    showImage(e) {
-      this.imgSrc = e.detail.src;
-      this.open = true;
-    }
+  <!-- ============================================================= -->
+  <!-- Global Image Preview Modal (Alpine.js) — light theme           -->
+  <!-- ============================================================= -->
+  <div x-data="{
+    open: false, imgSrc: '',
+    showImage(e){ this.imgSrc = e.detail.src; this.open = true; }
   }"
   @show-image.window="showImage($event)"
-  x-show="open" 
-  class="fixed inset-0 z-[10001] flex items-center justify-center p-4"
-  style="display: none;">
-    <!-- Backdrop -->
-    <div x-show="open" 
-         x-transition:enter="ease-out duration-300" 
-         x-transition:enter-start="opacity-0" 
-         x-transition:enter-end="opacity-100" 
-         x-transition:leave="ease-in duration-200" 
-         x-transition:leave-start="opacity-100" 
-         x-transition:leave-end="opacity-0" 
-         class="absolute inset-0 bg-black/80 backdrop-blur-md" 
-         @click="open = false"></div>
-    
-    <!-- Large Image Content -->
-    <div x-show="open" 
-         x-transition:enter="ease-out duration-300" 
-         x-transition:enter-start="opacity-0 scale-90" 
-         x-transition:enter-end="opacity-100 scale-100" 
-         x-transition:leave="ease-in duration-200" 
-         x-transition:leave-start="opacity-100 scale-100" 
-         x-transition:leave-end="opacity-0 scale-90" 
-         class="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
-      <button @click="open = false" 
-              class="absolute -top-12 right-0 text-white/60 hover:text-white text-3xl cursor-pointer">✕</button>
-      <img :src="imgSrc" class="rounded-xl shadow-2xl border border-white/10 max-w-full max-h-full object-contain">
+  x-show="open" x-cloak
+  class="position-fixed d-flex align-items-center justify-content-center p-3"
+  style="z-index:10001;top:0;left:0;width:100%;height:100%;">
+    <div x-show="open" x-transition.opacity class="position-absolute"
+         style="top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);" @click="open=false"></div>
+    <div x-show="open" x-transition class="position-relative" style="max-width:90vw;max-height:90vh;">
+      <button @click="open=false" class="btn btn-light btn-sm position-absolute"
+              style="top:-40px;right:0;"><i class="bx bx-x"></i></button>
+      <img :src="imgSrc" class="rounded shadow-lg" style="max-width:90vw;max-height:85vh;object-fit:contain;">
     </div>
   </div>
 
-  <!-- Global Confirmation Modal (Alpine.js) -->
-  <div x-data="{ 
-    open: false, 
-    title: '', 
-    message: '', 
-    confirmText: 'Xác nhận', 
-    cancelText: 'Hủy', 
-    confirmUrl: '',
-    confirmTarget: '',
-    confirmMethod: 'POST',
-    confirmSwap: 'outerHTML',
-    reload: false,
-    isAlert: false,
-    showConfirm(e) {
-      const d = e.detail || {};
-      this.title = d.title || 'Xác nhận';
-      this.message = d.message || 'Bạn có chắc chắn muốn thực hiện hành động này?';
-      this.confirmText = d.confirmText || 'Xác nhận';
-      this.cancelText = d.cancelText || 'Hủy';
-      this.confirmUrl = d.confirmUrl || '';
-      this.confirmTarget = d.confirmTarget || '';
-      this.confirmMethod = d.confirmMethod || 'POST';
-      this.confirmSwap = d.confirmSwap || 'outerHTML';
-      this.reload = d.reload || false;
-      this.isAlert = d.isAlert || false;
-      this.open = true;
+  <!-- ============================================================= -->
+  <!-- Global Confirmation Modal (Alpine.js) — light theme            -->
+  <!-- ============================================================= -->
+  <div x-data="{
+    open:false, title:'', message:'', confirmText:'Xác nhận', cancelText:'Hủy',
+    confirmUrl:'', confirmTarget:'', confirmMethod:'POST', confirmSwap:'outerHTML',
+    reload:false, isAlert:false,
+    showConfirm(e){
+      const d=e.detail||{};
+      this.title=d.title||'Xác nhận';
+      this.message=d.message||'Bạn có chắc chắn muốn thực hiện hành động này?';
+      this.confirmText=d.confirmText||'Xác nhận';
+      this.cancelText=d.cancelText||'Hủy';
+      this.confirmUrl=d.confirmUrl||''; this.confirmTarget=d.confirmTarget||'';
+      this.confirmMethod=d.confirmMethod||'POST'; this.confirmSwap=d.confirmSwap||'outerHTML';
+      this.reload=d.reload||false; this.isAlert=d.isAlert||false; this.open=true;
     },
-    confirm() {
-      if (this.confirmUrl) {
-        if (this.reload) {
-          fetch(this.confirmUrl, { 
-            method: this.confirmMethod,
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-          }).then(() => window.location.reload());
-        } else if (typeof htmx !== 'undefined') {
-          const url = this.confirmUrl + (this.confirmUrl.includes('?') ? '&' : '?') + 'hx=1';
-          htmx.ajax(this.confirmMethod, url, { 
-            target: this.confirmTarget, 
-            swap: this.confirmSwap,
-            headers: { 'X-HTMX-Action': 'true' }
-          });
+    confirm(){
+      if(this.confirmUrl){
+        if(this.reload){
+          fetch(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(()=>window.location.reload());
+        } else if(typeof htmx!=='undefined'){
+          const url=this.confirmUrl+(this.confirmUrl.includes('?')?'&':'?')+'hx=1';
+          htmx.ajax(this.confirmMethod,url,{target:this.confirmTarget,swap:this.confirmSwap,headers:{'X-HTMX-Action':'true'}});
         }
       }
-      // Added a tiny delay to ensure HTMX/Fetch is successfully initiated before Alpine hides the element
-      setTimeout(() => { this.open = false; }, 10);
+      setTimeout(()=>{this.open=false;},10);
     }
   }"
   @show-confirm.window="showConfirm($event)"
-  x-show="open" 
-  class="fixed inset-0 z-[10000] flex items-center justify-center p-4"
-  style="display: none;">
-    <!-- Backdrop (with glassmorphism) -->
-    <div x-show="open" 
-         x-transition:enter="ease-out duration-300" 
-         x-transition:enter-start="opacity-0" 
-         x-transition:enter-end="opacity-100" 
-         x-transition:leave="ease-in duration-200" 
-         x-transition:leave-start="opacity-100" 
-         x-transition:leave-end="opacity-0" 
-         class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-         @click="open = false"></div>
-    
-    <!-- Modal Content -->
-    <div x-show="open" 
-         x-transition:enter="ease-out duration-300" 
-         x-transition:enter-start="opacity-0 scale-95" 
-         x-transition:enter-end="opacity-100 scale-100" 
-         x-transition:leave="ease-in duration-200" 
-         x-transition:leave-start="opacity-100 scale-100" 
-         x-transition:leave-end="opacity-0 scale-95" 
-         class="relative bg-bg-card border border-white/10 rounded-xl shadow-2xl p-5 w-[340px] flex flex-col gap-3">
-      <div class="flex items-center gap-2.5">
-        <span class="text-xl">⚠️</span>
-        <h3 class="text-base font-bold text-white" x-text="title"></h3>
+  x-show="open" x-cloak
+  class="position-fixed d-flex align-items-center justify-content-center p-3"
+  style="z-index:10000;top:0;left:0;width:100%;height:100%;">
+    <div x-show="open" x-transition.opacity class="position-absolute"
+         style="top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.45);" @click="open=false"></div>
+    <div x-show="open" x-transition class="position-relative bg-white rounded shadow-lg p-3"
+         style="width:360px;max-width:92vw;">
+      <div class="d-flex align-items-center mb-2">
+        <i class="bx bx-error-circle text-warning font-size-20 mr-2"></i>
+        <h5 class="mb-0 font-size-15 font-weight-bold" x-text="title"></h5>
       </div>
-      <p class="text-[13px] text-txt-sec leading-relaxed" x-text="message"></p>
-      <div class="flex gap-2.5 mt-2">
-        <button @click="confirm()" 
-                class="flex-1 bg-accent text-bg-inset text-[13px] font-semibold py-2 rounded-lg hover:bg-cyan-300 transition-colors cursor-pointer"
-                :class="{ 'bg-status-red text-white hover:bg-rose-600': !isAlert }"
+      <p class="text-muted font-size-13 mb-3" x-text="message"></p>
+      <div class="d-flex" style="gap:8px;">
+        <button @click="confirm()"
+                class="btn btn-sm flex-fill text-white"
+                :class="isAlert ? 'btn-primary' : 'btn-danger'"
                 x-text="confirmText"></button>
         <template x-if="!isAlert">
-          <button @click="open = false" 
-                  class="flex-1 bg-white/5 text-txt-sec text-[13px] font-semibold py-2 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                  x-text="cancelText"></button>
+          <button @click="open=false" class="btn btn-sm btn-light flex-fill" x-text="cancelText"></button>
         </template>
       </div>
     </div>
   </div>
 
-  <!-- Toast container -->
-  <div id="toast-container" class="fixed top-6 right-6 z-[9999] flex flex-col gap-2"></div>
+  <!-- Opatix theme scripts -->
+  <script src="/static/admin-assets/js/jquery.min.js"></script>
+  <script src="/static/admin-assets/js/bootstrap.bundle.min.js"></script>
+  <script src="/static/admin-assets/js/metismenu.min.js"></script>
+  <script src="/static/admin-assets/js/waves.js"></script>
+  <script src="/static/admin-assets/js/simplebar.min.js"></script>
+  <script src="/static/admin-assets/js/theme.js"></script>
+  <script src="/static/vendor/toastr/toastr.min.js"></script>
   <script>
+    if (window.toastr) {
+      toastr.options = {
+        closeButton:true, progressBar:true, positionClass:"toast-top-right",
+        timeOut:"4000", extendedTimeOut:"1000",
+        showMethod:"fadeIn", hideMethod:"fadeOut"
+      };
+    }
+    // Bridge legacy `showToast` events from HTMX responses to toastr
     document.body.addEventListener("showToast", (e) => {
       const d = e.detail || {};
       const msg = d.msg || d.value || "";
-      const type = d.type || "success";
-      const colors = {success:"bg-emerald-500",error:"bg-rose-500",warning:"bg-amber-500",info:"bg-blue-500"};
-      const icons = {success:"\u2705",error:"\u274c",warning:"\u26a0\ufe0f",info:"\u2139\ufe0f"};
-      const el = document.createElement("div");
-      el.className = `${colors[type]||colors.success} text-white px-5 py-3 rounded-lg shadow-xl text-sm font-medium flex items-center gap-3 transition-all duration-300 translate-x-0 opacity-100`;
-      el.innerHTML = `<span>${icons[type]||""}</span><span>${msg}</span>`;
-      document.getElementById("toast-container").appendChild(el);
-      setTimeout(() => { el.style.opacity="0"; el.style.transform="translateX(100%)"; setTimeout(()=>el.remove(),300); }, 3000);
+      const type = (d.type || "success");
+      if (window.toastr && toastr[type]) { toastr[type](msg); }
+      else { alert(msg); }
     });
   </script>
   {% block scripts %}{% endblock %}

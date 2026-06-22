@@ -1,182 +1,183 @@
 {% extends "layout.html" %}
 {% block title %}Tin tư vấn{% endblock %}
+{% block page_title %}Tin tư vấn{% endblock %}
+
 {% block content %}
-<div class="flex flex-col gap-4" x-data="{ tab: 'all' }">
+<div x-data="{ tab: 'all' }">
 
   {# ── Header ── #}
-  <div class="flex items-center justify-between gap-3 flex-wrap">
-    <div class="flex items-center gap-3">
-      <span class="text-2xl font-bold text-white">Tin tư vấn</span>
+  <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:10px;">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <h4 class="mb-0 font-weight-bold">Tin tư vấn</h4>
       {% if unread_count > 0 %}
-      <span class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ unread_count }} mới</span>
+      <span class="badge badge-pill badge-danger">{{ unread_count }} mới</span>
       {% endif %}
     </div>
     {% if unread_count > 0 %}
     <button hx-post="/inquiries/read-all"
             hx-confirm="Đánh dấu tất cả đã đọc?"
             hx-on::after-request="window.location.reload()"
-            class="px-3 py-1.5 text-xs rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-colors">
-      ✓ Đọc tất cả
+            class="btn btn-sm btn-light border">
+      <i class="fas fa-check mr-1"></i> Đọc tất cả
     </button>
     {% endif %}
   </div>
 
   {# ── Tabs ── #}
   {% if inquiries %}
-  <div class="flex gap-0 border-b border-white/10">
-    <button @click="tab='all'"
-            :class="tab==='all' ? 'border-b-2 border-accent text-accent' : 'text-txt-ter hover:text-white'"
-            class="px-4 py-2 text-sm font-medium transition-colors -mb-px">
-      Tất cả&nbsp;<span class="opacity-50">{{ inquiries|length }}</span>
-    </button>
-    <button @click="tab='unread'"
-            :class="tab==='unread' ? 'border-b-2 border-orange-400 text-orange-400' : 'text-txt-ter hover:text-white'"
-            class="px-4 py-2 text-sm font-medium transition-colors -mb-px">
-      Chưa đọc&nbsp;<span class="opacity-50">{{ unread_count }}</span>
-    </button>
-    <button @click="tab='read'"
-            :class="tab==='read' ? 'border-b-2 border-green-400 text-green-400' : 'text-txt-ter hover:text-white'"
-            class="px-4 py-2 text-sm font-medium transition-colors -mb-px">
-      Đã đọc&nbsp;<span class="opacity-50">{{ inquiries|length - unread_count }}</span>
-    </button>
-  </div>
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link" :class="tab==='all' ? 'active' : ''" href="#" @click.prevent="tab='all'">
+        Tất cả <span class="text-muted">{{ inquiries|length }}</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" :class="tab==='unread' ? 'active' : ''" href="#" @click.prevent="tab='unread'">
+        Chưa đọc <span class="text-muted">{{ unread_count }}</span>
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" :class="tab==='read' ? 'active' : ''" href="#" @click.prevent="tab='read'">
+        Đã đọc <span class="text-muted">{{ inquiries|length - unread_count }}</span>
+      </a>
+    </li>
+  </ul>
   {% endif %}
 
   {# ── Empty ── #}
   {% if not inquiries %}
-  <div class="bg-bg-card rounded-xl border border-white/5 py-16 text-center text-txt-ter text-sm">
-    Chưa có tin tư vấn nào.
+  <div class="card">
+    <div class="card-body py-5 text-center text-muted">
+      Chưa có tin tư vấn nào.
+    </div>
   </div>
 
   {% else %}
   {# ── List ── #}
-  <div id="inquiry-list" class="flex flex-col gap-2">
+  <div id="inquiry-list">
     {% for inq in inquiries %}
     {% set is_unread = not inq.is_read %}
     <div id="row-{{ inq.id }}"
          x-data="{ open: false }"
          x-show="tab==='all' || (tab==='unread' && {{ 'true' if is_unread else 'false' }}) || (tab==='read' && {{ 'false' if is_unread else 'true' }})"
-         class="rounded-xl border {{ 'border-orange-500/25 bg-orange-500/[0.04]' if is_unread else 'border-white/5 bg-bg-card' }}">
+         class="card mb-2 {{ 'border-warning' if is_unread else '' }}">
 
       {# ── Row summary (always visible) ── #}
-      <div class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none" @click="open=!open">
+      <div class="card-body py-2 px-3 d-flex align-items-center" style="gap:10px;cursor:pointer;" @click="open=!open">
 
         {# Unread dot #}
-        <div class="w-1.5 h-1.5 rounded-full flex-shrink-0 {{ 'bg-orange-400' if is_unread else 'bg-transparent' }}"></div>
+        <span class="rounded-circle flex-shrink-0"
+              style="width:8px;height:8px;background:{{ '#fd7e14' if is_unread else 'transparent' }};display:inline-block;"></span>
 
         {# Date #}
-        <span class="text-[11px] text-txt-ter whitespace-nowrap flex-shrink-0 w-[68px]">
+        <span class="text-muted flex-shrink-0" style="font-size:11px;width:72px;white-space:nowrap;">
           {{ inq.created_at.strftime('%d/%m %H:%M') if inq.created_at else '—' }}
         </span>
 
         {# Name #}
-        <span class="text-sm font-semibold text-white flex-shrink-0 w-36 truncate">{{ inq.full_name }}</span>
+        <span class="font-weight-bold flex-shrink-0" style="width:144px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ inq.full_name }}</span>
 
-        {# Phone (tap-to-call, stops propagation) #}
+        {# Phone (tap-to-call) #}
         <a href="tel:{{ inq.phone }}" @click.stop
-           class="text-accent text-sm flex-shrink-0 w-28 hover:underline">{{ inq.phone }}</a>
+           class="text-primary flex-shrink-0" style="width:112px;font-size:14px;">{{ inq.phone }}</a>
 
         {# Demand preview #}
-        <span class="text-xs text-txt-sec truncate flex-1 hidden sm:block">{{ inq.demand or '—' }}</span>
+        <span class="text-muted flex-grow-1 d-none d-sm-block" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ inq.demand or '—' }}</span>
 
         {# Note tag #}
         {% if inq.note %}
-        <span class="text-[10px] text-txt-ter bg-white/5 border border-white/10 px-2 py-0.5 rounded hidden md:inline flex-shrink-0">ghi chú</span>
+        <span class="badge badge-light border d-none d-md-inline flex-shrink-0" style="font-size:10px;">ghi chú</span>
         {% endif %}
 
         {# Status #}
         <div id="badge-{{ inq.id }}" class="flex-shrink-0" @click.stop>
           {% if inq.is_read %}
-          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
+          <i class="fas fa-check-circle text-success" style="font-size:1.1rem;"></i>
           {% else %}
           <button hx-post="/inquiries/{{ inq.id }}/read"
                   hx-target="#badge-{{ inq.id }}"
                   hx-swap="innerHTML"
                   title="Đánh dấu đã đọc"
-                  class="w-8 h-8 flex items-center justify-center rounded-full bg-orange-500/10 border border-orange-500/25 text-orange-400 hover:bg-orange-500/25 transition-colors flex-shrink-0">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  class="btn btn-sm rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                  style="width:32px;height:32px;background:rgba(253,126,20,.1);border:1px solid rgba(253,126,20,.3);color:#fd7e14;padding:0;">
+            <svg style="width:16px;height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"/>
             </svg>
           </button>
           {% endif %}
         </div>
 
-        {# Chevron SVG #}
-        <svg class="w-4 h-4 text-txt-ter flex-shrink-0 transition-transform duration-200"
-             :class="open ? 'rotate-180' : ''"
-             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-        </svg>
+        {# Chevron #}
+        <i class="fas fa-chevron-down text-muted flex-shrink-0 transition"
+           :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
       </div>
 
       {# ── Expanded detail ── #}
-      <div x-show="open" x-collapse class="border-t border-white/5">
-        <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+      <div x-show="open" x-collapse class="border-top">
+        <div class="card-body pt-3 pb-3">
+          <div class="row">
 
-          <div>
-            <p class="text-[10px] text-txt-ter uppercase tracking-widest mb-1">Họ tên</p>
-            <p class="text-white text-sm font-semibold">{{ inq.full_name }}</p>
-          </div>
-
-          <div>
-            <p class="text-[10px] text-txt-ter uppercase tracking-widest mb-1">Điện thoại</p>
-            <div class="flex items-center gap-2">
-              <a href="tel:{{ inq.phone }}" class="text-accent text-sm hover:underline">{{ inq.phone }}</a>
-              <button onclick="navigator.clipboard.writeText('{{ inq.phone }}');this.textContent='✓';setTimeout(()=>this.textContent='copy',1500)"
-                      class="text-[10px] text-txt-ter hover:text-accent transition-colors">copy</button>
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
+              <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Họ tên</p>
+              <p class="font-weight-bold mb-0">{{ inq.full_name }}</p>
             </div>
-          </div>
 
-          <div>
-            <p class="text-[10px] text-txt-ter uppercase tracking-widest mb-1">Doanh nghiệp</p>
-            <p class="text-txt-sec text-sm">{{ inq.company_name or '—' }}</p>
-          </div>
-
-          <div class="sm:col-span-2 lg:col-span-3">
-            <p class="text-[10px] text-txt-ter uppercase tracking-widest mb-1">Nhu cầu</p>
-            <div class="bg-bg-inset rounded-lg px-3 py-2 text-sm text-txt-sec leading-relaxed">{{ inq.demand or '—' }}</div>
-          </div>
-
-          <div class="sm:col-span-2 lg:col-span-3">
-            <p class="text-[10px] text-txt-ter uppercase tracking-widest mb-1">Ghi chú nội bộ</p>
-            <form hx-post="/inquiries/{{ inq.id }}/note"
-                  hx-swap="none"
-                  hx-on::after-request="var el=document.getElementById('ns-{{ inq.id }}');el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),2000)"
-                  class="flex gap-2">
-              <input type="text" name="note" value="{{ inq.note or '' }}"
-                     placeholder="Thêm ghi chú..."
-                     class="flex-1 bg-bg-inset border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-accent/40 transition-colors">
-              <button type="submit"
-                      class="px-3 py-1.5 text-sm rounded-lg bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors whitespace-nowrap">
-                Lưu
-              </button>
-              <span id="ns-{{ inq.id }}" class="hidden self-center text-green-400 text-xs whitespace-nowrap">✓ Đã lưu</span>
-            </form>
-          </div>
-
-          <div class="sm:col-span-2 lg:col-span-3 flex items-center justify-between pt-2 border-t border-white/5">
-            <div class="flex gap-2">
-              <a href="tel:{{ inq.phone }}"
-                 class="px-3 py-1.5 text-xs rounded-lg bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-colors">
-                📞 Gọi ngay
-              </a>
-              <a href="https://zalo.me/{{ inq.phone | replace(' ','') | replace('.','') | replace('-','') }}"
-                 target="_blank"
-                 class="px-3 py-1.5 text-xs rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors">
-                Zalo
-              </a>
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
+              <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Điện thoại</p>
+              <div class="d-flex align-items-center" style="gap:8px;">
+                <a href="tel:{{ inq.phone }}" class="text-primary">{{ inq.phone }}</a>
+                <button onclick="navigator.clipboard.writeText('{{ inq.phone }}');this.textContent='✓';setTimeout(()=>this.textContent='copy',1500)"
+                        class="btn btn-sm btn-light border" style="font-size:11px;padding:1px 8px;">copy</button>
+              </div>
             </div>
-            <button hx-delete="/inquiries/{{ inq.id }}"
-                    hx-target="#row-{{ inq.id }}"
-                    hx-swap="outerHTML"
-                    hx-confirm="Xóa tin tư vấn này?"
-                    class="px-3 py-1.5 text-xs rounded-lg border border-white/5 text-txt-ter hover:text-red-400 hover:border-red-500/20 hover:bg-red-500/10 transition-colors">
-              Xóa
-            </button>
-          </div>
 
+            <div class="col-12 col-sm-6 col-lg-4 mb-3">
+              <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Doanh nghiệp</p>
+              <p class="mb-0">{{ inq.company_name or '—' }}</p>
+            </div>
+
+            <div class="col-12 mb-3">
+              <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Nhu cầu</p>
+              <div class="p-2 rounded" style="background:#f8f9fa;font-size:14px;line-height:1.6;">{{ inq.demand or '—' }}</div>
+            </div>
+
+            <div class="col-12 mb-3">
+              <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Ghi chú nội bộ</p>
+              <form hx-post="/inquiries/{{ inq.id }}/note"
+                    hx-swap="none"
+                    hx-on::after-request="var el=document.getElementById('ns-{{ inq.id }}');el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),2000)"
+                    class="d-flex" style="gap:8px;">
+                <input type="text" name="note" value="{{ inq.note or '' }}"
+                       placeholder="Thêm ghi chú..."
+                       class="form-control form-control-sm flex-grow-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-shrink-0">Lưu</button>
+                <span id="ns-{{ inq.id }}" class="hidden align-self-center text-success" style="font-size:12px;white-space:nowrap;">✓ Đã lưu</span>
+              </form>
+            </div>
+
+            <div class="col-12">
+              <div class="d-flex align-items-center justify-content-between pt-2 border-top" style="gap:8px;">
+                <div class="d-flex" style="gap:8px;">
+                  <a href="tel:{{ inq.phone }}" class="btn btn-sm btn-primary">
+                    📞 Gọi ngay
+                  </a>
+                  <a href="https://zalo.me/{{ inq.phone | replace(' ','') | replace('.','') | replace('-','') }}"
+                     target="_blank"
+                     class="btn btn-sm btn-info text-white">
+                    Zalo
+                  </a>
+                </div>
+                <button hx-delete="/inquiries/{{ inq.id }}"
+                        hx-target="#row-{{ inq.id }}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Xóa tin tư vấn này?"
+                        class="btn btn-sm btn-danger">
+                  Xóa
+                </button>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
 

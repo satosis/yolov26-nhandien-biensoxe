@@ -2,41 +2,43 @@
 {% block title %}Duyệt bản quét — {{ vehicle.plate_number }}{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-5" x-data>
-  <div class="flex items-center justify-between flex-wrap gap-3">
-    <div class="flex items-center gap-3">
-      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
-      <span class="text-divider">|</span>
-      <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
-      <span class="text-white font-semibold text-lg">Duyệt kết quả quét</span>
+<div class="d-flex flex-column" style="gap:20px;" x-data>
+  <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
+    <div class="d-flex align-items-center" style="gap:12px;">
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-muted" style="font-size:14px;">← Quay lại</a>
+      <span class="text-muted">|</span>
+      <span class="badge badge-success font-weight-bold" style="font-size:14px;font-family:monospace;">{{ vehicle.plate_number }}</span>
+      <span class="font-weight-bold" style="font-size:17px;">Duyệt kết quả quét</span>
     </div>
-    <div class="text-[12px] text-txt-ter">
+    <div class="text-muted" style="font-size:12px;">
       {{ line_count }} dòng OCR · {{ candidate_count }} chuyến dự đoán
     </div>
   </div>
 
-  <div class="bg-bg-inset border border-white/10 rounded-lg px-4 py-3 text-[13px] text-txt-sec">
-    Kiểm tra các dòng màu vàng/đỏ trước khi lưu. Với chữ viết khó đọc, hệ thống chỉ điền nháp và không tự lưu vào lịch trình.
+  <div class="card">
+    <div class="card-body py-3 text-muted" style="font-size:13px;">
+      Kiểm tra các dòng màu vàng/đỏ trước khi lưu. Với chữ viết khó đọc, hệ thống chỉ điền nháp và không tự lưu vào lịch trình.
+    </div>
   </div>
 
   {% if quality_warnings %}
-  <div class="bg-status-yellow/10 border border-status-yellow/30 rounded-lg px-4 py-3">
-    <div class="text-status-yellow text-[12px] font-bold uppercase tracking-widest mb-2">Chất lượng ảnh cần chú ý</div>
-    <div class="flex flex-col gap-1">
-      {% for msg in quality_warnings %}
-      <div class="text-[13px] text-status-yellow">{{ msg }}</div>
-      {% endfor %}
-    </div>
+  <div class="alert alert-warning">
+    <div class="font-weight-bold text-uppercase mb-2" style="font-size:12px;letter-spacing:.08em;">Chất lượng ảnh cần chú ý</div>
+    {% for msg in quality_warnings %}
+    <div style="font-size:13px;">{{ msg }}</div>
+    {% endfor %}
   </div>
   {% endif %}
 
   {% if not candidates %}
-  <div class="bg-bg-card border border-white/5 rounded-lg p-6">
-    <div class="text-status-yellow font-semibold text-sm mb-2">Chưa tách được chuyến hàng</div>
-    <p class="text-txt-sec text-sm">Có thể ảnh quá mờ, giấy bị nghiêng hoặc chữ không đủ tương phản. Hãy thử quét lại gần hơn, đủ sáng hơn.</p>
+  <div class="card">
+    <div class="card-body">
+      <div class="font-weight-bold text-warning mb-2" style="font-size:14px;">Chưa tách được chuyến hàng</div>
+      <p class="text-muted mb-0" style="font-size:14px;">Có thể ảnh quá mờ, giấy bị nghiêng hoặc chữ không đủ tương phản. Hãy thử quét lại gần hơn, đủ sáng hơn.</p>
+    </div>
   </div>
   {% else %}
-  <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan/confirm" class="flex flex-col gap-4">
+  <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan/confirm" class="d-flex flex-column" style="gap:16px;">
     <input type="hidden" name="token" value="{{ token }}">
 
     {% for c in candidates %}
@@ -44,139 +46,162 @@
     {% set warnings = c.get('warnings', []) %}
     {% set field_conf = c.get('_field_confidence', {}) %}
     {% set field_sources = c.get('_field_sources', {}) %}
-    <div data-scan-row class="bg-bg-card border rounded-lg overflow-hidden {% if warnings|selectattr('level','equalto','danger')|list %}border-status-red/40{% elif warnings %}border-status-yellow/40{% else %}border-white/5{% endif %}">
-      <div class="px-4 py-3 border-b border-divider flex items-center justify-between gap-3 flex-wrap">
-        <div class="flex items-center gap-3">
-          <span class="text-white font-semibold text-sm">Chuyến {{ loop.index }}</span>
+    <div data-scan-row class="card {% if warnings|selectattr('level','equalto','danger')|list %}border-danger{% elif warnings %}border-warning{% endif %}">
+      <div class="card-header d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
+        <div class="d-flex align-items-center" style="gap:12px;">
+          <span class="font-weight-bold" style="font-size:14px;">Chuyến {{ loop.index }}</span>
           {% if warnings %}
-          <span class="text-[11px] px-2 py-1 rounded bg-status-yellow/10 text-status-yellow border border-status-yellow/20">{{ warnings|length }} cảnh báo</span>
+          <span class="badge badge-warning badge-pill">{{ warnings|length }} cảnh báo</span>
           {% else %}
-          <span class="text-[11px] px-2 py-1 rounded bg-status-green/10 text-status-green border border-status-green/20">Ổn</span>
+          <span class="badge badge-success badge-pill">Ổn</span>
           {% endif %}
         </div>
-        <label class="flex items-center gap-2 text-[12px] text-txt-sec">
-          <input type="checkbox" name="skip_{{ i }}" class="accent-cyan-400" @change="$el.closest('[data-scan-row]').querySelectorAll('input:not([type=checkbox]), textarea').forEach(i => i.disabled = $el.checked)">
+        <label class="d-flex align-items-center mb-0" style="gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" name="skip_{{ i }}" @change="$el.closest('[data-scan-row]').querySelectorAll('input:not([type=checkbox]), textarea').forEach(i => i.disabled = $el.checked)">
           Bỏ qua dòng này
         </label>
       </div>
 
       {% if warnings %}
-      <div class="px-4 py-3 bg-bg-inset/60 border-b border-divider flex flex-col gap-1">
+      <div class="px-3 py-2 border-bottom bg-light">
         {% for w in warnings %}
-        <div class="text-[12px] {% if w.level == 'danger' %}text-status-red{% else %}text-status-yellow{% endif %}">
+        <div style="font-size:12px;" class="{% if w.level == 'danger' %}text-danger{% else %}text-warning{% endif %}">
           {{ w.message }}
         </div>
         {% endfor %}
       </div>
       {% endif %}
 
-      <div class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Xuất phát *</label>
-          <input type="datetime-local" name="departure_{{ i }}" value="{{ c.departure_time or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% if field_conf.get('departure_time') %}
-          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('departure_time') * 100)|round|int }}%</div>
-          {% endif %}
-        </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Xuất phát *</label>
+            <input type="datetime-local" name="departure_{{ i }}" value="{{ c.departure_time or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('departure_time') %}
+            <small class="text-muted">OCR {{ (field_conf.get('departure_time') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Ngày về</label>
-          <input type="datetime-local" name="return_{{ i }}" value="{{ c.return_time or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% if field_conf.get('return_time') %}
-          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('return_time') * 100)|round|int }}%</div>
-          {% endif %}
-        </div>
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Ngày về</label>
+            <input type="datetime-local" name="return_{{ i }}" value="{{ c.return_time or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('return_time') %}
+            <small class="text-muted">OCR {{ (field_conf.get('return_time') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Số lít dầu</label>
-          <input type="number" name="fuel_{{ i }}" step="0.01" value="{{ c.fuel_liters or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% if field_conf.get('fuel_liters') %}
-          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('fuel_liters') * 100)|round|int }}%</div>
-          {% endif %}
-        </div>
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Số lít dầu</label>
+            <input type="number" name="fuel_{{ i }}" step="0.01" value="{{ c.fuel_liters or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('fuel_liters') %}
+            <small class="text-muted">OCR {{ (field_conf.get('fuel_liters') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Điểm lấy hàng</label>
-          <input type="text" name="origin_{{ i }}" value="{{ c.origin or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Điểm lấy hàng</label>
+            <input type="text" name="origin_{{ i }}" value="{{ c.origin or '' }}"
+                   class="form-control form-control-sm">
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Điểm giao hàng</label>
-          <input type="text" name="destination_{{ i }}" value="{{ c.destination or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Điểm giao hàng</label>
+            <input type="text" name="destination_{{ i }}" value="{{ c.destination or '' }}"
+                   class="form-control form-control-sm">
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Cước vận chuyển</label>
-          <input type="number" name="revenue_{{ i }}" step="1" value="{{ c.freight_revenue or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% if field_conf.get('freight_revenue') %}
-          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('freight_revenue') * 100)|round|int }}%</div>
-          {% endif %}
-        </div>
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Cước vận chuyển</label>
+            <input type="number" name="revenue_{{ i }}" step="1" value="{{ c.freight_revenue or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('freight_revenue') %}
+            <small class="text-muted">OCR {{ (field_conf.get('freight_revenue') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
 
-        <div>
-          <label class="block text-txt-sec text-[12px] mb-1.5">Quãng đường (km)</label>
-          <input type="number" name="distance_{{ i }}" step="0.1" value="{{ c.distance_km or '' }}"
-                 class="w-full bg-bg-inset border border-white/10 rounded-md px-3 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% if field_conf.get('distance_km') %}
-          <div class="text-[10px] text-txt-ter mt-1">OCR {{ (field_conf.get('distance_km') * 100)|round|int }}%</div>
-          {% endif %}
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Quãng đường (km)</label>
+            <input type="number" name="distance_{{ i }}" step="0.1" value="{{ c.distance_km or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('distance_km') %}
+            <small class="text-muted">OCR {{ (field_conf.get('distance_km') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
         </div>
       </div>
 
-      <details class="border-t border-divider bg-bg-inset/30">
-        <summary class="px-4 py-2 text-[12px] text-txt-sec cursor-pointer hover:text-white">Xem dòng OCR gốc</summary>
-        <div class="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {% for line in c.source_lines %}
-          <div class="bg-bg-inset border border-white/5 rounded-md p-3 flex flex-col gap-2">
-            <div class="text-[11px] text-txt-ter">Dòng {{ line.index }} · {{ (line.confidence * 100)|round|int }}%</div>
-            {% if line.crop_image %}
-            <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="w-full max-h-[92px] object-contain bg-white rounded border border-white/10">
-            {% endif %}
-            <div class="text-[13px] text-white">{{ line.text }}</div>
-            <label class="text-[11px] text-txt-ter">Dòng chuẩn</label>
-            <textarea name="line_text_{{ i }}_{{ loop.index0 }}" rows="2"
-                      class="w-full bg-bg-card border border-white/10 rounded-md px-3 py-2 text-[12px] text-white focus:outline-none focus:border-accent/50">{{ line.text }}</textarea>
+      <details class="border-top">
+        <summary class="px-3 py-2 text-muted" style="font-size:12px;cursor:pointer;">Xem dòng OCR gốc</summary>
+        <div class="px-3 pb-3">
+          <div class="row">
+            {% for line in c.source_lines %}
+            <div class="col-12 col-md-6 mb-3">
+              <div class="card border">
+                <div class="card-body p-3">
+                  <div class="text-muted mb-2" style="font-size:11px;">Dòng {{ line.index }} · {{ (line.confidence * 100)|round|int }}%</div>
+                  {% if line.crop_image %}
+                  <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="img-fluid rounded mb-2" style="max-height:92px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;">
+                  {% endif %}
+                  <div style="font-size:13px;" class="mb-2">{{ line.text }}</div>
+                  <label class="text-muted" style="font-size:11px;">Dòng chuẩn</label>
+                  <textarea name="line_text_{{ i }}_{{ loop.index0 }}" rows="2"
+                            class="form-control form-control-sm">{{ line.text }}</textarea>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
           </div>
-          {% endfor %}
         </div>
       </details>
     </div>
     {% endfor %}
 
-    <div class="flex items-center gap-3 sticky bottom-0 bg-bg-page/95 backdrop-blur border-t border-divider py-4">
-      <button type="submit" class="bg-accent text-bg-inset font-bold text-[14px] px-7 py-3 rounded-md hover:bg-cyan-300 transition-colors">
+    <div class="d-flex align-items-center sticky-bottom bg-white border-top py-3" style="gap:12px;">
+      <button type="submit" class="btn btn-primary font-weight-bold">
         Lưu các chuyến đã duyệt
       </button>
-      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec text-[14px] px-5 py-3 rounded-md hover:bg-white/5 transition-colors">
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="btn btn-light">
         Hủy
       </a>
     </div>
   </form>
   {% endif %}
 
-  <div class="bg-bg-card border border-white/5 rounded-lg overflow-hidden">
-    <div class="px-4 py-3 border-b border-divider text-[12px] text-txt-sec font-semibold uppercase tracking-widest">Toàn bộ OCR</div>
-    <div class="divide-y divide-divider max-h-[360px] overflow-y-auto">
-      {% for line in lines %}
-      <div class="px-4 py-2 grid grid-cols-[70px_80px_1fr] gap-3 text-[12px]">
-        <span class="text-txt-ter">Dòng {{ line.index }}</span>
-        <span class="{% if line.confidence < 0.62 %}text-status-red{% elif line.confidence < 0.78 %}text-status-yellow{% else %}text-status-green{% endif %}">
-          {{ (line.confidence * 100)|round|int }}%
-        </span>
-        <span class="text-white flex flex-col gap-2">
-          {% if line.crop_image %}
-          <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="w-full max-h-[72px] object-contain bg-white rounded border border-white/10">
-          {% endif %}
-          <span>{{ line.text }}</span>
-        </span>
-      </div>
-      {% endfor %}
+  <div class="card">
+    <div class="card-header">
+      <span class="font-weight-bold text-uppercase text-muted" style="font-size:12px;letter-spacing:.08em;">Toàn bộ OCR</span>
+    </div>
+    <div class="cx-overflow-x-auto" style="max-height:360px;overflow-y:auto;">
+      <table class="table-cinema">
+        <thead>
+          <tr>
+            <th style="width:70px;">Dòng</th>
+            <th style="width:80px;">Độ tin cậy</th>
+            <th>Nội dung</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr>
+            <td class="text-muted" style="font-size:12px;">Dòng {{ line.index }}</td>
+            <td style="font-size:12px;">
+              <span class="{% if line.confidence < 0.62 %}text-danger{% elif line.confidence < 0.78 %}text-warning{% else %}text-success{% endif %}">
+                {{ (line.confidence * 100)|round|int }}%
+              </span>
+            </td>
+            <td style="font-size:12px;">
+              {% if line.crop_image %}
+              <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="img-fluid rounded mb-1" style="max-height:72px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;">
+              {% endif %}
+              <div>{{ line.text }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

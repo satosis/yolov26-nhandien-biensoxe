@@ -73,10 +73,15 @@ def get_menu_context(request: Request, user: dict) -> dict:
     sites = get_db().get_sites(active_only=True)
     active_site_id = request.session.get("active_site_id", 0)
     
-    # Handle /camera prefix for current_menu highlight
+    # Resolve current_menu from the request path to match a menu key.
+    # Routers are mounted under /admin (e.g. /admin/cameras, /admin/parking_dashboard);
+    # CMS is double-prefixed (/admin/admin/cms). Strip the leading "admin/" so the
+    # remaining value equals the menu key ("cameras", "parking_dashboard", "admin/cms").
     path = request.url.path.strip("/")
     if path.startswith("camera/"):
-        current_menu = path[7:] # len("camera/") == 7
+        current_menu = path[7:]  # legacy /camera prefix
+    elif path.startswith("admin/"):
+        current_menu = path[6:]  # len("admin/") == 6
     else:
         current_menu = path
 

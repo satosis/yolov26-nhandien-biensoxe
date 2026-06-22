@@ -1,8 +1,9 @@
 {% extends "layout.html" %}
 {% block title %}Chuyến hàng — {{ vehicle.plate_number }}{% endblock %}
+{% block page_title %}Lịch sử chuyến hàng{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{}" x-init="
+<div x-data="{}" x-init="
   const p = new URLSearchParams(window.location.search);
   if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'✅ Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
   if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'⚠️ Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
@@ -10,137 +11,137 @@
 ">
 
   <!-- Header -->
-  <div class="flex items-center justify-between flex-wrap gap-3">
-    <div class="flex items-center gap-3">
-      <a href="/admin/vehicles" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
-      <span class="text-divider">|</span>
-      <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
-      <span class="text-white font-semibold text-lg">{{ vehicle.owner_name or '' }}</span>
-      <span class="text-txt-ter text-sm">— Lịch sử chuyến hàng</span>
+  <div class="d-flex align-items-center justify-content-between flex-wrap mb-4" style="gap:12px;">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <a href="/admin/vehicles" class="text-muted" style="font-size:13px;">← Quay lại</a>
+      <span class="text-muted">|</span>
+      <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;font-family:monospace;">{{ vehicle.plate_number }}</span>
+      <span class="font-weight-bold" style="font-size:16px;">{{ vehicle.owner_name or '' }}</span>
+      <span class="text-muted" style="font-size:13px;">— Lịch sử chuyến hàng</span>
     </div>
-    <div class="flex items-center gap-2 flex-wrap" x-data="{ scanning: false }">
+    <div class="d-flex align-items-center flex-wrap" style="gap:8px;" x-data="{ scanning: false }">
       <!-- iPhone/Safari keeps the full camera photo when using file capture. -->
       <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
-            enctype="multipart/form-data" class="inline"
+            enctype="multipart/form-data" class="d-inline"
             @submit="scanning = true">
-        <label class="flex items-center gap-2 bg-bg-card border border-white/10 text-txt-sec hover:text-white hover:border-accent/40 font-medium text-[13px] px-4 py-2.5 rounded-md transition-colors cursor-pointer">
+        <label class="btn btn-secondary btn-sm mb-0" style="cursor:pointer;">
           <span x-show="!scanning">📷 Quét văn bản</span>
-          <span x-show="scanning" class="text-accent">⏳ Đang xử lý...</span>
+          <span x-show="scanning" class="text-primary">⏳ Đang xử lý...</span>
           <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
-                 class="hidden" @change="$el.closest('form').submit(); scanning = true">
+                 class="d-none" @change="$el.closest('form').submit(); scanning = true">
         </label>
       </form>
 
       <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
-            enctype="multipart/form-data" class="inline"
+            enctype="multipart/form-data" class="d-inline"
             @submit="scanning = true">
-        <label class="flex items-center gap-2 bg-bg-inset border border-white/10 text-txt-sec hover:text-white hover:border-accent/40 font-medium text-[13px] px-4 py-2.5 rounded-md transition-colors cursor-pointer">
+        <label class="btn btn-light btn-sm mb-0" style="cursor:pointer;">
           <span x-show="!scanning">▣ Ảnh/PDF scan</span>
-          <span x-show="scanning" class="text-accent">⏳ Đang xử lý...</span>
+          <span x-show="scanning" class="text-primary">⏳ Đang xử lý...</span>
           <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
-                 class="hidden" @change="$el.closest('form').submit(); scanning = true">
+                 class="d-none" @change="$el.closest('form').submit(); scanning = true">
         </label>
       </form>
 
       <a href="/admin/vehicles/{{ vehicle.id }}/cargo/add"
-              class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors cursor-pointer">
+         class="btn btn-primary btn-sm">
         + Thêm chuyến
       </a>
     </div>
   </div>
 
-
   <!-- Table -->
-  <div class="bg-bg-card rounded-lg overflow-hidden border border-white/5">
-    <div class="px-5 py-3 border-b border-divider flex items-center justify-between">
-      <span class="text-txt-sec text-[12px]">Tổng: <strong class="text-white">{{ total }}</strong> chuyến</span>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse min-w-[900px]">
-        <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
-          <tr>
-            <th class="px-4 py-3">Xuất phát</th>
-            <th class="px-4 py-3">Ngày về</th>
-            <th class="px-4 py-3">Tuyến đường</th>
-            <th class="px-4 py-3 text-right">Chi phí dầu</th>
-            <th class="px-4 py-3 text-center">KM</th>
-            <th class="px-4 py-3 text-right">Cước</th>
-            <th class="px-4 py-3 text-right">Hành động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in trips %}
-          <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="trip-{{ t.id }}">
-            <td class="px-4 py-3 text-[12px] text-white font-mono whitespace-nowrap">
-              {% if t.departure_time %}
-                {{ t.departure_time[8:10] }}/{{ t.departure_time[5:7] }}/{{ t.departure_time[:4] }}
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-4 py-3 text-[12px] text-txt-sec font-mono whitespace-nowrap">
-              {% if t.return_time %}
-                {{ t.return_time[8:10] }}/{{ t.return_time[5:7] }}/{{ t.return_time[:4] }}
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-4 py-3 text-[12px] text-txt-sec">
-              {% if t.origin or t.destination %}
-                <span class="text-white">{{ t.origin or '?' }}</span>
-                <span class="text-txt-ter mx-1">→</span>
-                <span class="text-accent">{{ t.destination or '?' }}</span>
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-4 py-3 text-[12px] text-right font-mono">
-              {% if t.fuel_cost_total %}
-                <span class="text-status-yellow">{{ t.fuel_cost_total_fmt }}</span>
-                {% if t.fuel_liters %}
-                  <div class="text-[10px] text-txt-ter">{{ t.fuel_liters }} L × {{ t.fuel_price_fmt }}</div>
-                {% endif %}
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-4 py-3 text-[12px] text-center font-mono text-accent">
-              {{ t.distance_km or '—' }}
-            </td>
-            <td class="px-4 py-3 text-[12px] text-right font-mono">
-              {% if t.freight_revenue %}
-                <span class="text-status-green">{{ t.freight_revenue_fmt }}</span>
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-4 py-3 text-right">
-              <div class="flex justify-end gap-2">
-                <a href="/admin/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/edit"
-                   class="text-txt-sec hover:text-accent text-sm transition-colors"
-                   title="Sửa">✏️</a>
-                <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer transition-colors"
-                        @click="window.dispatchEvent(new CustomEvent('show-confirm', {
-                          detail: {
-                            title: 'Xóa chuyến hàng',
-                            message: 'Xóa chuyến {{ t.departure_time[11:16] }} - {{ t.departure_time[8:10] }}/{{ t.departure_time[5:7] }}?',
-                            confirmText: 'Xác nhận xóa',
-                            confirmUrl: '/camera/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/delete',
-                            confirmMethod: 'POST',
-                            reload: true
-                          }
-                        }))">🗑</button>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-          {% if not trips %}
-          <tr>
-            <td colspan="9" class="px-5 py-10 text-center text-txt-ter text-sm">Chưa có chuyến hàng nào.</td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+        <span class="text-muted" style="font-size:12px;">Tổng: <strong class="text-dark">{{ total }}</strong> chuyến</span>
+      </div>
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th>Xuất phát</th>
+              <th>Ngày về</th>
+              <th>Tuyến đường</th>
+              <th class="text-right">Chi phí dầu</th>
+              <th class="text-center">KM</th>
+              <th class="text-right">Cước</th>
+              <th class="text-right">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in trips %}
+            <tr id="trip-{{ t.id }}">
+              <td class="font-weight-bold" style="font-family:monospace;font-size:12px;white-space:nowrap;">
+                {% if t.departure_time %}
+                  {{ t.departure_time[8:10] }}/{{ t.departure_time[5:7] }}/{{ t.departure_time[:4] }}
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-muted" style="font-family:monospace;font-size:12px;white-space:nowrap;">
+                {% if t.return_time %}
+                  {{ t.return_time[8:10] }}/{{ t.return_time[5:7] }}/{{ t.return_time[:4] }}
+                {% else %}—{% endif %}
+              </td>
+              <td style="font-size:12px;">
+                {% if t.origin or t.destination %}
+                  <span class="font-weight-bold">{{ t.origin or '?' }}</span>
+                  <span class="text-muted mx-1">→</span>
+                  <span class="text-primary">{{ t.destination or '?' }}</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-right" style="font-family:monospace;font-size:12px;">
+                {% if t.fuel_cost_total %}
+                  <span class="text-warning">{{ t.fuel_cost_total_fmt }}</span>
+                  {% if t.fuel_liters %}
+                    <div class="text-muted" style="font-size:10px;">{{ t.fuel_liters }} L × {{ t.fuel_price_fmt }}</div>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-center" style="font-family:monospace;font-size:12px;">
+                <span class="text-primary">{{ t.distance_km or '—' }}</span>
+              </td>
+              <td class="text-right" style="font-family:monospace;font-size:12px;">
+                {% if t.freight_revenue %}
+                  <span class="text-success">{{ t.freight_revenue_fmt }}</span>
+                {% else %}—{% endif %}
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:8px;">
+                  <a href="/admin/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/edit"
+                     class="btn btn-sm btn-light"
+                     title="Sửa">✏️</a>
+                  <button class="btn btn-sm btn-danger"
+                          @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa chuyến hàng',
+                              message: 'Xóa chuyến {{ t.departure_time[11:16] }} - {{ t.departure_time[8:10] }}/{{ t.departure_time[5:7] }}?',
+                              confirmText: 'Xác nhận xóa',
+                              confirmUrl: '/camera/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/delete',
+                              confirmMethod: 'POST',
+                              reload: true
+                            }
+                          }))">🗑</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not trips %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-5" style="font-size:13px;">Chưa có chuyến hàng nào.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <!-- Pagination -->
   {% if total_pages > 1 %}
-  <div class="flex justify-center gap-1">
+  <div class="d-flex justify-content-center mt-3" style="gap:4px;">
     {% for p in range(1, total_pages + 1) %}
     <a href="{{ page_base_url }}{{ p }}"
-       class="px-3 py-1.5 rounded-md text-[13px] transition-colors
-              {% if p == page %}bg-accent text-bg-inset font-semibold{% else %}text-txt-sec hover:bg-white/5{% endif %}">
+       class="btn btn-sm {% if p == page %}btn-primary font-weight-bold{% else %}btn-light{% endif %}">
       {{ p }}
     </a>
     {% endfor %}

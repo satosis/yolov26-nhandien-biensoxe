@@ -1,7 +1,9 @@
 {% extends "layout.html" %}
 {% block title %}Người lạ — Parking Camera{% endblock %}
+{% block page_title %}Người lạ{% endblock %}
+
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{
+<div x-data="{
     selected: [],
     bulkUser: '',
     busy: false,
@@ -38,103 +40,129 @@
       location.reload();
     }
   }">
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">🕵️</span>
-      <span class="text-2xl font-semibold text-white">Người lạ</span>
+
+  <!-- Page header -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <span style="font-size:1.6rem;">🕵️</span>
+      <h4 class="mb-0 font-weight-bold">Người lạ</h4>
     </div>
-    <span class="text-[12px] text-txt-ter">Threshold: 0.25 · Cooldown: 60s</span>
+    <span class="text-muted" style="font-size:13px;">Threshold: 0.25 · Cooldown: 60s</span>
   </div>
 
   {% if strangers %}
-  <div class="flex items-center justify-between gap-3 bg-bg-card rounded-lg p-3 border border-white/5">
-    <label class="flex items-center gap-2 text-[12px] text-txt-sec cursor-pointer select-none">
-      <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
-             class="w-4 h-4 accent-accent">
-      Chọn tất cả
-      <span x-show="selected.length" class="text-accent font-semibold" x-text="'(' + selected.length + ' đã chọn)'"></span>
-    </label>
-    <div class="flex items-center gap-2" x-show="selected.length > 0" x-cloak>
-      <select x-model="bulkUser"
-              class="bg-bg-inset border border-white/10 text-white text-[12px] rounded px-2 py-1 outline-none focus:border-accent w-40">
-        <option value="">Chọn User...</option>
-        {% for u in all_users %}
-        <option value="{{ u.id }}">{{ u.username }} ({{ u.full_name or 'No Name' }})</option>
-        {% endfor %}
-      </select>
-      <button @click="bulkRegister()" :disabled="!bulkUser || busy"
-              class="bg-accent hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed text-bg-main text-[12px] font-bold px-3 py-1 rounded transition-colors">
-        Đăng ký đã chọn
-      </button>
-      <button @click="bulkDelete()" :disabled="busy"
-              class="bg-status-red/10 hover:bg-status-red/20 text-status-red border border-status-red/20 disabled:opacity-40 text-[12px] font-bold px-3 py-1 rounded transition-colors">
-        🗑 Xóa đã chọn
-      </button>
+  <!-- Bulk action bar -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between" style="gap:10px;">
+      <label class="d-flex align-items-center mb-0 text-muted" style="font-size:13px;cursor:pointer;gap:8px;">
+        <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
+               style="width:16px;height:16px;">
+        Chọn tất cả
+        <span x-show="selected.length" class="text-primary font-weight-bold" x-text="'(' + selected.length + ' đã chọn)'"></span>
+      </label>
+      <div class="d-flex align-items-center" style="gap:8px;" x-show="selected.length > 0" x-cloak>
+        <select x-model="bulkUser"
+                class="form-control form-control-sm" style="width:160px;">
+          <option value="">Chọn User...</option>
+          {% for u in all_users %}
+          <option value="{{ u.id }}">{{ u.username }} ({{ u.full_name or 'No Name' }})</option>
+          {% endfor %}
+        </select>
+        <button @click="bulkRegister()" :disabled="!bulkUser || busy"
+                class="btn btn-sm btn-primary font-weight-bold">
+          Đăng ký đã chọn
+        </button>
+        <button @click="bulkDelete()" :disabled="busy"
+                class="btn btn-sm btn-danger font-weight-bold">
+          🗑 Xóa đã chọn
+        </button>
+      </div>
     </div>
   </div>
   {% endif %}
 
-  <div class="flex flex-col gap-3" id="stranger-list">
+  <!-- Stranger cards -->
+  <div id="stranger-list">
     {% for s in strangers %}
-    <div class="bg-bg-card rounded-lg p-4 flex items-center justify-between gap-4 border border-white/5 hover:border-white/10 transition-colors"
-         :class="selected.includes('{{ s.id }}') ? 'border-accent/40' : ''">
-      <div class="flex items-center gap-4">
-        <input type="checkbox" value="{{ s.id }}" x-model="selected" class="w-4 h-4 accent-accent flex-shrink-0">
+    <div class="card mb-2"
+         :class="selected.includes('{{ s.id }}') ? 'border-primary' : ''">
+      <div class="card-body py-3 d-flex align-items-center justify-content-between" style="gap:12px;flex-wrap:wrap;">
 
-        <div class="w-[80px] h-[80px] rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 cursor-zoom-in group transition-all hover:border-accent/40 shadow-sm">
-          {% if s.image_path %}
-          <img src="/snapshots/{{ s.image_path.split('/')[-1] }}" 
-               class="w-full h-full object-cover transition-transform group-hover:scale-110"
-               onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
-               onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center text-[22px]\'>👤</div>'">
-          {% else %}
-          <div class="w-full h-full flex items-center justify-center text-[22px]">👤</div>
-          {% endif %}
-        </div>
-        <div class="flex-1 flex flex-col gap-1">
-          <div class="flex items-center gap-2">
-            <span class="text-[13px] font-semibold text-white">Camera: {{ s.camera_name or s.camera_id }}{% if s.site_name %} ({{ s.site_name }}){% endif %}</span>
-            <span class="text-[11px] px-2 py-0.5 rounded-full {% if s.status == 'new' %}bg-status-red/10 text-status-red border border-status-red/20{% else %}bg-accent/10 text-accent border border-accent/20{% endif %}">
-              {% if s.status == 'new' %}Stranger{% else %}{{ s.status|capitalize }}{% endif %}
-            </span>
-            {% if s.direction and s.direction != 'frontal' %}
-            <span class="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 capitalize">{{ s.direction }}</span>
+        <div class="d-flex align-items-center" style="gap:12px;">
+          <input type="checkbox" value="{{ s.id }}" x-model="selected"
+                 style="width:16px;height:16px;flex-shrink:0;">
+
+          <!-- Face thumbnail -->
+          <div class="rounded overflow-hidden flex-shrink-0"
+               style="width:80px;height:80px;background:#f8f9fa;border:1px solid #dee2e6;cursor:zoom-in;">
+            {% if s.image_path %}
+            <img src="/snapshots/{{ s.image_path.split('/')[-1] }}"
+                 style="width:100%;height:100%;object-fit:cover;"
+                 onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
+                 onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:1.4rem;\'>👤</div>'">
+            {% else %}
+            <div class="d-flex align-items-center justify-content-center h-100" style="font-size:1.4rem;">👤</div>
             {% endif %}
           </div>
-          <span class="text-[11px] text-txt-ter">Similarity: {{ '%.2f'|format(s.similarity or 0) }} · {{ s.event_time.strftime('%d/%m/%Y %H:%M:%S') if s.event_time else '—' }}</span>
+
+          <!-- Info -->
+          <div>
+            <div class="d-flex align-items-center flex-wrap mb-1" style="gap:6px;">
+              <span class="font-weight-bold" style="font-size:13px;">
+                Camera: {{ s.camera_name or s.camera_id }}{% if s.site_name %} ({{ s.site_name }}){% endif %}
+              </span>
+              <span class="badge badge-pill {{ 'badge-danger' if s.status == 'new' else 'badge-primary' }}">
+                {% if s.status == 'new' %}Stranger{% else %}{{ s.status|capitalize }}{% endif %}
+              </span>
+              {% if s.direction and s.direction != 'frontal' %}
+              <span class="badge badge-pill badge-info text-capitalize">{{ s.direction }}</span>
+              {% endif %}
+            </div>
+            <span class="text-muted" style="font-size:11px;">
+              Similarity: {{ '%.2f'|format(s.similarity or 0) }} · {{ s.event_time.strftime('%d/%m/%Y %H:%M:%S') if s.event_time else '—' }}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-2">
-        <form action="/camera/strangers/register" method="POST" class="flex items-center gap-2">
-          <input type="hidden" name="stranger_id" value="{{ s.id }}">
-          <select name="user_id" class="bg-bg-inset border border-white/10 text-white text-[12px] rounded px-2 py-1 outline-none focus:border-accent w-32" required>
-            <option value="" disabled selected>Chọn User...</option>
-            {% for u in all_users %}
-            <option value="{{ u.id }}">{{ u.username }} ({{ u.full_name or 'No Name' }})</option>
-            {% endfor %}
-          </select>
-          <button type="submit" class="bg-accent hover:bg-accent/90 text-bg-main text-[12px] font-bold px-3 py-1 rounded transition-colors">
-            Đăng ký
+        <!-- Actions -->
+        <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+          <form action="/camera/strangers/register" method="POST" class="d-flex align-items-center" style="gap:6px;">
+            <input type="hidden" name="stranger_id" value="{{ s.id }}">
+            <select name="user_id" class="form-control form-control-sm" style="width:130px;" required>
+              <option value="" disabled selected>Chọn User...</option>
+              {% for u in all_users %}
+              <option value="{{ u.id }}">{{ u.username }} ({{ u.full_name or 'No Name' }})</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold">
+              Đăng ký
+            </button>
+          </form>
+
+          <form action="/camera/strangers/{{ s.id }}/review" method="POST" class="mb-0">
+            <button type="submit" class="btn btn-sm btn-light border text-muted" title="Bỏ qua">
+              ✕
+            </button>
+          </form>
+
+          <button type="button" @click="deleteOne('{{ s.id }}')"
+                  class="btn btn-sm btn-danger" title="Xóa khỏi DB">
+            🗑
           </button>
-        </form>
+        </div>
 
-        <form action="/camera/strangers/{{ s.id }}/review" method="POST">
-          <button type="submit" class="text-txt-ter hover:text-white text-[12px] px-2 py-1 transition-colors" title="Bỏ qua">
-            ✕
-          </button>
-        </form>
-
-        <button type="button" @click="deleteOne('{{ s.id }}')"
-                class="text-txt-ter hover:text-status-red text-[14px] px-2 py-1 transition-colors" title="Xóa khỏi DB">
-          🗑
-        </button>
       </div>
     </div>
     {% endfor %}
+
     {% if not strangers %}
-    <div class="bg-bg-card rounded-lg p-8 text-center text-txt-ter text-sm">Chưa phát hiện người lạ nào.</div>
+    <div class="card">
+      <div class="card-body py-5 text-center text-muted">
+        Chưa phát hiện người lạ nào.
+      </div>
+    </div>
     {% endif %}
   </div>
+
 </div>
 {% endblock %}

@@ -1,94 +1,75 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="flex h-screen overflow-hidden">
+<!-- Begin page -->
+<div id="layout-wrapper">
 
-  <!-- Sidebar: 260px, bg-inset -->
-  <aside class="w-[260px] flex-shrink-0 bg-bg-inset border-r border-divider flex flex-col overflow-y-auto">
-    {% include "partials/sidebar.html" %}
-  </aside>
+  <!-- Left Sidebar -->
+  {% include "partials/sidebar.html" %}
 
-  <!-- Right panel -->
-  <div class="flex flex-col flex-1 min-w-0">
+  <!-- Top Bar -->
+  {% include "partials/header.html" %}
 
-    <!-- Header: 50px -->
-    <header class="h-[50px] flex-shrink-0 bg-bg-inset border-b border-divider flex items-center justify-between px-6">
-      {% include "partials/header.html" %}
-    </header>
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="page-content">
+      <div class="container-fluid">
 
-    <!-- Content: padding 24/32, gap 20 -->
-    <main class="flex-1 overflow-y-auto p-6 lg:py-6 lg:px-8" id="main-content">
-      {% block content %}{% endblock %}
-    </main>
+        {# Optional page title — only rendered when a page sets the block #}
+        {% set _pt %}{% block page_title %}{% endblock %}{% endset %}
+        {% if _pt|trim %}
+        <div class="row">
+          <div class="col-12">
+            <div class="page-title-box d-flex align-items-center justify-content-between">
+              <h4 class="mb-0 font-size-18">{{ _pt|safe }}</h4>
+              {% block page_actions %}{% endblock %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
 
+        {% block content %}{% endblock %}
+
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-sm-6">
+            {{ now_year if now_year else '' }} &copy; Parking Camera AI
+          </div>
+          <div class="col-sm-6">
+            <div class="text-sm-right d-none d-sm-block">Hệ thống quản trị giám sát thông minh</div>
+          </div>
+        </div>
+      </div>
+    </footer>
   </div>
 </div>
+<!-- END layout-wrapper -->
 
-{# ── Real-time Notifications (Toasts) ── #}
-<div id="toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none"></div>
+<div class="menu-overlay"></div>
 
+{# ── Real-time Notifications (Toasts) via WebSocket ── #}
 <script>
   (function() {
-    const container = document.getElementById('toast-container');
     const ws_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws_url = `${ws_protocol}//${window.location.host}/ws/notifications`;
-    
     function connect() {
-      console.log('Connecting to notification WS...');
       const ws = new WebSocket(ws_url);
-      
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'NEW_INQUIRY') {
-          showToast(`📩 Tin tư vấn mới: ${msg.data.full_name}`, msg.data.phone);
-        }
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'NEW_INQUIRY' && window.toastr) {
+            toastr.info(`${msg.data.phone || ''}`, `📩 Tin tư vấn mới: ${msg.data.full_name || ''}`,
+              { onclick: () => window.location.href = '/admin/inquiries', timeOut: 8000 });
+          }
+        } catch (err) { console.error(err); }
       };
-      
-      ws.onclose = () => {
-        console.log('WS closed, reconnecting...');
-        setTimeout(connect, 5000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WS error:', err);
-      };
+      ws.onclose = () => setTimeout(connect, 5000);
+      ws.onerror = (err) => console.error('WS error:', err);
     }
-    
-    function showToast(title, body) {
-      const toast = document.createElement('div');
-      toast.className = 'pointer-events-auto bg-accent text-white p-4 rounded-2xl shadow-2xl flex flex-col gap-1 min-w-[280px] animate-slide-in cursor-pointer';
-      toast.onclick = () => window.location.href = '/inquiries';
-      toast.innerHTML = `
-        <div class="flex items-center justify-between">
-          <span class="font-bold text-sm uppercase tracking-wider">${title}</span>
-          <button onclick="event.stopPropagation(); this.parentElement.parentElement.remove()" class="text-white/50 hover:text-white p-1">
-            <span class="material-symbols-outlined text-sm">close</span>
-          </button>
-        </div>
-        <p class="text-xs opacity-90">${body}</p>
-        <div class="mt-2 text-[10px] font-black uppercase tracking-widest bg-white/20 px-2 py-1 rounded text-center">Bấm để xem ngay</div>
-      `;
-      container.appendChild(toast);
-      setTimeout(() => toast.classList.add('animate-slide-out'), 8000);
-      setTimeout(() => toast.remove(), 8500);
-    }
-    
-    // Start connection
-    if (window.location.pathname.startsWith('/camera') || window.location.pathname.startsWith('/admin') || window.location.pathname === '/inquiries') {
-        connect();
-    }
+    connect();
   })();
 </script>
-
-<style>
-  @keyframes slide-in {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  @keyframes slide-out {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
-  }
-  .animate-slide-in { animation: slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-  .animate-slide-out { animation: slide-out 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-</style>
 {% endblock %}

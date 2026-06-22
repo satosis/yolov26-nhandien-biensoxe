@@ -1,12 +1,56 @@
-<!-- Header: appTitle left + userInfo right -->
-<span class="text-[15px] font-bold text-white">🅿 Parking Camera</span>
-<span class="flex items-center gap-2 text-[13px] text-txt-sec">
-  <span class="text-accent font-semibold">{{ user.username }}</span>
-  <span class="bg-accent/15 text-accent px-2.5 py-0.5 rounded-full text-[11px] font-semibold border border-accent/20">{{ user.role }}</span>
-  
-  <form method="POST" action="/logout" class="ml-4 pl-4 border-l border-divider h-5 flex items-center">
-     <button type="submit" class="text-txt-sec hover:text-status-red transition-colors text-[12px] font-medium flex items-center gap-1.5" title="Đăng xuất">
-       <span>🚪</span> Thoát
-     </button>
-  </form>
-</span>
+{# ── Top bar (Opatix) ── #}
+<header id="page-topbar">
+  <div class="navbar-header d-flex justify-content-between align-items-center">
+
+    <div class="d-flex align-items-center h-100">
+      <!-- Logo box -->
+      <div class="navbar-brand-box d-flex align-items-center justify-content-center"
+           style="width:220px;height:100%;background:#ffffff;border-right:1px solid #e2e8f0;">
+        <a href="/admin/parking_dashboard" class="text-decoration-none d-flex align-items-center gap-2">
+          <i class="bx bxs-car-garage text-primary" style="font-size:22px;"></i>
+          <span class="fw-bold" style="color:#1e293b;font-size:14px;">Parking Camera</span>
+        </a>
+      </div>
+
+      <!-- Sidebar toggle -->
+      <button type="button" class="btn btn-sm px-3 font-size-16 header-item waves-effect border-0 text-dark"
+              id="vertical-menu-btn" style="background:transparent;">
+        <i class="fa fa-fw fa-bars"></i>
+      </button>
+    </div>
+
+    <div class="d-flex align-items-center">
+      <!-- User dropdown -->
+      <div class="dropdown d-inline-block">
+        <button type="button" class="btn header-item waves-effect d-flex align-items-center"
+                style="gap:8px;"
+                id="page-header-user-dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+                style="width:26px;height:26px;background:#6366f1;font-size:12px;font-weight:600;">
+            {{ (user.username[0] | upper) if user and user.username else 'U' }}
+          </span>
+          <span class="d-none d-sm-inline-block">{{ user.username if user else '' }}</span>
+          {% if user and user.role %}
+          <span class="badge badge-primary">{{ user.role }}</span>
+          {% endif %}
+          <i class="mdi mdi-chevron-down d-none d-sm-inline-block"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-right">
+          <h6 class="dropdown-header text-muted">
+            Đăng nhập với <strong>{{ user.username if user else '' }}</strong>
+          </h6>
+          <a class="dropdown-item d-flex align-items-center" href="/admin/users">
+            <i class="bx bx-user mr-2"></i> Người dùng
+          </a>
+          <div class="dropdown-divider"></div>
+          <form method="POST" action="/logout" id="admin-logout-form" class="m-0">
+            <a class="dropdown-item text-danger" href="#"
+               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();">
+              <i class="bx bx-log-out mr-2"></i> Đăng xuất
+            </a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

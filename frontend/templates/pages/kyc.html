@@ -1,160 +1,157 @@
 {% extends "layout.html" %}
 {% block title %}KYC — Xác minh danh tính{% endblock %}
+{% block page_title %}Xác minh danh tính (KYC){% endblock %}
 {% block content %}
-<div class="flex flex-col gap-6 max-w-[720px] mx-auto">
-
-  <!-- Header -->
-  <div class="flex items-center gap-3">
-    <span class="text-accent text-[28px]">🪪</span>
-    <div>
-      <h1 class="text-2xl font-bold text-white">Xác minh danh tính (KYC)</h1>
-      <p class="text-txt-ter text-[12px]">Hoàn thành 3 bước để được cấp quyền truy cập đầy đủ</p>
-    </div>
-  </div>
+<div class="mx-auto" style="max-width:720px;">
 
   <!-- KYC Status Banner -->
   {% set level = kyc.kyc_level or 0 %}
   {% if level == 4 %}
-  <div class="bg-status-green/10 border border-status-green/30 rounded-xl p-5 flex items-center gap-4">
-    <span class="text-4xl">✅</span>
+  <div class="alert alert-success d-flex align-items-center mb-4" style="gap:12px;">
+    <span style="font-size:2rem;">✅</span>
     <div>
-      <p class="text-status-green font-bold text-[15px]">Đã xác minh thành công</p>
-      <p class="text-txt-sec text-[12px]">Duyệt bởi {{ kyc.kyc_reviewed_by }} lúc {{ kyc.kyc_reviewed_at.strftime('%d/%m/%Y %H:%M') if kyc.kyc_reviewed_at else '—' }}</p>
+      <p class="font-weight-bold mb-0">Đã xác minh thành công</p>
+      <small class="text-muted">Duyệt bởi {{ kyc.kyc_reviewed_by }} lúc {{ kyc.kyc_reviewed_at.strftime('%d/%m/%Y %H:%M') if kyc.kyc_reviewed_at else '—' }}</small>
     </div>
   </div>
   {% elif level == -1 %}
-  <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-5">
-    <div class="flex items-center gap-4 mb-3">
-      <span class="text-4xl">❌</span>
+  <div class="alert alert-danger mb-4">
+    <div class="d-flex align-items-center mb-3" style="gap:12px;">
+      <span style="font-size:2rem;">❌</span>
       <div>
-        <p class="text-red-400 font-bold text-[15px]">Xác minh bị từ chối</p>
-        <p class="text-txt-sec text-[12px]">Lý do: {{ kyc.kyc_reject_reason or 'Không rõ' }}</p>
+        <p class="font-weight-bold mb-0">Xác minh bị từ chối</p>
+        <small class="text-muted">Lý do: {{ kyc.kyc_reject_reason or 'Không rõ' }}</small>
       </div>
     </div>
     <form method="POST" action="/kyc/reset">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-lg hover:bg-cyan-300 transition-colors">🔄 Thử lại từ đầu</button>
+      <button type="submit" class="btn btn-primary btn-sm">🔄 Thử lại từ đầu</button>
     </form>
   </div>
   {% elif level == 3 %}
-  <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-5 flex items-center gap-4">
-    <div class="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+  <div class="alert alert-info d-flex align-items-center mb-4" style="gap:12px;">
+    <div class="spinner-border spinner-border-sm text-primary mr-2" role="status"></div>
     <div>
-      <p class="text-blue-400 font-bold text-[15px]">Đang chờ Admin duyệt</p>
-      <p class="text-txt-sec text-[12px]">Bạn đã hoàn thành tất cả các bước. Vui lòng chờ phê duyệt.</p>
+      <p class="font-weight-bold mb-0">Đang chờ Admin duyệt</p>
+      <small class="text-muted">Bạn đã hoàn thành tất cả các bước. Vui lòng chờ phê duyệt.</small>
     </div>
   </div>
   {% endif %}
 
   <!-- Progress Steps -->
-  <div class="flex items-center justify-between bg-bg-card rounded-xl p-5">
-    {% set steps = [
-      ('1', 'Thông tin', level >= 1),
-      ('2', 'Giấy tờ', level >= 2),
-      ('3', 'Khuôn mặt', level >= 3)
-    ] %}
-    {% for num, label, done in steps %}
-    <div class="flex items-center gap-3 {% if not loop.first %}flex-1{% endif %}">
-      {% if not loop.first %}
-      <div class="flex-1 h-0.5 {{ 'bg-accent' if done else 'bg-white/10' }} rounded-full transition-colors"></div>
-      {% endif %}
-      <div class="flex flex-col items-center gap-1">
-        <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
-                    {{ 'bg-accent text-bg-inset' if done else 'bg-white/5 text-txt-ter border border-white/10' }}">
-          {% if done %}✓{% else %}{{ num }}{% endif %}
+  <div class="card mb-4">
+    <div class="card-body">
+      {% set steps = [
+        ('1', 'Thông tin', level >= 1),
+        ('2', 'Giấy tờ', level >= 2),
+        ('3', 'Khuôn mặt', level >= 3)
+      ] %}
+      <div class="d-flex align-items-center justify-content-between">
+        {% for num, label, done in steps %}
+        <div class="d-flex align-items-center {% if not loop.first %}flex-fill{% endif %}">
+          {% if not loop.first %}
+          <div class="flex-fill border-top {% if done %}border-primary{% endif %} mx-2"></div>
+          {% endif %}
+          <div class="d-flex flex-column align-items-center" style="gap:4px;">
+            <div class="rounded-circle d-flex align-items-center justify-content-center font-weight-bold"
+                 style="width:40px;height:40px;font-size:14px;
+                        {% if done %}background:#6366f1;color:#fff;{% else %}background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;{% endif %}">
+              {% if done %}✓{% else %}{{ num }}{% endif %}
+            </div>
+            <span class="text-uppercase font-weight-bold {% if done %}text-primary{% else %}text-muted{% endif %}" style="font-size:10px;letter-spacing:.05em;">{{ label }}</span>
+          </div>
         </div>
-        <span class="text-[11px] font-semibold {{ 'text-accent' if done else 'text-txt-ter' }} uppercase tracking-wider">{{ label }}</span>
+        {% endfor %}
       </div>
     </div>
-    {% endfor %}
   </div>
 
   <!-- ═══════════ STEP 1: Basic Info ═══════════ -->
   {% if level < 1 %}
-  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
-    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
-      <h2 class="text-white font-bold text-[15px]">Bước 1 — Thông tin cá nhân</h2>
-      <p class="text-txt-ter text-[11px] mt-0.5">Nhập đầy đủ thông tin cơ bản của bạn</p>
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 1 — Thông tin cá nhân</h5>
+      <small class="text-muted">Nhập đầy đủ thông tin cơ bản của bạn</small>
     </div>
-    <form method="POST" action="/kyc/basic-info" class="p-6 flex flex-col gap-4">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Họ và tên *</label>
-          <input name="full_name" required value="{{ kyc.full_name or '' }}" placeholder="Nguyễn Văn A"
-                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+    <div class="card-body">
+      <form method="POST" action="/kyc/basic-info">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Họ và tên *</label>
+            <input name="full_name" required value="{{ kyc.full_name or '' }}" placeholder="Nguyễn Văn A"
+                   class="form-control">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Ngày sinh *</label>
+            <input name="date_of_birth" type="date" required value="{{ kyc.date_of_birth or '' }}"
+                   class="form-control">
+          </div>
         </div>
-        <div>
-          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Ngày sinh *</label>
-          <input name="date_of_birth" type="date" required value="{{ kyc.date_of_birth or '' }}"
-                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Số điện thoại *</label>
+            <input name="phone" required value="{{ kyc.phone or '' }}" placeholder="0912345678" pattern="[0-9]{10,11}"
+                   class="form-control">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Email *</label>
+            <input name="email" type="email" required value="{{ kyc.email or '' }}" placeholder="email@example.com"
+                   class="form-control">
+          </div>
         </div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Số điện thoại *</label>
-          <input name="phone" required value="{{ kyc.phone or '' }}" placeholder="0912345678" pattern="[0-9]{10,11}"
-                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
+        <div class="mb-3" style="max-width:360px;">
+          <label class="font-weight-bold" style="font-size:13px;">Số CMND/CCCD *</label>
+          <input name="id_number" required value="{{ kyc.id_number or '' }}" placeholder="001234567890" pattern="[0-9]{9,12}"
+                 class="form-control">
+          <small class="text-muted">CMND: 9 số | CCCD: 12 số</small>
         </div>
-        <div>
-          <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Email *</label>
-          <input name="email" type="email" required value="{{ kyc.email or '' }}" placeholder="email@example.com"
-                 class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors">
-        </div>
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Số CMND/CCCD *</label>
-        <input name="id_number" required value="{{ kyc.id_number or '' }}" placeholder="001234567890" pattern="[0-9]{9,12}"
-               class="w-full bg-bg-inset border border-white/5 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent/50 transition-colors max-w-[360px]">
-        <p class="text-txt-ter text-[10px] mt-1">CMND: 9 số | CCCD: 12 số</p>
-      </div>
-      <button type="submit" class="bg-accent text-bg-inset font-bold text-[13px] px-6 py-3 rounded-xl hover:bg-cyan-300 transition-all w-fit shadow-lg shadow-accent/20">
-        Tiếp tục →
-      </button>
-    </form>
+        <button type="submit" class="btn btn-primary">Tiếp tục →</button>
+      </form>
+    </div>
   </div>
   {% endif %}
 
   <!-- ═══════════ STEP 2: ID Document Upload ═══════════ -->
   {% if level >= 1 and level < 2 %}
-  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
-    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
-      <h2 class="text-white font-bold text-[15px]">Bước 2 — Xác minh giấy tờ</h2>
-      <p class="text-txt-ter text-[11px] mt-0.5">Chụp ảnh CMND/CCCD rõ ràng, đặt trên nền trắng</p>
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 2 — Xác minh giấy tờ</h5>
+      <small class="text-muted">Chụp ảnh CMND/CCCD rõ ràng, đặt trên nền trắng</small>
     </div>
-    <div class="p-6 flex flex-col gap-5">
+    <div class="card-body">
       <!-- ID Front -->
-      <div class="flex flex-col gap-2">
-        <label class="text-txt-sec text-[12px] font-semibold">Mặt trước CMND/CCCD *</label>
-        <div id="drop-id-front" class="relative border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer"
+      <div class="mb-4">
+        <label class="font-weight-bold" style="font-size:13px;">Mặt trước CMND/CCCD *</label>
+        <div id="drop-id-front" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
              onclick="document.getElementById('file-id-front').click()">
-          <input type="file" id="file-id-front" accept="image/*" class="hidden" onchange="uploadIdDoc('id_front', this)">
-          <div id="preview-id-front" class="{% if docs.get('id_front') %}{% else %}hidden{% endif %}">
+          <input type="file" id="file-id-front" accept="image/*" class="d-none" onchange="uploadIdDoc('id_front', this)">
+          <div id="preview-id-front" class="{% if docs.get('id_front') %}{% else %}d-none{% endif %}">
             {% if docs.get('id_front') %}
-            <img src="/kyc/uploads/{{ kyc.id }}/id_front.jpg" class="max-h-40 mx-auto rounded-lg">
-            <p class="text-status-green text-[11px] font-bold mt-2">✅ Đã tải lên</p>
+            <img src="/kyc/uploads/{{ kyc.id }}/id_front.jpg" class="img-fluid rounded mx-auto d-block" style="max-height:160px;">
+            <p class="text-success font-weight-bold mt-2 mb-0" style="font-size:12px;">✅ Đã tải lên</p>
             {% endif %}
           </div>
-          <div id="placeholder-id-front" class="{% if docs.get('id_front') %}hidden{% endif %}">
-            <span class="text-3xl">🪪</span>
-            <p class="text-txt-ter text-[12px] mt-2">Kéo thả hoặc nhấn để chọn ảnh</p>
+          <div id="placeholder-id-front" class="{% if docs.get('id_front') %}d-none{% endif %}">
+            <span style="font-size:2rem;">🪪</span>
+            <p class="text-muted mb-0 mt-2" style="font-size:13px;">Kéo thả hoặc nhấn để chọn ảnh</p>
           </div>
         </div>
       </div>
 
       <!-- ID Back -->
-      <div class="flex flex-col gap-2">
-        <label class="text-txt-sec text-[12px] font-semibold">Mặt sau CMND/CCCD *</label>
-        <div id="drop-id-back" class="relative border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-accent/50 transition-colors cursor-pointer"
+      <div class="mb-3">
+        <label class="font-weight-bold" style="font-size:13px;">Mặt sau CMND/CCCD *</label>
+        <div id="drop-id-back" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
              onclick="document.getElementById('file-id-back').click()">
-          <input type="file" id="file-id-back" accept="image/*" class="hidden" onchange="uploadIdDoc('id_back', this)">
-          <div id="preview-id-back" class="{% if docs.get('id_back') %}{% else %}hidden{% endif %}">
+          <input type="file" id="file-id-back" accept="image/*" class="d-none" onchange="uploadIdDoc('id_back', this)">
+          <div id="preview-id-back" class="{% if docs.get('id_back') %}{% else %}d-none{% endif %}">
             {% if docs.get('id_back') %}
-            <img src="/kyc/uploads/{{ kyc.id }}/id_back.jpg" class="max-h-40 mx-auto rounded-lg">
-            <p class="text-status-green text-[11px] font-bold mt-2">✅ Đã tải lên</p>
+            <img src="/kyc/uploads/{{ kyc.id }}/id_back.jpg" class="img-fluid rounded mx-auto d-block" style="max-height:160px;">
+            <p class="text-success font-weight-bold mt-2 mb-0" style="font-size:12px;">✅ Đã tải lên</p>
             {% endif %}
           </div>
-          <div id="placeholder-id-back" class="{% if docs.get('id_back') %}hidden{% endif %}">
-            <span class="text-3xl">🪪</span>
-            <p class="text-txt-ter text-[12px] mt-2">Kéo thả hoặc nhấn để chọn ảnh</p>
+          <div id="placeholder-id-back" class="{% if docs.get('id_back') %}d-none{% endif %}">
+            <span style="font-size:2rem;">🪪</span>
+            <p class="text-muted mb-0 mt-2" style="font-size:13px;">Kéo thả hoặc nhấn để chọn ảnh</p>
           </div>
         </div>
       </div>
@@ -164,56 +161,56 @@
 
   <!-- ═══════════ STEP 3: Face Verification ═══════════ -->
   {% if level >= 2 and level < 3 %}
-  <div class="bg-bg-card rounded-xl border border-white/5 overflow-hidden">
-    <div class="px-6 py-4 bg-bg-inset border-b border-white/5">
-      <h2 class="text-white font-bold text-[15px]">Bước 3 — Xác minh khuôn mặt</h2>
-      <p class="text-txt-ter text-[11px] mt-0.5">Quay mặt theo 5 hướng để AI xác minh danh tính</p>
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 3 — Xác minh khuôn mặt</h5>
+      <small class="text-muted">Quay mặt theo 5 hướng để AI xác minh danh tính</small>
     </div>
-    <div class="p-6 flex flex-col items-center gap-5">
+    <div class="card-body d-flex flex-column align-items-center" style="gap:20px;">
 
       <!-- Face progress indicators -->
-      <div class="flex gap-3">
+      <div class="d-flex" style="gap:12px;">
         {% set face_angles = ['front','left','right','up','down'] %}
         {% set face_labels = {'front':'Thẳng','left':'Trái','right':'Phải','up':'Lên','down':'Xuống'} %}
         {% for angle in face_angles %}
-        <div id="face-badge-{{ angle }}" class="flex flex-col items-center gap-1">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all
-                      {{ 'bg-status-green/20 text-status-green border border-status-green/30' if docs.get('face_' + angle) else 'bg-white/5 text-txt-ter border border-white/10' }}">
+        <div id="face-badge-{{ angle }}" class="d-flex flex-column align-items-center" style="gap:4px;">
+          <div class="rounded-circle d-flex align-items-center justify-content-center font-weight-bold"
+               style="width:40px;height:40px;font-size:14px;
+                      {% if docs.get('face_' + angle) %}background:#d1fae5;color:#059669;border:1px solid #6ee7b7;{% else %}background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;{% endif %}">
             {% if docs.get('face_' + angle) %}✓{% else %}📷{% endif %}
           </div>
-          <span class="text-[9px] font-bold uppercase text-txt-ter tracking-wider">{{ face_labels[angle] }}</span>
+          <span class="text-muted text-uppercase font-weight-bold" style="font-size:9px;letter-spacing:.05em;">{{ face_labels[angle] }}</span>
         </div>
         {% endfor %}
       </div>
 
       <!-- Video ring -->
-      <div class="flex flex-col items-center gap-4">
-        <div id="video-ring" class="relative w-56 h-56 bg-bg-inset rounded-full border-4 border-white/10 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)] transition-all duration-300">
-          <video id="webcam-video" autoplay playsinline class="w-full h-full object-cover"></video>
-          <canvas id="capture-canvas" class="hidden"></canvas>
-          <div id="capture-flash" class="absolute inset-0 bg-white z-40 opacity-0 pointer-events-none transition-opacity duration-150"></div>
-          <div id="camera-loading" class="absolute inset-0 flex items-center justify-center bg-bg-card z-30">
-            <div class="flex flex-col items-center gap-2">
-              <div class="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-              <p class="text-[9px] text-txt-ter uppercase font-black tracking-widest">Đang tải AI...</p>
+      <div class="d-flex flex-column align-items-center" style="gap:16px;">
+        <div id="video-ring" class="rounded-circle overflow-hidden border" style="width:224px;height:224px;border-width:4px!important;border-color:#e2e8f0!important;position:relative;box-shadow:0 0 30px rgba(0,0,0,.1);transition:all .3s;">
+          <video id="webcam-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+          <canvas id="capture-canvas" class="d-none"></canvas>
+          <div id="capture-flash" style="position:absolute;inset:0;background:#fff;z-index:40;opacity:0;pointer-events:none;transition:opacity .15s;"></div>
+          <div id="camera-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f8fafc;z-index:30;">
+            <div class="d-flex flex-column align-items-center" style="gap:8px;">
+              <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+              <p class="text-muted text-uppercase font-weight-bold mb-0" style="font-size:9px;letter-spacing:.1em;">Đang tải AI...</p>
             </div>
           </div>
-          <div id="success-overlay" class="absolute inset-0 flex items-center justify-center bg-status-green/80 z-30 hidden">
-            <span class="text-white text-5xl">✓</span>
+          <div id="success-overlay" class="d-none" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,150,105,.8);z-index:30;">
+            <span class="text-white" style="font-size:3rem;">✓</span>
           </div>
         </div>
 
         <!-- Hold progress bar -->
-        <div class="w-56 h-1.5 bg-white/5 rounded-full overflow-hidden">
-          <div id="hold-bar" class="h-full bg-status-green rounded-full transition-all duration-100" style="width:0%"></div>
+        <div class="rounded" style="width:224px;height:6px;background:#e2e8f0;overflow:hidden;">
+          <div id="hold-bar" class="h-100 rounded bg-success" style="width:0%;transition:width .1s;"></div>
         </div>
-        <p id="kyc-status-text" class="text-txt-ter text-[12px] text-center font-medium"></p>
+        <p id="kyc-status-text" class="text-muted text-center mb-0" style="font-size:13px;"></p>
       </div>
 
-      <p id="kyc-instruction" class="text-white text-[15px] font-semibold">Nhấn bắt đầu để xác minh</p>
+      <p id="kyc-instruction" class="font-weight-bold mb-0" style="font-size:15px;">Nhấn bắt đầu để xác minh</p>
 
-      <button id="btn-start-camera" onclick="startKYC()"
-              class="bg-accent text-bg-inset font-bold text-[13px] py-3.5 px-8 rounded-2xl shadow-lg shadow-accent/20 hover:scale-[1.02] active:scale-95 transition-all">
+      <button id="btn-start-camera" onclick="startKYC()" class="btn btn-primary btn-lg">
         📷 Bắt đầu xác minh khuôn mặt
       </button>
     </div>
@@ -283,7 +280,7 @@ function estimateDirection(landmarks) {
 
 async function startKYC() {
     document.getElementById('kyc-status-text').textContent = '⏳ Đang tải AI nhận diện...';
-    document.getElementById('btn-start-camera').classList.add('hidden');
+    document.getElementById('btn-start-camera').classList.add('d-none');
     await loadModels();
     if (!stream) {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -291,7 +288,7 @@ async function startKYC() {
         });
         document.getElementById('webcam-video').srcObject = stream;
     }
-    document.getElementById('camera-loading').classList.add('hidden');
+    document.getElementById('camera-loading').style.display = 'none';
     kycRunning = true;
     currentStep = 0;
     runStep();
@@ -301,9 +298,9 @@ function runStep() {
     if (currentStep >= kycSteps.length) { kycComplete(); return; }
     const step = kycSteps[currentStep];
     document.getElementById('kyc-instruction').textContent = step.instruction;
-    document.getElementById('success-overlay').classList.add('hidden');
+    document.getElementById('success-overlay').classList.add('d-none');
     document.getElementById('hold-bar').style.width = '0%';
-    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,0.1)';
+    document.getElementById('video-ring').style.borderColor = '#e2e8f0';
     document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
     holdStart = 0;
     dirHistory = [];
@@ -371,7 +368,7 @@ async function autoCaptureAndUpload() {
             body: formData,
             headers: { 'Accept': 'application/json' }
         });
-        
+
         if (!res.ok) {
             let detail = "Đã xảy ra lỗi hệ thống.";
             let rawTxt = "";
@@ -387,14 +384,17 @@ async function autoCaptureAndUpload() {
 
         const data = await res.json();
         if (data.ok) {
-            document.getElementById('success-overlay').classList.remove('hidden');
+            document.getElementById('success-overlay').classList.remove('d-none');
+            document.getElementById('success-overlay').style.display = 'flex';
             document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
             document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
             // Update badge
             const badge = document.getElementById(`face-badge-${step.id}`);
             if (badge) {
                 const circle = badge.querySelector('div');
-                circle.className = 'w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold bg-status-green/20 text-status-green border border-status-green/30';
+                circle.style.background = '#d1fae5';
+                circle.style.color = '#059669';
+                circle.style.border = '1px solid #6ee7b7';
                 circle.textContent = '✓';
             }
             setTimeout(() => { currentStep++; runStep(); }, 1000);
@@ -432,9 +432,9 @@ async function uploadIdDoc(docType, input) {
     // Show preview immediately
     const reader = new FileReader();
     reader.onload = (e) => {
-        preview.innerHTML = `<img src="${e.target.result}" class="max-h-40 mx-auto rounded-lg"><p class="text-yellow-400 text-[11px] font-bold mt-2 animate-pulse">⏳ Đang tải lên...</p>`;
-        preview.classList.remove('hidden');
-        placeholder.classList.add('hidden');
+        preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded mx-auto d-block" style="max-height:160px;"><p class="text-warning font-weight-bold mt-2 mb-0 animate-pulse" style="font-size:12px;">⏳ Đang tải lên...</p>`;
+        preview.classList.remove('d-none');
+        placeholder.classList.add('d-none');
     };
     reader.readAsDataURL(file);
 
@@ -442,7 +442,7 @@ async function uploadIdDoc(docType, input) {
     const data = await res.json();
     if (data.ok) {
         preview.querySelector('p').textContent = '✅ Đã tải lên';
-        preview.querySelector('p').className = 'text-status-green text-[11px] font-bold mt-2';
+        preview.querySelector('p').className = 'text-success font-weight-bold mt-2 mb-0';
         // Check if both done -> reload
         setTimeout(() => window.location.reload(), 500);
     }

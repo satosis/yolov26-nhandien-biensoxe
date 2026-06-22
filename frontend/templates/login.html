@@ -1,113 +1,85 @@
-{% extends "base.html" %}
-{% block title %}Đăng nhập — Parking Camera{% endblock %}
-{% block body %}
-<div class="min-h-screen flex" style="min-height:100dvh;">
+{% extends "landing_base.html" %}
+{% block title %}Đăng nhập — THÉP SƠN LÂM Industrial Core{% endblock %}
 
-  <!-- Left: Brand Panel -->
-  <div class="hidden lg:flex w-[640px] flex-col items-center justify-center gap-8 px-12 py-16"
-       style="background:linear-gradient(180deg, #0F172A 0%, #0A1628 50%, #0D1B2A 100%);">
+{% block content %}
+<section class="relative min-h-screen flex items-center justify-center px-4 pt-[120px] pb-16 overflow-hidden">
 
-    <!-- Logo -->
-    <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
-      <span class="text-4xl font-extrabold text-bg-inset">🅿</span>
-    </div>
+  <!-- Branded background -->
+  <div class="absolute inset-0 -z-10 bg-gradient-to-br from-tsl-light via-white to-tsl-surface"></div>
+  <div class="absolute -top-24 -right-24 -z-10 w-[420px] h-[420px] rounded-full bg-tsl-accent/10 blur-3xl"></div>
+  <div class="absolute -bottom-24 -left-24 -z-10 w-[420px] h-[420px] rounded-full bg-tsl-primary/10 blur-3xl"></div>
 
-    <h1 class="text-4xl font-extrabold text-white tracking-tight">Parking Camera</h1>
-    <p class="text-[15px] text-txt-sec text-center max-w-[400px]">Hệ thống giám sát bãi xe thông minh</p>
+  <div class="w-full max-w-[440px]">
+    <div class="bg-white border border-tsl-border rounded-[24px] shadow-xl p-8 sm:p-10">
 
-    <!-- Features -->
-    <div class="flex flex-col gap-4 w-[400px]">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#22D3EE15;">
-          <span class="text-base text-accent">🔍</span>
-        </div>
-        <div class="flex flex-col gap-0.5">
-          <span class="text-[13px] font-semibold text-white">Nhận diện biển số</span>
-          <span class="text-[11px] text-txt-ter">YOLOv26 + RapidOCR</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#22C55E15;">
-          <span class="text-base text-status-green">👤</span>
-        </div>
-        <div class="flex flex-col gap-0.5">
-          <span class="text-[13px] font-semibold text-white">Nhận diện khuôn mặt</span>
-          <span class="text-[11px] text-txt-ter">InsightFace buffalo_sc</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg flex items-center justify-center" style="background:#F59E0B15;">
-          <span class="text-base text-status-yellow">🚪</span>
-        </div>
-        <div class="flex flex-col gap-0.5">
-          <span class="text-[13px] font-semibold text-white">Điều khiển cửa cuốn</span>
-          <span class="text-[11px] text-txt-ter">Tuya · Tasmota · GPIO</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Right: Login Form -->
-  <div class="flex-1 flex items-center justify-center bg-bg-page px-6 py-16">
-    <div class="w-full max-w-[420px] bg-bg-card rounded-xl p-10 border border-white/[0.03]">
-
-      <div class="text-center mb-7">
-        <!-- Mobile logo (hidden on desktop) -->
-        <div class="lg:hidden flex justify-center mb-4">
-          <div class="w-14 h-14 rounded-full bg-accent flex items-center justify-center">
-            <span class="text-2xl font-extrabold text-bg-inset">🅿</span>
-          </div>
-        </div>
-        <h2 class="text-[28px] font-bold text-white">Đăng nhập</h2>
-        <p class="text-[13px] text-txt-sec mt-2">Nhập tài khoản để truy cập hệ thống</p>
+      <!-- Brand -->
+      <div class="text-center mb-8">
+        <a href="/" class="inline-flex flex-col items-center leading-none">
+          <span class="font-display font-extrabold text-2xl text-tsl-primary tracking-[-0.5px]">THÉP SƠN LÂM</span>
+          <span class="text-[0.7rem] font-semibold uppercase tracking-[1px] text-tsl-accent mt-1">Industrial Core</span>
+        </a>
+        <h1 class="font-display font-bold text-[1.6rem] text-tsl-ink mt-6">Đăng nhập</h1>
+        <p class="text-tsl-muted text-sm mt-1">Truy cập hệ thống quản trị</p>
       </div>
 
       {% if error %}
-      <div class="bg-status-red/10 border border-status-red/30 text-status-red text-sm rounded-md px-4 py-3 mb-5">{{ error }}</div>
+      <div class="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 mb-6">
+        <span class="material-symbols-outlined text-[20px]">error</span>
+        <span>{{ error }}</span>
+      </div>
       {% endif %}
 
-      <form method="post" action="/login" class="flex flex-col gap-[18px]" x-data="{
-        lastUser: '{{ last_username|default("", true) }}' || document.cookie.match(/last_username=([^;]+)/)?.[1] || '',
-        username: '{{ last_username|default("", true) }}' || document.cookie.match(/last_username=([^;]+)/)?.[1] || 'admin',
-        password: 'nhandien23456@',
-        show: false
-      }" x-init="$nextTick(() => { if (!lastUser) { username = 'admin'; } $el.querySelector('[name=password]').focus() })">
+      <form method="post" action="/login" x-data="{ show: false }" class="flex flex-col gap-5">
+
+        <!-- Username -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-[13px] font-medium text-txt-sec">Tài khoản</label>
-          <input type="text" name="username" placeholder="Nhập username..." required
-                 x-model="username"
-                 value="admin"
-                 :autofocus="!lastUser"
-                 class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg px-3.5 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
+          <label class="font-display font-medium text-sm text-tsl-text">Tài khoản</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-tsl-faint text-[20px]">person</span>
+            <input type="text" name="username" placeholder="Nhập tài khoản..." required autofocus
+                   value="{{ last_username|default('admin', true) }}"
+                   class="w-full h-12 pl-11 pr-4 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
+          </div>
         </div>
+
+        <!-- Password -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-[13px] font-medium text-txt-sec">Mật khẩu</label>
-          <div class="relative w-full group">
-            <input :type="show ? 'text' : 'password'" name="password" x-model="password" placeholder="••••••••" required
+          <label class="font-display font-medium text-sm text-tsl-text">Mật khẩu</label>
+          <div class="relative">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-tsl-faint text-[20px]">lock</span>
+            <input :type="show ? 'text' : 'password'" name="password" placeholder="••••••••" required
                    value="nhandien23456@"
-                   class="w-full h-11 bg-bg-inset border border-white/5 rounded-lg pl-3.5 pr-11 text-[13px] text-white placeholder-txt-mut focus:outline-none focus:border-accent/40 transition-colors">
-            <button type="button" @click="show = !show"
-                    class="absolute right-0 top-0 h-full w-11 flex items-center justify-center text-txt-ter hover:text-accent transition-colors cursor-pointer outline-none">
-              <i class="fa-regular fa-eye text-base" x-show="!show"></i>
-              <i class="fa-regular fa-eye-slash text-base" x-show="show" style="display: none;"></i>
+                   class="w-full h-12 pl-11 pr-11 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
+            <button type="button" @click="show = !show" tabindex="-1"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-tsl-faint hover:text-tsl-accent transition-colors">
+              <span class="material-symbols-outlined text-[20px]" x-text="show ? 'visibility_off' : 'visibility'">visibility</span>
             </button>
           </div>
         </div>
 
-        <div class="flex items-center justify-between mt-1">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" name="remember" class="accent-accent w-[18px] h-[18px] rounded" :checked="!!lastUser">
-            <span class="text-[12px] text-txt-sec">Ghi nhớ đăng nhập</span>
-          </label>
-        </div>
+        <!-- Remember -->
+        <label class="flex items-center gap-2.5 cursor-pointer select-none">
+          <input type="checkbox" name="remember" {% if last_username %}checked{% endif %}
+                 class="w-[18px] h-[18px] rounded border-tsl-border text-tsl-accent focus:ring-tsl-accent/30 cursor-pointer"
+                 style="accent-color:#fd761a;">
+          <span class="text-sm text-tsl-muted">Ghi nhớ đăng nhập</span>
+        </label>
 
-        <button type="submit" class="w-full h-[46px] bg-accent text-bg-inset font-bold text-[14px] tracking-wider rounded-lg hover:bg-cyan-300 transition-colors mt-2">
+        <!-- Submit -->
+        <button type="submit" class="tsl-btn tsl-btn-primary tsl-btn-glow w-full !py-3.5 font-display font-semibold tracking-wide">
+          <span class="material-symbols-outlined text-[20px]">login</span>
           ĐĂNG NHẬP
         </button>
       </form>
 
-      <p class="text-center text-txt-mut text-[10px] font-medium mt-7 tracking-wide">SECURE LOGON • ENCRYPTED SESSION • v3.0</p>
+      <div class="text-center mt-8 pt-6 border-t border-tsl-border">
+        <a href="/" class="inline-flex items-center gap-1.5 text-sm font-display font-medium text-tsl-muted hover:text-tsl-accent transition-colors">
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+          Về trang chủ
+        </a>
+      </div>
+
     </div>
   </div>
-</div>
+</section>
 {% endblock %}

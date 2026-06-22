@@ -1,99 +1,109 @@
 {% extends "layout.html" %}
 {% block title %}Địa điểm — Parking Camera{% endblock %}
+{% block page_title %}Địa điểm{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{}">
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">🏢</span>
-      <span class="text-2xl font-semibold text-white">Địa điểm</span>
+<div x-data="{}">
+
+  <!-- Toolbar -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center" style="gap:8px;">
+      <span style="font-size:24px;">🏢</span>
+      <span class="font-weight-bold" style="font-size:18px;">Địa điểm</span>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
-            onclick="document.getElementById('add-form').classList.toggle('hidden')">+ Thêm</button>
+    <button class="btn btn-primary"
+            onclick="document.getElementById('add-form').classList.toggle('d-none')">+ Thêm</button>
   </div>
 
-  <form id="add-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4"
-        hx-post="/sites" hx-target="#sites-list" hx-swap="innerHTML"
-        hx-on::after-request="if(event.detail.successful){this.reset();this.classList.add('hidden')}">
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên *</label>
-        <input name="site_name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="Lán xe A">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Sức chứa</label>
-        <input name="total_slots" type="number" value="0" min="0" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-      </div>
+  <!-- Add Form -->
+  <div id="add-form" class="card d-none mb-3">
+    <div class="card-body">
+      <form hx-post="/sites" hx-target="#sites-list" hx-swap="innerHTML"
+            hx-on::after-request="if(event.detail.successful){this.reset();this.closest('.card').classList.add('d-none')}">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Tên *</label>
+            <input name="site_name" required class="form-control" placeholder="Lán xe A">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Sức chứa</label>
+            <input name="total_slots" type="number" value="0" min="0" class="form-control">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Địa chỉ</label>
+          <input name="address" class="form-control">
+        </div>
+        <div class="d-flex" style="gap:10px;">
+          <button type="submit" class="btn btn-primary">💾 Lưu</button>
+          <button type="button" class="btn btn-light" onclick="this.closest('.card').classList.add('d-none')">Hủy</button>
+        </div>
+      </form>
     </div>
-    <div>
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa chỉ</label>
-      <input name="address" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-    </div>
-    <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
-    </div>
-  </form>
-
-  <div class="bg-bg-card rounded-lg overflow-hidden">
-    <table class="w-full text-left border-collapse">
-      <!-- Header -->
-      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
-        <tr>
-          <th class="px-5 py-3 font-semibold">TÊN ĐỊA ĐIỂM</th>
-          <th class="px-5 py-3 font-semibold">ĐỊA CHỈ</th>
-          <th class="px-5 py-3 font-semibold w-[120px]">SỨC CHỨA</th>
-          <th class="px-5 py-3 font-semibold w-[120px] text-center">TRẠNG THÁI</th>
-          <th class="px-5 py-3 font-semibold w-[120px] text-right">HÀNH ĐỘNG</th>
-        </tr>
-      </thead>
-
-      <!-- Body -->
-      <tbody id="sites-list">
-        {% for s in site_list %}
-        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="site-{{ s.id }}">
-          <td class="px-5 py-3.5">
-            <div class="text-[13px] font-semibold text-white">{{ s.site_name }}</div>
-          </td>
-          <td class="px-5 py-3.5 text-[12px] text-txt-sec">
-            {{ s.address or '—' }}
-          </td>
-          <td class="px-5 py-3.5 text-[12px] text-txt-ter">
-            🅿️ {{ s.total_slots or 0 }} chỗ
-          </td>
-          <td class="px-5 py-3.5 text-center">
-            <form hx-post="/sites/{{ s.id }}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
-              <button type="submit" class="inline-flex items-center gap-1.5 text-[11px] font-medium {% if s.is_active %}text-status-green{% else %}text-txt-mut{% endif %} mx-auto">
-                <span class="w-2 h-2 rounded-full {% if s.is_active %}bg-status-green animate-pulse{% else %}bg-txt-mut{% endif %}"></span>
-                {{ 'Bật' if s.is_active else 'Tắt' }}
-              </button>
-            </form>
-          </td>
-          <td class="px-5 py-3.5 text-right">
-            <div class="flex justify-end gap-3">
-              <button class="text-txt-sec hover:text-accent text-sm transition-colors cursor-pointer" 
-                      hx-get="/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️</button>
-              <button class="text-txt-sec hover:text-status-red text-sm transition-colors cursor-pointer" 
-                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
-                        detail: {
-                          title: 'Xóa địa điểm',
-                          message: 'Bạn chắc chắn muốn xóa địa điểm {{ s.site_name }}?',
-                          confirmText: 'Xác nhận xóa',
-                          confirmUrl: '/sites/{{ s.id }}',
-                          confirmMethod: 'DELETE',
-                          confirmTarget: '#site-{{ s.id }}'
-                        }
-                      }))">🗑</button>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-        {% if not site_list %}
-        <tr>
-          <td colspan="5" class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có địa điểm nào.</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
   </div>
+
+  <!-- Sites Table -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th>TÊN ĐỊA ĐIỂM</th>
+              <th>ĐỊA CHỈ</th>
+              <th style="width:120px;">SỨC CHỨA</th>
+              <th class="text-center" style="width:120px;">TRẠNG THÁI</th>
+              <th class="text-right" style="width:120px;">HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody id="sites-list">
+            {% for s in site_list %}
+            <tr id="site-{{ s.id }}">
+              <td>
+                <span class="font-weight-bold" style="font-size:13px;">{{ s.site_name }}</span>
+              </td>
+              <td class="text-muted" style="font-size:13px;">
+                {{ s.address or '—' }}
+              </td>
+              <td class="text-muted" style="font-size:13px;">
+                🅿️ {{ s.total_slots or 0 }} chỗ
+              </td>
+              <td class="text-center">
+                <form hx-post="/sites/{{ s.id }}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
+                  <button type="submit" class="btn btn-sm {% if s.is_active %}btn-success{% else %}btn-secondary{% endif %} d-inline-flex align-items-center" style="gap:6px;">
+                    <span class="rounded-circle" style="width:8px;height:8px;display:inline-block;background:{% if s.is_active %}#28a745{% else %}#6c757d{% endif %};"></span>
+                    {{ 'Bật' if s.is_active else 'Tắt' }}
+                  </button>
+                </form>
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:12px;">
+                  <button class="btn btn-sm btn-light"
+                          hx-get="/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️</button>
+                  <button class="btn btn-sm btn-danger"
+                          @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa địa điểm',
+                              message: 'Bạn chắc chắn muốn xóa địa điểm {{ s.site_name }}?',
+                              confirmText: 'Xác nhận xóa',
+                              confirmUrl: '/sites/{{ s.id }}',
+                              confirmMethod: 'DELETE',
+                              confirmTarget: '#site-{{ s.id }}'
+                            }
+                          }))">🗑</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not site_list %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">Chưa có địa điểm nào.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}

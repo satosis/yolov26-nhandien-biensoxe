@@ -2,36 +2,24 @@
 {% block title %}404 — Không tìm thấy trang{% endblock %}
 
 {% block content %}
-<div class="flex-1 flex flex-col items-center justify-center min-h-[70vh] text-center px-6">
-  <!-- Glow Effect -->
-  <div class="relative">
-    <div class="absolute inset-x-0 top-0 h-40 bg-accent/20 blur-[100px] rounded-full"></div>
-    <h1 class="text-[120px] font-black text-white leading-none tracking-tighter opacity-20">404</h1>
-    <div class="absolute inset-0 flex items-center justify-center">
-      <span class="text-[60px]">🚫</span>
-    </div>
+<div class="d-flex flex-column align-items-center justify-content-center text-center px-3" style="min-height:70vh;">
+  <div class="mb-3">
+    <i class="bx bx-error-circle text-primary" style="font-size:80px;"></i>
   </div>
-
-  <h2 class="text-3xl font-bold text-white mt-4">Không tìm thấy trang</h2>
-  <p class="text-txt-sec mt-3 max-w-md mx-auto text-[15px]">
-    Trang bạn đang tìm kiếm không tồn tại hoặc đã được di chuyển. 
+  <h1 class="font-weight-bold text-muted" style="font-size:96px;line-height:1;opacity:.15;">404</h1>
+  <h2 class="font-weight-bold mt-2">Không tìm thấy trang</h2>
+  <p class="text-muted mt-2" style="max-width:480px;font-size:15px;">
+    Trang bạn đang tìm kiếm không tồn tại hoặc đã được di chuyển.
     Vui lòng kiểm tra lại đường dẫn hoặc quay về trang chủ.
   </p>
-
-  <div class="mt-10 flex gap-4">
-    <a href="/" class="bg-accent text-bg-inset font-bold px-8 py-3 rounded-xl hover:bg-cyan-300 transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)]">
-      🏠 Về trang chủ
+  <div class="mt-4 d-flex" style="gap:12px;">
+    <a href="/" class="btn btn-primary btn-lg">
+      <i class="bx bx-home mr-2"></i>Về trang chủ
     </a>
-    <button onclick="window.history.back()" class="bg-white/5 text-white border border-white/10 font-bold px-8 py-3 rounded-xl hover:bg-white/10 transition-all">
-      ⬅️ Quay lại
+    <button onclick="window.history.back()" class="btn btn-light btn-lg">
+      <i class="bx bx-arrow-back mr-2"></i>Quay lại
     </button>
   </div>
-
-  <!-- Decorative elements -->
-  <div class="mt-20 flex items-center gap-2 text-txt-mut font-mono text-[11px] tracking-widest uppercase opacity-50">
-    <div class="w-8 h-[1px] bg-white/20"></div>
-    <span>Parking Camera OS v3.0</span>
-    <div class="w-8 h-[1px] bg-white/20"></div>
-  </div>
+  <p class="text-muted mt-5" style="font-size:11px;letter-spacing:.1em;font-family:monospace;">Parking Camera OS v3.0</p>
 </div>
 {% endblock %}

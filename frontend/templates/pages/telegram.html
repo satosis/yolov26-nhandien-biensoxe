@@ -1,77 +1,81 @@
 {% extends "layout.html" %}
 {% block title %}Telegram - Parking Camera{% endblock %}
+{% block page_title %}Cấu hình Telegram Bot{% endblock %}
 {% block content %}
-<div class="flex flex-col gap-8" x-data="{ showAdd: false }">
-  <section class="bg-bg-card rounded-xl border border-divider overflow-hidden shadow-sm">
-    <div class="px-6 py-4 bg-white/5 border-b border-divider flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-lg bg-status-green/10 flex items-center justify-center text-status-green">
-          <i class="fa-solid fa-robot"></i>
+<div class="container-fluid" x-data="{ showAdd: false }">
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <div class="d-flex align-items-center" style="gap:10px;">
+        <div class="rounded d-flex align-items-center justify-content-center text-success" style="width:32px;height:32px;background:rgba(40,167,69,.1);">
+          <i class="fas fa-robot"></i>
         </div>
-        <h2 class="text-base font-bold text-white">Bot Telegram</h2>
+        <h6 class="mb-0 font-weight-bold">Bot Telegram</h6>
       </div>
       <button @click="showAdd = !showAdd"
-              class="bg-accent text-bg-inset font-bold text-[11px] px-3 py-1.5 rounded uppercase tracking-wider hover:bg-cyan-300 transition-colors">
+              class="btn btn-primary btn-sm font-weight-bold" style="font-size:11px;letter-spacing:1px;">
         + Thêm mới
       </button>
     </div>
 
-    <div x-show="showAdd" x-collapse class="border-b border-divider">
-      <form class="bg-bg-inset/30 p-6 flex flex-col gap-4"
+    <!-- Add Form -->
+    <div x-show="showAdd" x-collapse class="border-bottom">
+      <form class="card-body"
             hx-post="/telegram" hx-target="#bots-list" hx-swap="innerHTML"
             hx-on::after-request="if(event.detail.successful){this.reset(); showAdd=false}">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Tên gợi nhớ *</label>
-            <input name="bot_name" required placeholder="VD: Bảo vệ" class="w-full h-10 bg-bg-inset border border-divider rounded-md px-3 text-sm text-white focus:border-accent/50 outline-none">
+        <div class="row">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên gợi nhớ *</label>
+            <input name="bot_name" required placeholder="VD: Bảo vệ" class="form-control">
           </div>
-          <div>
-            <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Bot token *</label>
-            <input name="bot_token" required placeholder="Token..." class="w-full h-10 bg-bg-inset border border-divider rounded-md px-3 text-sm text-white focus:border-accent/50 outline-none">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Bot token *</label>
+            <input name="bot_token" required placeholder="Token..." class="form-control">
           </div>
-          <div>
-            <label class="block text-txt-sec text-[12px] font-semibold mb-1.5">Chat ID *</label>
-            <input name="chat_id" required placeholder="ID..." class="w-full h-10 bg-bg-inset border border-divider rounded-md px-3 text-sm text-white focus:border-accent/50 outline-none">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Chat ID *</label>
+            <input name="chat_id" required placeholder="ID..." class="form-control">
           </div>
         </div>
-        <div class="flex gap-3 justify-end">
+        <div class="d-flex justify-content-end" style="gap:8px;">
           <button type="button" @click="showAdd = false"
-                  class="px-4 py-2 text-[12px] font-semibold text-txt-ter hover:text-white">Hủy</button>
+                  class="btn btn-light font-weight-bold" style="font-size:12px;">Hủy</button>
           <button type="submit"
-                  class="bg-accent text-bg-inset font-bold text-[12px] px-6 py-2 rounded-md hover:bg-cyan-300 transition-all">Lưu bot</button>
+                  class="btn btn-primary font-weight-bold" style="font-size:12px;">Lưu bot</button>
         </div>
       </form>
     </div>
 
-    <div class="bg-bg-card">
-      <div class="flex items-center gap-4 px-6 py-3 bg-bg-inset/50 text-[10px] font-bold text-txt-ter uppercase tracking-[1.5px]">
-        <div class="w-[200px]">Tên cấu hình</div>
-        <div class="flex-1">Token</div>
-        <div class="w-[180px]">Chat ID</div>
-        <div class="w-[120px] text-center">Hành động</div>
+    <!-- Bots List -->
+    <div class="card-body p-0">
+      <!-- Column headers -->
+      <div class="d-flex align-items-center px-4 py-2 border-bottom" style="background:#f8f9fa;">
+        <div style="width:200px;" class="text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Tên cấu hình</div>
+        <div class="flex-grow-1 text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Token</div>
+        <div style="width:180px;" class="text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Chat ID</div>
+        <div style="width:120px;text-align:center;" class="text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Hành động</div>
       </div>
 
       <div id="bots-list">
         {% for b in bots %}
-        <div class="flex flex-col border-b border-divider last:border-0 group">
-          <div class="flex items-center gap-4 px-6 py-4 hover:bg-white/[0.02] transition-all">
-            <div class="w-[200px]">
-              <div class="flex items-center gap-2">
-                <span class="text-base text-status-green">BOT</span>
-                <span class="text-[14px] font-medium text-white">{{ b.bot_name }}</span>
+        <div class="border-bottom">
+          <!-- Bot row -->
+          <div class="d-flex align-items-center px-4 py-3" style="gap:12px;">
+            <div style="width:200px;">
+              <div class="d-flex align-items-center" style="gap:8px;">
+                <span class="badge badge-success" style="font-size:10px;">BOT</span>
+                <span class="font-weight-bold" style="font-size:14px;">{{ b.bot_name }}</span>
               </div>
             </div>
-            <div class="flex-1">
-              <div class="text-[12px] font-mono text-txt-ter truncate max-w-[280px]" title="{{ b.token }}">
+            <div class="flex-grow-1">
+              <code class="text-muted" style="font-size:12px;" title="{{ b.token }}">
                 {{ b.token[:10] }}********{{ b.token[-6:] }}
-              </div>
+              </code>
             </div>
-            <div class="w-[180px]">
-              <div class="text-[12px] font-mono text-accent bg-accent/5 px-2 py-0.5 rounded border border-accent/10 inline-block">
-                {{ b.chat_id }}
-              </div>
+            <div style="width:180px;">
+              <span class="badge badge-pill badge-info" style="font-size:12px;font-weight:400;">{{ b.chat_id }}</span>
             </div>
-            <div class="w-[120px] flex items-center justify-center gap-3">
+            <div style="width:120px;" class="d-flex align-items-center justify-content-center" style="gap:6px;">
               <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                         detail: {
                           title: 'Thử bot',
@@ -82,10 +86,12 @@
                           reload: false
                         }
                       }))"
-                      class="w-8 h-8 rounded-lg bg-bg-inset border border-divider text-status-green flex items-center justify-center hover:bg-status-green hover:text-bg-inset transition-all"
+                      class="btn btn-sm btn-outline-success d-flex align-items-center justify-content-center"
+                      style="width:32px;height:32px;padding:0;"
                       title="Test">T</button>
-              <button onclick="document.getElementById('edit-bot-form-{{ loop.index }}').classList.toggle('hidden')"
-                      class="w-8 h-8 rounded-lg bg-bg-inset border border-divider text-txt-sec flex items-center justify-center hover:bg-accent hover:text-bg-inset transition-all"
+              <button onclick="document.getElementById('edit-bot-form-{{ loop.index }}').style.display = document.getElementById('edit-bot-form-{{ loop.index }}').style.display === 'none' ? 'block' : 'none'"
+                      class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
+                      style="width:32px;height:32px;padding:0;"
                       title="Sửa">E</button>
               <button type="button"
                       @click="window.dispatchEvent(new CustomEvent('show-confirm', {
@@ -98,40 +104,46 @@
                           reload: true
                         }
                       }))"
-                      class="w-8 h-8 rounded-lg bg-bg-inset border border-divider text-status-red flex items-center justify-center hover:bg-status-red hover:text-white transition-all" title="Xóa">X</button>
+                      class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center"
+                      style="width:32px;height:32px;padding:0;"
+                      title="Xóa">X</button>
             </div>
           </div>
 
+          <!-- Edit form -->
           <form id="edit-bot-form-{{ loop.index }}" method="POST" action="/telegram"
-                class="hidden bg-bg-inset/50 p-6 border-t border-divider grid grid-cols-4 gap-4 items-end">
+                class="px-4 pb-4 pt-2 border-top" style="display:none;background:#f8f9fa;">
             <input type="hidden" name="bot_name" value="{{ b.bot_name }}">
-            <div class="col-span-1">
-              <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Tên</label>
-              <input value="{{ b.bot_name }}" disabled class="w-full bg-bg-inset/50 border border-divider rounded-md px-3 py-2 text-sm text-txt-ter">
-            </div>
-            <div class="col-span-1">
-              <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Token mới</label>
-              <input name="token" value="{{ b.token }}" required class="w-full h-9 bg-bg-inset border border-divider rounded-md px-3 text-sm text-white focus:border-accent/50 outline-none">
-            </div>
-            <div class="col-span-1">
-              <label class="block text-[11px] text-txt-ter uppercase font-bold mb-1.5">Chat ID mới</label>
-              <input name="chat_id" value="{{ b.chat_id }}" required class="w-full h-9 bg-bg-inset border border-divider rounded-md px-3 text-sm text-white focus:border-accent/50 outline-none">
-            </div>
-            <div class="col-span-1 flex gap-2 h-9">
-              <button type="submit" class="flex-1 bg-accent text-bg-inset font-bold text-[11px] rounded hover:opacity-90 transition-opacity">Cập nhật</button>
-              <button type="button" onclick="this.closest('form').classList.add('hidden')" class="px-3 bg-white/5 text-txt-sec rounded hover:bg-white/10">Đóng</button>
+            <div class="row align-items-end">
+              <div class="col-12 col-md-3 mb-3">
+                <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên</label>
+                <input value="{{ b.bot_name }}" disabled class="form-control" style="background:#e9ecef;color:#6c757d;">
+              </div>
+              <div class="col-12 col-md-3 mb-3">
+                <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Token mới</label>
+                <input name="token" value="{{ b.token }}" required class="form-control">
+              </div>
+              <div class="col-12 col-md-3 mb-3">
+                <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Chat ID mới</label>
+                <input name="chat_id" value="{{ b.chat_id }}" required class="form-control">
+              </div>
+              <div class="col-12 col-md-3 mb-3 d-flex" style="gap:8px;">
+                <button type="submit" class="btn btn-primary font-weight-bold flex-fill" style="font-size:11px;">Cập nhật</button>
+                <button type="button" onclick="this.closest('form').style.display='none'" class="btn btn-light" style="padding-left:12px;padding-right:12px;">Đóng</button>
+              </div>
             </div>
           </form>
         </div>
         {% endfor %}
         {% if not bots %}
-        <div class="py-16 text-center flex flex-col items-center gap-4">
-          <span class="text-5xl opacity-10">BOT</span>
-          <p class="text-txt-ter text-[13px]">Chưa có bot Telegram nào được cấu hình.</p>
+        <div class="py-5 text-center d-flex flex-column align-items-center" style="gap:12px;">
+          <span class="text-muted font-weight-bold" style="font-size:40px;opacity:.2;">BOT</span>
+          <p class="text-muted mb-0" style="font-size:13px;">Chưa có bot Telegram nào được cấu hình.</p>
         </div>
         {% endif %}
       </div>
     </div>
-  </section>
+  </div>
+
 </div>
 {% endblock %}

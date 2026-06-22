@@ -1,9 +1,10 @@
 {% extends "layout.html" %}
 {% block title %}Xe lạ — Parking Camera{% endblock %}
+{% block page_title %}Biển số chờ duyệt{% endblock %}
 
 {% block head %}
 <style>
-/* Empty state + header visibility driven by presence of rows (works after client-side row removal) */
+/* Empty state visibility driven by row presence */
 #empty-message { display: none; }
 #pending-list:not(:has(.pending-row)) #empty-message { display: flex !important; }
 #pending-list:not(:has(.pending-row)) thead { display: none; }
@@ -11,7 +12,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{
+<div x-data="{
     selected: [],
     busy: false,
     total: {{ plates|length }},
@@ -30,123 +31,140 @@
   }">
 
   <!-- Page header -->
-  <div class="flex items-start justify-between gap-3 flex-wrap">
-    <div class="flex flex-col gap-1">
-      <div class="flex items-center gap-2.5">
-        <span class="text-accent text-[28px]">🚘</span>
-        <span class="text-2xl font-semibold text-white">Biển số chờ duyệt</span>
-        {% if plates %}
-        <span class="text-[12px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">{{ plates|length }}</span>
-        {% endif %}
+  <div class="d-flex align-items-start justify-content-between flex-wrap mb-4" style="gap:12px;">
+    <div>
+      <div class="d-flex align-items-center" style="gap:10px;">
+        <span style="font-size:1.6rem;">🚘</span>
+        <h4 class="mb-0 font-weight-bold">Biển số chờ duyệt
+          {% if plates %}
+          <span class="badge badge-pill badge-primary ml-2" style="font-size:13px;">{{ plates|length }}</span>
+          {% endif %}
+        </h4>
       </div>
-      <span class="text-[13px] text-txt-ter pl-[38px]">
-        Xe lạ camera tự ghi nhận — <span class="text-accent">📝 Đăng ký</span> để thêm vào danh sách quen, hoặc <span class="text-status-red">❌ Từ chối</span> để bỏ.
-      </span>
+      <p class="text-muted mb-0 mt-1" style="font-size:13px;padding-left:38px;">
+        Xe lạ camera tự ghi nhận —
+        <span class="text-primary">📝 Đăng ký</span> để thêm vào danh sách quen,
+        hoặc <span class="text-danger">❌ Từ chối</span> để bỏ.
+      </p>
     </div>
 
-    <!-- Bulk action bar (only when something selected) -->
-    <div x-show="selected.length > 0" x-cloak class="flex items-center gap-3">
-      <span class="text-[12px] text-txt-sec"><span class="text-accent font-semibold" x-text="selected.length"></span> đã chọn</span>
+    <!-- Bulk action bar -->
+    <div x-show="selected.length > 0" x-cloak class="d-flex align-items-center" style="gap:10px;">
+      <span class="text-muted" style="font-size:13px;">
+        <span class="text-primary font-weight-bold" x-text="selected.length"></span> đã chọn
+      </span>
       <button @click="bulkDelete()" :disabled="busy"
-              class="bg-status-red/10 hover:bg-status-red/20 text-status-red border border-status-red/20 disabled:opacity-40 text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors">
+              class="btn btn-sm btn-danger">
         🗑 Xóa đã chọn
       </button>
     </div>
   </div>
 
   <!-- List -->
-  <div class="bg-bg-card rounded-xl border border-divider shadow-sm overflow-hidden flex flex-col min-h-[400px]" id="pending-list">
-    <table class="w-full text-left border-collapse">
-      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
-        <tr>
-          <th class="px-5 py-3 font-semibold w-[40px]">
-            <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
-                   class="w-4 h-4 accent-accent align-middle cursor-pointer" title="Chọn tất cả">
-          </th>
-          <th class="px-5 py-3 font-semibold w-[120px]">Ảnh</th>
-          <th class="px-5 py-3 font-semibold w-[220px]">Biển số</th>
-          <th class="px-5 py-3 font-semibold">Thời gian phát hiện</th>
-          <th class="px-5 py-3 font-semibold w-[140px] text-right">Hành động</th>
-        </tr>
-      </thead>
+  <div class="card" id="pending-list">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th style="width:40px;">
+                <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
+                       style="width:16px;height:16px;cursor:pointer;" title="Chọn tất cả">
+              </th>
+              <th style="width:110px;">Ảnh</th>
+              <th style="width:200px;">Biển số</th>
+              <th>Thời gian phát hiện</th>
+              <th class="text-right" style="width:150px;">Hành động</th>
+            </tr>
+          </thead>
 
-      <tbody>
-        {% for p in plates %}
-        <tr class="border-b border-divider last:border-0 hover:bg-white/[0.02] transition-colors pending-row" id="row-{{ p.pending_id }}"
-            :class="selected.includes('{{ p.pending_id }}') ? 'bg-accent/[0.05]' : ''">
-          <!-- Checkbox -->
-          <td class="px-5 py-4">
-            <input type="checkbox" value="{{ p.pending_id }}" x-model="selected" class="w-4 h-4 accent-accent align-middle cursor-pointer">
-          </td>
-          <!-- Thumbnail -->
-          <td class="px-5 py-4">
-            <div class="w-[100px] h-[56px] rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 cursor-zoom-in group transition-all hover:border-accent/40 shadow-sm">
-              {% if p.image_path %}
-              <img src="/snapshots/{{ p.image_path.split('/')[-1] }}"
-                   alt="Plate"
-                   class="w-full h-full object-cover transition-transform group-hover:scale-110"
-                   onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
-                   onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center text-[22px]\'>🚘</div>'">
-              {% else %}
-              <div class="w-full h-full flex items-center justify-center text-[22px]">🚘</div>
-              {% endif %}
-            </div>
-          </td>
+          <tbody>
+            {% for p in plates %}
+            <tr class="pending-row" id="row-{{ p.pending_id }}"
+                :class="selected.includes('{{ p.pending_id }}') ? 'table-active' : ''">
 
-          <!-- Plate -->
-          <td class="px-5 py-4">
-            {% set plate_cls = "bg-status-yellow/10 text-white border-status-yellow/30" %}
-            {% if p.plate_type == 'white' %}
-              {% set plate_cls = "bg-white/10 text-white border-white/40 font-bold" %}
-            {% elif p.plate_type == 'yellow' %}
-              {% set plate_cls = "bg-amber-400/20 text-white border-amber-400/50 font-bold" %}
-            {% elif p.plate_type == 'blue' %}
-              {% set plate_cls = "bg-blue-600/20 text-white border-blue-400/40" %}
-            {% elif p.plate_type == 'red' %}
-              {% set plate_cls = "bg-rose-600/20 text-white border-rose-400/40" %}
-            {% endif %}
-            <span class="{{ plate_cls }} px-2.5 py-1 rounded-md text-[15px] font-mono border inline-block w-fit shadow-[0_0_15px_rgba(255,255,255,0.05)]">
-              {{ p.plate_raw or p.plate_norm or '???' }}
-            </span>
-          </td>
+              <!-- Checkbox -->
+              <td>
+                <input type="checkbox" value="{{ p.pending_id }}" x-model="selected"
+                       style="width:16px;height:16px;cursor:pointer;">
+              </td>
 
-          <!-- Time -->
-          <td class="px-5 py-4 text-[13px] text-txt-ter">
-            {{ p.first_seen.strftime('%d/%m/%Y %H:%M:%S') if p.first_seen else '—' }}
-          </td>
+              <!-- Thumbnail -->
+              <td>
+                <div class="rounded overflow-hidden" style="width:100px;height:56px;background:#f8f9fa;border:1px solid #dee2e6;cursor:zoom-in;flex-shrink:0;">
+                  {% if p.image_path %}
+                  <img src="/snapshots/{{ p.image_path.split('/')[-1] }}"
+                       alt="Plate"
+                       style="width:100%;height:100%;object-fit:cover;"
+                       onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
+                       onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:1.4rem;\'>🚘</div>'">
+                  {% else %}
+                  <div class="d-flex align-items-center justify-content-center h-100" style="font-size:1.4rem;">🚘</div>
+                  {% endif %}
+                </div>
+              </td>
 
-          <!-- Actions -->
-          <td class="px-5 py-4 text-right">
-            <div class="flex justify-end gap-1.5">
-              <a href="/admin/pending_plates/{{ p.pending_id }}/register"
-                 class="inline-flex items-center gap-1 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 text-[12px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
-                 title="Đăng ký phương tiện">📝 Đăng ký</a>
-              <button class="inline-flex items-center justify-center bg-white/5 hover:bg-status-red/15 text-txt-ter hover:text-status-red border border-white/10 hover:border-status-red/30 text-[13px] w-8 h-8 rounded-lg transition-colors"
-                      title="Từ chối"
-                      @click.stop="window.dispatchEvent(new CustomEvent('show-confirm', {
-                        detail: {
-                          title: 'Từ chối biển số',
-                          message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
-                          confirmText: 'Xác nhận từ chối',
-                          confirmUrl: '/camera/pending_plates/{{ p.pending_id }}/reject',
-                          confirmTarget: '#row-{{ p.pending_id }}'
-                        }
-                      }))">❌</button>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+              <!-- Plate -->
+              <td>
+                {% set plate_cls = "badge-warning" %}
+                {% if p.plate_type == 'white' %}
+                  {% set plate_cls = "badge-light" %}
+                {% elif p.plate_type == 'yellow' %}
+                  {% set plate_cls = "badge-warning" %}
+                {% elif p.plate_type == 'blue' %}
+                  {% set plate_cls = "badge-primary" %}
+                {% elif p.plate_type == 'red' %}
+                  {% set plate_cls = "badge-danger" %}
+                {% endif %}
+                <span class="badge {{ plate_cls }}"
+                      style="font-family:monospace;font-size:14px;padding:5px 10px;letter-spacing:1px;">
+                  {{ p.plate_raw or p.plate_norm or '???' }}
+                </span>
+              </td>
 
-    <!-- Empty state -->
-    <div id="empty-message" class="flex-1 px-5 py-16 text-center flex flex-col items-center justify-center gap-3">
-      <div class="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-[32px]">🅿️</div>
-      <div class="text-white font-semibold text-base">Không có xe lạ nào</div>
-      <div class="text-txt-ter text-[13px] max-w-sm leading-relaxed">
-        Mọi biển số đều đã được duyệt. Khi camera phát hiện một biển số chưa có trong danh sách quen, nó sẽ tự xuất hiện ở đây để bạn duyệt.
+              <!-- Time -->
+              <td class="text-muted" style="font-size:13px;">
+                {{ p.first_seen.strftime('%d/%m/%Y %H:%M:%S') if p.first_seen else '—' }}
+              </td>
+
+              <!-- Actions -->
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:6px;">
+                  <a href="/admin/pending_plates/{{ p.pending_id }}/register"
+                     class="btn btn-sm btn-success"
+                     title="Đăng ký phương tiện">
+                    📝 Đăng ký
+                  </a>
+                  <button class="btn btn-sm btn-danger"
+                          title="Từ chối"
+                          @click.stop="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Từ chối biển số',
+                              message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
+                              confirmText: 'Xác nhận từ chối',
+                              confirmUrl: '/camera/pending_plates/{{ p.pending_id }}/reject',
+                              confirmTarget: '#row-{{ p.pending_id }}'
+                            }
+                          }))">❌</button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty state -->
+      <div id="empty-message" class="py-5 text-center" style="flex-direction:column;align-items:center;gap:12px;">
+        <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
+             style="width:64px;height:64px;background:#f0f0ff;border:1px solid #c7c7f5;font-size:2rem;">🅿️</div>
+        <p class="font-weight-bold mb-1">Không có xe lạ nào</p>
+        <p class="text-muted" style="font-size:13px;max-width:380px;margin:0 auto;">
+          Mọi biển số đều đã được duyệt. Khi camera phát hiện một biển số chưa có trong danh sách quen, nó sẽ tự xuất hiện ở đây để bạn duyệt.
+        </p>
       </div>
     </div>
   </div>
+
 </div>
 {% endblock %}

@@ -171,7 +171,7 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 | AI inference | YOLOv26 ONNX Runtime, RapidOCR, InsightFace |
 | Backend | FastAPI + uvicorn |
 | Camera | OpenCV RTSP, ONVIF, Imou Open API |
-| UI/Management | FastAPI + Jinja2 + HTMX + Tailwind CSS |
+| UI/Management | FastAPI + Jinja2 + HTMX. Admin: Bootstrap 4.5 "Opatix" (light). Landing public: Tailwind CSS |
 | Messaging | Telegram Bot API |
 | Database | PostgreSQL |
 | Container | Docker Compose |
@@ -277,7 +277,8 @@ IMOU_OPEN_DEVICE_ID=
 - **Multi-site Management**: bảng `sites` thay thế `camera_zones`, global site selector trong sidebar, filter dashboard/cameras theo site
 - **Mobile WebRTC Camera View**: TURN server config (env + app_settings), facingMode environment cho camera sau, `?mobile=1` ẩn tab RTSP, responsive CSS cho video player
 - **Dynamic Provider API Keys**: mỗi nhà cung cấp camera có bộ key kết nối riêng (PROVIDER_DEFAULT_KEYS), UI tự render dynamic inputs
-- **Frontend**: FastAPI + Jinja2 + HTMX + Tailwind CSS (frontend/, port 8000)
+- **Frontend**: FastAPI + Jinja2 + HTMX (frontend/, port 8000)
+- **Admin UI — Bootstrap "Opatix" (light theme)**: toàn bộ giao diện admin được viết lại theo phong cách module admin của project `D:\project\laravel9-congtyquangcao` (`/admin`). Shell mới: `base.html` (Bootstrap 4.5 + theme.min.css + admin-custom.css + Inter font + Boxicons/FontAwesome), `layout.html` (layout-wrapper / topbar 40px / vertical-menu 220px / main-content / page-content / footer), `partials/sidebar.html` (nhóm menu thu gọn dạng accordion + site selector; link trỏ `/admin/<key>` đúng router; group active tự mở khi load). **Accordion expand chạy bằng handler jQuery tự viết trong `theme.js`** (không phụ thuộc plugin metisMenu — plugin hay fail khi menu bị simplebar bọc). `deps.get_menu_context` strip prefix `admin/` để `current_menu` khớp menu key (highlight + auto-expand), `partials/header.html` (topbar logo + toggle `#vertical-menu-btn` + user dropdown). Assets ở `frontend/static/admin-assets/` (bootstrap/icons/theme/metismenu/simplebar/waves/theme.js + admin-custom.css). **Bootstrap 4** (dùng `data-toggle`/`dropdown-menu-right`/`mr-`/`ml-`/`badge badge-*`, KHÔNG dùng cú pháp BS5). 28 trang admin đã convert từ dark-Tailwind sang `card`/`table-cinema`/`.kpi-card`/`btn btn-*`/`form-control`/`badge badge-*` — **chỉ đổi giao diện, giữ nguyên 100% logic/data/HTMX/Alpine/URL**. **`login.html` KHÔNG theo Opatix** — nó extends `landing_base.html` để giống trang chủ public (theme THÉP SƠN LÂM, Tailwind `user-output.css`, tokens `tsl-*`, font Outfit, có header/footer landing). Sau khi sửa login phải rebuild: `cd frontend && npx @tailwindcss/cli -i ./static/user/css/user-input.css -o ./static/user/css/user-output.css --minify`. Các trang public `landing_*` (THÉP SƠN LÂM) vẫn dùng Tailwind riêng, KHÔNG đụng tới. Global modal confirm/image + toast (qua toastr) trong `base.html`.
 - **Auto-Discovery Pipeline**: ARP scan (zero-cost) + MAC OUI vendor ID + ONVIF unicast probe + auto-register. Two-speed: fast (60s ARP) + slow (300s full ONVIF/Dahua/Cloud)
 - **Circuit Breaker cho Grabber**: exponential backoff (5s→300s), 3 states (CLOSED→OPEN→HALF_OPEN), health events ghi camera_status_log
 - **RTSP URL Auto-Refresh**: grabber tự đọc URL mới từ DB mỗi lần reconnect, xử lý IP thay đổi tự động

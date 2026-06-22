@@ -1,199 +1,219 @@
 {% extends "layout.html" %}
 {% block title %}NCC Camera — Parking Camera{% endblock %}
-{% block content %}
-<div class="flex flex-col gap-5" x-data="{}">
+{% block page_title %}Nhà cung cấp Camera{% endblock %}
 
-  <!-- Page header -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">🏭</span>
-      <span class="text-2xl font-semibold text-white">Nhà cung cấp Camera</span>
+{% block content %}
+<div x-data="{}">
+
+  <!-- Page header actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <span style="font-size:24px;">🏭</span>
+      <h5 class="mb-0 font-weight-bold">Nhà cung cấp Camera</h5>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
-            onclick="document.getElementById('add-provider-form').classList.toggle('hidden')">
-      <span>+</span> Thêm NCC
+    <button class="btn btn-primary"
+            onclick="document.getElementById('add-provider-form').classList.toggle('d-none')">
+      <i class="bx bx-plus mr-1"></i> Thêm NCC
     </button>
   </div>
 
-  <!-- Add form (hidden) -->
-  <form id="add-provider-form" method="POST" action="/providers" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Provider Key * (e.g. imou, hikvision)</label>
-        <input name="provider_key" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên nhà cung cấp *</label>
-        <input name="name" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Logo URL (Local Asset Path)</label>
-        <input name="logo_url" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="/static/assets/providers/imou.png">
-      </div>
+  <!-- Add form (hidden by default) -->
+  <div class="card mb-4 d-none" id="add-provider-form">
+    <div class="card-body">
+      <h6 class="card-title font-weight-bold mb-3">Thêm nhà cung cấp mới</h6>
+      <form method="POST" action="/providers">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-medium" style="font-size:13px;">Provider Key * <small class="text-muted">(e.g. imou, hikvision)</small></label>
+            <input name="provider_key" required class="form-control form-control-sm" placeholder="imou">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-medium" style="font-size:13px;">Tên nhà cung cấp *</label>
+            <input name="name" required class="form-control form-control-sm" placeholder="IMOU Camera">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-medium" style="font-size:13px;">Logo URL (Local Asset Path)</label>
+            <input name="logo_url" class="form-control form-control-sm" placeholder="/static/assets/providers/imou.png">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-medium" style="font-size:13px;">API Base URL</label>
+            <input name="api_base_url" class="form-control form-control-sm" placeholder="https://openapi.imoulife.com">
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-weight-medium" style="font-size:13px;">Cấu trúc RTSP URL (Template)</label>
+            <input name="rtsp_template" class="form-control form-control-sm" placeholder="rtsp://{username}:{password}@{ip}:{port}/{channel}">
+            <small class="text-muted">Sử dụng: {username}, {password}, {ip}, {port}, {channel}</small>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">ONVIF Port</label>
+            <input name="onvif_port" type="number" value="80" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">Default RTSP Port</label>
+            <input name="default_rtsp_port" type="number" value="554" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">Default HTTP Port</label>
+            <input name="default_http_port" type="number" value="80" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="font-weight-medium" style="font-size:13px;">Ghi chú / Mô tả</label>
+          <textarea name="notes" rows="2" class="form-control form-control-sm"></textarea>
+        </div>
+        <div class="form-check mb-3">
+          <input type="checkbox" name="is_active" id="is_active_new" checked class="form-check-input">
+          <label for="is_active_new" class="form-check-label" style="font-size:13px;">Kích hoạt (Hoạt động ngay)</label>
+        </div>
+        <div class="d-flex" style="gap:8px;">
+          <button type="submit" class="btn btn-primary btn-sm">💾 Lưu</button>
+          <button type="button" class="btn btn-light btn-sm" onclick="document.getElementById('add-provider-form').classList.add('d-none')">Hủy</button>
+        </div>
+      </form>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">API Base URL</label>
-        <input name="api_base_url" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="https://openapi.imoulife.com">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Cấu trúc RTSP URL (Template)</label>
-        <input name="rtsp_template" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="rtsp://{username}:{password}@{ip}:{port}/{channel}">
-        <div class="text-[10px] text-txt-ter mt-0.5">Sử dụng: {username}, {password}, {ip}, {port}, {channel}</div>
-      </div>
-    </div>
-    <div class="grid grid-cols-3 gap-4 border-t border-white/5 pt-4">
-      <div>
-        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">ONVIF Port</label>
-        <input name="onvif_port" type="number" value="80" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default RTSP Port</label>
-        <input name="default_rtsp_port" type="number" value="554" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default HTTP Port</label>
-        <input name="default_http_port" type="number" value="80" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-      </div>
-    </div>
-    <div>
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">Ghi chú / Mô tả</label>
-      <textarea name="notes" rows="2" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"></textarea>
-    </div>
-    <div class="flex items-center gap-2">
-      <input type="checkbox" name="is_active" id="is_active_new" checked class="rounded border-white/10 bg-bg-inset text-accent focus:ring-accent/50">
-      <label for="is_active_new" class="text-txt-sec text-[13px]">Kích hoạt (Hoạt động ngay)</label>
-    </div>
-    <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
-    </div>
-  </form>
+  </div>
 
   <!-- Table card -->
-  <div class="bg-bg-card rounded-lg overflow-hidden">
-    <!-- Table header -->
-    <div class="flex items-center gap-4 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
-      <div class="w-[60px] flex-shrink-0 text-center">AVATAR</div>
-      <div class="w-[180px] flex-shrink-0">TÊN NCC</div>
-      <div class="w-[240px] flex-shrink-0">MÔ TẢ</div>
-      <div class="flex-1 min-w-0">API KEYS</div>
-      <div class="w-[100px] flex-shrink-0 text-center uppercase tracking-[1.5px]">KÍCH HOẠT</div>
-      <div class="w-[120px] flex-shrink-0 text-right uppercase tracking-[1.5px]">HÀNH ĐỘNG</div>
-    </div>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th style="width:60px;" class="text-center">AVATAR</th>
+              <th style="width:180px;">TÊN NCC</th>
+              <th style="width:240px;">MÔ TẢ</th>
+              <th>API KEYS</th>
+              <th style="width:100px;" class="text-center">KÍCH HOẠT</th>
+              <th style="width:120px;" class="text-right">HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in providers %}
+            <tr>
+              <td class="text-center">
+                {% if p.logo_url %}
+                  <div style="width:40px;height:40px;border-radius:50%;border:1px solid #dee2e6;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:4px;background:#f8f9fa;margin:0 auto;">
+                    <img src="{{ p.logo_url }}" alt="{{ p.name }}" style="max-height:28px;max-width:80%;width:auto;object-fit:contain;">
+                  </div>
+                {% else %}
+                  <div style="width:40px;height:40px;border-radius:50%;border:1px solid #dee2e6;display:flex;align-items:center;justify-content:center;font-size:18px;background:#f8f9fa;margin:0 auto;">🏭</div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="font-weight-bold" style="font-size:13px;">{{ p.name }}</div>
+                <small class="text-muted">{{ p.provider_key }}</small>
+              </td>
+              <td style="font-size:12px;" class="text-muted">{{ p.notes or '—' }}</td>
+              <td>
+                {% if p._masked %}
+                  <div class="d-flex flex-wrap" style="gap:4px;">
+                    {% for k,v in p._masked.items() %}
+                    <span class="badge badge-secondary" style="font-size:10px;font-weight:normal;">{{ k }}: {{ v }}</span>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <span class="text-muted" style="font-size:11px;font-style:italic;">Chưa cấu hình API</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <form method="POST" action="/providers/{{ p.provider_key }}/toggle">
+                  <button type="submit" class="btn btn-sm {% if p.is_active %}btn-success{% else %}btn-secondary{% endif %}" style="font-size:11px;padding:2px 10px;">
+                    {% if p.is_active %}Bật{% else %}Tắt{% endif %}
+                  </button>
+                </form>
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:8px;">
+                  <a href="/admin/providers/{{ p.provider_key }}/api-keys"
+                     title="Cấu hình API Keys" class="btn btn-sm btn-light">⚙️</a>
+                  <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                              detail: {
+                                title: 'Xóa nhà cung cấp',
+                                message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
+                                confirmText: 'Xác nhận xóa',
+                                confirmUrl: '/providers/{{ p.provider_key }}',
+                                confirmMethod: 'DELETE',
+                                reload: true
+                              }
+                            }))"
+                          title="Xóa" class="btn btn-sm btn-danger">🗑</button>
+                </div>
+              </td>
+            </tr>
 
-    {% for p in providers %}
-    <div class="flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-      <div class="w-[60px] flex-shrink-0 flex justify-center">
-        {% if p.logo_url %}
-          <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center p-1">
-            <img src="{{ p.logo_url }}" alt="{{ p.name }}" style="max-height: 28px; max-width: 80%; width: auto;" class="object-contain">
-          </div>
-        {% else %}
-          <div class="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg">🏭</div>
-        {% endif %}
-      </div>
-      <div class="w-[180px] flex-shrink-0">
-        <div class="text-[13px] font-semibold text-white">{{ p.name }}</div>
-        <div class="text-[11px] text-txt-ter">{{ p.provider_key }}</div>
-      </div>
-      <div class="w-[240px] flex-shrink-0 text-[12px] text-txt-sec break-words leading-relaxed pr-4">
-        {{ p.notes or '—' }}
-      </div>
-      <div class="flex-1 min-w-0 flex items-center gap-2">
-        {% if p._masked %}
-          <div class="flex gap-1.5 overflow-hidden">
-            {% for k,v in p._masked.items() %}
-            <span class="px-2 py-0.5 rounded bg-white/5 text-[10px] text-txt-ter border border-white/5 whitespace-nowrap">{{ k }}: {{ v }}</span>
+            <!-- Edit Basic Info Form Row -->
+            <tr id="edit-provider-row-{{ p.provider_key }}" class="d-none">
+              <td colspan="6" class="p-0">
+                <div class="card-body bg-light border-top border-bottom">
+                  <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/providers">
+                    <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
+                    <div class="row">
+                      <div class="col-md-6 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">Tên nhà cung cấp *</label>
+                        <input name="name" value="{{ p.name }}" required class="form-control form-control-sm">
+                      </div>
+                      <div class="col-md-6 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">Kích hoạt</label>
+                        <select name="is_active" class="form-control form-control-sm">
+                          <option value="1" {% if p.is_active %}selected{% endif %}>Bật</option>
+                          <option value="0" {% if not p.is_active %}selected{% endif %}>Tắt</option>
+                        </select>
+                      </div>
+                      <div class="col-md-6 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">Logo URL (Local Path)</label>
+                        <input name="logo_url" value="{{ p.logo_url or '' }}" class="form-control form-control-sm" placeholder="/static/assets/providers/imou.png">
+                      </div>
+                      <div class="col-md-6 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">API Base URL</label>
+                        <input name="api_base_url" value="{{ p.api_base_url or '' }}" class="form-control form-control-sm">
+                      </div>
+                      <div class="col-12 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">Cấu trúc RTSP Template</label>
+                        <input name="rtsp_template" value="{{ p.rtsp_template or '' }}" class="form-control form-control-sm">
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="col-md-4 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">ONVIF Port</label>
+                        <input name="onvif_port" type="number" value="{{ p.onvif_port or 80 }}" class="form-control form-control-sm">
+                      </div>
+                      <div class="col-md-4 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">Default RTSP Port</label>
+                        <input name="default_rtsp_port" type="number" value="{{ p.default_rtsp_port or 554 }}" class="form-control form-control-sm">
+                      </div>
+                      <div class="col-md-4 mb-3">
+                        <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;">Default HTTP Port</label>
+                        <input name="default_http_port" type="number" value="{{ p.default_http_port or 80 }}" class="form-control form-control-sm">
+                      </div>
+                    </div>
+                    <div class="mb-3">
+                      <label class="text-uppercase font-weight-bold text-muted" style="font-size:11px;letter-spacing:.08em;">Ghi chú</label>
+                      <textarea name="notes" rows="2" class="form-control form-control-sm">{{ p.notes or '' }}</textarea>
+                    </div>
+                    <div class="d-flex" style="gap:8px;">
+                      <button type="submit" class="btn btn-primary btn-sm">💾 Cập nhật</button>
+                      <button type="button" class="btn btn-light btn-sm"
+                              onclick="document.getElementById('edit-provider-row-{{ p.provider_key }}').classList.add('d-none')">Hủy</button>
+                    </div>
+                  </form>
+                </div>
+              </td>
+            </tr>
             {% endfor %}
-          </div>
-        {% else %}
-          <span class="text-[11px] text-txt-ter italic">Chưa cấu hình API</span>
-        {% endif %}
-      </div>
-      <div class="w-[100px] flex-shrink-0 flex justify-center">
-        <form method="POST" action="/providers/{{ p.provider_key }}/toggle">
-          <button type="submit" class="flex items-center gap-1.5 text-[11px] font-medium {% if p.is_active %}text-status-green{% else %}text-txt-mut{% endif %}">
-            <span class="w-2 h-2 rounded-full {% if p.is_active %}bg-status-green animate-pulse{% else %}bg-txt-mut{% endif %}"></span>
-            {{ 'Bật' if p.is_active else 'Tắt' }}
-          </button>
-        </form>
-      </div>
-      <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2">
-        <a href="/admin/providers/{{ p.provider_key }}/api-keys"
-                title="Cấu hình API Keys" class="text-txt-sec hover:text-accent text-sm transition-colors">⚙️</a>
-        <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
-                  detail: {
-                    title: 'Xóa nhà cung cấp',
-                    message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
-                    confirmText: 'Xác nhận xóa',
-                    confirmUrl: '/providers/{{ p.provider_key }}',
-                    confirmMethod: 'DELETE',
-                    reload: true
-                  }
-                }))"
-                title="Xóa" class="text-txt-sec hover:text-status-red text-sm transition-colors cursor-pointer">🗑</button>
+
+            {% if not providers %}
+            <tr>
+              <td colspan="6" class="text-center text-muted py-4" style="font-size:14px;">Chưa có nhà cung cấp nào.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
       </div>
     </div>
-
-    <!-- Edit Basic Info Form -->
-    <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/providers" class="hidden bg-white/5 p-5 border-b border-divider flex flex-col gap-4">
-      <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên nhà cung cấp *</label>
-          <input name="name" value="{{ p.name }}" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Kích hoạt</label>
-          <select name="is_active" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-            <option value="1" {% if p.is_active %}selected{% endif %}>Bật</option>
-            <option value="0" {% if not p.is_active %}selected{% endif %}>Tắt</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Logo URL (Local Path)</label>
-          <input name="logo_url" value="{{ p.logo_url or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="/static/assets/providers/imou.png">
-        </div>
-      </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">API Base URL</label>
-          <input name="api_base_url" value="{{ p.api_base_url or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cấu trúc RTSP Template</label>
-          <input name="rtsp_template" value="{{ p.rtsp_template or '' }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-        </div>
-      </div>
-      <div class="grid grid-cols-3 gap-4 border-t border-white/5 pt-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">ONVIF Port</label>
-          <input name="onvif_port" type="number" value="{{ p.onvif_port or 80 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default RTSP Port</label>
-          <input name="default_rtsp_port" type="number" value="{{ p.default_rtsp_port or 554 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-        </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase font-semibold mb-1">Default HTTP Port</label>
-          <input name="default_http_port" type="number" value="{{ p.default_http_port or 80 }}" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white">
-        </div>
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Ghi chú</label>
-        <textarea name="notes" rows="2" class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">{{ p.notes or '' }}</textarea>
-      </div>
-      <div class="flex gap-3">
-        <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
-        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
-      </div>
-    </form>
-
-    {% endfor %}
-    {% if not providers %}
-    <div class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có nhà cung cấp nào.</div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

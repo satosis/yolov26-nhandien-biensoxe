@@ -1,119 +1,133 @@
 {% extends "layout.html" %}
 {% block title %}Cấu hình API Keys — {{ provider.name }}{% endblock %}
-{% block content %}
-<div class="flex flex-col gap-5">
+{% block page_title %}Cấu hình API Key: {{ provider.name }}{% endblock %}
 
-  <!-- Page header -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">🔑</span>
-      <span class="text-2xl font-semibold text-white uppercase tracking-tight">Cấu hình API Key: {{ provider.name }}</span>
+{% block content %}
+<div>
+
+  <!-- Page header actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <span style="font-size:24px;">🔑</span>
+      <h5 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:.04em;">Cấu hình API Key: {{ provider.name }}</h5>
     </div>
-    <div class="flex items-center gap-3">
-      <button type="button" onclick="addNewKeyRow()" 
-              class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2">
-        <span>+</span> Thêm trường mới
+    <div class="d-flex" style="gap:8px;">
+      <button type="button" onclick="addNewKeyRow()"
+              class="btn btn-primary btn-sm">
+        <i class="bx bx-plus mr-1"></i> Thêm trường mới
       </button>
-      <a href="/admin/providers" class="bg-white/5 text-white font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-colors">
+      <a href="/admin/providers" class="btn btn-light btn-sm">
         Quay lại
       </a>
     </div>
   </div>
 
-  <!-- Table Card - Full Width and matching Providers style -->
-  <div class="bg-bg-card rounded-lg overflow-hidden border border-white/5 shadow-2xl">
-    <form id="api-keys-form" method="POST" action="/providers/{{ provider.provider_key }}/api-keys">
-      
-      <!-- Table header style exactly from providers.html -->
-      <div class="flex items-center gap-4 px-5 py-3 bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px]">
-        <div class="w-[250px] flex-shrink-0">TÊN TRƯỜNG (KEY)</div>
-        <div class="flex-1 min-w-0">GIÁ TRỊ (VALUE)</div>
-        <div class="w-[120px] flex-shrink-0 text-right uppercase tracking-[1.5px]">HÀNH ĐỘNG</div>
-      </div>
+  <!-- Table Card -->
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <form id="api-keys-form" method="POST" action="/providers/{{ provider.provider_key }}/api-keys">
 
-      <!-- Table Body -->
-      <div id="keys-list-container">
-        {% for name, value in api_keys.items() %}
-        <div class="key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-          <div class="w-[250px] flex-shrink-0">
-            <input name="api_key_names[]" value="{{ name }}" required
-                   class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white focus:outline-none focus:border-accent/50 font-mono"
-                   placeholder="key_name">
-          </div>
-          <div class="flex-1 min-w-0">
-            <input name="api_key_values[]" type="text" value="{{ value }}" required
-                   class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white focus:outline-none focus:border-accent/50 font-mono"
-                   placeholder="Nhập giá trị">
-          </div>
-          <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2">
-            <button type="button" onclick="this.closest('.key-row').remove()" 
-                    title="Xóa trường này" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button>
-          </div>
+        <div class="cx-overflow-x-auto">
+          <table class="table-cinema">
+            <thead>
+              <tr>
+                <th style="width:280px;">TÊN TRƯỜNG (KEY)</th>
+                <th>GIÁ TRỊ (VALUE)</th>
+                <th style="width:120px;" class="text-right">HÀNH ĐỘNG</th>
+              </tr>
+            </thead>
+            <tbody id="keys-list-container">
+              {% for name, value in api_keys.items() %}
+              <tr class="key-row">
+                <td>
+                  <input name="api_key_names[]" value="{{ name }}" required
+                         class="form-control form-control-sm font-monospace"
+                         style="font-family:monospace;"
+                         placeholder="key_name">
+                </td>
+                <td>
+                  <input name="api_key_values[]" type="text" value="{{ value }}" required
+                         class="form-control form-control-sm"
+                         style="font-family:monospace;"
+                         placeholder="Nhập giá trị">
+                </td>
+                <td class="text-right">
+                  <button type="button" onclick="this.closest('tr.key-row').remove()"
+                          title="Xóa trường này" class="btn btn-sm btn-danger">🗑</button>
+                </td>
+              </tr>
+              {% endfor %}
+
+              {% if not api_keys %}
+                {% if provider.provider_key == 'imou' %}
+                <tr class="key-row">
+                  <td><input name="api_key_names[]" value="open_app_id" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td><input name="api_key_values[]" type="text" placeholder="Nhập App ID" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                </tr>
+                <tr class="key-row">
+                  <td><input name="api_key_names[]" value="open_app_secret" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td><input name="api_key_values[]" type="text" placeholder="Nhập App Secret" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                </tr>
+                {% elif provider.provider_key == 'dori' %}
+                <tr class="key-row">
+                  <td><input name="api_key_names[]" value="email" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td><input name="api_key_values[]" type="text" placeholder="Email đăng nhập" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                </tr>
+                <tr class="key-row">
+                  <td><input name="api_key_names[]" value="password" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td><input name="api_key_values[]" type="text" placeholder="Mật khẩu" required class="form-control form-control-sm" style="font-family:monospace;"></td>
+                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                </tr>
+                {% endif %}
+              {% endif %}
+            </tbody>
+          </table>
         </div>
-        {% endfor %}
 
-        {% if not api_keys %}
-          {% if provider.provider_key == 'imou' %}
-            <div class="key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-              <div class="w-[250px] flex-shrink-0"><input name="api_key_names[]" value="open_app_id" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="flex-1 min-w-0"><input name="api_key_values[]" type="text" placeholder="Nhập App ID" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2"><button type="button" onclick="this.closest('.key-row').remove()" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button></div>
-            </div>
-            <div class="key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-              <div class="w-[250px] flex-shrink-0"><input name="api_key_names[]" value="open_app_secret" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="flex-1 min-w-0"><input name="api_key_values[]" type="text" placeholder="Nhập App Secret" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2"><button type="button" onclick="this.closest('.key-row').remove()" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button></div>
-            </div>
-          {% elif provider.provider_key == 'dori' %}
-            <div class="key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-              <div class="w-[250px] flex-shrink-0"><input name="api_key_names[]" value="email" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="flex-1 min-w-0"><input name="api_key_values[]" type="text" placeholder="Email đăng nhập" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2"><button type="button" onclick="this.closest('.key-row').remove()" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button></div>
-            </div>
-            <div class="key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors">
-              <div class="w-[250px] flex-shrink-0"><input name="api_key_names[]" value="password" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="flex-1 min-w-0"><input name="api_key_values[]" type="text" placeholder="Mật khẩu" required class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white font-mono"></div>
-              <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2"><button type="button" onclick="this.closest('.key-row').remove()" class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button></div>
-            </div>
-          {% endif %}
-        {% endif %}
-      </div>
-
-      <!-- Action Footer to match overall form aesthetics -->
-      <div class="px-5 py-4 bg-bg-inset flex items-center justify-between border-t border-divider">
-        <div class="text-[11px] text-txt-ter italic uppercase tracking-wider">
-          {{ provider.provider_key }} / configurations
+        <!-- Action Footer -->
+        <div class="card-footer d-flex align-items-center justify-content-between bg-light">
+          <span class="text-muted text-uppercase" style="font-size:11px;letter-spacing:.08em;">
+            {{ provider.provider_key }} / configurations
+          </span>
+          <button type="submit" class="btn btn-primary">
+            💾 LƯU CẤU HÌNH
+          </button>
         </div>
-        <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-8 py-2.5 rounded-md hover:bg-cyan-300 transition-all shadow-lg shadow-accent/10">
-          💾 LƯU CẤU HÌNH
-        </button>
-      </div>
-    </form>
+
+      </form>
+    </div>
   </div>
 </div>
 
+{% block scripts %}
 <script>
 function addNewKeyRow() {
   const container = document.getElementById('keys-list-container');
-  const div = document.createElement('div');
-  div.className = 'key-row flex items-center gap-4 px-5 py-3.5 border-b border-divider hover:bg-white/[0.02] transition-colors animate-in fade-in slide-in-from-top-2 duration-300';
-  div.innerHTML = `
-    <div class="w-[250px] flex-shrink-0">
+  const tr = document.createElement('tr');
+  tr.className = 'key-row';
+  tr.innerHTML = `
+    <td>
       <input name="api_key_names[]" required
-             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white focus:outline-none focus:border-accent/50 font-mono"
+             class="form-control form-control-sm"
+             style="font-family:monospace;"
              placeholder="Tên trường">
-    </div>
-    <div class="flex-1 min-w-0">
+    </td>
+    <td>
       <input name="api_key_values[]" type="text" required
-             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-[13px] text-white focus:outline-none focus:border-accent/50 font-mono"
+             class="form-control form-control-sm"
+             style="font-family:monospace;"
              placeholder="Giá trị">
-    </div>
-    <div class="w-[120px] flex-shrink-0 flex justify-end gap-3 pr-2">
-      <button type="button" onclick="this.closest('.key-row').remove()" 
-              class="text-txt-sec hover:text-status-red text-sm transition-colors">🗑</button>
-    </div>
+    </td>
+    <td class="text-right">
+      <button type="button" onclick="this.closest('tr.key-row').remove()"
+              class="btn btn-sm btn-danger">🗑</button>
+    </td>
   `;
-  container.appendChild(div);
+  container.appendChild(tr);
 }
 </script>
+{% endblock %}
 {% endblock %}

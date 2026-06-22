@@ -1,117 +1,138 @@
 {% extends "layout.html" %}
 {% block title %}Phân quyền — Parking Camera{% endblock %}
+{% block page_title %}Phân quyền (RBAC){% endblock %}
+
 {% block content %}
-<div class="flex flex-col gap-5">
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">🔐</span>
-      <span class="text-2xl font-semibold text-white">Phân quyền (RBAC)</span>
+<div>
+
+  <!-- Page header actions -->
+  <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <span style="font-size:24px;">🔐</span>
+      <h5 class="mb-0 font-weight-bold">Phân quyền (RBAC)</h5>
     </div>
-    <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors"
-            onclick="document.getElementById('add-role-form').classList.toggle('hidden')">+ Thêm vai trò</button>
+    <button class="btn btn-primary btn-sm"
+            onclick="document.getElementById('add-role-form').classList.toggle('d-none')">
+      <i class="bx bx-plus mr-1"></i> Thêm vai trò
+    </button>
   </div>
 
   <!-- Add Role Form -->
-  <form id="add-role-form" method="POST" action="/rbac" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
-    <div>
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên vai trò *</label>
-      <input name="role_name" required class="w-full max-w-xs bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" placeholder="VD: operator">
-    </div>
-    <div>
-      <label class="block text-txt-sec text-[13px] font-medium mb-2">Menu được phép</label>
-      {% for group_name, items in menu_groups.items() %}
-      <div class="mb-3">
-        <div class="text-[11px] text-txt-ter font-semibold uppercase tracking-wider mb-1.5">{{ group_name }}</div>
-        <div class="flex flex-wrap gap-2">
-          {% for key, label in items.items() %}
-          <label class="flex items-center gap-1.5 text-[12px] text-txt-sec cursor-pointer hover:text-white bg-bg-inset px-2.5 py-1.5 rounded-md border border-white/5 hover:border-accent/30 transition-colors">
-            <input type="checkbox" name="allowed_menus" value="{{ key }}" class="accent-accent"> {{ label }}
-          </label>
-          {% endfor %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="flex gap-3">
-      <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5" onclick="this.closest('form').classList.add('hidden')">Hủy</button>
-    </div>
-  </form>
-
-  <!-- Roles List -->
-  <div class="flex flex-col gap-4">
-    {% for r in roles %}
-    <div class="bg-bg-card rounded-lg p-5" id="role-card-{{ r.id }}">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-3">
-          <span class="text-[15px] font-semibold text-white">{{ r.role_name }}</span>
-          {% if r.allowed_menus == '*' %}
-          <span class="text-[10px] bg-status-red/10 text-status-red border border-status-red/20 px-2 py-0.5 rounded-full font-bold uppercase">Full Access</span>
-          {% endif %}
-          {% if r.user_count is defined %}
-          <span class="text-[11px] text-txt-ter">{{ r.user_count }} người dùng</span>
-          {% endif %}
-        </div>
-        <div class="flex gap-2">
-          {% if r.allowed_menus != '*' %}
-          <button onclick="toggleEditForm({{ r.id }})" class="text-txt-sec hover:text-accent text-sm transition-colors" title="Sửa quyền">✏️</button>
-          {% endif %}
-          {% if r.role_name not in ['Admin', 'admin'] %}
-          <button type="button" class="text-txt-sec hover:text-status-red text-sm transition-colors" title="Xóa"
-                  onclick="deleteRole({{ r.id }}, '{{ r.role_name }}')">🗑</button>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- Display permissions -->
-      <div class="flex flex-wrap gap-1.5">
-        {% if r.allowed_menus == '*' %}
-        <span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-status-red/10 text-status-red border border-status-red/20">Tất cả menu</span>
-        {% elif r.allowed_menus and r.allowed_menus != 'none' %}
-          {% for m in r.allowed_menus.split(',') %}
-            {% set m_trimmed = m.strip() %}
-            {% if m_trimmed %}
-            <span class="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-accent/10 text-accent border border-accent/20">{{ all_menus.get(m_trimmed, m_trimmed) }}</span>
-            {% endif %}
-          {% endfor %}
-        {% else %}
-        <span class="text-[11px] text-txt-ter">Không có quyền</span>
-        {% endif %}
-      </div>
-
-      <!-- Edit Form (hidden) -->
-      {% if r.allowed_menus != '*' %}
-      <form id="edit-form-{{ r.id }}" method="POST" action="/rbac/{{ r.id }}/edit" class="hidden mt-4 pt-4 border-t border-white/5">
-        {% set current_menus = (r.allowed_menus or '').split(',') | map('trim') | list %}
-        {% for group_name, items in menu_groups.items() %}
+  <div class="card mb-4 d-none" id="add-role-form">
+    <div class="card-body">
+      <h6 class="card-title font-weight-bold mb-3">Tạo vai trò mới</h6>
+      <form method="POST" action="/rbac">
         <div class="mb-3">
-          <div class="text-[11px] text-txt-ter font-semibold uppercase tracking-wider mb-1.5">{{ group_name }}</div>
-          <div class="flex flex-wrap gap-2">
-            {% for key, label in items.items() %}
-            <label class="flex items-center gap-1.5 text-[12px] text-txt-sec cursor-pointer hover:text-white bg-bg-inset px-2.5 py-1.5 rounded-md border border-white/5 hover:border-accent/30 transition-colors">
-              <input type="checkbox" name="allowed_menus" value="{{ key }}" class="accent-accent"
-                     {% if key in current_menus %}checked{% endif %}> {{ label }}
-            </label>
-            {% endfor %}
-          </div>
+          <label class="font-weight-medium" style="font-size:13px;">Tên vai trò *</label>
+          <input name="role_name" required class="form-control form-control-sm" style="max-width:280px;" placeholder="VD: operator">
         </div>
-        {% endfor %}
-        <div class="flex gap-3 mt-3">
-          <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
-          <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-                  onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+        <div class="mb-3">
+          <label class="font-weight-medium d-block mb-2" style="font-size:13px;">Menu được phép</label>
+          {% for group_name, items in menu_groups.items() %}
+          <div class="mb-3">
+            <div class="text-uppercase font-weight-bold text-muted mb-2" style="font-size:11px;letter-spacing:.08em;">{{ group_name }}</div>
+            <div class="d-flex flex-wrap" style="gap:6px;">
+              {% for key, label in items.items() %}
+              <label class="d-flex align-items-center border rounded px-2 py-1 cursor-pointer mb-0"
+                     style="font-size:12px;gap:6px;cursor:pointer;background:#f8f9fa;">
+                <input type="checkbox" name="allowed_menus" value="{{ key }}" class="form-check-input mt-0" style="margin:0;">
+                {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="d-flex" style="gap:8px;">
+          <button type="submit" class="btn btn-primary btn-sm">💾 Lưu</button>
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="document.getElementById('add-role-form').classList.add('d-none')">Hủy</button>
         </div>
       </form>
-      {% endif %}
+    </div>
+  </div>
+
+  <!-- Roles List -->
+  <div>
+    {% for r in roles %}
+    <div class="card mb-3" id="role-card-{{ r.id }}">
+      <div class="card-body">
+        <!-- Role header -->
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center" style="gap:10px;">
+            <span class="font-weight-bold" style="font-size:15px;">{{ r.role_name }}</span>
+            {% if r.allowed_menus == '*' %}
+            <span class="badge badge-danger badge-pill font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:.05em;">Full Access</span>
+            {% endif %}
+            {% if r.user_count is defined %}
+            <span class="text-muted" style="font-size:11px;">{{ r.user_count }} người dùng</span>
+            {% endif %}
+          </div>
+          <div class="d-flex" style="gap:6px;">
+            {% if r.allowed_menus != '*' %}
+            <button onclick="toggleEditForm({{ r.id }})"
+                    class="btn btn-sm btn-light" title="Sửa quyền">✏️</button>
+            {% endif %}
+            {% if r.role_name not in ['Admin', 'admin'] %}
+            <button type="button" class="btn btn-sm btn-danger" title="Xóa"
+                    onclick="deleteRole({{ r.id }}, '{{ r.role_name }}')">🗑</button>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Display permissions -->
+        <div class="d-flex flex-wrap" style="gap:6px;">
+          {% if r.allowed_menus == '*' %}
+          <span class="badge badge-danger" style="font-size:11px;font-weight:normal;">Tất cả menu</span>
+          {% elif r.allowed_menus and r.allowed_menus != 'none' %}
+            {% for m in r.allowed_menus.split(',') %}
+              {% set m_trimmed = m.strip() %}
+              {% if m_trimmed %}
+              <span class="badge badge-primary" style="font-size:11px;font-weight:normal;">{{ all_menus.get(m_trimmed, m_trimmed) }}</span>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+          <span class="text-muted" style="font-size:11px;">Không có quyền</span>
+          {% endif %}
+        </div>
+
+        <!-- Edit Form (hidden) -->
+        {% if r.allowed_menus != '*' %}
+        <form id="edit-form-{{ r.id }}" method="POST" action="/rbac/{{ r.id }}/edit"
+              class="d-none mt-4 pt-4 border-top">
+          {% set current_menus = (r.allowed_menus or '').split(',') | map('trim') | list %}
+          {% for group_name, items in menu_groups.items() %}
+          <div class="mb-3">
+            <div class="text-uppercase font-weight-bold text-muted mb-2" style="font-size:11px;letter-spacing:.08em;">{{ group_name }}</div>
+            <div class="d-flex flex-wrap" style="gap:6px;">
+              {% for key, label in items.items() %}
+              <label class="d-flex align-items-center border rounded px-2 py-1 mb-0"
+                     style="font-size:12px;gap:6px;cursor:pointer;background:#f8f9fa;">
+                <input type="checkbox" name="allowed_menus" value="{{ key }}" class="form-check-input mt-0" style="margin:0;"
+                       {% if key in current_menus %}checked{% endif %}> {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <div class="d-flex mt-3" style="gap:8px;">
+            <button type="submit" class="btn btn-primary btn-sm">💾 Cập nhật</button>
+            <button type="button" class="btn btn-light btn-sm"
+                    onclick="this.closest('form').classList.add('d-none')">Hủy</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
     </div>
     {% endfor %}
   </div>
 </div>
 
+{% block scripts %}
 <script>
 function toggleEditForm(roleId) {
   const form = document.getElementById('edit-form-' + roleId);
-  if (form) form.classList.toggle('hidden');
+  if (form) form.classList.toggle('d-none');
 }
 
 async function deleteRole(roleId, roleName) {
@@ -125,4 +146,5 @@ async function deleteRole(roleId, roleName) {
   }
 }
 </script>
+{% endblock %}
 {% endblock %}

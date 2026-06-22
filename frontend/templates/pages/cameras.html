@@ -1,42 +1,45 @@
 {% extends "layout.html" %}
 {% block title %}Camera — Parking Camera{% endblock %}
+{% block page_title %}Quản lý Camera{% endblock %}
 {% block head %}
 <style>
-  /* TomSelect Dark Theme for Cameras page */
+  /* TomSelect Light Theme for Cameras page */
   .ts-wrapper .ts-control {
-    background: #0F172A !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
-    border-radius: 6px !important;
-    padding: 7px 12px !important;
-    color: #fff !important;
-    min-height: 38px !important;
-  }
-  .ts-wrapper .ts-control input { color: #fff !important; background: transparent !important; }
-  .ts-wrapper.focus .ts-control { border-color: rgba(34,211,238,0.5) !important; box-shadow: none !important; }
-  .ts-dropdown {
-    background: #111827 !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 6px !important;
-    margin-top: 2px !important;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
-  }
-  .ts-dropdown .option { padding: 8px 12px !important; color: #94A3B8 !important; font-size: 13px; }
-  .ts-dropdown .active { background: rgba(34,211,238,0.1) !important; color: #22D3EE !important; }
-  .ts-wrapper.multi .ts-control > div {
-    background: rgba(34,211,238,0.1) !important;
-    color: #22D3EE !important;
-    border: 1px solid rgba(34,211,238,0.2) !important;
+    background: #fff !important;
+    border: 1px solid #ced4da !important;
     border-radius: 4px !important;
+    padding: 5px 10px !important;
+    color: #495057 !important;
+    min-height: 36px !important;
+  }
+  .ts-wrapper .ts-control input { color: #495057 !important; background: transparent !important; }
+  .ts-wrapper.focus .ts-control { border-color: #80bdff !important; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important; }
+  .ts-dropdown {
+    background: #fff !important;
+    border: 1px solid rgba(0,0,0,0.15) !important;
+    border-radius: 4px !important;
+    margin-top: 2px !important;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.175) !important;
+  }
+  .ts-dropdown .option { padding: 6px 12px !important; color: #495057 !important; font-size: 13px; }
+  .ts-dropdown .active { background: #007bff !important; color: #fff !important; }
+  .ts-wrapper.multi .ts-control > div {
+    background: #e3f2fd !important;
+    color: #1565c0 !important;
+    border: 1px solid #bbdefb !important;
+    border-radius: 3px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
     padding: 2px 6px !important;
   }
-  .ts-wrapper.multi .ts-control > div .remove { color: #22D3EE !important; }
+  .ts-wrapper.multi .ts-control > div .remove { color: #1565c0 !important; }
   .ts-wrapper .ts-control > .ts-input-fake { display: none; }
+  /* inline edit row background */
+  tr.edit-row-bg td { background-color: #f8f9fa; }
 </style>
 {% endblock %}
 {% block content %}
-<div class="flex flex-col gap-5" x-data="{
+<div x-data="{
   showDiscoveryModal: false,
   showDetails: false,
   discoveredDevices: [],
@@ -100,350 +103,331 @@
   }
 }" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-2.5">
-      <span class="text-accent text-[28px]">📹</span>
-      <span class="text-2xl font-semibold text-white">Camera</span>
+  <!-- Header actions -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div class="d-flex align-items-center" style="gap:10px;">
+      <span class="text-primary" style="font-size:26px;">📹</span>
+      <h4 class="mb-0 font-weight-bold">Camera</h4>
     </div>
-    <div class="flex gap-2">
-      <a href="/admin/providers"
-        class="bg-bg-card border border-white/5 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/5 transition-colors flex items-center gap-2">
-        <span>🔑</span> Quản lý Key
+    <div class="d-flex" style="gap:8px;">
+      <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
+        <i class="fas fa-key mr-1"></i> Quản lý Key
       </a>
-      <button onclick="discoverCameras()" id="discover-btn"
-              class="bg-white/5 border border-white/10 text-txt-sec font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-white/10 transition-colors flex items-center gap-2">
+      <button onclick="discoverCameras()" id="discover-btn" class="btn btn-secondary btn-sm font-weight-bold">
         <span id="discover-icon">🔍</span> <span id="discover-text">Dò tìm Camera</span>
       </button>
-      <button class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors flex items-center gap-2"
+      <button class="btn btn-primary btn-sm font-weight-bold"
               onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
-        <span>+</span> Thêm Camera
+        <i class="fas fa-plus mr-1"></i> Thêm Camera
       </button>
     </div>
   </div>
 
   <!-- Add form (hidden) -->
-  <form id="add-cam-form" class="hidden bg-bg-card rounded-lg p-5 flex flex-col gap-4">
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Tên camera *</label>
-        <input name="camera_name" id="add-camera-name" required
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Nhà cung cấp</label>
-        <select name="camera_type" id="add-camera-type"
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-          {% for p in providers %}
-          <option value="{{ p.provider_key }}">{{ p.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">IP / Host *</label>
-        <input name="camera_ip" id="add-camera-ip"
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
-          placeholder="192.168.1.100">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Port</label>
-        <input name="camera_port" id="add-camera-port" type="number" value="554" required
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Thiết bị ID (Cloud)</label>
-        <input name="imou_device_id" id="add-camera-device-id"
-          class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
-          placeholder="5552ABJPSFFB063">
-      </div>
-      <div>
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Mã an toàn / Password</label>
-        <div class="relative w-full">
-          <input name="imou_mk" id="add-camera-pass" type="password" value="{{ global_mk or '' }}"
-            class="w-full bg-bg-inset border border-white/5 rounded-md pl-3 pr-9 py-2 text-sm text-white focus:outline-none focus:border-accent/50"
-            placeholder="Để trống nếu dùng cấu hình chung">
-          <button type="button" onclick="togglePassword(this)"
-            class="absolute inset-y-0 right-0 flex items-center pr-3 text-txt-ter hover:text-white transition-colors"
-            title="Hiện/ẩn mật khẩu">
-            <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
-            <svg class="w-4 h-4 eye-on hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-          </button>
+  <form id="add-cam-form" class="hidden card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Tên camera *</label>
+          <input name="camera_name" id="add-camera-name" required class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Nhà cung cấp</label>
+          <select name="camera_type" id="add-camera-type" class="form-control form-control-sm">
+            {% for p in providers %}
+            <option value="{{ p.provider_key }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">IP / Host *</label>
+          <input name="camera_ip" id="add-camera-ip" class="form-control form-control-sm" placeholder="192.168.1.100">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Port</label>
+          <input name="camera_port" id="add-camera-port" type="number" value="554" required class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Thiết bị ID (Cloud)</label>
+          <input name="imou_device_id" id="add-camera-device-id" class="form-control form-control-sm" placeholder="5552ABJPSFFB063">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Mã an toàn / Password</label>
+          <div class="input-group input-group-sm">
+            <input name="imou_mk" id="add-camera-pass" type="password" value="{{ global_mk or '' }}"
+              class="form-control form-control-sm"
+              placeholder="Để trống nếu dùng cấu hình chung">
+            <div class="input-group-append">
+              <button type="button" onclick="togglePassword(this)" class="btn btn-outline-secondary btn-sm" title="Hiện/ẩn mật khẩu">
+                <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                <svg class="w-4 h-4 eye-on" style="display:none;width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Địa điểm (Sites)</label>
+          <select name="site_ids" multiple id="add-sites-select" class="form-control form-control-sm">
+            {% for s in sites %}
+            <option value="{{ s.id }}">{{ s.site_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 mb-3">
+          <p class="text-muted mb-0" style="font-size:11px;font-style:italic;">Để trống MK nếu dùng cấu hình chung trong "Quản lý Key"</p>
         </div>
       </div>
-      <div class="col-span-full">
-        <label class="block text-txt-sec text-[13px] font-medium mb-1">Địa điểm (Sites)</label>
-        <select name="site_ids" multiple id="add-sites-select" class="w-full text-sm">
-          {% for s in sites %}
-          <option value="{{ s.id }}">{{ s.site_name }}</option>
-          {% endfor %}
-        </select>
+      <div class="mb-3">
+        <label class="font-weight-bold" style="font-size:13px;">RTSP URL <span class="text-muted font-weight-normal">(tự tạo từ thông tin trên)</span></label>
+        <input name="rtsp_url" readonly class="form-control form-control-sm font-monospace text-primary"
+          placeholder="Điền IP + Mã an toàn để tự tạo URL">
       </div>
-      <div class="flex items-end">
-        <span class="text-[11px] text-txt-ter italic">Để trống MK nếu dùng cấu hình chung trong "Quản lý Key"</span>
+      <div class="d-flex" style="gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold">💾 Lưu</button>
+        <button type="button" class="btn btn-light btn-sm"
+          onclick="this.closest('form').classList.add('hidden')">Hủy</button>
       </div>
-    </div>
-    <div class="mt-2">
-      <label class="block text-txt-sec text-[13px] font-medium mb-1">RTSP URL <span class="text-txt-ter font-normal">(tự tạo từ thông tin trên)</span></label>
-      <input name="rtsp_url" readonly
-        class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none cursor-default"
-        placeholder="Điền IP + Mã an toàn để tự tạo URL">
-    </div>
-    <div class="flex gap-3">
-      <button type="submit"
-        class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Lưu</button>
-      <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-        onclick="this.closest('form').classList.add('hidden')">Hủy</button>
     </div>
   </form>
 
   <!-- Table card -->
-  <div class="bg-bg-card rounded-lg overflow-x-auto">
-    <table class="w-full text-left border-collapse min-w-[1000px]">
-      <!-- Header -->
-      <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
-        <tr>
-          <th class="px-5 py-3 font-semibold w-[60px] text-center">TT</th>
-          <th class="px-5 py-3 font-semibold w-[180px]">TÊN CAMERA</th>
-          <th class="px-5 py-3 font-semibold w-[120px]">NHÀ CUNG CẤP</th>
-          <th class="px-5 py-3 font-semibold w-[140px]">ĐỊA ĐIỂM</th>
-          <th class="px-5 py-3 font-semibold w-[120px]">ĐỊA CHỈ IP</th>
-          <th class="px-5 py-3 font-semibold w-[170px]">DEVICE ID</th>
-          <th class="px-5 py-3 font-semibold">RTSP URL</th>
-          <th class="px-5 py-3 font-semibold w-[100px]">CẬP NHẬT</th>
-          <th class="px-5 py-3 font-semibold w-[100px] text-right">HÀNH ĐỘNG</th>
-        </tr>
-      </thead>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th class="text-center" style="width:60px;">TT</th>
+              <th style="width:180px;">TÊN CAMERA</th>
+              <th style="width:130px;">NHÀ CUNG CẤP</th>
+              <th style="width:140px;">ĐỊA ĐIỂM</th>
+              <th style="width:120px;">ĐỊA CHỈ IP</th>
+              <th style="width:170px;">DEVICE ID</th>
+              <th>RTSP URL</th>
+              <th style="width:100px;">CẬP NHẬT</th>
+              <th style="width:110px;" class="text-right">HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cam in cameras %}
+            <tr class="{% if not cam.is_active %}text-muted{% endif %}" id="cam-row-{{ cam.id }}">
+              <td class="text-center" style="font-size:14px;">
+                {% set health = camera_status.get(cam.id|string, {}) %}
+                {% set status = health.get('status', '') %}
+                {% if not cam.is_active %}
+                  <span title="Dừng hoạt động">⚫</span>
+                {% elif status == 'stream_up' %}
+                  <span class="badge badge-pill badge-success" title="Online" style="width:10px;height:10px;padding:0;border-radius:50%;display:inline-block;"></span>
+                {% elif status in ('stream_down', 'circuit_open', 'crashed') %}
+                  <span class="badge badge-pill badge-danger" title="{{ status }}" style="width:10px;height:10px;padding:0;border-radius:50%;display:inline-block;"></span>
+                {% else %}
+                  <span title="Chưa có dữ liệu">🟢</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="font-weight-bold" style="font-size:13px;">{{ cam.camera_name }}</div>
+              </td>
+              <td>
+                <span class="badge badge-pill badge-primary" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;">
+                  {{ cam.camera_type }}
+                </span>
+              </td>
+              <td>
+                <div class="d-flex flex-wrap" style="gap:4px;">
+                  {% for s in (cam.site_names or []) %}
+                  <span class="badge badge-secondary" style="font-size:10px;font-weight:500;">{{ s }}</span>
+                  {% endfor %}
+                  {% if not cam.site_names %}—{% endif %}
+                </div>
+              </td>
+              <td class="font-monospace" style="font-size:12px;">
+                {% if cam.camera_ip %}
+                <span>{{ cam.camera_ip }}</span>
+                {% else %}
+                <span class="text-warning" style="font-size:10px;">Chưa có IP</span>
+                {% endif %}
+              </td>
+              <td class="text-muted font-monospace" style="font-size:11px;">
+                {{ cam.imou_device_id or '—' }}
+              </td>
+              <td>
+                <div class="text-muted font-monospace" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ cam.rtsp_url or '' }}">
+                  {{ cam.rtsp_url or '—' }}
+                </div>
+              </td>
+              <td class="text-muted" style="font-size:11px;">
+                {{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else '—' }}
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:6px;">
+                  <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
+                    class="btn btn-sm btn-light" title="Sửa">✏️</button>
+                  <button type="button" class="btn btn-sm btn-danger"
+                          @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa camera',
+                              message: 'Bạn chắc chắn muốn xóa camera {{ cam.camera_name }}?',
+                              confirmText: 'Xác nhận xóa',
+                              confirmUrl: '/cameras/{{ cam.id }}',
+                              confirmMethod: 'DELETE',
+                              reload: true
+                            }
+                          }))" title="Xóa">🗑️</button>
+                </div>
+              </td>
+            </tr>
 
-      <!-- Body -->
-      <tbody>
-        {% for cam in cameras %}
-        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors {% if not cam.is_active %}opacity-60{% endif %}" id="cam-row-{{ cam.id }}">
-          <td class="px-5 py-3.5 text-center text-[14px]">
-            {% set health = camera_status.get(cam.id|string, {}) %}
-            {% set status = health.get('status', '') %}
-            {% if not cam.is_active %}
-              <span title="Dừng hoạt động">⚫</span>
-            {% elif status == 'stream_up' %}
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" title="Online"></span>
-            {% elif status in ('stream_down', 'circuit_open', 'crashed') %}
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]" title="{{ status }}"></span>
-            {% else %}
-              <span title="Chưa có dữ liệu">🟢</span>
-            {% endif %}
-          </td>
-          <td class="px-5 py-3.5">
-            <div class="text-[13px] font-semibold text-white">{{ cam.camera_name }}</div>
-          </td>
-          <td class="px-5 py-3.5">
-            <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 uppercase tracking-wider">
-              {{ cam.camera_type }}
-            </span>
-          </td>
-          <td class="px-5 py-3.5 text-[12px] text-txt-sec">
-            <div class="flex flex-wrap gap-1">
-              {% for s in (cam.site_names or []) %}<span class="inline-flex px-2 py-0.5 rounded-md text-[10px] bg-bg-inset border border-white/5 text-txt-sec">{{ s }}</span>{% endfor %}
-              {% if not cam.site_names %}—{% endif %}
-            </div>
-          </td>
-          <td class="px-5 py-3.5 text-[12px] font-mono">
-            {% if cam.camera_ip %}
-            <span class="text-white">{{ cam.camera_ip }}</span>
-            {% else %}
-            <span class="text-amber-400/70 text-[10px]">Chưa có IP</span>
-            {% endif %}
-          </td>
-          <td class="px-5 py-3.5 text-[11px] font-mono text-txt-ter">
-            {{ cam.imou_device_id or '—' }}
-          </td>
-          <td class="px-5 py-3.5">
-            <div class="text-[11px] font-mono text-txt-ter truncate max-w-[200px]" title="{{ cam.rtsp_url or '' }}">
-              {{ cam.rtsp_url or '—' }}
-            </div>
-          </td>
-          <td class="px-5 py-3.5 text-[11px] text-txt-ter">
-            {{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else '—' }}
-          </td>
-          <td class="px-5 py-3.5 text-right">
-            <div class="flex justify-end gap-3">
-              <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
-                class="text-txt-sec hover:text-accent transition-colors text-[16px]" title="Sửa">✏️</button>
-              <button type="button" class="text-txt-sec hover:text-status-red transition-colors text-[16px] cursor-pointer" 
-                      @click="window.dispatchEvent(new CustomEvent('show-confirm', {
-                        detail: {
-                          title: 'Xóa camera',
-                          message: 'Bạn chắc chắn muốn xóa camera {{ cam.camera_name }}?',
-                          confirmText: 'Xác nhận xóa',
-                          confirmUrl: '/cameras/{{ cam.id }}',
-                          confirmMethod: 'DELETE',
-                          reload: true
-                        }
-                      }))" title="Xóa">🗑️</button>
-            </div>
-          </td>
-        </tr>
-        
-        <!-- Inline Edit Form Row -->
-        <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
-          <td colspan="9" class="px-5 py-5 bg-white/[0.03] border-b border-divider">
-            <form method="POST" action="/camera/cameras/{{ cam.id }}/edit" class="flex flex-col gap-4">
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên camera *</label>
-                  <input name="camera_name" value="{{ cam.camera_name }}" required
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                </div>
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Nhà cung cấp</label>
-                  <select name="camera_type"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                    {% for p in providers %}
-                    <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Device ID</label>
-                  <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                </div>
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa điểm</label>
-                  <select name="site_ids" multiple id="edit-sites-{{ cam.id }}"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                    {% for s in sites %}
-                    <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ IP</label>
-                  <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                </div>
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Mã an toàn (MK) / Password</label>
-                  <div class="relative w-full">
-                    <input name="imou_mk" type="password" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}"
-                      placeholder="Mã an toàn của camera"
-                      class="w-full bg-bg-inset border border-white/5 rounded-md pl-3 pr-9 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                    <button type="button" onclick="togglePassword(this)"
-                      class="absolute inset-y-0 right-0 flex items-center pr-3 text-txt-ter hover:text-white transition-colors"
-                      title="Hiện/ẩn mật khẩu">
-                      <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
-                      <svg class="w-4 h-4 eye-on hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
+            <!-- Inline Edit Form Row -->
+            <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
+              <td colspan="9" class="p-4" style="background:#f8f9fa;border-bottom:1px solid #dee2e6;">
+                <form method="POST" action="/camera/cameras/{{ cam.id }}/edit">
+                  <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Tên camera *</label>
+                      <input name="camera_name" value="{{ cam.camera_name }}" required class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Nhà cung cấp</label>
+                      <select name="camera_type" class="form-control form-control-sm">
+                        {% for p in providers %}
+                        <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Device ID</label>
+                      <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa điểm</label>
+                      <select name="site_ids" multiple id="edit-sites-{{ cam.id }}" class="form-control form-control-sm">
+                        {% for s in sites %}
+                        <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa chỉ IP</label>
+                      <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Mã an toàn (MK) / Password</label>
+                      <div class="input-group input-group-sm">
+                        <input name="imou_mk" type="password" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}"
+                          placeholder="Mã an toàn của camera" class="form-control form-control-sm">
+                        <div class="input-group-append">
+                          <button type="button" onclick="togglePassword(this)" class="btn btn-outline-secondary btn-sm" title="Hiện/ẩn mật khẩu">
+                            <svg class="eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                            <svg class="eye-on" style="display:none;" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Cổng RTSP</label>
+                      <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3 d-flex align-items-end">
+                      <p class="text-muted mb-0" style="font-size:10px;font-style:italic;">Sử dụng để tạo RTSP URL tự động.</p>
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">RTSP URL <span class="font-weight-normal text-muted" style="text-transform:none;">(tự tạo)</span></label>
+                    <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
+                      class="form-control form-control-sm font-monospace text-primary"
+                      placeholder="rtsp://...">
+                  </div>
+                  <div class="d-flex" style="gap:8px;">
+                    <button type="submit" class="btn btn-primary btn-sm font-weight-bold">💾 Cập nhật</button>
+                    <button type="button" class="btn btn-light btn-sm"
+                      onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+
+            {% if not cameras %}
+            <tr>
+              <td colspan="9" class="text-center py-5">
+                <div class="d-flex flex-column align-items-center" style="gap:10px;">
+                  <span style="font-size:40px;opacity:.2;">📽️</span>
+                  <div>
+                    <div class="font-weight-bold text-muted">Chưa có camera nào được tìm thấy</div>
+                    {% if active_site_id and active_site_id > 0 %}
+                    <div class="text-muted" style="font-size:12px;">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b>.</div>
+                    {% else %}
+                    <div class="text-muted" style="font-size:12px;">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
+                    {% endif %}
                   </div>
                 </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Cổng RTSP</label>
-                  <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}"
-                    class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50">
-                </div>
-                <div class="flex items-end">
-                   <span class="text-[10px] text-txt-ter italic">Sử dụng để tạo RTSP URL tự động.</span>
-                </div>
-              </div>
-              <div class="mt-1">
-                <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">RTSP URL <span class="font-normal normal-case text-txt-ter">(tự tạo)</span></label>
-                <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
-                  class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-accent font-mono focus:outline-none cursor-default"
-                  placeholder="rtsp://...">
-              </div>
-              <div class="flex gap-3 mt-1">
-                <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
-                <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-                  onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
-              </div>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-        
-        {% if not cameras %}
-        <tr>
-          <td colspan="9" class="px-5 py-12 text-center">
-            <div class="flex flex-col items-center gap-3">
-              <span class="text-4xl opacity-20">📽️</span>
-              <div class="flex flex-col gap-1">
-                <div class="text-txt-sec font-medium">Chưa có camera nào được tìm thấy</div>
-                {% if active_site_id and active_site_id > 0 %}
-                <div class="text-[12px] text-txt-ter">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b>.</div>
-                {% else %}
-                <div class="text-[12px] text-txt-ter">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
-                {% endif %}
-              </div>
-            </div>
-          </td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <!-- Discovery Results Modal -->
+  <!-- Discovery Results Modal (Alpine) -->
   <template x-if="showDiscoveryModal">
-    <div class="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl" @click.self="showDiscoveryModal = false">
+    <div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;"
+         @click.self="showDiscoveryModal = false">
+      <!-- Backdrop -->
+      <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.55);" @click="showDiscoveryModal = false"></div>
+
       <div x-show="showDiscoveryModal"
            x-transition:enter="ease-out duration-300"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
-           class="bg-bg-card border border-white/10 w-full rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
-           :class="discoveredDevices.length > 0 ? 'max-w-4xl max-h-[88vh]' : 'max-w-lg'">
+           class="card shadow-lg"
+           :class="discoveredDevices.length > 0 ? 'w-100' : ''"
+           style="position:relative;z-index:1051;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;"
+           :style="discoveredDevices.length > 0 ? 'max-width:860px;' : 'max-width:480px;'">
 
         <!-- Modal Header + Summary -->
-        <div class="px-5 pt-5 pb-3 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center text-lg border border-accent/20">⚡</div>
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center" style="gap:12px;">
+            <div class="d-flex align-items-center justify-content-center rounded" style="width:36px;height:36px;background:#e8f5e9;font-size:16px;">⚡</div>
             <div>
-              <h3 class="text-white font-bold text-[15px]">Kết quả dò tìm</h3>
-              <p class="text-[12px] text-txt-sec flex items-center gap-2 flex-wrap mt-0.5">
+              <h6 class="mb-0 font-weight-bold">Kết quả dò tìm</h6>
+              <div class="d-flex align-items-center flex-wrap mt-1" style="gap:6px;font-size:12px;">
                 <template x-if="discoverySummary.updated > 0">
-                  <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded font-bold">
-                    IP cập nhật: <span x-text="discoverySummary.updated"></span>
-                  </span>
+                  <span class="badge badge-info">IP cập nhật: <span x-text="discoverySummary.updated"></span></span>
                 </template>
                 <template x-if="discoverySummary.registered > 0">
-                  <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold">
-                    Thêm mới: <span x-text="discoverySummary.registered"></span>
-                  </span>
+                  <span class="badge badge-success">Thêm mới: <span x-text="discoverySummary.registered"></span></span>
                 </template>
                 <template x-if="discoverySummary.onlineCount > 0">
-                  <span class="bg-white/5 text-txt-sec px-2 py-0.5 rounded">
-                    Online: <span x-text="discoverySummary.onlineCount"></span>
-                  </span>
+                  <span class="badge badge-secondary">Online: <span x-text="discoverySummary.onlineCount"></span></span>
                 </template>
                 <template x-if="!discoverySummary.updated && !discoverySummary.registered && discoveredDevices.length === 0">
-                  <span>Không tìm thấy thiết bị mới</span>
+                  <span class="text-muted">Không tìm thấy thiết bị mới</span>
                 </template>
-              </p>
+              </div>
             </div>
           </div>
-          <button @click="showDiscoveryModal = false"
-                  class="p-1.5 rounded-lg text-txt-ter hover:bg-white/5 hover:text-white transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <button @click="showDiscoveryModal = false" class="btn btn-light btn-sm" style="line-height:1;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Modal Body -->
-        <div class="overflow-y-auto flex-1 custom-scrollbar">
+        <div style="overflow-y:auto;flex:1;">
+
           <!-- Updated cameras (IP changed) -->
           <template x-if="updatedCameras.length > 0">
-            <div class="px-5 pt-3 pb-1">
-              <div class="text-[10px] text-blue-400 uppercase font-bold tracking-wider mb-1.5">IP đã cập nhật</div>
-              <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-2.5 flex flex-col gap-0.5">
+            <div class="p-3">
+              <div class="text-info font-weight-bold mb-2" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;">IP đã cập nhật</div>
+              <div class="border rounded p-2" style="background:#e3f2fd;border-color:#bbdefb !important;">
                 <template x-for="cam in updatedCameras" :key="cam.name">
-                  <div class="flex items-center justify-between text-[11px] py-0.5">
-                    <span class="text-white font-medium truncate mr-2" x-text="cam.name"></span>
-                    <div class="flex items-center gap-1.5 font-mono text-[10px] flex-shrink-0">
-                      <span class="text-txt-ter" x-text="cam.old_ip || '?'"></span>
-                      <span class="text-blue-400">→</span>
-                      <span class="text-white font-bold" x-text="cam.new_ip"></span>
+                  <div class="d-flex align-items-center justify-content-between py-1" style="font-size:11px;">
+                    <span class="font-weight-bold mr-2" x-text="cam.name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+                    <div class="d-flex align-items-center font-monospace flex-shrink-0" style="gap:6px;font-size:10px;">
+                      <span class="text-muted" x-text="cam.old_ip || '?'"></span>
+                      <span class="text-info font-weight-bold">→</span>
+                      <span class="font-weight-bold" x-text="cam.new_ip"></span>
                     </div>
                   </div>
                 </template>
@@ -453,194 +437,182 @@
 
           <!-- Devices table — NEW (only when has results) -->
           <template x-if="discoveredDevices.length > 0">
-            <div class="px-5 py-3">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">Thiết bị mới</span>
-                <span class="text-[10px] text-txt-ter" x-text="newDevices.length + ' mới · ' + addedDevices.length + ' đã thêm'"></span>
+            <div class="p-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-success font-weight-bold" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Thiết bị mới</span>
+                <span class="text-muted" style="font-size:10px;" x-text="newDevices.length + ' mới · ' + addedDevices.length + ' đã thêm'"></span>
               </div>
-              <table class="w-full text-left">
-                <thead class="text-[10px] text-txt-ter uppercase tracking-wider font-bold border-b border-white/5">
-                  <tr>
-                    <th class="px-3 py-1.5">Thiết bị</th>
-                    <th class="px-3 py-1.5">Model</th>
-                    <th class="px-3 py-1.5">IP</th>
-                    <th class="px-3 py-1.5 w-[70px]">TT</th>
-                    <th class="px-3 py-1.5 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template x-for="dev in discoveredDevices" :key="dev.id + dev.ip">
-                    <tr class="border-b border-white/[0.03] transition-all group"
-                        :class="dev._added ? 'bg-emerald-500/5' : 'hover:bg-white/[0.03]'">
-                      <td class="px-3 py-2">
-                        <div class="flex items-center gap-2">
-                          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
-                               :class="dev._added ? 'bg-emerald-500/20' : (dev.source === 'onvif' ? 'bg-emerald-500/10' : (dev.source === 'cloud' ? 'bg-blue-500/10' : (dev.source === 'dahua_udp' ? 'bg-orange-500/10' : 'bg-amber-500/10')))">
-                            <span x-text="dev._added ? '✅' : (dev.source === 'onvif' ? '📡' : (dev.source === 'cloud' ? '☁️' : (dev.source === 'dahua_udp' ? '📹' : '🔍')))"></span>
-                          </div>
-                          <div class="min-w-0">
-                            <div class="text-[11px] font-semibold text-white truncate max-w-[180px]" x-text="dev.name || dev.type"></div>
-                            <span class="text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded"
-                                  :class="dev.source === 'onvif' ? 'bg-emerald-500/10 text-emerald-400' : (dev.source === 'cloud' ? 'bg-blue-500/10 text-blue-400' : (dev.source === 'dahua_udp' ? 'bg-orange-500/10 text-orange-400' : 'bg-amber-500/10 text-amber-400'))"
-                                  x-text="dev.source === 'onvif' ? 'ONVIF' : (dev.source === 'cloud' ? 'Cloud' : (dev.source === 'dahua_udp' ? 'Dahua' : 'Subnet'))"></span>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="px-3 py-2">
-                        <div class="text-[11px] text-white/80" x-text="dev.manufacturer || '—'"></div>
-                        <div class="flex items-center gap-1 mt-0.5">
-                          <span class="text-[9px] text-txt-ter font-mono truncate max-w-[100px]" x-text="dev.model || dev.serial || ''"></span>
-                          <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
-                            <span class="text-[7px] font-bold bg-emerald-500/10 text-emerald-400 px-1 rounded"
-                                  x-text="dev.onvif_profiles.length + ' profiles'"></span>
-                          </template>
-                          <template x-if="dev.has_ptz">
-                            <span class="text-[7px] font-bold bg-purple-500/10 text-purple-400 px-1 rounded">PTZ</span>
-                          </template>
-                        </div>
-                        <template x-if="dev.rtsp_url_onvif">
-
-                        </template>
-                      </td>
-                      <td class="px-3 py-2">
-                        <span class="text-[12px] font-bold text-white font-mono" x-text="dev.ip || '—'"></span>
-                      </td>
-                      <td class="px-3 py-2">
-                        <template x-if="dev._added">
-                          <span class="text-[9px] font-bold text-emerald-400">Đã thêm</span>
-                        </template>
-                        <template x-if="!dev._added && dev.is_online">
-                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-green">
-                            <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
-                          </span>
-                        </template>
-                        <template x-if="!dev._added && !dev.is_online">
-                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-red">
-                            <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
-                          </span>
-                        </template>
-                      </td>
-                      <td class="px-3 py-2 text-right">
-                        <template x-if="!dev._added">
-                          <div class="flex gap-1 justify-end">
-                            <button @click="autoAddDevice(dev)"
-                              class="bg-accent text-bg-inset hover:bg-cyan-300 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all active:scale-95">
-                              + Thêm
-                            </button>
-                            <button @click="selectDiscovered(dev)"
-                              class="bg-white/5 text-txt-sec hover:text-white text-[10px] px-2 py-1 rounded-md transition-all"
-                              title="Tùy chỉnh">✏️</button>
-                          </div>
-                        </template>
-                        <template x-if="dev._added">
-                          <span class="text-emerald-400 text-sm">✅</span>
-                        </template>
-                      </td>
+              <div class="cx-overflow-x-auto">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="thead-light">
+                    <tr>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Thiết bị</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Model</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">IP</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;width:80px;">TT</th>
+                      <th style="width:80px;"></th>
                     </tr>
-                  </template>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <template x-for="dev in discoveredDevices" :key="dev.id + dev.ip">
+                      <tr :class="dev._added ? 'table-success' : ''">
+                        <td>
+                          <div class="d-flex align-items-center" style="gap:8px;">
+                            <div class="d-flex align-items-center justify-content-center rounded" style="width:28px;height:28px;font-size:13px;flex-shrink:0;"
+                                 :style="dev._added ? 'background:#c8e6c9;' : (dev.source === 'onvif' ? 'background:#e8f5e9;' : (dev.source === 'cloud' ? 'background:#e3f2fd;' : (dev.source === 'dahua_udp' ? 'background:#fff3e0;' : 'background:#fffde7;')))">
+                              <span x-text="dev._added ? '✅' : (dev.source === 'onvif' ? '📡' : (dev.source === 'cloud' ? '☁️' : (dev.source === 'dahua_udp' ? '📹' : '🔍')))"></span>
+                            </div>
+                            <div style="min-width:0;">
+                              <div class="font-weight-bold" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" x-text="dev.name || dev.type"></div>
+                              <span class="badge badge-pill" style="font-size:8px;text-transform:uppercase;letter-spacing:.5px;"
+                                    :class="dev.source === 'onvif' ? 'badge-success' : (dev.source === 'cloud' ? 'badge-info' : (dev.source === 'dahua_udp' ? 'badge-warning' : 'badge-secondary'))"
+                                    x-text="dev.source === 'onvif' ? 'ONVIF' : (dev.source === 'cloud' ? 'Cloud' : (dev.source === 'dahua_udp' ? 'Dahua' : 'Subnet'))"></span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style="font-size:11px;" x-text="dev.manufacturer || '—'"></div>
+                          <div class="d-flex align-items-center mt-1" style="gap:4px;">
+                            <span class="text-muted font-monospace" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;" x-text="dev.model || dev.serial || ''"></span>
+                            <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
+                              <span class="badge badge-success" style="font-size:7px;" x-text="dev.onvif_profiles.length + ' profiles'"></span>
+                            </template>
+                            <template x-if="dev.has_ptz">
+                              <span class="badge badge-secondary" style="font-size:7px;">PTZ</span>
+                            </template>
+                          </div>
+                          <template x-if="dev.rtsp_url_onvif">
+                          </template>
+                        </td>
+                        <td>
+                          <span class="font-weight-bold font-monospace" style="font-size:12px;" x-text="dev.ip || '—'"></span>
+                        </td>
+                        <td>
+                          <template x-if="dev._added">
+                            <span class="badge badge-success" style="font-size:9px;">Đã thêm</span>
+                          </template>
+                          <template x-if="!dev._added && dev.is_online">
+                            <span class="badge badge-success badge-pill" style="font-size:9px;">
+                              Online
+                            </span>
+                          </template>
+                          <template x-if="!dev._added && !dev.is_online">
+                            <span class="badge badge-danger badge-pill" style="font-size:9px;">
+                              Offline
+                            </span>
+                          </template>
+                        </td>
+                        <td class="text-right">
+                          <template x-if="!dev._added">
+                            <div class="d-flex justify-content-end" style="gap:4px;">
+                              <button @click="autoAddDevice(dev)" class="btn btn-primary btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">
+                                + Thêm
+                              </button>
+                              <button @click="selectDiscovered(dev)" class="btn btn-light btn-sm" style="font-size:10px;padding:2px 6px;" title="Tùy chỉnh">✏️</button>
+                            </div>
+                          </template>
+                          <template x-if="dev._added">
+                            <span class="text-success">✅</span>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </template>
 
           <!-- Existing devices in DB -->
           <template x-if="discoveredDevices.filter(d => d._exists).length > 0">
-            <div class="px-5 py-3">
-
-              <table class="w-full text-left">
-                <thead class="text-[10px] text-txt-ter uppercase tracking-wider font-bold border-b border-white/5">
-                  <tr>
-                    <th class="px-3 py-1.5">Tên trong DB</th>
-                    <th class="px-3 py-1.5">Phát hiện</th>
-                    <th class="px-3 py-1.5">IP</th>
-                    <th class="px-3 py-1.5 w-[70px]">TT</th>
-                    <th class="px-3 py-1.5 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <template x-for="dev in discoveredDevices.filter(d => d._exists)" :key="(dev.camera_id || dev.id) + dev.ip">
-                    <tr class="border-b border-white/[0.03] transition-all group"
-                        :class="dev._updated ? 'bg-amber-500/5' : 'hover:bg-white/[0.03]'">
-                      <td class="px-3 py-2">
-                        <div class="flex items-center gap-2">
-                          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-sm flex-shrink-0 bg-amber-500/10">
-                            <span x-text="dev._updated ? '✅' : '📹'"></span>
-                          </div>
-                          <div class="min-w-0">
-                            <div class="text-[11px] font-semibold text-amber-300 truncate max-w-[180px]" x-text="dev.camera_name || dev.name"></div>
-                            <span class="text-[8px] font-bold uppercase tracking-wider px-1 py-px rounded bg-amber-500/10 text-amber-400">DB #<span x-text="dev.camera_id"></span></span>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="px-3 py-2">
-                        <div class="text-[11px] text-white/80" x-text="dev.manufacturer || '—'"></div>
-                        <div class="flex items-center gap-1 mt-0.5">
-                          <span class="text-[9px] text-txt-ter font-mono truncate max-w-[100px]" x-text="dev.model || dev.serial || ''"></span>
-                          <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
-                            <span class="text-[7px] font-bold bg-emerald-500/10 text-emerald-400 px-1 rounded"
-                                  x-text="dev.onvif_profiles.length + ' profiles'"></span>
-                          </template>
-                          <template x-if="dev.has_ptz">
-                            <span class="text-[7px] font-bold bg-purple-500/10 text-purple-400 px-1 rounded">PTZ</span>
-                          </template>
-                        </div>
-                        <template x-if="dev.rtsp_url_onvif">
-
-                        </template>
-                      </td>
-                      <td class="px-3 py-2">
-                        <span class="text-[12px] font-bold text-white font-mono" x-text="dev.ip || '—'"></span>
-                      </td>
-                      <td class="px-3 py-2">
-                        <template x-if="dev._updated">
-                          <span class="text-[9px] font-bold text-amber-400">Đã cập nhật</span>
-                        </template>
-                        <template x-if="!dev._updated && dev.is_online">
-                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-green">
-                            <span class="w-1.5 h-1.5 rounded-full bg-status-green animate-pulse"></span> Online
-                          </span>
-                        </template>
-                        <template x-if="!dev._updated && !dev.is_online">
-                          <span class="inline-flex items-center gap-1 text-[9px] font-bold text-status-red">
-                            <span class="w-1.5 h-1.5 rounded-full bg-status-red"></span> Offline
-                          </span>
-                        </template>
-                      </td>
-                      <td class="px-3 py-2 text-right">
-                        <template x-if="!dev._updated">
-                          <button @click="autoUpdateDevice(dev)"
-                            class="bg-amber-500 text-bg-inset hover:bg-amber-400 text-[10px] font-bold px-2.5 py-1 rounded-md transition-all active:scale-95">
-                            Cập nhật
-                          </button>
-                        </template>
-                        <template x-if="dev._updated">
-                          <span class="text-amber-400 text-sm">✅</span>
-                        </template>
-                      </td>
+            <div class="p-3">
+              <div class="cx-overflow-x-auto">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="thead-light">
+                    <tr>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Tên trong DB</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Phát hiện</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">IP</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;width:80px;">TT</th>
+                      <th style="width:80px;"></th>
                     </tr>
-                  </template>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <template x-for="dev in discoveredDevices.filter(d => d._exists)" :key="(dev.camera_id || dev.id) + dev.ip">
+                      <tr :class="dev._updated ? 'table-warning' : ''">
+                        <td>
+                          <div class="d-flex align-items-center" style="gap:8px;">
+                            <div class="d-flex align-items-center justify-content-center rounded" style="width:28px;height:28px;font-size:13px;flex-shrink:0;background:#fff3e0;">
+                              <span x-text="dev._updated ? '✅' : '📹'"></span>
+                            </div>
+                            <div style="min-width:0;">
+                              <div class="font-weight-bold text-warning" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;" x-text="dev.camera_name || dev.name"></div>
+                              <span class="badge badge-warning badge-pill" style="font-size:8px;">DB #<span x-text="dev.camera_id"></span></span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div style="font-size:11px;" x-text="dev.manufacturer || '—'"></div>
+                          <div class="d-flex align-items-center mt-1" style="gap:4px;">
+                            <span class="text-muted font-monospace" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;" x-text="dev.model || dev.serial || ''"></span>
+                            <template x-if="dev.onvif_profiles && dev.onvif_profiles.length > 0">
+                              <span class="badge badge-success" style="font-size:7px;" x-text="dev.onvif_profiles.length + ' profiles'"></span>
+                            </template>
+                            <template x-if="dev.has_ptz">
+                              <span class="badge badge-secondary" style="font-size:7px;">PTZ</span>
+                            </template>
+                          </div>
+                          <template x-if="dev.rtsp_url_onvif">
+                          </template>
+                        </td>
+                        <td>
+                          <span class="font-weight-bold font-monospace" style="font-size:12px;" x-text="dev.ip || '—'"></span>
+                        </td>
+                        <td>
+                          <template x-if="dev._updated">
+                            <span class="badge badge-warning" style="font-size:9px;">Đã cập nhật</span>
+                          </template>
+                          <template x-if="!dev._updated && dev.is_online">
+                            <span class="badge badge-success badge-pill" style="font-size:9px;">Online</span>
+                          </template>
+                          <template x-if="!dev._updated && !dev.is_online">
+                            <span class="badge badge-danger badge-pill" style="font-size:9px;">Offline</span>
+                          </template>
+                        </td>
+                        <td class="text-right">
+                          <template x-if="!dev._updated">
+                            <button @click="autoUpdateDevice(dev)" class="btn btn-warning btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">
+                              Cập nhật
+                            </button>
+                          </template>
+                          <template x-if="dev._updated">
+                            <span class="text-warning">✅</span>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </template>
 
           <!-- Empty state: compact -->
-          <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="px-5 py-8 text-center">
-            <div class="flex flex-col items-center gap-2">
-              <span class="text-3xl opacity-20">📡</span>
-              <p class="text-[12px] text-txt-sec">Không tìm thấy thiết bị mới</p>
+          <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="text-center py-5">
+            <div class="d-flex flex-column align-items-center" style="gap:8px;">
+              <span style="font-size:32px;opacity:.2;">📡</span>
+              <p class="text-muted mb-0" style="font-size:12px;">Không tìm thấy thiết bị mới</p>
             </div>
           </div>
         </div>
 
         <!-- Modal Footer -->
-        <div class="px-5 py-2.5 border-t border-white/5 flex justify-end items-center gap-2 bg-white/[0.02]">
+        <div class="card-footer d-flex justify-content-end align-items-center" style="gap:8px;">
           <button @click="addAllDevices()" x-show="discoveredDevices.filter(d => !d._added && !d._updated).length > 1"
-                  class="bg-accent text-bg-inset hover:bg-cyan-300 px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold flex items-center gap-1.5">
+                  class="btn btn-primary btn-sm font-weight-bold">
             <span x-text="'Xử lý tất cả (' + discoveredDevices.filter(d => !d._added && !d._updated).length + ')'"></span>
           </button>
-          <button @click="showDiscoveryModal = false"
-                  class="bg-white/5 border border-white/10 text-txt-sec hover:text-white px-4 py-1.5 rounded-lg transition-all text-[11px] font-bold">
+          <button @click="showDiscoveryModal = false" class="btn btn-light btn-sm font-weight-bold">
             Đóng
           </button>
         </div>
@@ -657,17 +629,17 @@ const PROVIDER_TEMPLATES = {{ provider_templates | tojson }};
 const GLOBAL_MK = {{ (global_mk or '') | tojson }};
 
 function togglePassword(btn) {
-    const input = btn.parentElement.querySelector('input');
+    const input = btn.closest('.input-group').querySelector('input');
     const eyeOff = btn.querySelector('.eye-off');
     const eyeOn = btn.querySelector('.eye-on');
     if (input.type === 'password') {
         input.type = 'text';
-        eyeOff.classList.add('hidden');
-        eyeOn.classList.remove('hidden');
+        eyeOff.style.display = 'none';
+        eyeOn.style.display = '';
     } else {
         input.type = 'password';
-        eyeOff.classList.remove('hidden');
-        eyeOn.classList.add('hidden');
+        eyeOff.style.display = '';
+        eyeOn.style.display = 'none';
     }
 }
 
@@ -705,9 +677,9 @@ async function discoverCameras() {
     const btn = document.getElementById('discover-btn');
     const icon = document.getElementById('discover-icon');
     const text = document.getElementById('discover-text');
-    
+
     btn.disabled = true;
-    btn.classList.add('opacity-50', 'cursor-not-allowed');
+    btn.classList.add('disabled');
     icon.classList.add('animate-spin');
     text.innerText = "Quét Dahua...";
 
@@ -757,7 +729,7 @@ async function discoverCameras() {
     }
 
     btn.disabled = false;
-    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    btn.classList.remove('disabled');
     icon.classList.remove('animate-spin');
     text.innerText = "Dò tìm Camera";
 }
@@ -765,8 +737,8 @@ async function discoverCameras() {
 // Proactive filling: Update RTSP URL automatically when credentials change
 document.addEventListener('input', (e) => {
     const form = e.target.closest('form');
-    if (!form || !form.id?.includes('cam') && !form.action?.includes('edit')) return; 
-    
+    if (!form || !form.id?.includes('cam') && !form.action?.includes('edit')) return;
+
     const relevantNames = ['camera_ip', 'camera_port', 'imou_mk', 'camera_type'];
     if (relevantNames.includes(e.target.name)) {
         autoFillRtsp(form);
