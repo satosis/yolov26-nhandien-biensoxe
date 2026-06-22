@@ -12,9 +12,9 @@
       <div class="footer-col">
         <h4 class="footer-title">Dịch vụ</h4>
         <ul class="footer-links">
-          <li><a href="/nha-xuong">Xưởng KCN Trung Hà</a></li>
+          <li><a href="/nhaxuong">Xưởng KCN Trung Hà</a></li>
           <li><a href="/nha-xuong-co-tiet">Xưởng KCN Cổ Tiết</a></li>
-          <li><a href="/xe-cau">Dịch vụ xe cẩu</a></li>
+          <li><a href="/xecau">Dịch vụ xe cẩu</a></li>
           <li><a href="/kiem-dinh-can">Kiểm định cân</a></li>
         </ul>
       </div>
@@ -31,7 +31,7 @@
         <h4 class="footer-title">Liên hệ</h4>
         <ul class="contact-info">
           <li><span class="material-symbols-outlined">location_on</span><span>Khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ</span></li>
-          <li><span class="material-symbols-outlined">call</span><a href="tel:0986565666">0986 565 666</a></li>
+          <li><span class="material-symbols-outlined">call</span><a href="tel:{{ settings.phone|replace(' ', '')|replace('.', '')|default('0986565666') }}">{{ settings.phone|default('0986 565 666') }}</a></li>
           <li><span class="material-symbols-outlined">schedule</span><span>T2 – T7 · 8:00 – 17:30</span></li>
         </ul>
       </div>

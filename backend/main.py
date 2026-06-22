@@ -35,11 +35,26 @@ if __name__ == "__main__":
     logger.info("================================================")
 
     while True:
+        orch = CameraOrchestrator()
         try:
-            orch = CameraOrchestrator()
             orch.run()
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt received — shutting down immediately...")
+            orch.cleanup()
+            break
         except Exception as e:
             logger.error(f"Orchestrator stopped unexpectedly: {e}")
-        
+            orch.cleanup()
+        else:
+            # run() returned normally (stop_event set, e.g. core process crashed)
+            orch.cleanup()
+
         logger.info("Restarting orchestrator in 5 seconds...")
-        time.sleep(5)
+        try:
+            time.sleep(5)
+        except KeyboardInterrupt:
+            logger.info("Shutdown requested during restart wait. Exiting.")
+            break
+
+    logger.info("Backend stopped.")
+    sys.exit(0)

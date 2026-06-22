@@ -1,73 +1,43 @@
-{% extends "landing_base.html" %}
+{% extends "landing_base_legacy.html" %}
 
-{% block title %}Về THÉP SƠN LÂM Industrial Core — Giới thiệu{% endblock %}
-
-{% block seo %}
-<meta name="description" content="Giới thiệu THÉP SƠN LÂM Industrial Core — đơn vị hàng đầu cung cấp giải pháp nhà xưởng xây sẵn và hạ tầng công nghiệp tại Phú Thọ, miền Bắc Việt Nam.">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="{{ request.url }}">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Về THÉP SƠN LÂM Industrial Core">
-<meta property="og:description" content="Đơn vị hàng đầu cung cấp giải pháp nhà xưởng và hạ tầng công nghiệp tại miền Bắc.">
-{% endblock %}
+{% block title %}THÉP SƠN LÂM Industrial Core{% endblock %}
 
 {% block content %}
-<!-- PAGE HEADER -->
-<section class="relative pt-40 pb-20 bg-tsl-ink text-white text-center overflow-hidden">
-  <div class="absolute inset-0 bg-gradient-to-br from-tsl-primary-dark to-tsl-ink opacity-80"></div>
-  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4">
-    <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4rem)] mb-4">Về THÉP SƠN LÂM</h1>
-    <p class="text-xl text-white/80 max-w-[600px] mx-auto">Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.</p>
-  </div>
-</section>
-
-<!-- TẦM NHÌN / SỨ MỆNH / GIÁ TRỊ -->
-<section class="py-24">
-  <div class="mx-auto w-full max-w-[1280px] px-4">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      <article class="bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6">
-        <span class="material-symbols-outlined icon-check text-[40px]">visibility</span>
-        <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Tầm nhìn</h3>
-        <p class="text-tsl-muted text-[0.95rem]">Trở thành biểu tượng tin cậy hàng đầu trong lĩnh vực hạ tầng công nghiệp và vận tải nặng tại Việt Nam.</p>
-      </article>
-      <article class="bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6">
-        <span class="material-symbols-outlined icon-check text-[40px]">rocket_launch</span>
-        <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Sứ mệnh</h3>
-        <p class="text-tsl-muted text-[0.95rem]">Cung cấp giải pháp tối ưu giúp doanh nghiệp tối đa hóa hiệu suất vận hành thông qua hệ thống nhà xưởng và thiết bị hiện đại.</p>
-      </article>
-      <article class="bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6">
-        <span class="material-symbols-outlined icon-check text-[40px]">verified</span>
-        <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-4">Giá trị cốt lõi</h3>
-        <p class="text-tsl-muted text-[0.95rem]">An toàn là số 1 — Chuyên nghiệp trong từng bước — Tận tâm với mọi đối tác.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- READY TO HANDOVER -->
-<section class="py-24 bg-tsl-light">
-  <div class="mx-auto w-full max-w-[1280px] px-4">
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-      <div>
-        <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Hẹn lịch xem xưởng</h4>
-        <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Sẵn sàng bàn giao ngay tại Phú Thọ</h2>
-        <p class="text-tsl-muted text-lg mb-6">Với hơn 10 năm kinh nghiệm, chúng tôi hiểu rõ nhu cầu của các doanh nghiệp FDI và nội địa. Hệ thống nhà xưởng của chúng tôi tại Phú Thọ được xây dựng theo tiêu chuẩn quốc tế, sẵn sàng bàn giao ngay.</p>
-        <ul class="flex flex-col gap-3 mb-8">
-          <li class="relative pl-6 text-tsl-text before:content-[''] before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:rounded-full before:bg-tsl-accent">100,000+ m² diện tích nhà xưởng.</li>
-          <li class="relative pl-6 text-tsl-text before:content-[''] before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:rounded-full before:bg-tsl-accent">Đội ngũ kỹ thuật &amp; hỗ trợ chuyên nghiệp.</li>
-          <li class="relative pl-6 text-tsl-text before:content-[''] before:absolute before:left-0 before:top-2 before:w-2 before:h-2 before:rounded-full before:bg-tsl-accent">Hỗ trợ pháp lý đầu tư trọn gói.</li>
-        </ul>
-        <a href="/#lien-he" class="tsl-btn tsl-btn-primary">Liên hệ ngay</a>
-      </div>
-      <div>
-        <div class="rounded-2xl overflow-hidden shadow-xl max-w-[560px] mx-auto aspect-[4/3]">
-          <img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Nhà xưởng THÉP SƠN LÂM"
-               class="w-full h-full object-cover cursor-pointer" @click="$dispatch('open-lightbox', { src: $el.src })">
+<section class="page-header">
+        <div class="container">
+            <h1 class="page-title">Về THÉP SƠN LÂM</h1>
+            <p class="page-subtitle">Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.</p>
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-{% include "partials/contact_section.html" %}
+    <section class="section">
+        <div class="container">
+            <div class="news-grid">
+                <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">visibility</span><h3 class="news-title">Tầm nhìn</h3><p class="news-excerpt">Trở thành biểu tượng tin cậy hàng đầu trong lĩnh vực hạ tầng công nghiệp và vận tải nặng tại Việt Nam.</p></div></article>
+                <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">rocket_launch</span><h3 class="news-title">Sứ mệnh</h3><p class="news-excerpt">Cung cấp giải pháp tối ưu giúp doanh nghiệp tối đa hóa hiệu suất vận hành thông qua hệ thống nhà xưởng và thiết bị hiện đại.</p></div></article>
+                <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check" style="font-size:40px;">verified</span><h3 class="news-title">Giá trị cốt lõi</h3><p class="news-excerpt">An toàn là số 1 - Chuyên nghiệp trong từng bước - Tận tâm với mọi đối tác.</p></div></article>
+            </div>
+        </div>
+    </section>
+
+    <section class="section about bg-light">
+        <div class="container">
+            <div class="about-grid">
+                <div class="about-content">
+                    <h4 class="subtitle text-primary">Hẹn lịch xem xưởng</h4>
+                    <h2 class="section-title">Sẵn sàng bàn giao ngay tại Phú Thọ</h2>
+                    <p class="about-desc">Với hơn 10 năm kinh nghiệm, chúng tôi hiểu rõ nhu cầu của các doanh nghiệp FDI và nội địa. Hệ thống nhà xưởng của chúng tôi tại Phú Thọ được xây dựng theo tiêu chuẩn quốc tế, sẵn sàng bàn giao ngay.</p>
+                    <ul class="feature-list">
+                        <li>100,000+ m² diện tích nhà xưởng.</li>
+                        <li>Đội ngũ lái cẩu chứng chỉ quốc tế.</li>
+                        <li>Hỗ trợ pháp lý đầu tư trọn gói.</li>
+                    </ul>
+                    <a href="/lien-he" class="btn btn-primary">Liên hệ ngay</a>
+                </div>
+                <div class="about-image"><div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Nhà xưởng THÉP SƠN LÂM" class="lightbox-trigger"></div></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section"><div class="container"><div class="cta-card glass-card"><div class="cta-content"><h2 class="cta-title">Sẵn sàng đưa doanh nghiệp của bạn vươn xa?</h2><p class="cta-desc">Để lại thông tin, đội ngũ chuyên gia của chúng tôi sẽ liên hệ tư vấn giải pháp hạ tầng tối ưu nhất trong vòng 24h.</p></div><div class="cta-action"><a href="/lien-he" class="btn btn-primary btn-lg btn-glow">Gửi yêu cầu tư vấn</a></div></div></div></section>
 {% endblock %}

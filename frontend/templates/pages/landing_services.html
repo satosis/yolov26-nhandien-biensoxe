@@ -1,70 +1,16 @@
-{% extends "landing_base.html" %}
+{% extends "landing_base_legacy.html" %}
 
-{% block title %}Dịch vụ &amp; giải pháp — THÉP SƠN LÂM Industrial Core{% endblock %}
-
-{% block seo %}
-<meta name="description" content="Dịch vụ hạ tầng, xây xưởng theo yêu cầu (build-to-suit), quản lý vận hành và hỗ trợ pháp lý FDI của THÉP SƠN LÂM Industrial Core tại Phú Thọ.">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="{{ request.url }}">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Dịch vụ & giải pháp — THÉP SƠN LÂM">
-<meta property="og:description" content="Build-to-suit, quản lý vận hành, hỗ trợ pháp lý FDI và hạ tầng tiện ích đồng bộ.">
-{% endblock %}
+{% block title %}THÉP SƠN LÂM Industrial Core{% endblock %}
 
 {% block content %}
-<!-- PAGE HEADER -->
-<section class="relative pt-40 pb-20 bg-tsl-ink text-white text-center overflow-hidden">
-  <div class="absolute inset-0 bg-gradient-to-br from-tsl-primary-dark to-tsl-ink opacity-80"></div>
-  <div class="relative z-[2] mx-auto w-full max-w-[1280px] px-4">
-    <h1 class="font-display font-bold text-white text-[clamp(2.5rem,5vw,4rem)] mb-4">Dịch vụ &amp; giải pháp</h1>
-    <p class="text-xl text-white/80 max-w-[600px] mx-auto">Hệ sinh thái hỗ trợ doanh nghiệp thuê nhà xưởng, phát triển hạ tầng và vận hành sản xuất tại Phú Thọ.</p>
-  </div>
-</section>
-
-<!-- BUILD-TO-SUIT -->
-<section class="py-24">
-  <div class="mx-auto w-full max-w-[1280px] px-4">
-    <div class="max-w-[700px] mx-auto text-center mb-16">
-      <h4 class="font-display uppercase tracking-[2px] text-sm text-tsl-primary mb-2">Build-to-Suit</h4>
-      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight mb-4">Xây xưởng theo yêu cầu (BTS)</h2>
-      <p class="text-tsl-muted text-lg">Ngoài nhà xưởng xây sẵn, chúng tôi thiết kế và thi công theo đúng yêu cầu kỹ thuật của từng doanh nghiệp.</p>
-    </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-      {% for ic, t, d in [
-        ('engineering','Phát triển & thi công','Đội ngũ PM chuyên nghiệp đồng hành từ thiết kế đến bàn giao.'),
-        ('location_on','Tư vấn lựa chọn địa điểm','Hỗ trợ phân tích quỹ đất, chuỗi cung ứng và logistics.'),
-        ('manage_accounts','Quản lý vận hành','Dịch vụ cho thuê và quản lý xưởng sau bàn giao.'),
-        ('gavel','Hỗ trợ pháp lý FDI','Tư vấn đầu tư, thủ tục pháp lý trọn gói cho doanh nghiệp nước ngoài.'),
-        ('real_estate_agent','Tư vấn bất động sản','Phân tích thị trường, định giá và cấu trúc hợp đồng thuê tối ưu.'),
-        ('support_agent','Hỗ trợ 24/7','Đội ngũ kỹ thuật và quản lý tại chỗ, phản hồi nhanh mọi sự cố.')
-      ] %}
-      <article class="bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-6">
-        <span class="material-symbols-outlined icon-check text-4xl">{{ ic }}</span>
-        <h3 class="font-display font-bold text-xl text-tsl-primary mt-3 mb-3">{{ t }}</h3>
-        <p class="text-tsl-muted text-[0.95rem]">{{ d }}</p>
-      </article>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-<!-- HẠ TẦNG & TIỆN ÍCH -->
-<section class="py-24 bg-tsl-light">
-  <div class="mx-auto w-full max-w-[1280px] px-4">
-    <div class="max-w-[700px] mx-auto text-center mb-16">
-      <h2 class="font-display font-bold text-tsl-primary text-[clamp(2rem,4vw,3rem)] leading-tight">Hạ tầng &amp; tiện ích</h2>
-    </div>
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-[960px] mx-auto">
-      {% for ic, t in [
-        ('bolt','Trạm điện 5000 KVA'),('fire_extinguisher','PCCC tự động nghiệm thu'),('water','Hệ thống XLNT đạt chuẩn'),
-        ('security','An ninh 24/7'),('wifi','Cáp quang quốc tế'),('local_shipping','Kết nối logistics')
-      ] %}
-      <div class="flex items-start gap-2 font-medium text-tsl-text"><span class="material-symbols-outlined icon-check">{{ ic }}</span><strong>{{ t }}</strong></div>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-{% set source_page = "services" %}
-{% include "partials/contact_section.html" %}
+<section class="page-header"><div class="container"><h1 class="page-title">Dịch vụ & giải pháp</h1><p class="page-subtitle">Hệ sinh thái hỗ trợ doanh nghiệp thuê nhà xưởng, phát triển hạ tầng và vận hành sản xuất tại Phú Thọ.</p></div></section>
+    <section class="section"><div class="container"><div class="section-header text-center"><h4 class="subtitle text-primary">Build-to-Suit</h4><h2 class="section-title">Xây xưởng theo yêu cầu (BTS)</h2><p class="section-desc">Ngoài nhà xưởng xây sẵn, chúng tôi thiết kế và thi công theo đúng yêu cầu kỹ thuật của từng doanh nghiệp.</p></div><div class="news-grid">
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">engineering</span><h3 class="news-title">Phát triển & thi công</h3><p class="news-excerpt">Đội ngũ PM chuyên nghiệp đồng hành từ thiết kế đến bàn giao.</p></div></article>
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">location_on</span><h3 class="news-title">Tư vấn lựa chọn địa điểm</h3><p class="news-excerpt">Hỗ trợ phân tích quỹ đất, chuỗi cung ứng và logistics.</p></div></article>
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">manage_accounts</span><h3 class="news-title">Quản lý vận hành</h3><p class="news-excerpt">Dịch vụ cho thuê và quản lý xưởng sau bàn giao.</p></div></article>
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">gavel</span><h3 class="news-title">Hỗ trợ pháp lý FDI</h3><p class="news-excerpt">Tư vấn đầu tư, thủ tục pháp lý trọn gói cho doanh nghiệp nước ngoài.</p></div></article>
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">real_estate_agent</span><h3 class="news-title">Tư vấn bất động sản</h3><p class="news-excerpt">Phân tích thị trường, định giá và cấu trúc hợp đồng thuê tối ưu.</p></div></article>
+        <article class="news-card"><div class="news-content"><span class="material-symbols-outlined icon-check">support_agent</span><h3 class="news-title">Hỗ trợ 24/7</h3><p class="news-excerpt">Đội ngũ kỹ thuật và quản lý tại chỗ, phản hồi nhanh mọi sự cố.</p></div></article>
+    </div></div></section>
+    <section class="section bg-light"><div class="container"><div class="section-header text-center"><h2 class="section-title">Hạ tầng & tiện ích</h2></div><div class="project-highlights"><div class="highlight-item"><span class="material-symbols-outlined icon-check">bolt</span><strong>Trạm điện 5000 KVA</strong></div><div class="highlight-item"><span class="material-symbols-outlined icon-check">fire_extinguisher</span><strong>PCCC tự động nghiệm thu</strong></div><div class="highlight-item"><span class="material-symbols-outlined icon-check">water</span><strong>Hệ thống XLNT đạt chuẩn</strong></div><div class="highlight-item"><span class="material-symbols-outlined icon-check">security</span><strong>An ninh 24/7</strong></div><div class="highlight-item"><span class="material-symbols-outlined icon-check">wifi</span><strong>Cáp quang quốc tế</strong></div><div class="highlight-item"><span class="material-symbols-outlined icon-check">local_shipping</span><strong>Kết nối logistics</strong></div></div></div></section>
 {% endblock %}

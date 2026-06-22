@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form, Response
+from fastapi import APIRouter, Request, Depends, Form, Response, Body
 from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
@@ -90,6 +90,15 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
     
     ctx["plates"] = plates
     return templates.TemplateResponse("pages/pending_plates.html", {"request": request, **ctx})
+
+@router.post("/bulk-reject")
+async def bulk_reject_plates(payload: dict = Body(...), user: dict = Depends(require_menu("pending_plates"))):
+    ids = [str(i) for i in payload.get("ids", [])]
+    db = get_db()
+    for pid in ids:
+        db.delete_pending_plate_by_id(pid)
+    logger.info(f"Bulk rejected {len(ids)} pending plates")
+    return {"ok": True, "count": len(ids)}
 
 @router.post("/{pending_id}/approve")
 async def approve_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):

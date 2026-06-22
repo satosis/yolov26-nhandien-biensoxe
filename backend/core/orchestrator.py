@@ -24,7 +24,6 @@ class CameraOrchestrator:
         self.grabbers = {} # cam_id -> mp.Process mapping
         self._last_cleanup_ts = 0
         self._last_health_ts = 0
-        self.session_stale_cams = set()
 
     def start_inference(self):
         """Dynamic: Start the heavy inference process ONLY when needed."""
@@ -104,15 +103,13 @@ class CameraOrchestrator:
             del self.grabbers[cam_id]
 
     def run(self):
-        # We NO LONGER call self.start() here. It will be triggered dynamically.
-        # Track what we have already started in THIS session to prevent auto-connect at boot
-        self.session_stale_cams = set()
-        self._last_cleanup_ts = 0  # Trigger cleanup shortly after boot
-        initial_streaming = self.db._execute_query("SELECT id FROM cameras WHERE is_streaming = TRUE", fetchall=True)
-        if initial_streaming:
-            self.session_stale_cams = {str(c['id']) for c in initial_streaming}
-            # Only log if there's something to report
-            logger.info(f"Boot: {len(self.session_stale_cams)} camera(s) marked as STALE (will not auto-connect).")
+        # On-demand model: nothing runs in the background after a (re)start.
+        # Reset any leftover streaming flags so cameras only connect when the
+        # user opens one to view (manual Start). Avoids auto-connecting at boot
+        # and the stale-flag friction (Stop-then-Start required to reconnect).
+        self.db._execute_query(
+            "UPDATE cameras SET is_streaming = FALSE WHERE is_streaming = TRUE"
+        )
 
         try:
             while not self.stop_event.is_set():
@@ -154,17 +151,8 @@ class CameraOrchestrator:
                 # Start missing grabbers
                 for cam in streaming_cams:
                     cid = str(cam['id'])
-                    # Manual start only: bypass auto-start of stale cameras
-                    if cid in self.session_stale_cams:
-                        continue
-
                     if cid not in self.grabbers or not self.grabbers[cid].is_alive():
                         self.spawn_grabber(cam)
-
-                # Cleanup stale flag if user manually stopped it
-                for cid in list(self.session_stale_cams):
-                    if cid not in streaming_ids:
-                        self.session_stale_cams.remove(cid)
 
                 # Stop grabbers no longer requested
                 active_cid_list = list(self.grabbers.keys())
@@ -179,7 +167,6 @@ class CameraOrchestrator:
                         del self.grabbers[cid]
 
                 # 3. Periodic Cleanup (Recordings retention)
-                now = time.time()
                 if now - self._last_cleanup_ts > 43200: # Every 12 hours
                     try:
                         days = getattr(cfg, "SMART_RECORD_RETENTION_DAYS", 15)
@@ -199,7 +186,7 @@ class CameraOrchestrator:
     def cleanup(self):
         logger.info("Cleaning up processes...")
         self.stop_event.set()
-        for p in self.processes:
+        for p in self.processes + self.core_processes:
             if p.is_alive():
                 logger.info(f"Terminating {p.name}...")
                 p.terminate()

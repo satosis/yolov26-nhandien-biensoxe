@@ -2,54 +2,88 @@
 {% block title %}Xe lạ — Parking Camera{% endblock %}
 
 {% block head %}
-<link href="/static/css/tom-select.css" rel="stylesheet">
 <style>
-.ts-wrapper.multi .ts-control { background:#1a1e2e; border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:6px 10px; min-height:38px; color:#fff; box-shadow:none; }
-.ts-wrapper.multi .ts-control:focus-within { border-color:rgba(34,211,238,0.5); }
-.ts-wrapper.multi .ts-control .item { background:rgba(34,211,238,0.15); color:#22d3ee; border:1px solid rgba(34,211,238,0.3); border-radius:4px; padding:1px 6px; font-size:12px; }
-.ts-wrapper.multi .ts-control .item .remove { color:#22d3ee; margin-left:4px; }
-.ts-dropdown { background:#1a1e2e; border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:#fff; }
-.ts-dropdown .option { padding:8px 12px; font-size:13px; }
-.ts-wrapper .ts-control input { color:#fff; }
-
-/* Empty state logic using :has() */
+/* Empty state + header visibility driven by presence of rows (works after client-side row removal) */
 #empty-message { display: none; }
-#pending-list:not(:has(.pending-row)) #empty-message { 
-    display: flex !important; 
-}
+#pending-list:not(:has(.pending-row)) #empty-message { display: flex !important; }
+#pending-list:not(:has(.pending-row)) thead { display: none; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-5">
-  <div class="flex items-center gap-2.5">
-    <span class="text-accent text-[28px]">🚘</span>
-    <span class="text-2xl font-semibold text-white">Biển số chờ duyệt (Xe lạ)</span>
+<div class="flex flex-col gap-5" x-data="{
+    selected: [],
+    busy: false,
+    total: {{ plates|length }},
+    allIds: [{% for p in plates %}'{{ p.pending_id }}'{{ ',' if not loop.last }}{% endfor %}],
+    toggleAll(e) { this.selected = e.target.checked ? [...this.allIds] : []; },
+    async bulkDelete() {
+      if (!this.selected.length || this.busy) return;
+      if (!confirm('Xóa vĩnh viễn ' + this.selected.length + ' biển số đã chọn khỏi DB? Không thể hoàn tác.')) return;
+      this.busy = true;
+      await fetch('/camera/pending_plates/bulk-reject', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: this.selected })
+      });
+      location.reload();
+    }
+  }">
+
+  <!-- Page header -->
+  <div class="flex items-start justify-between gap-3 flex-wrap">
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-2.5">
+        <span class="text-accent text-[28px]">🚘</span>
+        <span class="text-2xl font-semibold text-white">Biển số chờ duyệt</span>
+        {% if plates %}
+        <span class="text-[12px] font-bold text-accent bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-full">{{ plates|length }}</span>
+        {% endif %}
+      </div>
+      <span class="text-[13px] text-txt-ter pl-[38px]">
+        Xe lạ camera tự ghi nhận — <span class="text-accent">📝 Đăng ký</span> để thêm vào danh sách quen, hoặc <span class="text-status-red">❌ Từ chối</span> để bỏ.
+      </span>
+    </div>
+
+    <!-- Bulk action bar (only when something selected) -->
+    <div x-show="selected.length > 0" x-cloak class="flex items-center gap-3">
+      <span class="text-[12px] text-txt-sec"><span class="text-accent font-semibold" x-text="selected.length"></span> đã chọn</span>
+      <button @click="bulkDelete()" :disabled="busy"
+              class="bg-status-red/10 hover:bg-status-red/20 text-status-red border border-status-red/20 disabled:opacity-40 text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors">
+        🗑 Xóa đã chọn
+      </button>
+    </div>
   </div>
 
-  <!-- Table List (Identical to Vehicles) -->
-  <div class="bg-bg-card rounded-xl border border-divider shadow-sm overflow-hidden flex flex-col min-h-[400px]" id="pending-list" x-data="{}">
+  <!-- List -->
+  <div class="bg-bg-card rounded-xl border border-divider shadow-sm overflow-hidden flex flex-col min-h-[400px]" id="pending-list">
     <table class="w-full text-left border-collapse">
-      <!-- Header -->
       <thead class="bg-bg-inset text-[11px] font-semibold text-txt-ter uppercase tracking-[1.5px] border-b border-white/5">
         <tr>
-          <th class="px-5 py-3 font-semibold w-[120px]">ẢNH</th>
-          <th class="px-5 py-3 font-semibold w-[200px]">BIỂN SỐ</th>
-          <th class="px-5 py-3 font-semibold">THỜI GIAN</th>
-          <th class="px-5 py-3 font-semibold w-[120px] text-right">HÀNH ĐỘNG</th>
+          <th class="px-5 py-3 font-semibold w-[40px]">
+            <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
+                   class="w-4 h-4 accent-accent align-middle cursor-pointer" title="Chọn tất cả">
+          </th>
+          <th class="px-5 py-3 font-semibold w-[120px]">Ảnh</th>
+          <th class="px-5 py-3 font-semibold w-[220px]">Biển số</th>
+          <th class="px-5 py-3 font-semibold">Thời gian phát hiện</th>
+          <th class="px-5 py-3 font-semibold w-[140px] text-right">Hành động</th>
         </tr>
       </thead>
 
-      <!-- Body -->
       <tbody>
         {% for p in plates %}
-        <tr class="border-b border-divider hover:bg-white/[0.02] transition-colors pending-row" id="row-{{ p.pending_id }}">
+        <tr class="border-b border-divider last:border-0 hover:bg-white/[0.02] transition-colors pending-row" id="row-{{ p.pending_id }}"
+            :class="selected.includes('{{ p.pending_id }}') ? 'bg-accent/[0.05]' : ''">
+          <!-- Checkbox -->
+          <td class="px-5 py-4">
+            <input type="checkbox" value="{{ p.pending_id }}" x-model="selected" class="w-4 h-4 accent-accent align-middle cursor-pointer">
+          </td>
           <!-- Thumbnail -->
           <td class="px-5 py-4">
             <div class="w-[100px] h-[56px] rounded-lg overflow-hidden bg-white/5 border border-white/10 flex-shrink-0 cursor-zoom-in group transition-all hover:border-accent/40 shadow-sm">
               {% if p.image_path %}
-              <img src="/snapshots/{{ p.image_path.split('/')[-1] }}" 
-                   alt="Plate" 
+              <img src="/snapshots/{{ p.image_path.split('/')[-1] }}"
+                   alt="Plate"
                    class="w-full h-full object-cover transition-transform group-hover:scale-110"
                    onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
                    onerror="this.parentElement.innerHTML='<div class=\'w-full h-full flex items-center justify-center text-[22px]\'>🚘</div>'">
@@ -59,7 +93,7 @@
             </div>
           </td>
 
-          <!-- Combined Plate Section -->
+          <!-- Plate -->
           <td class="px-5 py-4">
             {% set plate_cls = "bg-status-yellow/10 text-white border-status-yellow/30" %}
             {% if p.plate_type == 'white' %}
@@ -83,18 +117,18 @@
 
           <!-- Actions -->
           <td class="px-5 py-4 text-right">
-            <div class="flex justify-end gap-2">
-              <a href="/camera/pending_plates/{{ p.pending_id }}/register" 
-                 class="text-accent hover:text-cyan-300 text-[18px] transition-colors cursor-pointer p-1" 
-                 title="Đăng ký phương tiện">📝</a>
-              <button class="text-status-red/60 hover:text-status-red text-[18px] transition-colors cursor-pointer p-1" 
+            <div class="flex justify-end gap-1.5">
+              <a href="/camera/pending_plates/{{ p.pending_id }}/register"
+                 class="inline-flex items-center gap-1 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 text-[12px] font-semibold px-2.5 py-1.5 rounded-lg transition-colors"
+                 title="Đăng ký phương tiện">📝 Đăng ký</a>
+              <button class="inline-flex items-center justify-center bg-white/5 hover:bg-status-red/15 text-txt-ter hover:text-status-red border border-white/10 hover:border-status-red/30 text-[13px] w-8 h-8 rounded-lg transition-colors"
                       title="Từ chối"
                       @click.stop="window.dispatchEvent(new CustomEvent('show-confirm', {
                         detail: {
                           title: 'Từ chối biển số',
                           message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
                           confirmText: 'Xác nhận từ chối',
-                          confirmUrl: '/pending_plates/{{ p.pending_id }}/reject',
+                          confirmUrl: '/camera/pending_plates/{{ p.pending_id }}/reject',
                           confirmTarget: '#row-{{ p.pending_id }}'
                         }
                       }))">❌</button>
@@ -105,8 +139,13 @@
       </tbody>
     </table>
 
-    <div id="empty-message" class="px-5 py-12 text-center text-txt-ter text-sm flex flex-col items-center gap-2">
-      <span>Hiện không có biển số nào đang chờ duyệt.</span>
+    <!-- Empty state -->
+    <div id="empty-message" class="flex-1 px-5 py-16 text-center flex flex-col items-center justify-center gap-3">
+      <div class="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center text-[32px]">🅿️</div>
+      <div class="text-white font-semibold text-base">Không có xe lạ nào</div>
+      <div class="text-txt-ter text-[13px] max-w-sm leading-relaxed">
+        Mọi biển số đều đã được duyệt. Khi camera phát hiện một biển số chưa có trong danh sách quen, nó sẽ tự xuất hiện ở đây để bạn duyệt.
+      </div>
     </div>
   </div>
 </div>

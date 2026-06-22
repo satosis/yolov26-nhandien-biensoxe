@@ -27,7 +27,11 @@ async def landing_home(request: Request):
         "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
     }
     
-    projects = db.get_projects()
+    try:
+        projects = db.get_projects()
+    except Exception as e:
+        logger.error(f"Database error getting projects: {e}")
+        projects = []
     if not projects:
         logger.warning("No projects found in DB, using fallback data.")
         projects = [
@@ -42,7 +46,11 @@ async def landing_home(request: Request):
         if p.get('created_at'):
             p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
         
-    news_items = db.get_news(limit=3)
+    try:
+        news_items = db.get_news(limit=3)
+    except Exception as e:
+        logger.error(f"Database error getting news: {e}")
+        news_items = []
     if not news_items:
         news_items = [
             {"id": 1, "title": "Xu hướng nhà xưởng 2026", "category": "Thị trường", "publish_date_str": "29/04/2026", "image": "/static/brain/news1.jpg"}
@@ -83,7 +91,7 @@ async def landing_about(request: Request):
     )
 
 
-@router.get("/nha-xuong", response_class=HTMLResponse)
+@router.get("/nhaxuong", response_class=HTMLResponse)
 async def landing_warehouse(request: Request):
     """Spoke 1 — Nha xuong cho thue."""
     db = get_db()
@@ -95,7 +103,11 @@ async def landing_warehouse(request: Request):
         "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
     }
     
-    projects = db.get_projects()
+    try:
+        projects = db.get_projects()
+    except Exception as e:
+        logger.error(f"Database error getting projects: {e}")
+        projects = []
     for p in projects:
         p['load'] = p.get('load_capacity')
         if p.get('created_at'):
@@ -153,7 +165,7 @@ async def landing_projects(request: Request):
     )
 
 
-@router.get("/xe-cau", response_class=HTMLResponse)
+@router.get("/xecau", response_class=HTMLResponse)
 async def landing_crane(request: Request):
     """Spoke (legacy) — Dịch vụ xe cẩu. Giao diện gốc (landing.css), tách khỏi Tailwind."""
     return templates.TemplateResponse(
@@ -249,10 +261,10 @@ async def sitemap(request: Request):
     static_urls = [
         ("", "1.0", "weekly"),
         ("/du-an", "0.9", "weekly"),
-        ("/nha-xuong", "0.9", "weekly"),
+        ("/nhaxuong", "0.9", "weekly"),
         ("/nha-xuong-co-tiet", "0.9", "weekly"),
         ("/dich-vu", "0.8", "monthly"),
-        ("/xe-cau", "0.8", "monthly"),
+        ("/xecau", "0.8", "monthly"),
         ("/kiem-dinh-can", "0.8", "monthly"),
         ("/tin-tuc", "0.8", "daily"),
         ("/lien-he", "0.7", "monthly"),

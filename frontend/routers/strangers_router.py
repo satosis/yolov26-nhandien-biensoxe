@@ -1,5 +1,5 @@
 """Strangers router."""
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Body
 from fastapi.templating import Jinja2Templates
 import logging
 from starlette.responses import RedirectResponse
@@ -41,3 +41,28 @@ async def register_stranger(
     except Exception as e:
         logging.exception("Failed to register stranger")
         raise e
+
+@router.post("/bulk-register")
+async def bulk_register_strangers(
+    payload: dict = Body(...),
+    user: dict = Depends(require_menu("strangers"))
+):
+    ids = [int(i) for i in payload.get("ids", [])]
+    user_id = int(payload.get("user_id"))
+    db = get_db()
+    for sid in ids:
+        db.update_stranger_status(sid, "registered", converted_user_id=user_id)
+    logging.info(f"Bulk registered {len(ids)} strangers as user {user_id}")
+    return {"ok": True, "count": len(ids)}
+
+@router.post("/bulk-delete")
+async def bulk_delete_strangers(
+    payload: dict = Body(...),
+    user: dict = Depends(require_menu("strangers"))
+):
+    ids = [int(i) for i in payload.get("ids", [])]
+    db = get_db()
+    for sid in ids:
+        db.delete_stranger_log(sid)
+    logging.info(f"Bulk deleted {len(ids)} strangers")
+    return {"ok": True, "count": len(ids)}
