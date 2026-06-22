@@ -203,16 +203,16 @@ CAMERA_PAGE_KEYS = {
     "parking_analytics", "recordings"
 }
 
-# Grouped registration
-for r in [detection_router, cameras_router, vehicles_router, cargo_trips_router, strangers_router,
-          pending_plates_router, parking_router, recordings_router]:
-    app.include_router(r, prefix="/camera")
+# All admin routers under /admin prefix
+for r in [detection_router, cameras_router, vehicles_router,
+          cargo_trips_router, strangers_router, pending_plates_router,
+          parking_router, recordings_router, sites_router, providers_router,
+          door_providers_router, rolling_doors_router, telegram_router,
+          rbac_router, users_router, system_router, inquiries_router, cms_router]:
+    app.include_router(r, prefix="/admin")
 
-for r in [auth_router, sites_router, providers_router, door_providers_router,
-          rolling_doors_router, telegram_router, rbac_router,
-          users_router, system_router, inquiries_router, cms_router]:
-    app.include_router(r)
-
+# Auth router at root so /login remains /login
+app.include_router(auth_router)
 app.include_router(landing_router)
 
 @app.websocket("/ws/notifications")

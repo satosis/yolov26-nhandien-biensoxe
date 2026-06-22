@@ -5,7 +5,7 @@
 <div class="flex flex-col gap-5" x-data>
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div class="flex items-center gap-3">
-      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
       <span class="text-divider">|</span>
       <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
       <span class="text-white font-semibold text-lg">Duyệt kết quả quét</span>
@@ -153,7 +153,7 @@
       <button type="submit" class="bg-accent text-bg-inset font-bold text-[14px] px-7 py-3 rounded-md hover:bg-cyan-300 transition-colors">
         Lưu các chuyến đã duyệt
       </button>
-      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec text-[14px] px-5 py-3 rounded-md hover:bg-white/5 transition-colors">
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec text-[14px] px-5 py-3 rounded-md hover:bg-white/5 transition-colors">
         Hủy
       </a>
     </div>

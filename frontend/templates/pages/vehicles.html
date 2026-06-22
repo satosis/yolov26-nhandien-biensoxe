@@ -155,7 +155,7 @@
           </td>
           <td class="px-5 py-3.5 text-right">
             <div class="flex justify-end gap-2">
-              <a href="/camera/vehicles/{{ v.id }}/cargo"
+              <a href="/admin/vehicles/{{ v.id }}/cargo"
                  class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors" title="Lịch sử chuyến hàng">📋</a>
               <button class="text-txt-sec hover:text-accent text-sm cursor-pointer transition-colors"
                       onclick='openEdit({{ v.id }}, {{ v.plate_number | tojson }}, {{ (v.owner_name or "") | tojson }}, {{ v.site_ids | tojson }}, {{ (v.note or "") | tojson }}, {{ (v.fuel_consumption | string if v.fuel_consumption is not none else "") | tojson }})'>✏️</button>

@@ -17,7 +17,9 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 @router.get("/login")
 async def login_page(request: Request):
     if request.session.get("user"):
-        return RedirectResponse("/", status_code=303)
+        role = request.session.get("user", {}).get("role", "viewer")
+        redirect_url = "/admin/dashboard" if role == "admin" else "/admin/detection"
+        return RedirectResponse(redirect_url, status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
@@ -36,7 +38,11 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     user = db.get_user(username)
     if user and verify_password(password, user["hashed_password"]):
         clear_attempts(key)
-        response = RedirectResponse("/", status_code=303)
+        
+        role = user.get("role", "viewer")
+        redirect_url = "/admin/dashboard" if role == "admin" else "/admin/detection"
+        
+        response = RedirectResponse(redirect_url, status_code=303)
         login_user(request, response, user)
         return response
 

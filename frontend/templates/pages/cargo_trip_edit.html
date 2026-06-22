@@ -145,7 +145,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại danh sách</a>
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại danh sách</a>
       <span class="text-divider">|</span>
       <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
       <span class="text-white font-semibold text-lg">Sửa chuyến hàng</span>
@@ -229,7 +229,7 @@
                x-text="fuelRate > 0 ? (fuelLiters.toLocaleString('vi-VN') + ' lít') : 'Chưa có mức tiêu hao'"></div>
           <div class="text-txt-ter text-[10px] mt-1" x-show="fuelRate > 0" x-text="'Định mức ' + fuelRate + ' L/100km × quãng đường'"></div>
           <div class="text-status-yellow text-[10px] mt-1" x-show="!(fuelRate > 0)">
-            <a href="/camera/vehicles" class="underline hover:text-accent">Thiết lập mức tiêu hao cho xe {{ vehicle.plate_number }}</a>
+            <a href="/admin/vehicles" class="underline hover:text-accent">Thiết lập mức tiêu hao cho xe {{ vehicle.plate_number }}</a>
           </div>
         </div>
         <div>
@@ -251,7 +251,7 @@
       <button type="submit" class="bg-accent text-bg-inset font-bold text-[14px] px-8 py-3 rounded-md hover:bg-cyan-300 transition-all shadow-lg shadow-accent/10">
         💾 Lưu thay đổi
       </button>
-      <a href="/camera/vehicles/{{ vehicle.id }}/cargo" 
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo" 
          class="text-txt-sec text-[14px] px-6 py-3 rounded-md hover:bg-white/5 transition-colors">
         Hủy
       </a>

@@ -288,7 +288,7 @@
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
-      const resp = await fetch('/camera/detection/api/detect', { method: 'POST', body: fd });
+      const resp = await fetch('/admin/detection/api/detect', { method: 'POST', body: fd });
       if (!resp.ok) {
         console.error("Server detection error", resp.status);
         return { error: 'Server error ' + resp.status, results: [] };
@@ -468,7 +468,7 @@
         setTimeout(done, 500);
       });
 
-      const resp = await fetch(`/detection/go2rtc-proxy/${camId}`, {
+      const resp = await fetch(`/admin/detection/go2rtc-proxy/${camId}`, {
         method: 'POST',
         headers: {'Content-Type': 'application/sdp'},
         body: pc.localDescription.sdp,
@@ -485,7 +485,7 @@
 
     // --- Fallback to MJPEG if go2rtc unavailable ---
     function connectMJPEG(camId) {
-      rtspFeed.src = `/detection/stream/${camId}`;
+      rtspFeed.src = `/admin/detection/stream/${camId}`;
     }
 
     window.toggleRtsp = async () => {
@@ -504,7 +504,7 @@
         if (rtspPeerConnection) { rtspPeerConnection.close(); rtspPeerConnection = null; }
         rtspFeed.srcObject = null;
         rtspFeed.src = '';
-        await fetch(`/cameras/${camId}/stream/stop`, { method: 'POST' });
+        await fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST' });
         rtspPlaceholder.classList.remove('hidden');
         rtspFeed.classList.add('hidden');
         rtspOverlay.classList.add('hidden');
@@ -516,7 +516,7 @@
         rtspPlaceholder.classList.add('hidden');
         rtspFeed.classList.remove('hidden');
 
-        await fetch(`/cameras/${camId}/stream/start`, { method: 'POST' });
+        await fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
 
         // Try WebRTC first, fallback to MJPEG
         const webrtcOk = await connectWebRTC(camId).catch(() => false);

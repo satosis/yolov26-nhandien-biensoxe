@@ -8,15 +8,20 @@
         <nav class="main-nav">
             <ul class="nav-list">
                 <li><a href="/" class="nav-link {% if path == '/' %}active{% endif %}">Trang chủ</a></li>
-                <li><a href="/gioi-thieu" class="nav-link {% if path == '/gioi-thieu' %}active{% endif %}">Giới thiệu</a></li>
+                <li><a href="/gioi-thieu" class="nav-link {% if path == '/gioi-thieu' %}active{% endif %}">Giới
+                        thiệu</a></li>
                 <li class="nav-item has-dropdown">
-                    <a href="/du-an" class="nav-link {% if '/nhaxuong' in path or path == '/du-an' %}active{% endif %}">Nhà xưởng <span class="material-symbols-outlined dropdown-arrow">expand_more</span></a>
+                    <a href="/du-an"
+                        class="nav-link {% if '/nhaxuong' in path or path == '/du-an' %}active{% endif %}">Nhà xưởng
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span></a>
                     <ul class="dropdown-menu">
                         <li><a href="/nhaxuong">Xưởng KCN Trung Hà</a></li>
                         <li><a href="/nha-xuong-co-tiet">Xưởng KCN Cổ Tiết</a></li>
                     </ul>
                 </li>
-                <li><a href="/dich-vu" class="nav-link {% if path in ['/dich-vu', '/xecau', '/kiem-dinh-can'] %}active{% endif %}">Dịch vụ</a></li>
+                <li><a href="/dich-vu"
+                        class="nav-link {% if path in ['/dich-vu', '/xecau', '/kiem-dinh-can'] %}active{% endif %}">Dịch
+                        vụ</a></li>
                 <li><a href="/tin-tuc" class="nav-link {% if '/tin-tuc' in path %}active{% endif %}">Tin tức</a></li>
                 <li><a href="/lien-he" class="nav-link {% if path == '/lien-he' %}active{% endif %}">Liên hệ</a></li>
             </ul>
@@ -28,29 +33,44 @@
                     <span class="flag" :class="$store.i18n.lang === 'vi' ? 'flag-vn' : 'flag-cn'"></span>
                     <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
                 </a>
-                <ul class="dropdown-menu" style="min-width:140px; left:50%; transform:translateX(-50%); margin:0; padding:0.5rem 0;">
-                    <li><a href="#" @click.prevent="$store.i18n.lang='vi'; setGoogleLang('vi')" style="display:flex; align-items:center; gap:0.5rem;"><span class="flag flag-vn"></span> Tiếng Việt</a></li>
-                    <li><a href="#" @click.prevent="$store.i18n.lang='zh'; setGoogleLang('zh-CN')" style="display:flex; align-items:center; gap:0.5rem;"><span class="flag flag-cn"></span> 中文</a></li>
+                <ul class="dropdown-menu"
+                    style="min-width:140px; left:50%; transform:translateX(-50%); margin:0; padding:0.5rem 0;">
+                    <li><a href="#" @click.prevent="$store.i18n.lang='vi'; setGoogleLang('vi')"
+                            style="display:flex; align-items:center; gap:0.5rem;"><span class="flag flag-vn"></span>
+                            Tiếng Việt</a></li>
+                    <li><a href="#" @click.prevent="$store.i18n.lang='zh'; setGoogleLang('zh-CN')"
+                            style="display:flex; align-items:center; gap:0.5rem;"><span class="flag flag-cn"></span>
+                            中文</a></li>
                 </ul>
             </div>
 
             {% if user %}
             <div class="nav-item has-dropdown" style="list-style:none;">
                 <a href="#" class="nav-link" style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0;">
-                    <span class="avatar" style="width:24px;height:24px;background:#f97316;color:white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;">{{ (user.username or user.full_name or "U")[0] | upper }}</span>
-                    <span style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">{{ user.full_name or user.username }}</span>
+                    <span class="avatar"
+                        style="width:24px;height:24px;background:#f97316;color:white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;">{{
+                        (user.username or user.full_name or "U")[0] | upper }}</span>
+                    <span
+                        style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">{{
+                        user.full_name or user.username }}</span>
                     <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
                 </a>
                 <ul class="dropdown-menu" style="left:auto; right:-10px; min-width:180px; margin:0; padding:0.5rem 0;">
-                    <li><a href="/camera/detection" style="display:flex; align-items:center; gap:0.5rem;"><span class="material-symbols-outlined" style="font-size:18px;">dashboard</span> Dashboard</a></li>
-                    <li><a href="/logout" style="display:flex; align-items:center; gap:0.5rem;"><span class="material-symbols-outlined" style="font-size:18px;">logout</span> Đăng xuất</a></li>
+                    <li><a href="/admin/detection" style="display:flex; align-items:center; gap:0.5rem;"><span
+                                class="material-symbols-outlined" style="font-size:18px;">dashboard</span> Dashboard</a>
+                    </li>
+                    <li><a href="/logout" style="display:flex; align-items:center; gap:0.5rem;"><span
+                                class="material-symbols-outlined" style="font-size:18px;">logout</span> Đăng xuất</a>
+                    </li>
                 </ul>
             </div>
             {% else %}
-            <a href="/login" class="btn btn-primary" x-text="$store.i18n.t('login')" style="padding:0.6rem 1.2rem;">Đăng nhập</a>
+            <a href="/login" class="btn btn-primary" x-text="$store.i18n.t('login')" style="padding:0.6rem 1.2rem;">Đăng
+                nhập</a>
             {% endif %}
         </div>
-        <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Mở menu" aria-expanded="false">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" type="button" aria-label="Mở menu"
+            aria-expanded="false">
             <span class="material-symbols-outlined">menu</span>
         </button>
     </div>

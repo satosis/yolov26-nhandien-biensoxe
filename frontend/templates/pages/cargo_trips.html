@@ -12,7 +12,7 @@
   <!-- Header -->
   <div class="flex items-center justify-between flex-wrap gap-3">
     <div class="flex items-center gap-3">
-      <a href="/camera/vehicles" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
+      <a href="/admin/vehicles" class="text-txt-sec hover:text-white transition-colors text-sm">← Quay lại</a>
       <span class="text-divider">|</span>
       <span class="bg-status-green/10 text-status-green px-3 py-1 rounded-md text-[14px] font-mono font-bold border border-status-green/20">{{ vehicle.plate_number }}</span>
       <span class="text-white font-semibold text-lg">{{ vehicle.owner_name or '' }}</span>
@@ -42,7 +42,7 @@
         </label>
       </form>
 
-      <a href="/camera/vehicles/{{ vehicle.id }}/cargo/add"
+      <a href="/admin/vehicles/{{ vehicle.id }}/cargo/add"
               class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2.5 rounded-md hover:bg-cyan-300 transition-colors cursor-pointer">
         + Thêm chuyến
       </a>
@@ -106,7 +106,7 @@
             </td>
             <td class="px-4 py-3 text-right">
               <div class="flex justify-end gap-2">
-                <a href="/camera/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/edit"
+                <a href="/admin/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/edit"
                    class="text-txt-sec hover:text-accent text-sm transition-colors"
                    title="Sửa">✏️</a>
                 <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer transition-colors"
