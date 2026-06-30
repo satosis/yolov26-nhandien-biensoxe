@@ -77,7 +77,7 @@ async def create_camera(
     )
     if new_cam_id is None:
         logger.error("create_camera: add_camera returned False for name=%s", camera_name)
-    return RedirectResponse(url="/camera/cameras", status_code=303)
+    return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.delete("/{camera_id}")
@@ -90,7 +90,7 @@ async def delete_camera(
     ok = db.delete_camera(camera_id)
     if not ok:
         logger.error("delete_camera: delete_camera returned False for id=%d", camera_id)
-    return RedirectResponse(url="/camera/cameras", status_code=303)
+    return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.post("/{camera_id}/toggle")
@@ -103,7 +103,7 @@ async def toggle_camera(
     cam = db.get_camera(camera_id)
     if not cam:
         logger.warning("toggle_camera: camera id=%d not found", camera_id)
-        return RedirectResponse(url="/camera/cameras", status_code=303)
+        return RedirectResponse(url="/admin/cameras", status_code=303)
 
     ok = db.update_camera(
         camera_id=camera_id,
@@ -119,7 +119,7 @@ async def toggle_camera(
     )
     if not ok:
         logger.error("toggle_camera: update_camera returned False for id=%d", camera_id)
-    return RedirectResponse(url="/camera/cameras", status_code=303)
+    return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.post("/{camera_id}/edit")
@@ -145,7 +145,7 @@ async def edit_camera(
     cam = db.get_camera(camera_id)
     if not cam:
         logger.warning("edit_camera: camera id=%d not found", camera_id)
-        return RedirectResponse(url="/camera/cameras", status_code=303)
+        return RedirectResponse(url="/admin/cameras", status_code=303)
 
     # If rtsp_url is provided, use it. If empty, set to None so the database dynamic generator triggers
     final_rtsp_url = rtsp_url.strip() if rtsp_url and rtsp_url.strip() else None
@@ -165,7 +165,7 @@ async def edit_camera(
     )
     if not ok:
         logger.error("edit_camera: update_camera returned False for id=%d", camera_id)
-    return RedirectResponse(url="/camera/cameras", status_code=303)
+    return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.post("/{camera_id}/stream/start")

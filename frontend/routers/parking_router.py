@@ -39,10 +39,11 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
 
 
 @router.get("_logs")
-async def logs(request: Request, user: dict = Depends(require_menu("parking_logs"))):
+async def logs(request: Request, date: str = None, user: dict = Depends(require_menu("parking_logs"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_logs"
-    ctx["logs"] = get_db().get_parking_history(limit=100)
+    ctx["logs"] = get_db().get_parking_history(limit=100, date_filter=date or None)
+    ctx["filter_date"] = date or ""
     return templates.TemplateResponse("pages/parking_logs.html", {"request": request, **ctx})
 
 

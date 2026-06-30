@@ -33,12 +33,12 @@ async def add_bot(
     final_token = token or bot_token
     if not final_token:
         logger.error("Missing token for bot_name=%s", bot_name)
-        return RedirectResponse(url="/telegram", status_code=303)
+        return RedirectResponse(url="/admin/telegram", status_code=303)
         
     ok = get_db().upsert_telegram_bot(bot_name.strip(), final_token.strip(), chat_id.strip())
     if not ok:
         logger.error("upsert_telegram_bot failed for bot_name=%s", bot_name)
-    return RedirectResponse(url="/telegram", status_code=303)
+    return RedirectResponse(url="/admin/telegram", status_code=303)
 
 
 @router.post("/{bot_name}/test")
@@ -75,4 +75,4 @@ async def delete_bot(
     ok = get_db().delete_telegram_bot(bot_name)
     if not ok:
         logger.error("delete_telegram_bot failed for bot_name=%s", bot_name)
-    return RedirectResponse(url="/telegram", status_code=303)
+    return RedirectResponse(url="/admin/telegram", status_code=303)

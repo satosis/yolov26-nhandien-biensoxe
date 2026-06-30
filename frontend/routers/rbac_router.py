@@ -52,7 +52,7 @@ async def create_role(
         logger.info("Role '%s' created with menus: %s", role_name, menus_str)
     else:
         logger.warning("Failed to create role '%s': %s", role_name, msg)
-    return RedirectResponse(url="/rbac", status_code=303)
+    return RedirectResponse(url="/admin/rbac", status_code=303)
 
 
 @router.post("/{role_id}/edit")
@@ -65,7 +65,7 @@ async def update_role(
     menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
     get_db().update_role_permissions(role_id, menus_str)
     logger.info("Role %d updated: %s", role_id, menus_str)
-    return RedirectResponse(url="/rbac", status_code=303)
+    return RedirectResponse(url="/admin/rbac", status_code=303)
 
 
 @router.delete("/{role_id}")
@@ -94,4 +94,4 @@ async def delete_role(
 
     db.delete_role(role_id)
     logger.info("Role '%s' (id=%d) deleted", target_role["role_name"], role_id)
-    return RedirectResponse(url="/rbac", status_code=303)
+    return RedirectResponse(url="/admin/rbac", status_code=303)

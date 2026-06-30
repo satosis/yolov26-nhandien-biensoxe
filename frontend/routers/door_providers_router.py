@@ -42,7 +42,7 @@ async def upsert_door_provider(
         logo_url=logo_url or None,
         is_active=active,
     )
-    return RedirectResponse(url="/door_providers", status_code=303)
+    return RedirectResponse(url="/admin/door_providers", status_code=303)
 
 
 @router.delete("/{provider_key}")
@@ -52,7 +52,7 @@ async def delete_door_provider(
     user: dict = Depends(require_menu("door_providers")),
 ):
     get_db().delete_door_provider(provider_key)
-    return RedirectResponse(url="/door_providers", status_code=303)
+    return RedirectResponse(url="/admin/door_providers", status_code=303)
 
 
 @router.post("/{provider_key}/toggle")
@@ -73,4 +73,4 @@ async def toggle_door_provider(
             logo_url=provider.get("logo_url"),
             is_active=not provider.get("is_active", True),
         )
-    return RedirectResponse(url="/door_providers", status_code=303)
+    return RedirectResponse(url="/admin/door_providers", status_code=303)

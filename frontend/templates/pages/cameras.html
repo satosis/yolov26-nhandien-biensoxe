@@ -70,7 +70,7 @@
         if (dev.rtsp_url_onvif) {
             payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
         }
-        const resp = await fetch('/camera/cameras/auto-add', {
+        const resp = await fetch('/admin/cameras/auto-add', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
@@ -268,7 +268,7 @@
                               title: 'Xóa camera',
                               message: 'Bạn chắc chắn muốn xóa camera {{ cam.camera_name }}?',
                               confirmText: 'Xác nhận xóa',
-                              confirmUrl: '/cameras/{{ cam.id }}',
+                              confirmUrl: '/admin/cameras/{{ cam.id }}',
                               confirmMethod: 'DELETE',
                               reload: true
                             }
@@ -280,7 +280,7 @@
             <!-- Inline Edit Form Row -->
             <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
               <td colspan="9" class="p-4" style="background:#f8f9fa;border-bottom:1px solid #dee2e6;">
-                <form method="POST" action="/camera/cameras/{{ cam.id }}/edit">
+                <form method="POST" action="/admin/cameras/{{ cam.id }}/edit">
                   <div class="row">
                     <div class="col-12 col-md-6 mb-3">
                       <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Tên camera *</label>
@@ -318,7 +318,7 @@
                         <div class="input-group-append">
                           <button type="button" onclick="togglePassword(this)" class="btn btn-outline-secondary btn-sm" title="Hiện/ẩn mật khẩu">
                             <svg class="eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
-                            <svg class="eye-on" style="display:none;" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg class="eye-on" style="display:none;width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                           </button>
                         </div>
                       </div>
@@ -440,7 +440,7 @@
             <div class="p-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="text-success font-weight-bold" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Thiết bị mới</span>
-                <span class="text-muted" style="font-size:10px;" x-text="newDevices.length + ' mới · ' + addedDevices.length + ' đã thêm'"></span>
+                <span class="text-muted" style="font-size:10px;" x-text="discoveredDevices.filter(d=>!d._exists).length + ' mới · ' + discoveredDevices.filter(d=>d._added).length + ' đã thêm'"></span>
               </div>
               <div class="cx-overflow-x-auto">
                 <table class="table table-sm table-hover mb-0">
@@ -581,7 +581,7 @@
                         </td>
                         <td class="text-right">
                           <template x-if="!dev._updated">
-                            <button @click="autoUpdateDevice(dev)" class="btn btn-warning btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">
+                            <button @click="autoAddDevice(dev)" class="btn btn-warning btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">
                               Cập nhật
                             </button>
                           </template>
@@ -692,7 +692,7 @@ async function discoverCameras() {
     const timers = progressSteps.map(s => setTimeout(() => { text.innerText = s.text; }, s.delay));
 
     try {
-        const resp = await fetch('/camera/cameras/discover', { method: 'POST' });
+        const resp = await fetch('/admin/cameras/discover', { method: 'POST' });
         const data = await resp.json();
         timers.forEach(clearTimeout);
 
@@ -752,8 +752,8 @@ document.getElementById('add-cam-form')?.addEventListener('submit', async (e) =>
     if (btn) { btn.disabled = true; btn.textContent = 'Đang lưu...'; }
     try {
         const fd = new FormData(e.target);
-        const res = await fetch('/cameras', { method: 'POST', body: fd, redirect: 'follow' });
-        // POST returns 303 redirect → fetch follows to GET /cameras → res.ok = true
+        const res = await fetch('/admin/cameras', { method: 'POST', body: fd, redirect: 'follow' });
+        // POST returns 303 redirect → fetch follows to GET /admin/cameras → res.ok = true
         if (res.ok || res.redirected) {
             window.location.reload();
         } else {

@@ -15,12 +15,12 @@ body {
     margin-top: 40px;
 }
 .page-content {
-    padding: 8px 12px !important;
+    padding: 12px 12px 8px !important;
     animation: fadeIn 0.3s ease-out;
 }
 .page-title-box {
     padding: 4px 0 !important;
-    margin-bottom: 4px !important;
+    margin-bottom: 12px !important;
 }
 .page-title-box h4 {
     font-size: 13.5px !important;
@@ -477,9 +477,9 @@ body {
     padding: 8px 12px;
 }
 
-/* --- Compact topbar --- */
+/* --- Compact topbar (must match .main-content margin-top: 40px) --- */
 #page-topbar .navbar-header {
-    height: 50px;
+    height: 40px;
 }
 .header-profile-user {
     width: 28px;
@@ -677,6 +677,11 @@ body[data-sidebar-size="sm"] .vertical-menu {
 }
 .cx-text-sm {
     font-size: 11px !important;
+}
+
+/* --- Level-2 (sub-menu) items: indent a bit more for clearer hierarchy --- */
+#sidebar-menu ul li ul.sub-menu li a {
+    padding-left: 28px !important;
 }
 
 /* --- Added Grid Classes for 5-column layouts --- */

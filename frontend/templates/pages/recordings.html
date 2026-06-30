@@ -7,7 +7,7 @@
     playing: null,
     deleteRecording(id) {
         if(confirm('Bạn có chắc muốn xóa đoạn ghi hình này?')) {
-            fetch('/camera/recordings/' + id, { method: 'DELETE' })
+            fetch('/admin/recordings/' + id, { method: 'DELETE' })
             .then(res => res.json())
             .then(data => {
                 if(data.success) window.location.reload();
@@ -188,7 +188,7 @@
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          @keydown.escape.window="playing = null"
-         style="display:none;">
+         x-cloak>
 
         <div class="card shadow" style="width:100%;max-width:900px;overflow:hidden;border:1px solid rgba(255,255,255,.1);"
              @click.away="playing = null">

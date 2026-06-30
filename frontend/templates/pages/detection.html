@@ -10,8 +10,8 @@
     <div class="col-12 col-lg-8 d-flex flex-column pr-lg-2 mb-3 mb-lg-0">
       <div class="card h-100 mb-0">
         <!-- Tabs nav -->
-        <div class="card-header p-0" style="border-bottom:1px solid #e9ecef;">
-          <ul class="nav nav-tabs card-header-tabs border-0 ml-2">
+        <div class="card-header p-0 bg-transparent border-0">
+          <ul class="nav nav-tabs px-2 pt-2">
             <li class="nav-item">
               <a class="nav-link" href="#" :class="tab==='webcam' ? 'active' : ''"
                 @click.prevent="tab='webcam'" style="font-size:13px;">
@@ -39,7 +39,7 @@
             style="background:#f8f9fa; cursor:pointer; min-height:260px;"
             onclick="window.toggleWebcam()">
             <video id="webcam-video" autoplay playsinline muted class="w-100 h-100 d-none"
-              style="object-fit:contain; image-rendering:auto; filter:contrast(1.05) brightness(1.02) saturate(1.1);"></video>
+              style="object-fit:fill; image-rendering:auto; filter:contrast(1.05) brightness(1.02) saturate(1.1);"></video>
             <canvas id="webcam-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;"></canvas>
             <div id="webcam-placeholder" class="text-center">
               <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
@@ -71,7 +71,7 @@
           <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
             style="background:#f8f9fa; cursor:pointer; min-height:260px;"
             onclick="window.toggleRtsp()">
-            <video id="rtsp-feed" autoplay playsinline muted class="w-100 h-100 d-none" style="object-fit:contain; position:relative; z-index:0;"></video>
+            <video id="rtsp-feed" autoplay playsinline muted class="w-100 h-100 d-none" style="object-fit:fill; position:relative; z-index:0;"></video>
             <canvas id="rtsp-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;z-index:10;"></canvas>
             <div id="rtsp-placeholder" class="text-center" style="z-index:20; position:relative;">
               <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
@@ -115,15 +115,6 @@
         <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
           <span class="font-weight-bold" style="font-size:14px;">Kết quả nhận diện</span>
           <div class="d-flex align-items-center" style="gap:8px;">
-            <div id="loading-indicator" class="d-none d-flex align-items-center text-primary" style="font-size:11px;gap:6px;">
-              <svg class="spin-anim" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                style="width:14px;height:14px;">
-                <circle style="opacity:.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path style="opacity:.75;" fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                </path>
-              </svg>
-            </div>
             <button id="btn-clear-results" class="btn btn-light btn-sm p-1" title="Xoá kết quả" style="line-height:1;">
               <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor">
@@ -156,14 +147,12 @@
     const video = document.getElementById('webcam-video');
     const overlay = document.getElementById('webcam-overlay');
     const placeholder = document.getElementById('webcam-placeholder');
-    // const btnStart = document.getElementById('btn-start-webcam'); // Removed
     const btnDevice = document.getElementById('btn-select-device');
     const btnClear = document.getElementById('btn-clear-results');
     const uploadInput = document.getElementById('upload-input');
     const uploadCanvas = document.getElementById('upload-canvas');
     const uploadPlaceholder = document.getElementById('upload-placeholder');
     const resultsDiv = document.getElementById('detection-results');
-    const loadingIndicator = document.getElementById('loading-indicator');
     let stream = null;
     let currentDeviceId = null;
     let webcamInterval = null;
@@ -192,8 +181,8 @@
       }
 
       const html = finalResults.map(r => {
-        const colors = { whitelist: 'badge-success', unknown: 'badge-warning', known: 'badge-primary', stranger: 'badge-danger' };
-        const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ' };
+        const colors = { whitelist: 'badge-success', unknown: 'badge-warning', known: 'badge-primary', stranger: 'badge-danger', no_plate: 'badge-secondary' };
+        const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ', no_plate: 'Không rõ biển số' };
 
         // Define plate color styles (kept as inline for exact visual fidelity)
         const plateStyles = {
@@ -308,7 +297,6 @@
         console.error("CRITICAL: Blob is empty! Check webcam/canvas state.");
         return { error: "Ảnh không hợp lệ (size 0)", results: [] };
       }
-      // Removed loading spinner for smoother experience
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
@@ -326,7 +314,6 @@
         if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
         webcamInterval = false;
         video.classList.add('d-none'); overlay.classList.add('d-none'); placeholder.classList.remove('d-none');
-        // btnStart.classList.add('d-none'); // Removed
       }
     };
 
@@ -347,7 +334,15 @@
           : { facingMode: { ideal: 'environment' }, ...baseVideoConstraints },
         audio: false
       };
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        stream = null;
+        placeholder.classList.remove('d-none'); video.classList.add('d-none');
+        const msg = (err && err.name === 'NotAllowedError') ? 'Bạn đã từ chối quyền camera.' : ('Không mở được camera: ' + (err && err.message || err));
+        if (window.toastr) { toastr.error(msg); } else { alert(msg); }
+        return;
+      }
       video.srcObject = stream; video.classList.remove('d-none'); placeholder.classList.add('d-none');
       webcamInterval = true;
       let isProcessing = false;
@@ -540,18 +535,26 @@
         rtspPlaceholder.classList.add('d-none');
         rtspFeed.classList.remove('d-none');
 
-        await fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
+        try {
+          await fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
 
-        // Try WebRTC first, fallback to MJPEG
-        const webrtcOk = await connectWebRTC(camId).catch(() => false);
-        if (!webrtcOk) {
-          console.log('WebRTC failed, falling back to MJPEG');
-          connectMJPEG(camId);
+          // Try WebRTC first, fallback to MJPEG
+          const webrtcOk = await connectWebRTC(camId).catch(() => false);
+          if (!webrtcOk) {
+            console.log('WebRTC failed, falling back to MJPEG');
+            connectMJPEG(camId);
+          }
+
+          // Start independent AI detection + overlay loops
+          rtspDetectionLoop = setInterval(runRtspDetection, 1200);
+          requestAnimationFrame(drawRtspOverlay);
+        } catch (err) {
+          // Reset UI so the camera can be retried
+          rtspActive = false;
+          rtspPlaceholder.classList.remove('d-none');
+          rtspFeed.classList.add('d-none');
+          if (window.toastr) { toastr.error('Không mở được camera: ' + (err && err.message || err)); }
         }
-
-        // Start independent AI detection + overlay loops
-        rtspDetectionLoop = setInterval(runRtspDetection, 1200);
-        requestAnimationFrame(drawRtspOverlay);
       }
     };
 
@@ -623,9 +626,6 @@
         window.stopWebcam();
       }
     });
-
-    // Reduce JPEG quality from 0.95 to 0.85 for better RAM/Network balance
-    // (Search for 0.95 and replace with 0.85 if needed, but I'll do it in a separate call if this fails)
   })();
 </script>
 {% endblock %}

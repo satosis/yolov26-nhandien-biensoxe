@@ -43,7 +43,7 @@ def remaining_lockout(key: str) -> int:
 
 
 def login_user(request: Request, response: Response, user: dict):
-    """Store user in session and create remember token."""
+    """Store user in session."""
     db = get_db()
     roles = db.get_roles()
     role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
@@ -57,38 +57,6 @@ def login_user(request: Request, response: Response, user: dict):
         "allowed_menus": allowed_menus,
     }
     request.session["user"] = session_user
-
-    # DB method generates token internally, returns it
-    token = db.create_remember_token(user["id"])
-    if token:
-        response.set_cookie(
-            "remember_token", token,
-            max_age=60 * 60 * 24 * 7,
-            httponly=True, samesite="lax",
-        )
-
-
-def try_remember_token(request: Request) -> dict | None:
-    """Try to restore session from remember_token cookie."""
-    token = request.cookies.get("remember_token")
-    if not token:
-        return None
-    db = get_db()
-    user = db.get_user_by_remember_token(token)
-    if not user:
-        return None
-    roles = db.get_roles()
-    role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
-    allowed_menus = role_info.get("allowed_menus", "") if role_info else ""
-    session_user = {
-        "id": user["id"],
-        "username": user["username"],
-        "role": user.get("role", "Guest"),
-        "full_name": user.get("full_name", ""),
-        "allowed_menus": allowed_menus,
-    }
-    request.session["user"] = session_user
-    return session_user
 
 
 def logout_user(request: Request, response: Response):

@@ -29,7 +29,7 @@ def _sites_list_html(request: Request, user: dict) -> str:
         🅿️ {s.get('total_slots') or 0} chỗ
       </td>
       <td class="px-5 py-3.5 text-center">
-        <form hx-post="/sites/{s['id']}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
+        <form hx-post="/admin/sites/{s['id']}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
           <button type="submit" class="inline-flex items-center gap-1.5 text-[11px] font-medium {active_cls} mx-auto">
             <span class="w-2 h-2 rounded-full {dot_cls}"></span>
             {active}
@@ -38,14 +38,14 @@ def _sites_list_html(request: Request, user: dict) -> str:
       </td>
       <td class="px-5 py-3.5 text-right">
         <div class="flex justify-end gap-3">
-          <button class="text-txt-sec hover:text-accent text-sm" hx-get="/sites/{s['id']}/edit" hx-target="#site-{s['id']}" hx-swap="outerHTML">✏️</button>
+          <button class="text-txt-sec hover:text-accent text-sm" hx-get="/admin/sites/{s['id']}/edit" hx-target="#site-{s['id']}" hx-swap="outerHTML">✏️</button>
           <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer" 
                   @click="window.dispatchEvent(new CustomEvent('show-confirm', {{
                     detail: {{
                       title: 'Xóa địa điểm',
                       message: 'Xóa địa điểm {s['site_name']}?',
                       confirmText: 'Xác nhận xóa',
-                      confirmUrl: '/sites/{s['id']}',
+                      confirmUrl: '/admin/sites/{s['id']}',
                       confirmMethod: 'DELETE',
                       confirmTarget: '#site-{s['id']}'
                     }}
@@ -92,7 +92,7 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
     checked = "checked" if site.get("is_active") else ""
     html = f'''<tr class="bg-white/5" id="site-{site_id}">
   <td colspan="5" class="p-5 border-b border-divider">
-    <form hx-post="/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML" class="flex flex-col gap-4">
+    <form hx-post="/admin/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML" class="flex flex-col gap-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên địa điểm *</label>
@@ -121,7 +121,7 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
       <div class="flex gap-3">
         <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
         <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-                hx-get="/sites" hx-target="#sites-list" hx-swap="innerHTML">✕ Hủy</button>
+                hx-get="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML">✕ Hủy</button>
       </div>
     </form>
   </td>

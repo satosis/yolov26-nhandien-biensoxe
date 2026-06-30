@@ -67,7 +67,7 @@
           Nếu một cửa cuốn sử dụng loại <code>tuya_local</code> nhưng không có cấu hình riêng, hệ thống sẽ sử dụng các giá trị này.
         </p>
 
-        <form action="/rolling_doors/tuya_global" method="post">
+        <form action="/admin/rolling_doors/tuya_global" method="post">
           <div class="row">
             <div class="col-12 col-md-4 mb-3">
               <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tuya Device ID</label>
@@ -99,7 +99,7 @@
   <div id="discovery-modal" class="hidden"
        style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1060;display:none;align-items:center;justify-content:center;padding:24px;"
        onclick="if(event.target===this) closeModal('discovery-modal')">
-    <div style="background:rgba(15,23,42,.55);" class="position-fixed" style="top:0;left:0;width:100%;height:100%;z-index:-1;"></div>
+    <div class="position-fixed" style="top:0;left:0;width:100%;height:100%;z-index:-1;background:rgba(15,23,42,.55);"></div>
     <div class="card shadow-lg w-100" style="max-width:640px;z-index:1;">
       <div id="discovery-searching" class="card-body p-5 text-center">
         <div class="mx-auto mb-4 d-flex align-items-center justify-content-center" style="width:72px;height:72px;position:relative;">
@@ -160,10 +160,10 @@
                     <span class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;">{{ door.site_name }}</span>
                   </div>
                   <div class="d-flex" style="gap:4px;">
-                    <button onclick="editDoor('{{ door|tojson|forceescape }}')" class="btn btn-sm btn-light" title="Sửa">
+                    <button data-door="{{ door|tojson|forceescape }}" onclick="editDoor(this.dataset.door)" class="btn btn-sm btn-light" title="Sửa">
                       <i class="fas fa-pen text-muted" style="font-size:11px;"></i>
                     </button>
-                    <form action="/rolling_doors/{{ door.id }}/delete" method="post" onsubmit="return confirm('Xóa cửa cuốn này?')" class="d-inline">
+                    <form action="/admin/rolling_doors/{{ door.id }}/delete" method="post" onsubmit="return confirm('Xóa cửa cuốn này?')" class="d-inline">
                       <button type="submit" class="btn btn-sm btn-light" title="Xóa">
                         <i class="fas fa-trash text-danger" style="font-size:11px;"></i>
                       </button>
@@ -191,8 +191,8 @@
                 </div>
 
                 <div class="d-flex" style="gap:8px;">
-                  <button onclick="controlDoor('{{ door.id }}', 'OPEN')" class="btn btn-outline-primary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">MỞ CỬA</button>
-                  <button onclick="controlDoor('{{ door.id }}', 'CLOSE')" class="btn btn-outline-secondary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">ĐÓNG CỬA</button>
+                  <button onclick="controlDoor(this, '{{ door.id }}', 'OPEN')" class="btn btn-outline-primary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">MỞ CỬA</button>
+                  <button onclick="controlDoor(this, '{{ door.id }}', 'CLOSE')" class="btn btn-outline-secondary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">ĐÓNG CỬA</button>
                 </div>
               </div>
             </div>
@@ -216,7 +216,7 @@
         </button>
       </div>
 
-      <form action="/rolling_doors" method="post" class="card-body">
+      <form action="/admin/rolling_doors" method="post" class="card-body">
         <input type="hidden" id="door-id" name="door_id">
 
         <div class="row">
@@ -301,7 +301,7 @@
             <div class="input-group">
               <input type="text" id="hunonic-device-id" name="hunonic_device_id" placeholder="ID từ danh sách" class="form-control">
               <div class="input-group-append">
-                <button type="button" onclick="fetchHunonicDevices()" class="btn btn-light border" style="font-size:10px;font-weight:700;letter-spacing:1px;">LẤY DANH SÁCH</button>
+                <button type="button" onclick="fetchHunonicDevices(this)" class="btn btn-light border" style="font-size:10px;font-weight:700;letter-spacing:1px;">LẤY DANH SÁCH</button>
               </div>
             </div>
           </div>
@@ -347,8 +347,7 @@
 </div>
 
 <script>
-  function controlDoor(doorId, action) {
-    const btn = event.target;
+  function controlDoor(btn, doorId, action) {
     const originalText = btn.innerText;
     btn.innerText = '...';
     btn.disabled = true;
@@ -356,7 +355,7 @@
     const formData = new FormData();
     formData.append('action', action);
 
-    fetch(`/rolling_doors/${doorId}/control`, {
+    fetch(`/admin/rolling_doors/${doorId}/control`, {
       method: 'POST',
       body: formData
     })
@@ -392,7 +391,7 @@
     document.getElementById('discovery-searching').style.display = '';
     document.getElementById('discovery-results').style.display = 'none';
 
-    fetch('/rolling_doors/scan', { method: 'POST' })
+    fetch('/admin/rolling_doors/scan', { method: 'POST' })
       .then(r => r.json())
       .then(data => {
         document.getElementById('discovery-searching').style.display = 'none';
@@ -486,7 +485,7 @@
     }
   }
 
-  function fetchHunonicDevices() {
+  function fetchHunonicDevices(btn) {
     const phone = document.getElementById('hunonic-phone').value;
     const pass = document.getElementById('hunonic-password').value;
 
@@ -495,7 +494,6 @@
       return;
     }
 
-    const btn = event.target;
     const originalText = btn.innerText;
     btn.innerText = 'ĐANG TẢI...';
     btn.disabled = true;
@@ -504,7 +502,7 @@
     formData.append('phone', phone);
     formData.append('password', pass);
 
-    fetch('/rolling_doors/hunonic/devices', {
+    fetch('/admin/rolling_doors/hunonic/devices', {
       method: 'POST',
       body: formData
     })

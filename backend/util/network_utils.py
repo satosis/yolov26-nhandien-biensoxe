@@ -342,17 +342,23 @@ def probe_onvif_unicast(ip: str, port: int = 80) -> dict | None:
         '<Types>dn:NetworkVideoTransmitter</Types></Probe></Body></Envelope>'
     )
 
+    sock = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(3)
         sock.sendto(probe_xml.encode(), (ip, WS_DISCOVERY_PORT))
         data, addr = sock.recvfrom(65535)
-        sock.close()
         xml_str = data.decode('utf-8', errors='ignore')
         return _parse_probe_match(xml_str, ip)
     except Exception as e:
         logger.debug(f"Unicast ONVIF probe to {ip}:{port} failed: {e}")
         return None
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
 def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
@@ -1020,8 +1026,8 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
                     onvif_port=dev.get('onvif_port'),
                     onvif_profiles=dev.get('onvif_profiles'),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to cache discovered camera asset (%s): %s", ip, e)
 
     return stats
 

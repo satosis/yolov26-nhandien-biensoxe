@@ -38,7 +38,7 @@
     </div>
   </div>
   {% else %}
-  <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan/confirm" class="d-flex flex-column" style="gap:16px;">
+  <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan/confirm" class="d-flex flex-column" style="gap:16px;">
     <input type="hidden" name="token" value="{{ token }}">
 
     {% for c in candidates %}

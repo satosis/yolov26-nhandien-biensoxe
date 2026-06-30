@@ -41,7 +41,7 @@
       <div class="card-header font-weight-bold">
         <i class="fas fa-plus-circle mr-1 text-primary"></i> Thêm xe mới
       </div>
-      <form method="post" action="/camera/vehicles">
+      <form method="post" action="/admin/vehicles">
         <div class="card-body">
           <div class="row">
             <div class="col-12 col-md-4 mb-3">
@@ -179,11 +179,11 @@
                               title: 'Xóa phương tiện',
                               message: 'Bạn chắc chắn muốn xóa xe {{ v.plate_number }}?',
                               confirmText: 'Xác nhận xóa',
-                              confirmUrl: '/camera/vehicles/{{ v.id }}/delete',
+                              confirmUrl: '/admin/vehicles/{{ v.id }}/delete',
                               confirmMethod: 'POST',
                               confirmTarget: '#vehicle-{{ v.id }}'
                             }
-                          }})"
+                          }))"
                           title="Xóa">
                     <i class="fas fa-trash text-danger"></i>
                   </button>
@@ -204,7 +204,6 @@
 
 </div>
 
-<script src="/static/js/tom-select.complete.min.js"></script>
 <script>
 var tsAdd, tsEdit, tsAddOwner, tsEditOwner;
 
@@ -246,7 +245,7 @@ function hideAddForm() {
 function openEdit(id, plate, owner, siteIds, note, fuel) {
   document.getElementById('add-vehicle-form').style.display = 'none';
   var f = document.getElementById('edit-vehicle-form');
-  document.getElementById('edit-vehicle-form-inner').action = '/camera/vehicles/' + id + '/edit';
+  document.getElementById('edit-vehicle-form-inner').action = '/admin/vehicles/' + id + '/edit';
   document.getElementById('edit-plate').value = plate;
   document.getElementById('edit-note').value = note;
   document.getElementById('edit-fuel').value = fuel || '';

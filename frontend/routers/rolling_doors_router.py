@@ -73,7 +73,7 @@ async def update_tuya_global(
     db.set_app_setting("TUYA_LOCAL_KEY", local_key.strip())
     db.set_app_setting("TUYA_IP", ip.strip())
     
-    return RedirectResponse(url="/rolling_doors", status_code=303)
+    return RedirectResponse(url="/admin/rolling_doors", status_code=303)
 
 @router.post("")
 async def upsert_rolling_door(
@@ -145,7 +145,7 @@ async def upsert_rolling_door(
         auto_close_delay_sec=auto_close_delay_sec or 300,
     )
     
-    return RedirectResponse(url="/rolling_doors", status_code=303)
+    return RedirectResponse(url="/admin/rolling_doors", status_code=303)
 
 @router.post("/scan")
 async def scan_doors(request: Request, user: dict = Depends(require_menu("rolling_doors"))):
@@ -195,7 +195,7 @@ async def delete_rolling_door(
     user: dict = Depends(require_menu("rolling_doors")),
 ):
     get_db().delete_rolling_door(door_id)
-    return RedirectResponse(url="/rolling_doors", status_code=303)
+    return RedirectResponse(url="/admin/rolling_doors", status_code=303)
 
 @router.post("/{door_id}/control")
 async def control_rolling_door(

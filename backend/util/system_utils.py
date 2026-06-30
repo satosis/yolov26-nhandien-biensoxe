@@ -10,6 +10,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Disk root differs by OS: '/' on POSIX, the system drive on Windows.
+_DISK_ROOT = "C:\\" if os.name == "nt" else "/"
+
 def get_system_stats():
     """
     Returns a dictionary of system resource usage.
@@ -25,7 +28,7 @@ def get_system_stats():
         try:
             stats["cpu_percent"] = psutil.cpu_percent(interval=None)
             stats["memory_percent"] = psutil.virtual_memory().percent
-            usage = psutil.disk_usage('/')
+            usage = psutil.disk_usage(_DISK_ROOT)
             stats["disk_percent"] = usage.percent
             if hasattr(os, 'getloadavg'):
                 stats["load_avg"] = list(os.getloadavg())
@@ -34,7 +37,7 @@ def get_system_stats():
     else:
         # Fallback for basic disk usage
         try:
-            total, used, free = shutil.disk_usage("/")
+            total, used, free = shutil.disk_usage(_DISK_ROOT)
             stats["disk_percent"] = (used / total) * 100
             if hasattr(os, 'getloadavg'):
                 stats["load_avg"] = list(os.getloadavg())

@@ -8,7 +8,7 @@ from pathlib import Path
 from frontend.deps import get_db, get_current_user, get_menu_context
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin/cms", tags=["cms"])
+router = APIRouter(prefix="/cms", tags=["cms"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 @router.get("/", response_class=HTMLResponse)

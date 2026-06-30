@@ -14,7 +14,7 @@
       {% endif %}
     </div>
     {% if unread_count > 0 %}
-    <button hx-post="/inquiries/read-all"
+    <button hx-post="/admin/inquiries/read-all"
             hx-confirm="Đánh dấu tất cả đã đọc?"
             hx-on::after-request="window.location.reload()"
             class="btn btn-sm btn-light border">
@@ -94,7 +94,7 @@
           {% if inq.is_read %}
           <i class="fas fa-check-circle text-success" style="font-size:1.1rem;"></i>
           {% else %}
-          <button hx-post="/inquiries/{{ inq.id }}/read"
+          <button hx-post="/admin/inquiries/{{ inq.id }}/read"
                   hx-target="#badge-{{ inq.id }}"
                   hx-swap="innerHTML"
                   title="Đánh dấu đã đọc"
@@ -143,7 +143,7 @@
 
             <div class="col-12 mb-3">
               <p class="text-muted mb-1" style="font-size:10px;text-transform:uppercase;letter-spacing:1px;">Ghi chú nội bộ</p>
-              <form hx-post="/inquiries/{{ inq.id }}/note"
+              <form hx-post="/admin/inquiries/{{ inq.id }}/note"
                     hx-swap="none"
                     hx-on::after-request="var el=document.getElementById('ns-{{ inq.id }}');el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),2000)"
                     class="d-flex" style="gap:8px;">
@@ -167,7 +167,7 @@
                     Zalo
                   </a>
                 </div>
-                <button hx-delete="/inquiries/{{ inq.id }}"
+                <button hx-delete="/admin/inquiries/{{ inq.id }}"
                         hx-target="#row-{{ inq.id }}"
                         hx-swap="outerHTML"
                         hx-confirm="Xóa tin tư vấn này?"

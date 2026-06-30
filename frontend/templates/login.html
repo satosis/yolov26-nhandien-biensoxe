@@ -38,7 +38,7 @@
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-tsl-faint text-[20px]">person</span>
             <input type="text" name="username" placeholder="Nhập tài khoản..." required autofocus
                    value="{{ last_username|default('admin', true) }}"
-                   class="w-full h-12 pl-11 pr-4 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
+                   class="w-full h-[52px] pl-11 pr-4 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
           </div>
         </div>
 
@@ -49,7 +49,7 @@
             <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-tsl-faint text-[20px]">lock</span>
             <input :type="show ? 'text' : 'password'" name="password" placeholder="••••••••" required
                    value="nhandien23456@"
-                   class="w-full h-12 pl-11 pr-11 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
+                   class="w-full h-[52px] pl-11 pr-11 rounded-xl border border-tsl-border bg-tsl-light/50 text-tsl-text placeholder-tsl-faint focus:outline-none focus:border-tsl-accent focus:ring-2 focus:ring-tsl-accent/20 transition-all">
             <button type="button" @click="show = !show" tabindex="-1"
                     class="absolute right-3 top-1/2 -translate-y-1/2 text-tsl-faint hover:text-tsl-accent transition-colors">
               <span class="material-symbols-outlined text-[20px]" x-text="show ? 'visibility_off' : 'visibility'">visibility</span>
@@ -57,16 +57,10 @@
           </div>
         </div>
 
-        <!-- Remember -->
-        <label class="flex items-center gap-2.5 cursor-pointer select-none">
-          <input type="checkbox" name="remember" {% if last_username %}checked{% endif %}
-                 class="w-[18px] h-[18px] rounded border-tsl-border text-tsl-accent focus:ring-tsl-accent/30 cursor-pointer"
-                 style="accent-color:#fd761a;">
-          <span class="text-sm text-tsl-muted">Ghi nhớ đăng nhập</span>
-        </label>
 
         <!-- Submit -->
-        <button type="submit" class="tsl-btn tsl-btn-primary tsl-btn-glow w-full !py-3.5 font-display font-semibold tracking-wide">
+        <button type="submit"
+                class="w-full h-[52px] inline-flex items-center justify-center gap-2 rounded-full bg-tsl-accent text-white font-display font-semibold tracking-wide shadow-sm transition-all duration-200 hover:bg-tsl-accent-hover hover:shadow-md hover:-translate-y-px active:translate-y-0">
           <span class="material-symbols-outlined text-[20px]">login</span>
           ĐĂNG NHẬP
         </button>

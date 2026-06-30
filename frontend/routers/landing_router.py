@@ -150,36 +150,64 @@ async def landing_co_tiet(request: Request):
 @router.get("/dich-vu", response_class=HTMLResponse)
 async def landing_services(request: Request):
     """Dịch vụ & giải pháp — build-to-suit, vận hành, pháp lý FDI, hạ tầng."""
+    raw_settings = get_db().get_landing_settings()
+    settings = {
+        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
+        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
+        "gtm_id": raw_settings.get("GTM_ID", ""),
+        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
+    }
     return templates.TemplateResponse(
         "pages/landing_services.html",
-        {"request": request, "source_page": "services", "user": get_optional_user(request)},
+        {"request": request, "settings": settings, "source_page": "services", "user": get_optional_user(request)},
     )
 
 
 @router.get("/du-an", response_class=HTMLResponse)
 async def landing_projects(request: Request):
     """Tổng quan nhà xưởng — hub liệt kê KCN Trung Hà & Cổ Tiết."""
+    raw_settings = get_db().get_landing_settings()
+    settings = {
+        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
+        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
+        "gtm_id": raw_settings.get("GTM_ID", ""),
+        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
+    }
     return templates.TemplateResponse(
         "pages/landing_projects.html",
-        {"request": request, "source_page": "warehouse", "user": get_optional_user(request)},
+        {"request": request, "settings": settings, "source_page": "warehouse", "user": get_optional_user(request)},
     )
 
 
 @router.get("/xecau", response_class=HTMLResponse)
 async def landing_crane(request: Request):
     """Spoke (legacy) — Dịch vụ xe cẩu. Giao diện gốc (landing.css), tách khỏi Tailwind."""
+    raw_settings = get_db().get_landing_settings()
+    settings = {
+        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
+        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
+        "gtm_id": raw_settings.get("GTM_ID", ""),
+        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
+    }
     return templates.TemplateResponse(
         "pages/landing_crane.html",
-        {"request": request, "source_page": "crane", "user": get_optional_user(request)},
+        {"request": request, "settings": settings, "source_page": "crane", "user": get_optional_user(request)},
     )
 
 
 @router.get("/kiem-dinh-can", response_class=HTMLResponse)
 async def landing_scale(request: Request):
     """Spoke (legacy) — Kiểm định cân & cho thuê quả cân. Giao diện gốc (landing.css)."""
+    raw_settings = get_db().get_landing_settings()
+    settings = {
+        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
+        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
+        "gtm_id": raw_settings.get("GTM_ID", ""),
+        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
+    }
     return templates.TemplateResponse(
         "pages/landing_scale.html",
-        {"request": request, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
+        {"request": request, "settings": settings, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
     )
 
 

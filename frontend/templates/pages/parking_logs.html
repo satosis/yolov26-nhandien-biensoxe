@@ -6,11 +6,14 @@
 <!-- Filter bar -->
 <div class="card mb-3">
   <div class="card-body py-2 d-flex align-items-center justify-content-end" style="gap:8px;">
-    <input type="date" id="filter-date" class="form-control form-control-sm" style="width:auto;">
+    <input type="date" id="filter-date" value="{{ filter_date or '' }}" class="form-control form-control-sm" style="width:auto;">
     <button class="btn btn-primary btn-sm"
-      hx-get="/parking/logs" hx-target="#logs-table" hx-swap="innerHTML" hx-include="#filter-date">
+      onclick="const d=document.getElementById('filter-date').value; window.location='/admin/parking_logs'+(d?('?date='+d):'');">
       <i class="bx bx-search mr-1"></i>Lọc
     </button>
+    {% if filter_date %}
+    <a href="/admin/parking_logs" class="btn btn-light btn-sm"><i class="bx bx-x"></i></a>
+    {% endif %}
   </div>
 </div>
 

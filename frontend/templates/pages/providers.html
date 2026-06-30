@@ -21,7 +21,7 @@
   <div class="card mb-4 d-none" id="add-provider-form">
     <div class="card-body">
       <h6 class="card-title font-weight-bold mb-3">Thêm nhà cung cấp mới</h6>
-      <form method="POST" action="/providers">
+      <form method="POST" action="/admin/providers">
         <div class="row">
           <div class="col-md-6 mb-3">
             <label class="font-weight-medium" style="font-size:13px;">Provider Key * <small class="text-muted">(e.g. imou, hikvision)</small></label>
@@ -120,7 +120,7 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <form method="POST" action="/providers/{{ p.provider_key }}/toggle">
+                <form method="POST" action="/admin/providers/{{ p.provider_key }}/toggle">
                   <button type="submit" class="btn btn-sm {% if p.is_active %}btn-success{% else %}btn-secondary{% endif %}" style="font-size:11px;padding:2px 10px;">
                     {% if p.is_active %}Bật{% else %}Tắt{% endif %}
                   </button>
@@ -130,12 +130,15 @@
                 <div class="d-flex justify-content-end" style="gap:8px;">
                   <a href="/admin/providers/{{ p.provider_key }}/api-keys"
                      title="Cấu hình API Keys" class="btn btn-sm btn-light">⚙️</a>
+                  <button type="button" title="Sửa thông tin"
+                          onclick="document.getElementById('edit-provider-row-{{ p.provider_key }}').classList.toggle('d-none')"
+                          class="btn btn-sm btn-light">✏️</button>
                   <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                               detail: {
                                 title: 'Xóa nhà cung cấp',
                                 message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
                                 confirmText: 'Xác nhận xóa',
-                                confirmUrl: '/providers/{{ p.provider_key }}',
+                                confirmUrl: '/admin/providers/{{ p.provider_key }}',
                                 confirmMethod: 'DELETE',
                                 reload: true
                               }
@@ -149,7 +152,7 @@
             <tr id="edit-provider-row-{{ p.provider_key }}" class="d-none">
               <td colspan="6" class="p-0">
                 <div class="card-body bg-light border-top border-bottom">
-                  <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/providers">
+                  <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/admin/providers">
                     <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
                     <div class="row">
                       <div class="col-md-6 mb-3">

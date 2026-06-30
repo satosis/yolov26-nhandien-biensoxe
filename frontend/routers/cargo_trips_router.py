@@ -281,7 +281,7 @@ async def cargo_trips_page(
 
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
-        return RedirectResponse(url="/camera/vehicles", status_code=303)
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     total = db.count_cargo_trips(vehicle_id)
     total_pages = max(1, math.ceil(total / PER_PAGE))
@@ -306,7 +306,7 @@ async def cargo_trips_page(
     ctx["page"] = page
     ctx["total_pages"] = total_pages
     ctx["total"] = total
-    ctx["page_base_url"] = f"/camera/vehicles/{vehicle_id}/cargo?page="
+    ctx["page_base_url"] = f"/admin/vehicles/{vehicle_id}/cargo?page="
     ctx["fmt_currency"] = _fmt_currency
     ctx["now_iso"] = datetime.now().strftime("%Y-%m-%dT%H:%M")
 
@@ -473,7 +473,7 @@ async def add_cargo_trip_page(
     ctx["current_menu"] = "vehicles"
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
-        return RedirectResponse(url="/camera/vehicles", status_code=303)
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
     
     ctx["vehicle"] = vehicle
     # Provide a default now ISO for the form
@@ -498,7 +498,7 @@ async def add_cargo_trip(
     db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
-        return RedirectResponse(url="/camera/vehicles", status_code=303)
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     db.add_cargo_trip(
         vehicle_id=vehicle_id,
@@ -512,7 +512,7 @@ async def add_cargo_trip(
         freight_revenue=_num(freight_revenue),
         distance_km=_num(distance_km),
     )
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
 @router.get("/{vehicle_id}/cargo/{trip_id}/edit")
@@ -529,7 +529,7 @@ async def edit_cargo_trip_page(
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     trip = db.get_cargo_trip(trip_id)
     if not vehicle or not trip:
-        return RedirectResponse(url="/camera/vehicles", status_code=303)
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     # Normalize dates for HTML datetime-local input
     for dt_col in ("departure_time", "return_time"):
@@ -569,7 +569,7 @@ async def edit_cargo_trip(
         freight_revenue=_num(freight_revenue),
         distance_km=_num(distance_km),
     )
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
 @router.post("/{vehicle_id}/cargo/{trip_id}/delete")
@@ -579,7 +579,7 @@ async def delete_cargo_trip(
     user: dict = Depends(require_menu("vehicles")),
 ):
     get_db().delete_cargo_trip(trip_id)
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
 @router.post("/{vehicle_id}/cargo/scan")
@@ -592,7 +592,7 @@ async def scan_handwriting(
     db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
-        return RedirectResponse(url="/camera/vehicles", status_code=303)
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     image_bytes = await image.read()
 
@@ -604,7 +604,7 @@ async def scan_handwriting(
         )
     except Exception as e:
         logger.error("handwriting_ocr failed: %s", e)
-        return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+        return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
 
     token = secrets.token_urlsafe(24)
     _save_scan_review(token, {
@@ -615,7 +615,7 @@ async def scan_handwriting(
         "content_type": image.content_type or "",
         "scan_result": scan_result,
     })
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo/scan/review?token={token}", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo/scan/review?token={token}", status_code=303)
 
 
 @router.get("/{vehicle_id}/cargo/scan/review")
@@ -633,7 +633,7 @@ async def review_cargo_scan(
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     review = _load_scan_review(token)
     if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
-        return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+        return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
 
     scan_result = review["scan_result"]
     ctx["vehicle"] = vehicle
@@ -662,7 +662,7 @@ async def confirm_cargo_scan(
     db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
-        return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+        return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
 
     saved = 0
     skipped = 0
@@ -720,4 +720,4 @@ async def confirm_cargo_scan(
             logger.warning("Failed to save reviewed cargo scan row: %s | row=%s", e, idx)
 
     _delete_scan_review(token)
-    return RedirectResponse(url=f"/camera/vehicles/{vehicle_id}/cargo?scanned={saved}&scan_skipped={skipped}", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scanned={saved}&scan_skipped={skipped}", status_code=303)

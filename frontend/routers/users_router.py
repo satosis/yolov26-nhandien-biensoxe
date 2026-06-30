@@ -82,8 +82,8 @@ async def create_user(
     )
     if not ok:
         logger.warning("create_user failed: %s", msg)
-        return RedirectResponse(url=f"/users?error={urllib.parse.quote_plus(msg)}", status_code=303)
-    return RedirectResponse(url="/users", status_code=303)
+        return RedirectResponse(url=f"/admin/users?error={urllib.parse.quote_plus(msg)}", status_code=303)
+    return RedirectResponse(url="/admin/users", status_code=303)
 
 
 @router.post("/{user_id}/edit")
@@ -117,8 +117,8 @@ async def edit_user(
     )
     if not ok:
         logger.warning("update_user failed for user_id=%s", user_id)
-        return RedirectResponse(url=f"/users?error={urllib.parse.quote_plus('Không thể cập nhật người dùng')}", status_code=303)
-    return RedirectResponse(url="/users", status_code=303)
+        return RedirectResponse(url=f"/admin/users?error={urllib.parse.quote_plus('Không thể cập nhật người dùng')}", status_code=303)
+    return RedirectResponse(url="/admin/users", status_code=303)
 
 
 from .kyc_router import invalidate_face_cache
@@ -146,7 +146,7 @@ async def delete_user(
     ok = get_db().delete_user(user_id)
     if not ok:
         logger.warning("delete_user failed for user_id=%s", user_id)
-    return RedirectResponse(url="/users", status_code=303)
+    return RedirectResponse(url="/admin/users", status_code=303)
 
 
 @router.post("/{user_id}/face")
@@ -165,7 +165,7 @@ async def upload_face(
     if not target_user:
         if "application/json" in request.headers.get("accept", "") or request.headers.get("x-requested-with") == "XMLHttpRequest":
             return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
-        return RedirectResponse(url="/users?error=user_not_found", status_code=303)
+        return RedirectResponse(url="/admin/users?error=user_not_found", status_code=303)
 
     # Validate angle
     if angle not in ["front", "left", "right", "up", "down"]:

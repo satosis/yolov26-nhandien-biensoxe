@@ -22,7 +22,7 @@
       if (!this.selected.length || this.busy) return;
       if (!confirm('Xóa vĩnh viễn ' + this.selected.length + ' biển số đã chọn khỏi DB? Không thể hoàn tác.')) return;
       this.busy = true;
-      await fetch('/camera/pending_plates/bulk-reject', {
+      await fetch('/admin/pending_plates/bulk-reject', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: this.selected })
       });
@@ -142,7 +142,7 @@
                               title: 'Từ chối biển số',
                               message: 'Bạn chắc chắn muốn từ chối biển số {{ p.plate_norm or '???' }}? Hành động này không thể hoàn tác.',
                               confirmText: 'Xác nhận từ chối',
-                              confirmUrl: '/camera/pending_plates/{{ p.pending_id }}/reject',
+                              confirmUrl: '/admin/pending_plates/{{ p.pending_id }}/reject',
                               confirmTarget: '#row-{{ p.pending_id }}'
                             }
                           }))">❌</button>

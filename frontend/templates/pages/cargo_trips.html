@@ -21,7 +21,7 @@
     </div>
     <div class="d-flex align-items-center flex-wrap" style="gap:8px;" x-data="{ scanning: false }">
       <!-- iPhone/Safari keeps the full camera photo when using file capture. -->
-      <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
+      <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
             enctype="multipart/form-data" class="d-inline"
             @submit="scanning = true">
         <label class="btn btn-secondary btn-sm mb-0" style="cursor:pointer;">
@@ -32,7 +32,7 @@
         </label>
       </form>
 
-      <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/scan"
+      <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
             enctype="multipart/form-data" class="d-inline"
             @submit="scanning = true">
         <label class="btn btn-light btn-sm mb-0" style="cursor:pointer;">
@@ -114,9 +114,9 @@
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa chuyến hàng',
-                              message: 'Xóa chuyến {{ t.departure_time[11:16] }} - {{ t.departure_time[8:10] }}/{{ t.departure_time[5:7] }}?',
+                              message: 'Xóa chuyến {{ (t.departure_time or "")[11:16] }} - {{ (t.departure_time or "")[8:10] }}/{{ (t.departure_time or "")[5:7] }}?',
                               confirmText: 'Xác nhận xóa',
-                              confirmUrl: '/camera/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/delete',
+                              confirmUrl: '/admin/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/delete',
                               confirmMethod: 'POST',
                               reload: true
                             }
@@ -127,7 +127,7 @@
             {% endfor %}
             {% if not trips %}
             <tr>
-              <td colspan="9" class="text-center text-muted py-5" style="font-size:13px;">Chưa có chuyến hàng nào.</td>
+              <td colspan="7" class="text-center text-muted py-5" style="font-size:13px;">Chưa có chuyến hàng nào.</td>
             </tr>
             {% endif %}
           </tbody>

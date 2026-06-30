@@ -217,7 +217,8 @@ async def detection_page(request: Request, user: dict = Depends(require_menu("de
 
 
 @router.post("/api/detect")
-async def detect_image(request: Request, file: UploadFile = File(...)):
+async def detect_image(request: Request, file: UploadFile = File(...),
+                       user: dict = Depends(require_menu("detection"))):
     """Accept an image, run plate detection + OCR, return JSON results."""
     global _detection_request_count, _last_face_results, _last_face_ts
     _detection_request_count += 1
@@ -304,7 +305,11 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                                 text, ocr_conf, p_type = cached[0], cached[1], cached[2]
                             # else: text stays "", ocr_conf stays 0.0 — will show "(BIỂN SỐ ?)" until OCR finishes
 
-                    status = "unknown"
+                    # No OCR text => no readable plate. Do NOT classify as "unknown"
+                    # ("Xe lạ") — a plate-shaped box with no recognizable number is not a
+                    # stranger vehicle. Use a neutral status so the UI shows it as
+                    # "Không rõ biển số" instead of flagging/logging it as Xe lạ.
+                    status = "no_plate"
                     owner_name = "unknown"
                     if text:
                         # Use centralized normalization to handle spaces, dashes, and dots consistently
@@ -313,6 +318,8 @@ async def detect_image(request: Request, file: UploadFile = File(...)):
                         if wl:
                             status = "whitelist"
                             owner_name = wl.get("owner_name", "Whitelist")
+                        else:
+                            status = "unknown"
 
                     if status == "unknown" and text:
                         # Manual detection: Skip the in-memory cache and let the database handle deduplication.

@@ -3,8 +3,6 @@ import os
 import sys
 import ssl
 import certifi
-import asyncio
-import logging
 import decimal
 import json
 
@@ -29,82 +27,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from frontend.deps import get_optional_user, get_menu_context
 
-_discovery_logger = logging.getLogger("discovery")
-
-
-def _run_background_discovery():
-    """Synchronous wrapper — full ONVIF + Dahua + Cloud discovery (slow path)."""
-    try:
-        from backend.util.network_utils import discover_and_update_all_cameras
-        result = discover_and_update_all_cameras()
-        updated = result.get('updated', 0)
-        registered = result.get('auto_registered', 0)
-        if updated > 0 or registered > 0:
-            _discovery_logger.info(
-                f"Full discovery: updated={updated} IP(s), auto_registered={registered}"
-            )
-    except Exception as e:
-        _discovery_logger.error(f"Full discovery error: {e}")
-
-
-def _run_arp_discovery():
-    """Synchronous wrapper — ARP table scan only (fast path, zero network cost)."""
-    try:
-        from backend.util.network_utils import discover_from_arp, auto_register_discovered_cameras
-        from backend.core.database import DatabaseManager
-        db = DatabaseManager()
-        candidates = discover_from_arp()
-        if candidates:
-            result = auto_register_discovered_cameras(candidates, db)
-            if result['updated'] > 0 or result['registered'] > 0:
-                _discovery_logger.info(
-                    f"ARP scan: updated={result['updated']}, registered={result['registered']}"
-                )
-    except Exception as e:
-        _discovery_logger.error(f"ARP discovery error: {e}")
-
-
-async def _periodic_discovery():
-    """Two-speed camera discovery loop.
-    Fast (every 60s): ARP table scan — zero network cost, instant.
-    Slow (every 300s): Full ONVIF + Dahua UDP + Cloud API — multicast/TCP.
-    """
-    await asyncio.sleep(30)  # Wait for app to fully start
-    fast_cycle = 0
-    fast_interval, slow_interval = 60, 300
-
-    # Read intervals from DB once at startup
-    try:
-        from frontend.deps import get_db
-        db = get_db()
-        fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
-        slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
-    except Exception:
-        pass
-
-    while True:
-        slow_every_n = max(1, slow_interval // fast_interval)
-
-        try:
-            if fast_cycle % slow_every_n == 0:
-                _discovery_logger.info("Running full discovery (slow path)...")
-                await asyncio.to_thread(_run_background_discovery)
-                # Refresh intervals on slow cycle (settings may have changed)
-                try:
-                    from frontend.deps import get_db
-                    db = get_db()
-                    fast_interval = int(db.get_app_setting("ARP_SCAN_INTERVAL_SEC", "60") or "60")
-                    slow_interval = int(db.get_app_setting("DISCOVERY_INTERVAL_SEC", "300") or "300")
-                except Exception:
-                    pass
-            else:
-                await asyncio.to_thread(_run_arp_discovery)
-        except Exception as e:
-            _discovery_logger.error(f"Discovery cycle error: {e}")
-
-        fast_cycle += 1
-        await asyncio.sleep(fast_interval)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -122,9 +44,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Parking Camera", lifespan=lifespan)
 
+import secrets as _secrets
+_SESSION_SECRET = os.environ.get("SESSION_SECRET")
+if not _SESSION_SECRET:
+    _SESSION_SECRET = _secrets.token_urlsafe(32)
+    import logging as _lg
+    _lg.getLogger("frontend").warning(
+        "SESSION_SECRET not set — using a random key (sessions reset on restart). "
+        "Set SESSION_SECRET in .env for stable, secure sessions."
+    )
 app.add_middleware(
     SessionMiddleware,
-    secret_key="parking-camera-session",
+    secret_key=_SESSION_SECRET,
     session_cookie="parking_session",
     max_age=60 * 60 * 24 * 7,
     https_only=False,
@@ -149,6 +80,35 @@ class StaticCacheMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(StaticCacheMiddleware)
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+
+
+# Kill-switch service worker. This app does NOT use a service worker, but some
+# browsers still have a stale SW registered for localhost:8000 (from a previous
+# app/version on this port) and keep re-fetching /sw.js on every navigation →
+# floods the log with 404s. Serving this self-unregistering SW makes the browser
+# update to a no-op worker that unregisters itself and clears caches, stopping it.
+from starlette.responses import Response as _Response
+
+_KILL_SW_JS = """
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch (e) {}
+    try { await self.registration.unregister(); } catch (e) {}
+    const cs = await self.clients.matchAll({ type: 'window' });
+    cs.forEach((c) => { try { c.navigate(c.url); } catch (e) {} });
+  })());
+});
+""".strip()
+
+
+@app.get("/sw.js")
+async def kill_service_worker():
+    return _Response(
+        content=_KILL_SW_JS,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 from backend.core import config as cfg
 os.makedirs(cfg.KNOWN_FACES_DIR, exist_ok=True)
@@ -196,13 +156,6 @@ from frontend.routers.cms_router import router as cms_router
 from frontend.notifications import manager
 from fastapi import WebSocket, WebSocketDisconnect
 
-# Routers to be prefixed with /camera
-CAMERA_PAGE_KEYS = {
-    "detection", "cameras", "vehicles", "strangers", 
-    "pending_plates", "parking_dashboard", "parking_logs", 
-    "parking_analytics", "recordings"
-}
-
 # All admin routers under /admin prefix
 for r in [detection_router, cameras_router, vehicles_router,
           cargo_trips_router, strangers_router, pending_plates_router,
@@ -214,6 +167,12 @@ for r in [detection_router, cameras_router, vehicles_router,
 # Auth router at root so /login remains /login
 app.include_router(auth_router)
 app.include_router(landing_router)
+
+
+@app.get("/admin")
+async def admin_root():
+    """Bare /admin → default admin landing page."""
+    return RedirectResponse("/admin/detection", status_code=303)
 
 @app.websocket("/ws/notifications")
 async def websocket_endpoint(websocket: WebSocket):

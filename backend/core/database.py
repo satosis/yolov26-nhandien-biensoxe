@@ -10,7 +10,6 @@ import logging
 import re
 import time
 import uuid
-import secrets
 from dotenv import load_dotenv
 from backend.core.kyc_manager import KYCManager
 
@@ -324,13 +323,15 @@ class DatabaseManager:
                     ''',
                     (status, confirmed_by, pending_id)
                 )
-                if cursor.rowcount > 0:
-                    logger.info(f"Updated pending record {pending_id} to {status}")
-                    self._trigger_ai_reload()
-                    return True
-                else:
-                    logger.warning(f"No pending record found with ID {pending_id} or status not 'pending'")
-                    return False
+                updated = cursor.rowcount > 0
+            conn.commit()
+        if updated:
+            logger.info(f"Updated pending record {pending_id} to {status}")
+            self._trigger_ai_reload()
+            return True
+        else:
+            logger.warning(f"No pending record found with ID {pending_id} or status not 'pending'")
+            return False
 
     def _trigger_ai_reload(self):
         """Touch the .reload signal file to force AI processes to refresh their caches."""
@@ -399,8 +400,10 @@ class DatabaseManager:
                     (status, confirmed_by, plate_norm)
                 )
                 res = cursor.rowcount > 0
-                if res: self._trigger_ai_reload()
-                return res
+            conn.commit()
+        if res:
+            self._trigger_ai_reload()
+        return res
     def log_event(self, event_type, description, trucks, people):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -452,14 +455,19 @@ class DatabaseManager:
         return row["count"] if row else 0
 
     def delete_old_recordings(self, days: int):
-        """Find and remove recordings older than 'days' days, including physical files."""
+        """Find and remove recordings older than 'days' days, including physical files.
+        Rows whose file is under an active legal_hold are skipped (never deleted)."""
         query = "SELECT id, file_path, thumbnail_path FROM video_recordings WHERE start_time < NOW() - (%s * INTERVAL '1 day')"
         rows = self._execute_query(query, (days,), fetchall=True)
         if not rows:
             return 0
-            
+
         deleted_count = 0
         for row in rows:
+            # Respect legal hold — never delete protected evidence
+            if row["file_path"] and self.is_legal_hold(row["file_path"]):
+                continue
+
             # 1. Delete physical files
             for path_key in ["file_path", "thumbnail_path"]:
                 path = row[path_key]
@@ -468,12 +476,43 @@ class DatabaseManager:
                         os.remove(path)
                     except Exception as e:
                         logger.error(f"Failed to delete recording file {path}: {e}")
-            
+
             # 2. Delete DB record
             self.delete("video_recordings", {"id": row["id"]})
             deleted_count += 1
-            
+
         return deleted_count
+
+    def delete_old_stranger_logs(self, days: int):
+        """Remove stranger_logs older than 'days' days, including face snapshot files.
+        Rows whose image is under an active legal_hold are skipped."""
+        query = "SELECT id, image_path FROM stranger_logs WHERE event_time < NOW() - (%s * INTERVAL '1 day')"
+        rows = self._execute_query(query, (days,), fetchall=True)
+        if not rows:
+            return 0
+
+        deleted_count = 0
+        for row in rows:
+            path = row.get("image_path")
+            if path and self.is_legal_hold(path):
+                continue
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    logger.error(f"Failed to delete stranger image {path}: {e}")
+            self.delete("stranger_logs", {"id": row["id"]})
+            deleted_count += 1
+
+        return deleted_count
+
+    def delete_old_status_logs(self, days: int):
+        """Remove camera_status_log entries older than 'days' days (DB only, no files)."""
+        rows = self._execute_query(
+            "DELETE FROM camera_status_log WHERE logged_at < NOW() - (%s * INTERVAL '1 day') RETURNING id",
+            (days,), fetchall=True
+        )
+        return len(rows) if rows else 0
     def get_stats(self):
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
@@ -579,27 +618,6 @@ class DatabaseManager:
                 return dict(row) if row else None
     # --- Remember Token (secure "remember me", stored in users table) ---
 
-    def create_remember_token(self, user_id: int, days: int = 7) -> str | None:
-        """Create a secure remember token for auto-login. Returns token string."""
-        token = secrets.token_urlsafe(32)
-        self._execute_query(
-            "UPDATE users SET remember_token = %s, remember_token_expires = NOW() + (%s * INTERVAL '1 day') WHERE id = %s",
-            (token, days, user_id), commit=True
-        )
-        return token
-    def get_user_by_remember_token(self, token: str) -> dict | None:
-        """Lookup user by valid (non-expired) remember token."""
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute(
-                    '''SELECT u.*, r.role_name as role
-                       FROM users u
-                       JOIN roles r ON u.role_id = r.id
-                       WHERE u.remember_token = %s AND u.remember_token_expires > NOW()''',
-                    (token,)
-                )
-                row = cursor.fetchone()
-                return dict(row) if row else None
     def delete_remember_tokens(self, user_id: int):
         """Clear remember token for a user (logout / password change)."""
         self._execute_query(
@@ -717,7 +735,8 @@ class DatabaseManager:
                            chat_id=EXCLUDED.chat_id''',
                     (bot_name, token, chat_id)
                 )
-                return True
+            conn.commit()
+        return True
     def delete_telegram_bot(self, bot_name) -> bool:
         return self.delete("telegram_bots", {"bot_name": bot_name})
 
@@ -1250,15 +1269,19 @@ class DatabaseManager:
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 # Use regexp_replace to match stored plate_norm robustly
+                # Dedup + 60s cooldown: skip if still pending, OR if this plate was
+                # acted on (approved/rejected) within the last 60s — otherwise a
+                # rejected plate would re-insert on the very next frame, forever.
                 cursor.execute("""
-                    SELECT pending_id FROM pending_plates 
-                    WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s 
-                    AND LOWER(TRIM(status)) = 'pending' 
+                    SELECT pending_id FROM pending_plates
+                    WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s
+                    AND (LOWER(TRIM(status)) = 'pending'
+                         OR confirmed_at_utc > NOW() - INTERVAL '60 seconds')
                     LIMIT 1
                 """, (clean_plate,))
-                
+
                 if cursor.fetchone():
-                    logger.info(f"Plate {plate_norm} already pending (normalized match: {clean_plate}). Skipping insertion.")
+                    logger.info(f"Plate {plate_norm} pending or in 60s cooldown (match: {clean_plate}). Skipping.")
                     return
 
                 # 2. Insert new record
@@ -1564,18 +1587,25 @@ class DatabaseManager:
                 query += " GROUP BY s.id, s.site_name, s.total_slots ORDER BY s.site_name"
                 cursor.execute(query, params)
                 return [dict(r) for r in cursor.fetchall()]
-    def get_parking_history(self, limit=50) -> list[dict]:
+    def get_parking_history(self, limit=50, date_filter=None) -> list[dict]:
+        where = ""
+        params = []
+        if date_filter:
+            where = "WHERE vs.entry_time::date = %s"
+            params.append(date_filter)
+        params.append(limit)
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT vs.*, s.site_name, c_in.camera_name as cam_in, c_out.camera_name as cam_out
                     FROM vehicle_sessions vs
                     LEFT JOIN sites s ON vs.site_id = s.id
-                    LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id::text
-                    LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id::text
+                    LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id
+                    LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id
+                    {where}
                     ORDER BY vs.entry_time DESC
                     LIMIT %s
-                """, (limit,))
+                """, params)
                 return [dict(r) for r in cursor.fetchall()]
     def get_whitelist_vehicles(self, site_id=None, limit=None, offset=None) -> list[dict]:
         with self._get_connection() as conn:

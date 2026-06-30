@@ -157,8 +157,7 @@ Hệ thống giám sát bãi giữ xe thông minh chạy trên **Orange Pi 4 Pro
 - PTZ camera control qua ONVIF + Imou Open API
 - Quản lý toàn bộ hệ thống qua FastAPI + Jinja2 + HTMX + Tailwind CSS
 - Nhận diện khuôn mặt (InsightFace buffalo_sc)
-- Phát hiện người lạ (stranger detection, threshold 0.25)
-- Remember token login (, localStorage + DB)
+- Phát hiện người lạ (stranger detection, threshold 0.40)
 - Camera provider management (DB-driven, không hardcode)
 - RBAC phân quyền menu (DB-driven)
 - Multi-site management (nhiều bãi xe, mỗi site có zone/camera riêng)
@@ -206,7 +205,7 @@ RTSP Camera (Imou 2K)
 9. **KHÔNG xóa whitelist biển số** mà không backup
 10. **KHÔNG thay đổi `LINE_Y_RATIO`** mà không test lại TripwireTracker
 11. **KHÔNG sửa Dockerfile** mà không rebuild: `docker compose up -d --build`
-12. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng RetentionManager
+12. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng `RetentionManager` (`backend/core/retention_manager.py`)
 13. **KHÔNG sửa `core/config.py`** mà không chạy `python3 -m py_compile core/config.py`
 
 ## Cấu trúc folder
@@ -217,7 +216,7 @@ yolov26-nhandien-biensoxe/
 ├── CLAUDE.md                  # File này — CẬP NHẬT khi release tính năng mới
 ├── init.sql                   # PostgreSQL schema (source of truth)
 ├── requirements.txt           # Python deps (backend/requirements.txt)
-├── docker-compose.yml         # Stack: ai_core (context: .), postgres
+├── docker-compose.yml         # Chỉ service ai_core; dùng chung 1 Postgres ở host localhost:5432 (host.docker.internal trong container)
 │
 ├── backend/                    # Core logic and services
 │   ├── main.py                # Entry point chính cho container & script
@@ -261,11 +260,10 @@ IMOU_OPEN_DEVICE_ID=
 
 ## Tính năng đã release
 
-- **Remember Token Login**: token , localStorage + DB, không lưu password
 - **Camera Provider Management**: DB-driven, API keys + email lưu trong app_settings
 - **Door Provider Management**: 7 nhà cung cấp cửa cuốn (Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT)
 - **Tuya Door Control**: tinytuya local SDK, toggle relay DPS "1"
-- **Stranger Detection**: InsightFace, threshold 0.25, cooldown 60s, log vào DB
+- **Stranger Detection**: InsightFace, threshold 0.40, cooldown 60s, log vào DB
 - **Unknown Plate → Pending**: biển số không trong whitelist tự động vào pending_plates (cooldown 60s)
 - **OCR Active Learning**: confidence 0.3-0.7 lưu sample, admin review qua FastAPI webapp "OCR Review"
 - **RBAC Menu System**: menu_registry.py → DB roles → allowed_menus
@@ -279,12 +277,14 @@ IMOU_OPEN_DEVICE_ID=
 - **Dynamic Provider API Keys**: mỗi nhà cung cấp camera có bộ key kết nối riêng (PROVIDER_DEFAULT_KEYS), UI tự render dynamic inputs
 - **Frontend**: FastAPI + Jinja2 + HTMX (frontend/, port 8000)
 - **Admin UI — Bootstrap "Opatix" (light theme)**: toàn bộ giao diện admin được viết lại theo phong cách module admin của project `D:\project\laravel9-congtyquangcao` (`/admin`). Shell mới: `base.html` (Bootstrap 4.5 + theme.min.css + admin-custom.css + Inter font + Boxicons/FontAwesome), `layout.html` (layout-wrapper / topbar 40px / vertical-menu 220px / main-content / page-content / footer), `partials/sidebar.html` (nhóm menu thu gọn dạng accordion + site selector; link trỏ `/admin/<key>` đúng router; group active tự mở khi load). **Accordion expand chạy bằng handler jQuery tự viết trong `theme.js`** (không phụ thuộc plugin metisMenu — plugin hay fail khi menu bị simplebar bọc). `deps.get_menu_context` strip prefix `admin/` để `current_menu` khớp menu key (highlight + auto-expand), `partials/header.html` (topbar logo + toggle `#vertical-menu-btn` + user dropdown). Assets ở `frontend/static/admin-assets/` (bootstrap/icons/theme/metismenu/simplebar/waves/theme.js + admin-custom.css). **Bootstrap 4** (dùng `data-toggle`/`dropdown-menu-right`/`mr-`/`ml-`/`badge badge-*`, KHÔNG dùng cú pháp BS5). 28 trang admin đã convert từ dark-Tailwind sang `card`/`table-cinema`/`.kpi-card`/`btn btn-*`/`form-control`/`badge badge-*` — **chỉ đổi giao diện, giữ nguyên 100% logic/data/HTMX/Alpine/URL**. **`login.html` KHÔNG theo Opatix** — nó extends `landing_base.html` để giống trang chủ public (theme THÉP SƠN LÂM, Tailwind `user-output.css`, tokens `tsl-*`, font Outfit, có header/footer landing). Sau khi sửa login phải rebuild: `cd frontend && npx @tailwindcss/cli -i ./static/user/css/user-input.css -o ./static/user/css/user-output.css --minify`. Các trang public `landing_*` (THÉP SƠN LÂM) vẫn dùng Tailwind riêng, KHÔNG đụng tới. Global modal confirm/image + toast (qua toastr) trong `base.html`.
-- **Auto-Discovery Pipeline**: ARP scan (zero-cost) + MAC OUI vendor ID + ONVIF unicast probe + auto-register. Two-speed: fast (60s ARP) + slow (300s full ONVIF/Dahua/Cloud)
+- **GOTCHA Bootstrap 4 + Alpine `x-show`**: các utility `.d-flex`/`.d-none`/`.d-block` của BS4 là `!important` → đè lên `display:none` inline mà Alpine `x-show` đặt khi ẩn → phần tử `x-show` (kể cả modal overlay full-screen z-index 10000+) **không ẩn được, chặn mọi click**. Fix toàn cục trong `base.html`: `[style*="display: none"],[style*="display:none"]{display:none!important}`. KHÔNG đặt `x-show` cùng `d-none` trên 1 thẻ (Alpine sẽ không show lại được vì `d-none !important`).
+- **Auto-Discovery Pipeline (chỉ chạy thủ công)**: ARP scan (zero-cost) + MAC OUI vendor ID + ONVIF unicast probe + auto-register. Logic ở `backend/util/network_utils.py`, kích hoạt qua nút "Dò tìm Camera" / auto-add trên trang Camera (`/admin/cameras/discover`, `/admin/cameras/auto-add`). **Không còn vòng lặp nền định kỳ** — đã gỡ khỏi `frontend/app.py` (trước đây được viết nhưng chưa bao giờ được khởi động)
 - **Circuit Breaker cho Grabber**: exponential backoff (5s→300s), 3 states (CLOSED→OPEN→HALF_OPEN), health events ghi camera_status_log
 - **RTSP URL Auto-Refresh**: grabber tự đọc URL mới từ DB mỗi lần reconnect, xử lý IP thay đổi tự động
 - **Auto-Register Cameras**: setting `AUTO_REGISTER_NEW_CAMERAS`, nút toggle trên UI, camera mới tự thêm vào DB
 - **Door Auto-Close**: cửa cuốn tự đóng khi không còn người — YOLO person detect + CentroidTracker + TripwireTracker + countdown timer (configurable), Telegram notify khi đóng
 - **Camera Health Monitoring**: real-time status indicator (online/offline) trên trang Camera, Telegram alert khi camera offline (circuit breaker opens), API `/cameras/health` trả event log
+- **RetentionManager (data + file retention)**: `backend/core/retention_manager.py` — orchestrator gọi mỗi 12h, xóa `video_recordings`/`stranger_logs`/`camera_status_log` cũ hơn `DATA_RETENTION_DAYS` (mặc định 30, override app_settings) kèm file; chừa `legal_hold`. DB methods: `delete_old_recordings` (đã thêm check legal_hold), `delete_old_stranger_logs`, `delete_old_status_logs`
 - **Security**: xóa hardcode Telegram token khỏi source code, secrets chỉ qua `.env`, config qua DB `app_settings`
 - **Landing (giao diện user chính) — Tailwind**: toàn bộ site public THÉP SƠN LÂM viết lại bằng Tailwind CSS + Alpine.js (bỏ `landing.css`/`landing.js` cũ). Design tokens `tsl-*` + font Outfit + `.tsl-btn*` khai báo trong `frontend/static/css/input.css` (Tailwind v4 `@theme`/`@layer`). Trang: `/` (home), `/gioi-thieu`, `/du-an` (tổng quan nhà xưởng — hub), `/nha-xuong` (Trung Hà), `/nha-xuong-co-tiet` (Cổ Tiết), `/dich-vu` (build-to-suit), `/tin-tuc` + `/tin-tuc/{slug}`, `/lien-he` (trang liên hệ độc lập, GET; POST `/lien-he` xử lý form). Nav "Nhà xưởng" trỏ hub `/du-an`. Slider dự án + gallery + lightbox chạy bằng Alpine (không còn `window.__projects__`/landing.js). Vẫn DB-driven (projects/news/inquiries) + i18n VI/中文 + auth menu.
 - **Legacy spokes (`/xe-cau`, `/kiem-dinh-can`)**: 2 trang dịch vụ cũ (không thuộc thepsonlam) được **khôi phục nguyên văn từ git** theo yêu cầu — vẫn dùng **giao diện cũ `landing.css`/`landing.js`**, tách riêng qua `landing_base_legacy.html` + `landing_header_legacy.html` + `landing_footer_legacy.html` + `contact_section_legacy.html` (không trộn với 9 trang Tailwind). Truy cập từ nav Tailwind: dropdown "Dịch vụ" + link footer. **Hai hệ CSS song song**: trang Tailwind dùng `output.css`, 2 trang legacy dùng `landing.css` — sửa trang nào build/giữ đúng hệ đó. **Sau khi sửa landing templates phải rebuild CSS**: `cd frontend && npm run build` (cập nhật `static/css/output.css`).
@@ -319,16 +319,15 @@ IMOU_OPEN_DEVICE_ID=
 - **Python**: 3.10.x (production), 3.11.x (dev/test)
 - **Model**: `backend/models/yolo26_plate_people_door_int8.onnx` (YOLOv26 INT8)
 - **Webapp**: http://host:8000
-- **Face detection**: InsightFace buffalo_sc, similarity threshold 0.25
+- **Face detection**: InsightFace buffalo_sc, similarity threshold 0.40
 - **Stranger cooldown**: 60s per camera
 - **Pending plate cooldown**: 60s per plate
 - **OCR sample range**: confidence 0.3-0.7
-- **Remember token**: , `secrets.token_urlsafe(32)`
-- **Retention**: 30 ngày, legal hold không xóa
+- **Retention**: `RetentionManager` (`backend/core/retention_manager.py`) chạy trong orchestrator mỗi 12h — xóa video_recordings/stranger_logs/camera_status_log **cũ hơn `DATA_RETENTION_DAYS`** (mặc định 30, override qua app_settings key `DATA_RETENTION_DAYS`) **kèm file trên đĩa**; bỏ qua dòng có file trong `legal_hold` (active). File path không tồn tại trên host (vd DB migrate từ máy khác) được bỏ qua, vẫn xóa dòng DB. Chỉ chạy khi AI core (orchestrator) chạy.
 - **Door control**: Tuya local (tinytuya), Tasmota, HTTP, GPIO, Hunonic Cloud (MQTT)
 - **Door auto-close**: CentroidTracker (IoU) + TripwireTracker, default 300s delay, configurable per door
 - **YOLO model classes**: 0=plate, 1=person, 2=door (`yolo26_plate_people_door_int8.onnx`)
 - **Circuit breaker**: 5 fails → OPEN 120s → HALF_OPEN test, backoff 5s→300s
 - **Camera health**: grabber ghi stream_up/stream_down/crashed vào camera_status_log, Telegram alert on offline
 - **Env vars**: chỉ cấu hình hạ tầng cần thiết như DATABASE_URL; session và Telegram không dùng fallback env.
-- **Discovery intervals**: ARP 60s (fast), ONVIF+Dahua 300s (slow), configurable via app_settings
+- **Discovery (thủ công)**: ARP scan + ONVIF/Dahua chạy khi bấm "Dò tìm Camera"; setting `ARP_SCAN_INTERVAL_SEC`/`DISCOVERY_INTERVAL_SEC` không còn tác dụng (vòng lặp nền đã gỡ)

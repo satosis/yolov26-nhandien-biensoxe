@@ -13,7 +13,7 @@
     async bulkRegister() {
       if (!this.selected.length || !this.bulkUser || this.busy) return;
       this.busy = true;
-      await fetch('/camera/strangers/bulk-register', {
+      await fetch('/admin/strangers/bulk-register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: this.selected, user_id: this.bulkUser })
       });
@@ -23,7 +23,7 @@
       if (!this.selected.length || this.busy) return;
       if (!confirm('Xóa vĩnh viễn ' + this.selected.length + ' người lạ đã chọn khỏi DB? Không thể hoàn tác.')) return;
       this.busy = true;
-      await fetch('/camera/strangers/bulk-delete', {
+      await fetch('/admin/strangers/bulk-delete', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: this.selected })
       });
@@ -33,7 +33,7 @@
       if (this.busy) return;
       if (!confirm('Xóa vĩnh viễn người lạ này khỏi DB? Không thể hoàn tác.')) return;
       this.busy = true;
-      await fetch('/camera/strangers/bulk-delete', {
+      await fetch('/admin/strangers/bulk-delete', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: [id] })
       });
@@ -126,7 +126,7 @@
 
         <!-- Actions -->
         <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
-          <form action="/camera/strangers/register" method="POST" class="d-flex align-items-center" style="gap:6px;">
+          <form action="/admin/strangers/register" method="POST" class="d-flex align-items-center" style="gap:6px;">
             <input type="hidden" name="stranger_id" value="{{ s.id }}">
             <select name="user_id" class="form-control form-control-sm" style="width:130px;" required>
               <option value="" disabled selected>Chọn User...</option>
@@ -139,7 +139,7 @@
             </button>
           </form>
 
-          <form action="/camera/strangers/{{ s.id }}/review" method="POST" class="mb-0">
+          <form action="/admin/strangers/{{ s.id }}/review" method="POST" class="mb-0">
             <button type="submit" class="btn btn-sm btn-light border text-muted" title="Bỏ qua">
               ✕
             </button>

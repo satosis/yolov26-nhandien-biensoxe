@@ -230,14 +230,15 @@ class ImouClient:
 
             final_list.append(dev)
             
-        # --- Diagnostic Dump ---
+        # --- Diagnostic Dump (best-effort, portable temp dir) ---
         try:
-            debug_path = "/tmp/imou_debug.json"
+            import os, tempfile
+            debug_path = os.path.join(tempfile.gettempdir(), "imou_debug.json")
             with open(debug_path, "w") as f:
                 json.dump({"merged": final_list}, f, indent=2)
-            logger.info(f"Imou Discovery: Debug data dumped to {debug_path}")
-        except:
-            pass
+            logger.debug("Imou Discovery: debug data dumped to %s", debug_path)
+        except Exception as e:
+            logger.debug("Imou debug dump skipped: %s", e)
 
         logger.info(f"Merged Imou device list: {len(final_list)} entries.")
         return final_list

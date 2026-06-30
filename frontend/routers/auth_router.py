@@ -1,10 +1,10 @@
 """Auth router: login, logout, set-site."""
-from fastapi import APIRouter, Request, Form
+from fastapi import APIRouter, Request, Form, Depends
 from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse, HTMLResponse
 from pathlib import Path
 
-from frontend.deps import get_db
+from frontend.deps import get_db, get_current_user
 from frontend.auth import (
     verify_password, check_rate_limit, record_failed,
     clear_attempts, remaining_lockout, login_user, logout_user,
@@ -17,9 +17,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 @router.get("/login")
 async def login_page(request: Request):
     if request.session.get("user"):
-        role = request.session.get("user", {}).get("role", "viewer")
-        redirect_url = "/admin/dashboard" if role == "admin" else "/admin/detection"
-        return RedirectResponse(redirect_url, status_code=303)
+        return RedirectResponse("/admin/detection", status_code=303)
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
@@ -38,11 +36,8 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     user = db.get_user(username)
     if user and verify_password(password, user["hashed_password"]):
         clear_attempts(key)
-        
-        role = user.get("role", "viewer")
-        redirect_url = "/admin/dashboard" if role == "admin" else "/admin/detection"
-        
-        response = RedirectResponse(redirect_url, status_code=303)
+
+        response = RedirectResponse("/admin/detection", status_code=303)
         login_user(request, response, user)
         return response
 
@@ -54,7 +49,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
     })
 
 
-@router.post("/logout")
+@router.api_route("/logout", methods=["GET", "POST"])
 async def logout(request: Request):
     response = RedirectResponse("/login", status_code=303)
     logout_user(request, response)
@@ -62,6 +57,7 @@ async def logout(request: Request):
 
 
 @router.post("/set-site")
-async def set_site(request: Request, site_id: int = Form(0)):
+async def set_site(request: Request, site_id: int = Form(0),
+                   user: dict = Depends(get_current_user)):
     request.session["active_site_id"] = site_id if site_id else 0
     return HTMLResponse("")

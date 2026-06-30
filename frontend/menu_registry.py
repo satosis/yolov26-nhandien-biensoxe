@@ -23,7 +23,7 @@ MENU_GROUPS = {
     },
     "⚙️ Hệ thống": {
         "inquiries": "📬 Tin tư vấn",
-        "admin/cms": "🌐 CMS Trang chủ",
+        "cms": "🌐 CMS Trang chủ",
         "users": "👥 Người dùng",
         "rbac": "🔐 Phân quyền",
         "telegram": "📱 Telegram",

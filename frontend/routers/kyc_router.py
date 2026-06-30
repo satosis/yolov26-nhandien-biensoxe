@@ -388,7 +388,17 @@ async def reject_kyc(
 @router.get("/uploads/{user_id}/{filename}")
 async def serve_kyc_upload(user_id: int, filename: str, user: dict = Depends(get_current_user)):
     from fastapi.responses import FileResponse
-    file_path = os.path.join(KYC_UPLOAD_DIR, str(user_id), filename)
+    # Access control (IDOR): only the owner or an admin/manager may view a user's
+    # ID-card/selfie documents.
+    if user.get("id") != user_id and user.get("role") not in ("Admin", "Manager"):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    # Path traversal: filename must be a bare file name.
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse({"error": "bad_request"}, status_code=400)
+    base = os.path.realpath(os.path.join(KYC_UPLOAD_DIR, str(user_id)))
+    file_path = os.path.realpath(os.path.join(base, filename))
+    if file_path != base and not file_path.startswith(base + os.sep):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
     if os.path.isfile(file_path):
         return FileResponse(file_path)
     return JSONResponse({"error": "not_found"}, status_code=404)

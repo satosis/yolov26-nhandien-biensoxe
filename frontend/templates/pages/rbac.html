@@ -21,7 +21,7 @@
   <div class="card mb-4 d-none" id="add-role-form">
     <div class="card-body">
       <h6 class="card-title font-weight-bold mb-3">Tạo vai trò mới</h6>
-      <form method="POST" action="/rbac">
+      <form method="POST" action="/admin/rbac">
         <div class="mb-3">
           <label class="font-weight-medium" style="font-size:13px;">Tên vai trò *</label>
           <input name="role_name" required class="form-control form-control-sm" style="max-width:280px;" placeholder="VD: operator">
@@ -98,7 +98,7 @@
 
         <!-- Edit Form (hidden) -->
         {% if r.allowed_menus != '*' %}
-        <form id="edit-form-{{ r.id }}" method="POST" action="/rbac/{{ r.id }}/edit"
+        <form id="edit-form-{{ r.id }}" method="POST" action="/admin/rbac/{{ r.id }}/edit"
               class="d-none mt-4 pt-4 border-top">
           {% set current_menus = (r.allowed_menus or '').split(',') | map('trim') | list %}
           {% for group_name, items in menu_groups.items() %}
@@ -137,9 +137,9 @@ function toggleEditForm(roleId) {
 
 async function deleteRole(roleId, roleName) {
   if (!confirm('Xóa vai trò "' + roleName + '"?\nNgười dùng thuộc vai trò này sẽ không thể đăng nhập.')) return;
-  const res = await fetch('/rbac/' + roleId, { method: 'DELETE' });
+  const res = await fetch('/admin/rbac/' + roleId, { method: 'DELETE' });
   if (res.ok || res.redirected) {
-    window.location.href = '/rbac';
+    window.location.href = '/admin/rbac';
   } else {
     const data = await res.json().catch(() => ({}));
     alert(data.detail || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.');

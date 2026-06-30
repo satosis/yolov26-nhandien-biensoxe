@@ -1,5 +1,6 @@
 import os
 import time
+import queue
 import signal
 import logging
 import collections
@@ -143,32 +144,39 @@ class PlateVoter:
         self._buffer: collections.deque = collections.deque(maxlen=buffer_size)
         self._buffer_size = buffer_size
         self._min_conf = cfg.VOTE_MIN_CONF if hasattr(cfg, 'VOTE_MIN_CONF') else 0.3
+        # add() runs on the OCR thread-pool while is_ready()/best()/reset() run on
+        # the main loop — guard the buffer (RLock so is_ready() can call best()).
+        self._lock = threading.RLock()
 
     def add(self, text: str, conf: float):
         if text and conf >= self._min_conf:
-            self._buffer.append((text, conf))
+            with self._lock:
+                self._buffer.append((text, conf))
 
     def is_ready(self) -> bool:
-        if len(self._buffer) == 0: return False
-        if len(self._buffer) >= self._buffer_size: return True
-        if len(self._buffer) >= 3:
-            best_text, best_conf = self.best()
-            if best_conf > 0.88: return True
-        return False
+        with self._lock:
+            if len(self._buffer) == 0: return False
+            if len(self._buffer) >= self._buffer_size: return True
+            if len(self._buffer) >= 3:
+                best_text, best_conf = self.best()
+                if best_conf > 0.88: return True
+            return False
 
     def best(self) -> tuple[str, float]:
-        if not self._buffer: return "", 0.0
-        scores: dict[str, float] = {}
-        counts: dict[str, int] = {}
-        for text, conf in self._buffer:
-            scores[text] = scores.get(text, 0.0) + conf
-            counts[text] = counts.get(text, 0) + 1
-        best_text = max(scores, key=lambda t: scores[t])
-        avg_conf = scores[best_text] / counts[best_text]
-        return best_text, avg_conf
+        with self._lock:
+            if not self._buffer: return "", 0.0
+            scores: dict[str, float] = {}
+            counts: dict[str, int] = {}
+            for text, conf in self._buffer:
+                scores[text] = scores.get(text, 0.0) + conf
+                counts[text] = counts.get(text, 0) + 1
+            best_text = max(scores, key=lambda t: scores[t])
+            avg_conf = scores[best_text] / counts[best_text]
+            return best_text, avg_conf
 
     def reset(self):
-        self._buffer.clear()
+        with self._lock:
+            self._buffer.clear()
 
 # ── Model wrappers ────────────────────────────────────────────────────────────
 
@@ -435,8 +443,8 @@ class FaceRecognizer:
         if pose is None or len(pose) < 2:
             return "frontal"
         pitch, yaw, roll = pose
-        if yaw > 25: return "right"  # Turning head left exposes right cheek
-        if yaw < -25: return "left"  # Turning head right exposes left cheek
+        if yaw > 25: return "right"  # positive yaw = head turned to its right
+        if yaw < -25: return "left"  # negative yaw = head turned to its left
         if pitch > 20: return "up"
         if pitch < -20: return "down"
         return "frontal"
@@ -615,6 +623,13 @@ class InferenceWorker:
             logger.info("--- AI Models Loaded successfully in %.2fs ---", time.time() - st)
         except Exception as e:
             logger.error("CRITICAL ERROR loading AI models: %s", e, exc_info=True)
+            # Reset partial state and re-raise: a swallowed failure leaves
+            # _plate_detector=None and turns into a confusing per-frame
+            # AttributeError loop downstream. Surface the real root cause.
+            self._plate_detector = None
+            self._ocr = None
+            self._face_recog = None
+            raise
 
     def _unload_models(self):
         """Release AI models to free system memory during idle periods."""
@@ -662,9 +677,18 @@ class InferenceWorker:
         if shm_name not in self._shm_clients:
             self._shm_clients[shm_name] = shared_memory.SharedMemory(name=shm_name, create=False)
         shm = self._shm_clients[shm_name]
-        # [0..3] is counter, [4..] is image
+        # [0..3] is the writer's frame counter, [4..] is the image.
+        # Seqlock read: copy, then verify the counter didn't change mid-copy
+        # (the grabber's np.copyto is a non-atomic ~MB memcpy → torn frames).
+        counter = np.ndarray((1,), dtype=np.uint32, buffer=shm.buf[0:4])
         arr = np.ndarray((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8, buffer=shm.buf[4:])
-        return arr.copy()
+        frame = arr.copy()
+        for _ in range(3):
+            c1 = int(counter[0])
+            frame = arr.copy()
+            if int(counter[0]) == c1:
+                return frame  # counter stable across the copy → not torn
+        return frame  # best effort after retries
 
     def run(self):
         logger.info("Inference worker started")
@@ -696,8 +720,13 @@ class InferenceWorker:
                         self._recent_strangers.clear()
                         self._last_face_reload = mtime
                         logger.info("InferenceWorker: AI index synchronized via mtime: %s", mtime)
-                token = self.infer_queue.get(timeout=0.5)
-                
+                try:
+                    token = self.infer_queue.get(timeout=0.5)
+                except queue.Empty:
+                    # mp.Queue.empty() is approximate; a spurious non-empty can leave
+                    # get() with nothing. Don't let it crash the whole worker.
+                    continue
+
                 cam_id, shm_name, ts = token["cam_id"], token["shm_name"], token["ts"]
                 site_id = token.get("site_id")
                 frame = self._get_shm_frame(shm_name)
@@ -756,7 +785,7 @@ class InferenceWorker:
                         
                         crop = frame[py1:py2, px1:px2].copy()
                         if crop.size > 0:
-                            self._executor.submit(self._async_ocr, crop, det_conf, voter, cam_id, frame, result)
+                            self._run_async(self._async_ocr, crop, det_conf, voter, cam_id, frame, result)
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
                         cv2.putText(result.annotated_frame, "PLATE", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
                     elif cls_id == 2: # Door
@@ -782,6 +811,11 @@ class InferenceWorker:
                         # but since InferenceResult is mutable, it's already there if detected.
                         if (time.time() - self._seen_plates.get(best_text, 0)) > 15:
                             self._seen_plates[best_text] = time.time()
+                            # Bound memory: this dict is long-lived (process runs for days).
+                            # Drop entries older than the dedup window when it grows.
+                            if len(self._seen_plates) > 256:
+                                _cut = time.time() - 60
+                                self._seen_plates = {k: v for k, v in self._seen_plates.items() if v > _cut}
                             result.snapshot_path = save_snapshot(frame, cam_id, best_text)
                             
                             # Trigger Smart Recording for Plates
@@ -794,12 +828,13 @@ class InferenceWorker:
                                     "site_id": site_id
                                 })
 
-                            self._executor.submit(self._db.record_vehicle_entry, best_text, "car", cam_id, result.snapshot_path, site_id)
-                            if not self._db.is_plate_whitelisted(best_text, site_id):
+                            # Normalize once (strip spaces/dashes/dots) so whitelist
+                            # match + session entry/exit are stable across OCR formatting.
+                            normalized = cfg.normalize_plate(best_text)
+                            self._run_async(self._db.record_vehicle_entry, normalized, "car", cam_id, result.snapshot_path, site_id)
+                            if not self._db.is_plate_whitelisted(normalized, site_id):
                                 logger.info(f"UNKNOWN PLATE DETECTED: {best_text}. Adding to pending list...")
-                                # Use centralized normalization to handle spaces, dashes, and dots consistently for lookup
-                                normalized = cfg.normalize_plate(best_text)
-                                self._executor.submit(self._db.add_pending_plate_simple, normalized, best_text, cam_id, site_id, result.snapshot_path, result.plate_type)
+                                self._run_async(self._db.add_pending_plate_simple, normalized, best_text, cam_id, site_id, result.snapshot_path, result.plate_type)
 
                 self._frame_counter += 1
                 if self._frame_counter % cfg.FACE_RECOG_EVERY_N == 0:
@@ -808,10 +843,12 @@ class InferenceWorker:
                     for track in active_tracks:
                         # Only re-identify if not already locked or if enough time passed
                         if not track.is_locked or track.frames_since_last_id > 100:
-                            self._executor.submit(self._async_face_identify, frame, cam_id, site_id, result, track)
+                            self._run_async(self._async_face_identify, frame, cam_id, site_id, result, track)
 
-                if not self.result_queue.full():
-                    self.result_queue.put_nowait(result)
+                # NOTE: result_queue has no consumer anywhere in the codebase, and each
+                # result carries a full annotated frame. Enqueueing only pins memory and
+                # risks a shutdown hang (queue never drained). Skip it until a real
+                # consumer exists. (Kept the queue wiring for forward-compat.)
         except Exception as e:
             logger.critical("InferenceWorker CRASHED: %s", str(e), exc_info=True)
             raise
@@ -851,7 +888,7 @@ class InferenceWorker:
                     from backend.util.image_utils import save_face_snapshot
                     face_snap = save_face_snapshot(frame, cam_id, bbox=f_bbox)
                     if face_snap:
-                        self._executor.submit(self._db.log_stranger, cam_id, sim, face_snap, site_id, emb.tobytes(), direction)
+                        self._run_async(self._db.log_stranger, cam_id, sim, face_snap, site_id, emb.tobytes(), direction)
                         self._recent_strangers[cam_id].append({'emb': emb, 'ts': now})
                     logger.info("New stranger logged for cam %s (sim: %f)", cam_id, sim)
                     # Trigger Smart Recording for Stranger Face
@@ -871,6 +908,19 @@ class InferenceWorker:
                 track.frames_since_last_id = 0
                 logger.info(f"Fixed identity {name} to track {track.track_id} (sim: {sim:.2f})")
 
+    @staticmethod
+    def _on_async_done(fut):
+        # Futures submitted to the pool are fire-and-forget; without this their
+        # exceptions are swallowed silently (OCR/face/DB failures would vanish).
+        exc = fut.exception()
+        if exc:
+            logger.error("Async inference task failed: %s", exc, exc_info=exc)
+
+    def _run_async(self, fn, *args):
+        fut = self._executor.submit(fn, *args)
+        fut.add_done_callback(self._on_async_done)
+        return fut
+
     def _async_ocr(self, crop, det_conf: float, voter: PlateVoter, cam_id: str, full_frame, result: InferenceResult):
         if self._ocr is None:
             return
@@ -882,7 +932,10 @@ class InferenceWorker:
         processed = enhance_plate(crop)
         text, ocr_conf, p_type = self._ocr.read(processed)
         if text:
-            voter.add(text, ocr_conf * det_conf)
+            # Gate/weight votes on the OCR confidence itself (detection confidence is
+            # already gated upstream by YOLO). Using the product ocr*det against the
+            # 0.70 threshold was far too strict and dropped many valid reads.
+            voter.add(text, ocr_conf)
             result.plate_type = p_type
 
             # Check for Fake / Obstructed Plate

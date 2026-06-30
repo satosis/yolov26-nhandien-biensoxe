@@ -31,6 +31,10 @@ SMART_RECORD_POST_SEC = 10
 SMART_RECORD_TAIL_SEC = 10
 SMART_RECORD_MAX_SEC = 300
 SMART_RECORD_RETENTION_DAYS = 15
+# Data retention window (days) for RetentionManager — recordings, stranger logs,
+# camera health logs older than this are purged (legal_hold rows are kept).
+# Overridable at runtime via app_settings key DATA_RETENTION_DAYS.
+DATA_RETENTION_DAYS = 30
 
 # Shared memory / streaming settings
 GRAB_WIDTH = 1280

@@ -13,6 +13,8 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 
 def _mask(val) -> str:
     v = str(val or "")
+    if not v:
+        return ""
     return ("●" * 4 + v[-4:]) if len(v) > 4 else "●" * 4
 
 
@@ -25,7 +27,7 @@ async def providers_page(request: Request, user: dict = Depends(require_menu("pr
         pk = p["provider_key"]
         keys = db.get_provider_api_keys(pk)
         p["_api_keys"] = keys or {}
-        p["_masked"] = {k: _mask(v) for k, v in (keys or {}).items() if k != "email"}
+        p["_masked"] = {k: _mask(v) for k, v in (keys or {}).items() if k != "email" and str(v or "").strip()}
     ctx["providers"] = providers
     ctx["current_menu"] = "providers"
     return templates.TemplateResponse("pages/providers.html", {"request": request, **ctx})
@@ -41,7 +43,7 @@ async def edit_api_keys_page(
     db = get_db()
     provider = db.get_provider(provider_key)
     if not provider:
-        return RedirectResponse("/providers", status_code=303)
+        return RedirectResponse("/admin/providers", status_code=303)
     
     keys = db.get_provider_api_keys(provider_key)
     ctx["provider"] = provider
@@ -68,7 +70,7 @@ async def save_api_keys(
             keys[n_stripped] = v.strip()
             
     get_db().update_provider_api_keys(provider_key, keys)
-    return RedirectResponse("/providers", status_code=303)
+    return RedirectResponse("/admin/providers", status_code=303)
 
 
 @router.post("")
@@ -100,7 +102,7 @@ async def upsert_provider(
         logo_url=logo_url or None,
         is_active=is_active == "on" or is_active == "1" or is_active == "true",
     )
-    return RedirectResponse("/providers", status_code=303)
+    return RedirectResponse("/admin/providers", status_code=303)
 
 
 @router.delete("/{provider_key}")
@@ -110,7 +112,7 @@ async def delete_provider(
     user: dict = Depends(require_menu("providers")),
 ):
     get_db().delete_provider(provider_key)
-    return RedirectResponse("/providers", status_code=303)
+    return RedirectResponse("/admin/providers", status_code=303)
 
 
 @router.post("/{provider_key}/toggle")
@@ -135,4 +137,4 @@ async def toggle_provider(
             logo_url=provider.get("logo_url"),
             is_active=not provider.get("is_active", True),
         )
-    return RedirectResponse("/providers", status_code=303)
+    return RedirectResponse("/admin/providers", status_code=303)

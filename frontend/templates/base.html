@@ -21,7 +21,23 @@
   <script src="/static/admin/js/htmx.min.js?v=2.1"></script>
   <script src="/static/admin/js/alpine.min.js?v=2.1" defer></script>
   <script src="/static/admin/js/tom-select.complete.min.js?v=2.4.1"></script>
-  <style>[x-cloak]{display:none!important}</style>
+  <style>
+    [x-cloak]{display:none!important}
+    /* Alpine x-show sets inline `display:none` to hide elements. Bootstrap 4 display
+       utilities (.d-flex/.d-block/.d-none) are !important and would override that,
+       leaving x-show panels/toggles permanently visible. Force inline display:none to win. */
+    [style*="display: none"], [style*="display:none"]{display:none!important}
+    /* Flex-centered overlay for Alpine x-show modals. NOT !important on purpose:
+       Alpine sets inline `display:none` to hide (inline beats this class → hides),
+       and on show Alpine clears the inline display so this class centers the modal.
+       (Do NOT use Bootstrap `.d-flex` here — its !important blocks the hide.) */
+    .x-modal-overlay{display:flex}
+    /* `.hidden` is a Tailwind utility left over from the admin Tailwind→Bootstrap
+       conversion. Many admin pages still toggle it to show/hide forms & panels, but the
+       Opatix/Bootstrap theme never defines it — so those toggle buttons did nothing.
+       Define it here (with !important to beat Bootstrap's .d-* utilities). */
+    .hidden{display:none!important}
+  </style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -36,7 +52,7 @@
   }"
   @show-image.window="showImage($event)"
   x-show="open" x-cloak
-  class="position-fixed d-flex align-items-center justify-content-center p-3"
+  class="position-fixed x-modal-overlay align-items-center justify-content-center p-3"
   style="z-index:10001;top:0;left:0;width:100%;height:100%;">
     <div x-show="open" x-transition.opacity class="position-absolute"
          style="top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);" @click="open=false"></div>
@@ -68,9 +84,19 @@
       if(this.confirmUrl){
         if(this.reload){
           fetch(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(()=>window.location.reload());
-        } else if(typeof htmx!=='undefined'){
+        } else if(this.confirmTarget && typeof htmx!=='undefined'){
           const url=this.confirmUrl+(this.confirmUrl.includes('?')?'&':'?')+'hx=1';
           htmx.ajax(this.confirmMethod,url,{target:this.confirmTarget,swap:this.confirmSwap,headers:{'X-HTMX-Action':'true'}});
+        } else {
+          // No swap target: fire the request and surface JSON {ok,message} as a toast
+          fetch(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+            .then(r=>r.json().catch(()=>({ok:r.ok})))
+            .then(d=>{
+              const ok = d && (d.ok!==false);
+              const msg = (d && d.message) || (ok ? 'Thành công' : 'Thất bại');
+              if(window.toastr){ toastr[ok?'success':'error'](msg); } else { alert(msg); }
+            })
+            .catch(()=>{ if(window.toastr){ toastr.error('Lỗi kết nối'); } });
         }
       }
       setTimeout(()=>{this.open=false;},10);
@@ -78,7 +104,7 @@
   }"
   @show-confirm.window="showConfirm($event)"
   x-show="open" x-cloak
-  class="position-fixed d-flex align-items-center justify-content-center p-3"
+  class="position-fixed x-modal-overlay align-items-center justify-content-center p-3"
   style="z-index:10000;top:0;left:0;width:100%;height:100%;">
     <div x-show="open" x-transition.opacity class="position-absolute"
          style="top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.45);" @click="open=false"></div>
@@ -104,7 +130,6 @@
   <!-- Opatix theme scripts -->
   <script src="/static/admin-assets/js/jquery.min.js"></script>
   <script src="/static/admin-assets/js/bootstrap.bundle.min.js"></script>
-  <script src="/static/admin-assets/js/metismenu.min.js"></script>
   <script src="/static/admin-assets/js/waves.js"></script>
   <script src="/static/admin-assets/js/simplebar.min.js"></script>
   <script src="/static/admin-assets/js/theme.js"></script>

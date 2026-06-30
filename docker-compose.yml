@@ -1,25 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: camera_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: camera_ai
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: mysecretpassword
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - shared-services
-
   ai_core:
     build:
       context: .
@@ -30,12 +9,14 @@ services:
     restart: unless-stopped
     env_file:
       - ./.env
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       TZ: Asia/Ho_Chi_Minh
-      DATABASE_URL: postgresql://postgres:mysecretpassword@postgres:5432/camera_ai
+      # Single source of truth: the Postgres on the host at localhost:5432
+      # (same camera_ai DB as .env / the host-run webapp). Inside the container
+      # the host is reached via host.docker.internal.
+      DATABASE_URL: postgresql://postgres:mysecretpassword@host.docker.internal:5432/camera_ai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     # Camera discovery networking:
     # - Bridge network: ARP scan and unicast ONVIF work.
@@ -54,6 +35,3 @@ networks:
   shared-services:
     name: shared-services
     driver: bridge
-
-volumes:
-  postgres_data:

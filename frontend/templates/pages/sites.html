@@ -17,7 +17,7 @@
   <!-- Add Form -->
   <div id="add-form" class="card d-none mb-3">
     <div class="card-body">
-      <form hx-post="/sites" hx-target="#sites-list" hx-swap="innerHTML"
+      <form hx-post="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML"
             hx-on::after-request="if(event.detail.successful){this.reset();this.closest('.card').classList.add('d-none')}">
         <div class="row">
           <div class="col-md-6 mb-3">
@@ -68,7 +68,7 @@
                 🅿️ {{ s.total_slots or 0 }} chỗ
               </td>
               <td class="text-center">
-                <form hx-post="/sites/{{ s.id }}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
+                <form hx-post="/admin/sites/{{ s.id }}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
                   <button type="submit" class="btn btn-sm {% if s.is_active %}btn-success{% else %}btn-secondary{% endif %} d-inline-flex align-items-center" style="gap:6px;">
                     <span class="rounded-circle" style="width:8px;height:8px;display:inline-block;background:{% if s.is_active %}#28a745{% else %}#6c757d{% endif %};"></span>
                     {{ 'Bật' if s.is_active else 'Tắt' }}
@@ -78,14 +78,14 @@
               <td class="text-right">
                 <div class="d-flex justify-content-end" style="gap:12px;">
                   <button class="btn btn-sm btn-light"
-                          hx-get="/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️</button>
+                          hx-get="/admin/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️</button>
                   <button class="btn btn-sm btn-danger"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa địa điểm',
                               message: 'Bạn chắc chắn muốn xóa địa điểm {{ s.site_name }}?',
                               confirmText: 'Xác nhận xóa',
-                              confirmUrl: '/sites/{{ s.id }}',
+                              confirmUrl: '/admin/sites/{{ s.id }}',
                               confirmMethod: 'DELETE',
                               confirmTarget: '#site-{{ s.id }}'
                             }

@@ -57,7 +57,7 @@
     const seq = ++this.distanceSeq;
     this.calculatingKM = true;
     try {
-      const url = '/camera/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+      const url = '/admin/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
       const res = await fetch(url);
       const json = await res.json();
       if (seq !== this.distanceSeq) return;
@@ -78,7 +78,7 @@
 
   async resolveMaps(url, type) {
     try {
-      const res = await fetch('/camera/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
+      const res = await fetch('/admin/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
       const json = await res.json();
       if (json.ok) {
         if (type === 'origin') {
@@ -95,7 +95,7 @@
 
   async geocodeOnly(q, type) {
     try {
-      const res = await fetch('/camera/vehicles/api/geocode?q=' + encodeURIComponent(q));
+      const res = await fetch('/admin/vehicles/api/geocode?q=' + encodeURIComponent(q));
       const json = await res.json();
       if (json.ok) {
         if (type === 'origin') this.originCoords = {lat: json.lat, lon: json.lon};
@@ -108,7 +108,7 @@
     if (!this.originCoords || !this.destCoords) return;
     this.calculatingKM = true;
     try {
-      const url = `/camera/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
+      const url = `/admin/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
       const res = await fetch(url);
       const json = await res.json();
       if (json.ok) {
@@ -124,7 +124,7 @@
     const d = dateVal.substring(0, 10);
     this.loadingPrice = true;
     try {
-      const res = await fetch('/camera/vehicles/api/fuel-price?target_date=' + d);
+      const res = await fetch('/admin/vehicles/api/fuel-price?target_date=' + d);
       const json = await res.json();
       if (json.ok && json.price) {
         this.fuelPrice = json.price;
@@ -150,7 +150,7 @@
   <!-- Add Form -->
   <div class="card" style="max-width:900px;">
     <div class="card-body">
-      <form method="post" action="/camera/vehicles/{{ vehicle.id }}/cargo/add">
+      <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/add">
 
         <div class="row">
           <div class="col-12 col-md-6 mb-3">

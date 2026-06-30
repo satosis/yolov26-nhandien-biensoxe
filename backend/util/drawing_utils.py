@@ -17,11 +17,12 @@ def get_font(size):
     if size in _font_cache:
         return _font_cache[size]
     
+    font = None
     for path in FONT_PATHS:
         if os.path.exists(path):
             font = ImageFont.truetype(path, size)
             break
-    
+
     if font is None:
         font = ImageFont.load_default()
     

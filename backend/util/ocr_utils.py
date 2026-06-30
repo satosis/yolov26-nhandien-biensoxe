@@ -26,8 +26,20 @@ class VNPlateOCR:
 
     def __init__(self):
         from rapidocr_onnxruntime import RapidOCR
-        self._ocr = RapidOCR(det_db_unclip_ratio=2.0)
-        logger.info("RapidOCR initialised (det_db_unclip_ratio=2.0)")
+        # Newer rapidocr_onnxruntime releases changed how kwargs are merged into the
+        # engine config and raise (e.g. KeyError 'model_path') when fed the
+        # det_db_unclip_ratio tweak directly. Try the tuned config, fall back to
+        # defaults so OCR still loads across library versions / Python builds.
+        try:
+            self._ocr = RapidOCR(det_db_unclip_ratio=2.0)
+            logger.info("RapidOCR initialised (det_db_unclip_ratio=2.0)")
+        except Exception as e:
+            logger.warning(
+                "RapidOCR(det_db_unclip_ratio=2.0) not supported by installed version "
+                "(%s); falling back to default RapidOCR()", e
+            )
+            self._ocr = RapidOCR()
+            logger.info("RapidOCR initialised (default config)")
 
         # Vietnamese plate patterns (relaxed to let OCR speak for itself)
         # Format: 2 digits + 1-2 letters + optional separator + 3-5 digits + optional .XX
@@ -152,10 +164,11 @@ class VNPlateOCR:
             logger.debug("No clear gap found (gap=%.0f, avg=%.0f)", gap_value, avg_projection)
             return None, None
 
-        # Add small padding around the split
+        # Small gap (NOT overlap) around the seam so a character straddling the
+        # split isn't fed to — and read twice by — both line OCRs.
         pad = max(2, int(h * 0.03))
-        top = img[0:split_y + pad, :]
-        bottom = img[max(0, split_y - pad):h, :]
+        top = img[0:max(0, split_y - pad), :]
+        bottom = img[split_y + pad:h, :]
 
         # Validate both halves have enough content
         if top.shape[0] < 8 or bottom.shape[0] < 8:
@@ -426,7 +439,8 @@ class VNPlateOCR:
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
 
-        coords = np.column_stack(np.where(thresh > 0))
+        # np.where gives (row=y, col=x); minAreaRect expects (x, y) points.
+        coords = np.column_stack(np.where(thresh > 0))[:, ::-1]
         if len(coords) == 0:
             return image
 

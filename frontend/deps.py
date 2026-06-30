@@ -31,7 +31,7 @@ def require_menu(menu_key: str):
     def _check(request: Request) -> dict:
         user = get_current_user(request)
         allowed = user.get("allowed_menus", "")
-        if allowed != "*" and menu_key not in allowed.split(","):
+        if allowed != "*" and menu_key not in [t.strip() for t in allowed.split(",")]:
             raise HTTPException(status_code=403, detail="Không có quyền truy cập")
         return user
     return _check
@@ -52,7 +52,7 @@ def get_menu_context(request: Request, user: dict) -> dict:
         user["allowed_menus"] = allowed_str
         request.session["user"] = user
 
-    allowed = allowed_str.split(",") if allowed_str and allowed_str != "*" else ("*" if allowed_str == "*" else [])
+    allowed = "*" if allowed_str == "*" else [t.strip() for t in allowed_str.split(",") if t.strip()]
 
     filtered = {}
     for group_name, items in MENU_GROUPS.items():
@@ -74,9 +74,9 @@ def get_menu_context(request: Request, user: dict) -> dict:
     active_site_id = request.session.get("active_site_id", 0)
     
     # Resolve current_menu from the request path to match a menu key.
-    # Routers are mounted under /admin (e.g. /admin/cameras, /admin/parking_dashboard);
-    # CMS is double-prefixed (/admin/admin/cms). Strip the leading "admin/" so the
-    # remaining value equals the menu key ("cameras", "parking_dashboard", "admin/cms").
+    # Routers are mounted under /admin (e.g. /admin/cameras, /admin/parking_dashboard,
+    # /admin/cms). Strip the leading "admin/" so the remaining value equals the menu key
+    # ("cameras", "parking_dashboard", "cms").
     path = request.url.path.strip("/")
     if path.startswith("camera/"):
         current_menu = path[7:]  # legacy /camera prefix
@@ -84,6 +84,9 @@ def get_menu_context(request: Request, user: dict) -> dict:
         current_menu = path[6:]  # len("admin/") == 6
     else:
         current_menu = path
+    # Only the first path segment maps to a menu key
+    # (e.g. /admin/cameras/123/edit -> "cameras") so nested pages keep nav state.
+    current_menu = current_menu.split("/")[0]
 
     return {
         "user": user,

@@ -168,6 +168,14 @@ class DoorAutoCloseManager:
                 if cam_id not in self._trackers:
                     self._trackers[cam_id] = CentroidTracker(max_disappeared=15)
 
+            # Prune per-door state for doors removed from config (avoid stale
+            # _door_closed pinning a recreated door, and unbounded growth).
+            active = set(self._doors_config.keys())
+            for d in (self._person_counter, self._last_person_time,
+                      self._empty_since, self._door_closed):
+                for stale_id in [k for k in d if k not in active]:
+                    d.pop(stale_id, None)
+
             # Get tripwire line ratio from settings
             line_ratio = 0.6
             try:
@@ -251,19 +259,30 @@ class DoorAutoCloseManager:
 
             counter = self._person_counter.get(door_id, 0)
 
-            if has_person or counter > 0:
-                # People present — reset timer
+            if has_person:
+                # Person visibly present — reset timer + remember last-seen.
                 self._last_person_time[door_id] = now
                 self._empty_since[door_id] = None
             else:
-                # No person detected
-                if self._empty_since[door_id] is None:
-                    self._empty_since[door_id] = now
-                    logger.info(f"[Door {config['name']}] No person — starting {config['delay_sec']}s countdown")
+                # No person currently detected. Self-heal a stale net counter:
+                # a tracker id-switch can leave a phantom "IN" that would otherwise
+                # pin counter>0 forever and never let the door auto-close. If no
+                # person has been seen for the full delay, force the counter to 0.
+                if counter > 0 and (now - self._last_person_time.get(door_id, now)) >= config['delay_sec']:
+                    self._person_counter[door_id] = 0
+                    counter = 0
 
-                elapsed = now - self._empty_since[door_id]
-                if elapsed >= config['delay_sec']:
-                    self._close_door(door_id, config)
+                if counter > 0:
+                    # Recently counted in and not yet timed out — hold the door.
+                    self._empty_since[door_id] = None
+                else:
+                    if self._empty_since[door_id] is None:
+                        self._empty_since[door_id] = now
+                        logger.info(f"[Door {config['name']}] No person — starting {config['delay_sec']}s countdown")
+
+                    elapsed = now - self._empty_since[door_id]
+                    if elapsed >= config['delay_sec']:
+                        self._close_door(door_id, config)
 
     def _close_door(self, door_id: int, config: dict):
         """Trigger cửa đóng + thông báo Telegram."""

@@ -20,9 +20,7 @@
 
     <!-- Add Form -->
     <div x-show="showAdd" x-collapse class="border-bottom">
-      <form class="card-body"
-            hx-post="/telegram" hx-target="#bots-list" hx-swap="innerHTML"
-            hx-on::after-request="if(event.detail.successful){this.reset(); showAdd=false}">
+      <form class="card-body" method="POST" action="/admin/telegram">
         <div class="row">
           <div class="col-12 col-md-4 mb-3">
             <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên gợi nhớ *</label>
@@ -81,7 +79,7 @@
                           title: 'Thử bot',
                           message: 'Gửi tin nhắn thử tới {{ b.bot_name }}?',
                           confirmText: 'Gửi',
-                          confirmUrl: '/telegram/{{ b.bot_name }}/test',
+                          confirmUrl: '/admin/telegram/{{ b.bot_name }}/test',
                           confirmMethod: 'POST',
                           reload: false
                         }
@@ -99,7 +97,7 @@
                           title: 'Xóa bot',
                           message: 'Xác nhận xóa cấu hình bot {{ b.bot_name }}?',
                           confirmText: 'Xóa',
-                          confirmUrl: '/telegram/{{ b.bot_name }}',
+                          confirmUrl: '/admin/telegram/{{ b.bot_name }}',
                           confirmMethod: 'DELETE',
                           reload: true
                         }
@@ -111,7 +109,7 @@
           </div>
 
           <!-- Edit form -->
-          <form id="edit-bot-form-{{ loop.index }}" method="POST" action="/telegram"
+          <form id="edit-bot-form-{{ loop.index }}" method="POST" action="/admin/telegram"
                 class="px-4 pb-4 pt-2 border-top" style="display:none;background:#f8f9fa;">
             <input type="hidden" name="bot_name" value="{{ b.bot_name }}">
             <div class="row align-items-end">

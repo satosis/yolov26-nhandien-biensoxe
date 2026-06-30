@@ -6,10 +6,29 @@ from backend.core.grabber import grabber_process
 from backend.core.inference import inference_process
 from backend.core.recorder import recorder_worker
 from backend.core.database import DatabaseManager
-from backend.core import config as cfg
 from backend.util.system_utils import log_system_health
 
 logger = logging.getLogger("orchestrator")
+
+
+def _reap(p, timeout):
+    """Terminate a process and guarantee it is reaped.
+    If SIGTERM + join(timeout) leaves it alive (e.g. stuck in a native cv2/ONNX
+    call), escalate to kill() so we never drop a still-running handle (zombie /
+    leaked SHM / leaked DB connections)."""
+    if not p:
+        return
+    try:
+        if p.is_alive():
+            p.terminate()
+            p.join(timeout=timeout)
+        if p.is_alive():
+            logger.warning("Process %s did not stop on SIGTERM — killing", getattr(p, "name", p))
+            p.kill()
+            p.join(timeout=2)
+    except Exception as e:
+        logger.error("Failed to reap process %s: %s", getattr(p, "name", p), e)
+
 
 class CameraOrchestrator:
     def __init__(self):
@@ -57,9 +76,7 @@ class CameraOrchestrator:
 
         logger.info("--- No active cameras. Stopping InferenceWorker to save memory ---")
         for p in self.core_processes:
-            if p.is_alive():
-                p.terminate()
-                p.join(timeout=3)
+            _reap(p, 3)
         self.core_processes = []
         logger.info("InferenceWorker terminated. Orchestrator returned to SILENT IDLE state.")
 
@@ -93,10 +110,9 @@ class CameraOrchestrator:
     def stop_grabber(self, cam_id):
         """Terminate a grabber process."""
         p = self.grabbers.get(cam_id)
-        if p and p.is_alive():
+        if p:
             logger.info(f"Terminating Grabber for Camera {cam_id}...")
-            p.terminate()
-            p.join(timeout=2)
+            _reap(p, 2)
             if p in self.processes:
                 self.processes.remove(p)
         if cam_id in self.grabbers:
@@ -166,16 +182,15 @@ class CameraOrchestrator:
                     if cid in self.grabbers:
                         del self.grabbers[cid]
 
-                # 3. Periodic Cleanup (Recordings retention)
+                # 3. Periodic data retention — recordings, stranger logs, health
+                #    logs + their files; legal_hold rows are preserved.
                 if now - self._last_cleanup_ts > 43200: # Every 12 hours
                     try:
-                        days = getattr(cfg, "SMART_RECORD_RETENTION_DAYS", 15)
-                        count = self.db.delete_old_recordings(days)
-                        if count > 0:
-                            logger.info("System Cleanup: Removed %d old recordings (older than %d days).", count, days)
+                        from backend.core.retention_manager import RetentionManager
+                        RetentionManager(self.db).run()
                         self._last_cleanup_ts = now
                     except Exception as e:
-                        logger.error("Cleanup task failed: %s", e)
+                        logger.error("Retention task failed: %s", e)
 
                 time.sleep(3) # Sync interval (seconds)
         except Exception as e:
@@ -187,8 +202,13 @@ class CameraOrchestrator:
         logger.info("Cleaning up processes...")
         self.stop_event.set()
         for p in self.processes + self.core_processes:
-            if p.is_alive():
-                logger.info(f"Terminating {p.name}...")
-                p.terminate()
-                p.join(timeout=3)
+            logger.info(f"Terminating {p.name}...")
+            _reap(p, 3)
+        # Close queues so background feeder threads don't block process exit.
+        for q in (self.infer_queue, self.result_queue, self.recorder_queue, self.recorder_control_queue):
+            try:
+                q.cancel_join_thread()
+                q.close()
+            except Exception:
+                pass
         logger.info("Orchestrator cleanup complete.")

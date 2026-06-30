@@ -65,7 +65,7 @@
   </span>
 </div>
 
-<form action="/pending_plates/{{ plate.pending_id }}/register" method="post">
+<form action="/admin/pending_plates/{{ plate.pending_id }}/register" method="post">
   <div class="row">
 
     <!-- Left Column: Visual Source -->
@@ -161,7 +161,6 @@
   </div>
 </form>
 
-<script src="/static/js/tom-select.complete.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
   new TomSelect("#reg-site", {

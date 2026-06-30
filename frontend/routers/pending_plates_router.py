@@ -4,6 +4,7 @@ from starlette.responses import RedirectResponse
 from pathlib import Path
 from typing import List, Optional
 from frontend.deps import get_db, get_menu_context, require_menu
+from backend.core.config import normalize_plate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ async def register_page(pending_id: str, request: Request, user: dict = Depends(
         plate = db.get_pending_plate_by_id(pending_id)
         if not plate:
             logger.warning(f"Registration attempt for non-existent pending_id: {pending_id}")
-            return RedirectResponse("/camera/pending_plates", status_code=303)
+            return RedirectResponse("/admin/pending_plates", status_code=303)
             
         ctx = get_menu_context(request, user)
         ctx["current_menu"] = "pending_plates"
@@ -49,7 +50,7 @@ async def register_plate(
     # 1. Promote to whitelist
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
     db.upsert_vehicle_whitelist(
-        plate_norm=plate_number.strip().upper(),
+        plate_norm=normalize_plate(plate_number),
         label=owner_name,
         added_by=username,
         site_ids=site_ids_int,
@@ -60,7 +61,7 @@ async def register_plate(
     # We use the pending_id to identify the plate and then delete all associated pending records
     db.delete_pending_plate_by_id(pending_id)
     
-    return RedirectResponse("/camera/pending_plates", status_code=303)
+    return RedirectResponse("/admin/pending_plates", status_code=303)
 
 @router.get("")
 async def pending_page(request: Request, user: dict = Depends(require_menu("pending_plates"))):
@@ -109,7 +110,7 @@ async def approve_plate(pending_id: str, request: Request, user: dict = Depends(
     # Ultra-reliable detection: Header OR Query Param
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):
         return Response("", status_code=200)
-    return RedirectResponse("/camera/pending_plates", status_code=303)
+    return RedirectResponse("/admin/pending_plates", status_code=303)
 
 @router.post("/{pending_id}/reject")
 async def reject_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
@@ -120,4 +121,4 @@ async def reject_plate(pending_id: str, request: Request, user: dict = Depends(r
     # Ultra-reliable detection: Header OR Query Param
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):
         return Response("", status_code=200)
-    return RedirectResponse("/camera/pending_plates", status_code=303)
+    return RedirectResponse("/admin/pending_plates", status_code=303)
