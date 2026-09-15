@@ -8,7 +8,7 @@ import hashlib
 import numpy as np
 import cv2
 import multiprocessing.shared_memory as sm
-from fastapi import APIRouter, Request, Depends, UploadFile, File
+from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
@@ -218,6 +218,7 @@ async def detection_page(request: Request, user: dict = Depends(require_menu("de
 
 @router.post("/api/detect")
 async def detect_image(request: Request, file: UploadFile = File(...),
+                       source: str = Form("webcam"),
                        user: dict = Depends(require_menu("detection"))):
     """Accept an image, run plate detection + OCR, return JSON results."""
     global _detection_request_count, _last_face_results, _last_face_ts
@@ -299,7 +300,14 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                         cached = _ocr_cache.get(ch)
                         if cached and time.time() - cached[3] < 5:
                             text, ocr_conf, p_type = cached[0], cached[1], cached[2]
+                        elif source == "upload":
+                            # For single image uploads, run OCR synchronously to guarantee a result
+                            _run_ocr_background(ocr, processed, ch)
+                            cached = _ocr_cache.get(ch)
+                            if cached:
+                                text, ocr_conf, p_type = cached[0], cached[1], cached[2]
                         else:
+                            # For webcam/rtsp streams, run non-blocking OCR in background
                             _ocr_executor.submit(_run_ocr_background, ocr, processed, ch)
                             if cached:
                                 text, ocr_conf, p_type = cached[0], cached[1], cached[2]
@@ -369,7 +377,8 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                             # db = get_db() # Already called above
                             user_info = db.get_person_by_identity(name)
                             if user_info:
-                                display_text = f"Tên: {user_info['full_name']} + id: {user_info['identity']}"
+                                display_name = user_info.get('full_name') or user_info.get('username') or "Không xác định"
+                                display_text = f"Tên: {display_name} + id: {user_info['identity']}"
                                 status = "known"
                         else:
                             # Advanced Deduplication: minimize photos for same stranger

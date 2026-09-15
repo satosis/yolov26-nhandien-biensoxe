@@ -287,7 +287,7 @@
       }
     }
 
-    async function sendFrame(blob) {
+    async function sendFrame(blob, source = 'webcam') {
       if (!blob) {
         console.warn("Detection aborted: Blob is null");
         return { error: "Ảnh không hợp lệ", results: [] };
@@ -299,6 +299,8 @@
       }
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
+      fd.append('source', source);
+      
       console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
       const resp = await fetch('/admin/detection/api/detect', { method: 'POST', body: fd });
       if (!resp.ok) {
@@ -589,33 +591,42 @@
       uploadPlaceholder.classList.add('d-none'); uploadCanvas.classList.remove('d-none');
       const img = new Image();
       img.onload = async () => {
-        // Display canvas at original resolution (for visual quality)
         uploadCanvas.width = img.naturalWidth; uploadCanvas.height = img.naturalHeight;
-        const container = uploadCanvas.parentElement;
-        const scale = Math.min((container.clientWidth - 16) / img.naturalWidth, (container.clientHeight - 16) / img.naturalHeight, 1);
-        uploadCanvas.style.width = Math.round(img.naturalWidth * scale) + 'px';
-        uploadCanvas.style.height = Math.round(img.naturalHeight * scale) + 'px';
+        uploadCanvas.style.width = '100%';
+        uploadCanvas.style.height = '100%';
+        uploadCanvas.style.objectFit = 'contain';
+        
+        // Show the image immediately on screen
+        uploadCanvas.getContext('2d').drawImage(img, 0, 0);
+        
+        // Show loading state in the sidebar
+        resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-primary d-flex align-items-center" style="font-size:13px;"><i class="bx bx-loader-alt spin-anim mr-2" style="font-size:18px;"></i>Đang phân tích ảnh bằng AI...</div></div>';
 
-        // Upload: send higher resolution (max 1920px) for better OCR accuracy
-        // Unlike webcam (640x480 real-time), uploads can afford larger images
-        const MAX_UPLOAD = 1920;
-        let sendW = img.naturalWidth, sendH = img.naturalHeight;
+        // Cap the maximum upload dimension to 3840px (4K) to prevent browser/server out-of-memory errors
+        // This is large enough to retain plate details even on very tall images.
+        const MAX_UPLOAD = 3840;
+        let sendW = img.naturalWidth;
+        let sendH = img.naturalHeight;
+        
         if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
           const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
           sendW = Math.round(sendW * ratio);
           sendH = Math.round(sendH * ratio);
         }
+        
         const detectCanvas = document.createElement('canvas');
-        detectCanvas.width = sendW; detectCanvas.height = sendH;
+        detectCanvas.width = sendW; 
+        detectCanvas.height = sendH;
         detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
+        
         detectCanvas.toBlob(async (blob) => {
-          const data = await sendFrame(blob);
+          const data = await sendFrame(blob, 'upload');
           renderResults(data, false);
           drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
 
           // RAM Optimization: Revoke object URL after processing
           URL.revokeObjectURL(img.src);
-        }, 'image/jpeg', 0.9);
+        }, 'image/jpeg', 0.90);
       };
       img.src = URL.createObjectURL(file);
     });

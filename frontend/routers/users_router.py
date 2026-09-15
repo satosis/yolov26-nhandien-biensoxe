@@ -53,6 +53,11 @@ async def users_page(request: Request, error: Optional[str] = None, user: dict =
     ctx["all_users"] = users
     ctx["roles"] = db.get_roles()
     ctx["error_msg"] = error
+    
+    # Pass REQUIRE_KYC setting to template
+    require_kyc_setting = db.select("app_settings", conditions={"key": "REQUIRE_KYC"}, fetchall=False)
+    ctx["require_kyc"] = require_kyc_setting and require_kyc_setting.get("value", "false").lower() == "true"
+    
     return templates.TemplateResponse("pages/users.html", {"request": request, **ctx})
 
 

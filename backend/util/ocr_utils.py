@@ -201,16 +201,22 @@ class VNPlateOCR:
     # ──────────────────────────────────────────────────────────────────────
 
     def _make_variants(self, img: np.ndarray) -> list[np.ndarray]:
-        """Create 4 preprocessing variants balancing speed and coverage."""
+        """Create 5 preprocessing variants balancing speed and coverage."""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         cl = clahe.apply(gray)
+        
+        # Adaptive Thresholding is highly effective at recovering characters 
+        # under strong local glare (which causes CTC collapse for repeating chars like '11')
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 5)
+        thresh_bgr = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
 
         return [
             img,                                          # Original (good lighting)
             self._sharpen(img),                           # Motion blur
             self._adjust_gamma(img, 0.6),                 # Dark plates (night)
             cv2.cvtColor(cl, cv2.COLOR_GRAY2BGR),         # CLAHE (low contrast)
+            thresh_bgr,                                   # Adaptive Thresh (strong glare)
         ]
 
     def _pick_best_rec_only(self, variants: list[np.ndarray]) -> tuple[str, float]:

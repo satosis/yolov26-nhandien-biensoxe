@@ -249,7 +249,10 @@ async def upload_face(
     face_path = os.path.join(person_dir, f"{angle}.jpg")
     
     # Save image from the cv2 buffer to disk to ensure format correctness
-    cv2.imwrite(face_path, img_cv)
+    success = cv2.imwrite(face_path, img_cv)
+    if not success:
+        logger.error(f"Failed to write image to disk (possibly disk full): {face_path}")
+        return JSONResponse({"ok": False, "error": "Disk write failed"}, status_code=500)
     
     # Proactively invalidate the duplicate check cache
     invalidate_face_cache()

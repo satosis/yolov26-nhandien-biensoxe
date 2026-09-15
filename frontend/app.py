@@ -153,6 +153,7 @@ from frontend.routers.recordings_router import router as recordings_router
 from frontend.routers.landing_router import router as landing_router
 from frontend.routers.inquiries_router import router as inquiries_router
 from frontend.routers.cms_router import router as cms_router
+from frontend.routers.kyc_router import router as kyc_router
 from frontend.notifications import manager
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -167,6 +168,7 @@ for r in [detection_router, cameras_router, vehicles_router,
 # Auth router at root so /login remains /login
 app.include_router(auth_router)
 app.include_router(landing_router)
+app.include_router(kyc_router)
 
 
 @app.get("/admin")
