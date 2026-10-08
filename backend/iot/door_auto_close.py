@@ -13,8 +13,9 @@ import time
 import logging
 from typing import Dict, List, Tuple, Optional
 
-from backend.core.tripwire import TripwireTracker
-from backend.core import config as cfg
+from backend.ai.tripwire import TripwireTracker
+from backend.services import config as cfg
+from backend.services.settings_service import get_app_setting
 
 logger = logging.getLogger("door_auto_close")
 
@@ -135,7 +136,12 @@ class DoorAutoCloseManager:
     def reload_config(self, db):
         """Load cấu hình cửa có auto_close_enabled từ DB."""
         try:
-            doors = db.get_doors_for_auto_close()
+            doors = db.execute_query("""
+                SELECT rd.id, rd.name, rd.camera_id, rd.auto_close_delay_sec,
+                       rd.relay_type, rd.relay_config, rd.site_id
+                FROM rolling_doors rd
+                WHERE rd.auto_close_enabled = TRUE AND rd.camera_id IS NOT NULL AND rd.is_active = TRUE
+            """, fetchall=True, commit=False) or []
             self._doors_config.clear()
             self._camera_to_doors.clear()
 
@@ -179,7 +185,7 @@ class DoorAutoCloseManager:
             # Get tripwire line ratio from settings
             line_ratio = 0.6
             try:
-                ratio_str = db.get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6')
+                ratio_str = get_app_setting(db, 'DOOR_TRIPWIRE_LINE_RATIO', '0.6')
                 line_ratio = float(ratio_str)
             except (ValueError, TypeError):
                 pass
@@ -287,7 +293,7 @@ class DoorAutoCloseManager:
     def _close_door(self, door_id: int, config: dict):
         """Trigger cửa đóng + thông báo Telegram."""
         try:
-            from backend.core.door_controller import DoorController
+            from backend.iot.door_controller import DoorController
             controller = DoorController()
             ok = controller.control_door("CLOSE", config['relay_type'], config['relay_config'])
 
@@ -297,7 +303,7 @@ class DoorAutoCloseManager:
 
                 # Telegram notification
                 try:
-                    from backend.core.telegram_service import notify_telegram
+                    from backend.services.telegram_service import notify_telegram
                     notify_telegram(
                         f"🚪 Cửa '{config['name']}' đã tự đóng sau {config['delay_sec'] // 60} phút không có người.",
                         important=False,
@@ -307,9 +313,12 @@ class DoorAutoCloseManager:
 
                 # Log event
                 try:
-                    from backend.core.database import DatabaseManager
+                    from backend.services.database import DatabaseManager
                     db = DatabaseManager()
-                    db.log_door_event(door_id, 'auto_closed', f"No person for {config['delay_sec']}s")
+                    db.execute_query("""
+                        INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
+                        VALUES (%s, %s, %s, %s, NOW())
+                    """, (str(door_id), 'auto_closed', 'auto_closed', f"No person for {config['delay_sec']}s"), commit=True)
                 except Exception as e:
                     logger.debug(f"Door event log failed: {e}")
             else:

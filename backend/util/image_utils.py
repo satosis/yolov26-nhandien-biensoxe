@@ -1,7 +1,7 @@
 import os
 import time
 import cv2
-from backend.core import config as cfg
+from backend.services import config as cfg
 
 def save_snapshot(frame, cam_id: str, plate_text: str) -> str:
     """Save a plate snapshot and return the relative path."""

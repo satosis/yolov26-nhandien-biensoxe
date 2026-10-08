@@ -38,6 +38,8 @@ services:
       DATABASE_URL: postgresql://camera_user:camera_password@postgres:5432/camera_ai
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
 
     # Camera discovery networking:
     # - Bridge network: ARP scan and unicast ONVIF work.

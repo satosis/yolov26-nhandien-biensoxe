@@ -21,6 +21,17 @@ async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
+def get_user_by_username(db, username: str) -> dict | None:
+    """Lấy thông tin người dùng kèm vai trò từ CSDL."""
+    query = """
+        SELECT u.*, r.role_name as role 
+        FROM users u 
+        JOIN roles r ON u.role_id = r.id 
+        WHERE u.username = %s
+    """
+    return db.execute_query(query, (username,), fetch=True)
+
+
 @router.post("/login")
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
     key = f"{request.client.host}:{username}"
@@ -33,7 +44,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         })
 
     db = get_db()
-    user = db.get_user(username)
+    user = get_user_by_username(db, username)
     if user and verify_password(password, user["hashed_password"]):
         clear_attempts(key)
 

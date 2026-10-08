@@ -205,8 +205,8 @@ RTSP Camera (Imou 2K)
 9. **KHÔNG xóa whitelist biển số** mà không backup
 10. **KHÔNG thay đổi `LINE_Y_RATIO`** mà không test lại TripwireTracker
 11. **KHÔNG sửa Dockerfile** mà không rebuild: `docker compose up -d --build`
-12. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng `RetentionManager` (`backend/core/retention_manager.py`)
-13. **KHÔNG sửa `core/config.py`** mà không chạy `python3 -m py_compile core/config.py`
+12. **KHÔNG xóa file trong `data/snapshots/`** thủ công — dùng `RetentionManager` (`backend/services/retention_manager.py`)
+13. **KHÔNG sửa `backend/services/config.py`** mà không chạy `python3 -m py_compile backend/services/config.py`
 
 ## Cấu trúc folder
 
@@ -218,11 +218,13 @@ yolov26-nhandien-biensoxe/
 ├── requirements.txt           # Python deps (backend/requirements.txt)
 ├── docker-compose.yml         # Service postgres (camera_postgres:5432, host:5433) & ai_core (mạng shared-services)
 │
-├── backend/                    # Core logic and services
+├── backend/                    # Core logic and domain services
 │   ├── main.py                # Entry point chính cho container & script
-│   ├── core/                  # Business logic thuần Python
-│   ├── config.py              # Constants + env loading
-│   ├── database.py            # PostgreSQL DatabaseManager (connection pool)
+│   ├── ai/                    # Domain AI: YOLO inference, RapidOCR, Face/Stranger, Tripwire, KYC
+│   ├── camera/                # Domain Camera: Frame grabber, recorder worker, camera services
+│   ├── iot/                   # Domain IoT & Automation: Door controller, auto-close, Hunonic MQTT
+│   ├── services/              # Domain Core Services: DatabaseManager, config, settings, telegram, retention, orchestrator
+│   ├── util/                  # Shared utilities: bbox, network discovery, ocr, image, system
 │   ├── docker/                # Dockerfiles
 │   │   └── Dockerfile.ai_core # Build với context root (.)
 │   └── ...
@@ -260,6 +262,7 @@ IMOU_OPEN_DEVICE_ID=
 
 ## Tính năng đã release
 
+- **Modular Domain Architecture (Backend)**: Tổ chức lại cấu trúc backend theo 4 domain packages riêng biệt (`backend/ai/`, `backend/camera/`, `backend/iot/`, `backend/services/`), trang bị `__init__.py` clean exports cho từng domain. Đã loại bỏ hoàn toàn thư mục legacy `backend/core/`.
 - **Camera Provider Management**: DB-driven, API keys + email lưu trong app_settings
 - **Door Provider Management**: 7 nhà cung cấp cửa cuốn (Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT)
 - **Tuya Door Control**: tinytuya local SDK, toggle relay DPS "1"
@@ -284,7 +287,7 @@ IMOU_OPEN_DEVICE_ID=
 - **Auto-Register Cameras**: setting `AUTO_REGISTER_NEW_CAMERAS`, nút toggle trên UI, camera mới tự thêm vào DB
 - **Door Auto-Close**: cửa cuốn tự đóng khi không còn người — YOLO person detect + CentroidTracker + TripwireTracker + countdown timer (configurable), Telegram notify khi đóng
 - **Camera Health Monitoring**: real-time status indicator (online/offline) trên trang Camera, Telegram alert khi camera offline (circuit breaker opens), API `/cameras/health` trả event log
-- **RetentionManager (data + file retention)**: `backend/core/retention_manager.py` — orchestrator gọi mỗi 12h, xóa `video_recordings`/`stranger_logs`/`camera_status_log` cũ hơn `DATA_RETENTION_DAYS` (mặc định 30, override app_settings) kèm file; chừa `legal_hold`. DB methods: `delete_old_recordings` (đã thêm check legal_hold), `delete_old_stranger_logs`, `delete_old_status_logs`
+- **RetentionManager (data + file retention)**: `backend/services/retention_manager.py` — orchestrator gọi mỗi 12h, xóa `video_recordings`/`stranger_logs`/`camera_status_log` cũ hơn `DATA_RETENTION_DAYS` (mặc định 30, override app_settings) kèm file; chừa `legal_hold`. DB methods: `delete_old_recordings` (đã thêm check legal_hold), `delete_old_stranger_logs`, `delete_old_status_logs`
 - **Security**: xóa hardcode Telegram token khỏi source code, secrets chỉ qua `.env`, config qua DB `app_settings`
 - **Landing (giao diện user chính) — Tailwind**: toàn bộ site public THÉP SƠN LÂM viết lại bằng Tailwind CSS + Alpine.js (bỏ `landing.css`/`landing.js` cũ). Design tokens `tsl-*` + font Outfit + `.tsl-btn*` khai báo trong `frontend/static/css/input.css` (Tailwind v4 `@theme`/`@layer`). Trang: `/` (home), `/gioi-thieu`, `/du-an` (tổng quan nhà xưởng — hub), `/nha-xuong` (Trung Hà), `/nha-xuong-co-tiet` (Cổ Tiết), `/dich-vu` (build-to-suit), `/tin-tuc` + `/tin-tuc/{slug}`, `/lien-he` (trang liên hệ độc lập, GET; POST `/lien-he` xử lý form). Nav "Nhà xưởng" trỏ hub `/du-an`. Slider dự án + gallery + lightbox chạy bằng Alpine (không còn `window.__projects__`/landing.js). Vẫn DB-driven (projects/news/inquiries) + i18n VI/中文 + auth menu.
 - **Legacy spokes (`/xe-cau`, `/kiem-dinh-can`)**: 2 trang dịch vụ cũ (không thuộc thepsonlam) được **khôi phục nguyên văn từ git** theo yêu cầu — vẫn dùng **giao diện cũ `landing.css`/`landing.js`**, tách riêng qua `landing_base_legacy.html` + `landing_header_legacy.html` + `landing_footer_legacy.html` + `contact_section_legacy.html` (không trộn với 9 trang Tailwind). Truy cập từ nav Tailwind: dropdown "Dịch vụ" + link footer. **Hai hệ CSS song song**: trang Tailwind dùng `output.css`, 2 trang legacy dùng `landing.css` — sửa trang nào build/giữ đúng hệ đó. **Sau khi sửa landing templates phải rebuild CSS**: `cd frontend && npm run build` (cập nhật `static/css/output.css`).
@@ -323,7 +326,7 @@ IMOU_OPEN_DEVICE_ID=
 - **Stranger cooldown**: 60s per camera
 - **Pending plate cooldown**: 60s per plate
 - **OCR sample range**: confidence 0.3-0.7
-- **Retention**: `RetentionManager` (`backend/core/retention_manager.py`) chạy trong orchestrator mỗi 12h — xóa video_recordings/stranger_logs/camera_status_log **cũ hơn `DATA_RETENTION_DAYS`** (mặc định 30, override qua app_settings key `DATA_RETENTION_DAYS`) **kèm file trên đĩa**; bỏ qua dòng có file trong `legal_hold` (active). File path không tồn tại trên host (vd DB migrate từ máy khác) được bỏ qua, vẫn xóa dòng DB. Chỉ chạy khi AI core (orchestrator) chạy.
+- **Retention**: `RetentionManager` (`backend/services/retention_manager.py`) chạy trong orchestrator mỗi 12h — xóa video_recordings/stranger_logs/camera_status_log **cũ hơn `DATA_RETENTION_DAYS`** (mặc định 30, override qua app_settings key `DATA_RETENTION_DAYS`) **kèm file trên đĩa**; bỏ qua dòng có file trong `legal_hold` (active). File path không tồn tại trên host (vd DB migrate từ máy khác) được bỏ qua, vẫn xóa dòng DB. Chỉ chạy khi AI core (orchestrator) chạy.
 - **Door control**: Tuya local (tinytuya), Tasmota, HTTP, GPIO, Hunonic Cloud (MQTT)
 - **Door auto-close**: CentroidTracker (IoU) + TripwireTracker, default 300s delay, configurable per door
 - **YOLO model classes**: 0=plate, 1=person, 2=door (`yolo26_plate_people_door_int8.onnx`)

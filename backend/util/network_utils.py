@@ -10,6 +10,9 @@ import concurrent.futures
 from typing import List, Dict
 from urllib.parse import urlparse
 
+from backend.camera import camera_service as cam_svc
+from backend.services.settings_service import get_app_setting, set_app_setting
+
 logger = logging.getLogger("network_utils")
 
 WS_DISCOVERY_MCAST_ADDR = "239.255.255.250"
@@ -891,7 +894,7 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
     Also updates IP/RTSP for existing cameras that changed.
     Returns {'registered': int, 'updated': int, 'skipped': int}.
     """
-    auto_enabled = (db.get_app_setting('AUTO_REGISTER_NEW_CAMERAS', 'false') or 'false').lower() == 'true'
+    auto_enabled = (get_app_setting(db, 'AUTO_REGISTER_NEW_CAMERAS', 'false') or 'false').lower() == 'true'
     stats = {'registered': 0, 'updated': 0, 'skipped': 0}
 
     all_cams = db._execute_query(
@@ -935,17 +938,18 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
                 )
                 needs_update = True
             if rtsp_url and matched.get('onvif_rtsp_detected') != rtsp_url:
-                db.regenerate_rtsp_url(matched['id'])
-                db.store_onvif_detected_rtsp(matched['id'], rtsp_url)
+                cam_svc.regenerate_rtsp_url(db, matched['id'])
+                cam_svc.store_onvif_detected_rtsp(db, matched['id'], rtsp_url)
                 needs_update = True
             stats['updated' if needs_update else 'skipped'] += 1
         elif auto_enabled:
             # New camera — auto-register
-            mk = db.get_app_setting('IMOU_MK', '') or ''
+            mk = get_app_setting(db, 'IMOU_MK', '') or ''
             cam_type = _guess_provider_type(vendor, model)
             name = f"{vendor} {model}".strip() or f"Camera @ {ip}"
 
-            new_id = db.add_camera(
+            new_id = cam_svc.add_camera(
+                db,
                 name=name,
                 cam_type=cam_type,
                 imou_device_id=serial if serial else None,
@@ -958,8 +962,9 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
             )
             if new_id:
                 if rtsp_url:
-                    db.store_onvif_detected_rtsp(new_id, rtsp_url)
-                db.upsert_camera_asset(
+                    cam_svc.store_onvif_detected_rtsp(db, new_id, rtsp_url)
+                cam_svc.upsert_camera_asset(
+                    db,
                     cam_id=serial or ip, name=name, ip=ip, serial=serial,
                     model=model, rtsp_url=rtsp_url, mac=mac,
                     onvif_port=dev.get('onvif_port'),
@@ -975,7 +980,8 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
         # Always cache in asset table
         if mac or serial:
             try:
-                db.upsert_camera_asset(
+                cam_svc.upsert_camera_asset(
+                    db,
                     cam_id=serial or mac or ip, name=f"{vendor} {model}".strip() or ip,
                     ip=ip, serial=serial, model=model, rtsp_url=rtsp_url, mac=mac,
                     onvif_port=dev.get('onvif_port'),
@@ -992,7 +998,7 @@ def discover_and_update_all_cameras():
     ONVIF is the PRIMARY source for IP and status.
     Returns a dict with summary results.
     """
-    from backend.core.database import DatabaseManager
+    from backend.services.database import DatabaseManager
     from backend.util.imou_api import ImouClient
     db = DatabaseManager()
     
@@ -1021,12 +1027,12 @@ def discover_and_update_all_cameras():
         found_ips[dev['serial'].lower()] = dev['ip']
 
     # Get global camera password (used for credential resolution)
-    imou_mk = db.get_app_setting("IMOU_MK", "")
+    imou_mk = get_app_setting(db, "IMOU_MK", "")
 
     # METHOD B: ONVIF Discovery (Standard) with full RTSP detection
     # Resolve ONVIF credentials: ONVIF_USERNAME/PASSWORD → IMOU_MK → admin/""
-    onvif_user = db.get_app_setting("ONVIF_USERNAME", "") or "admin"
-    onvif_pass = db.get_app_setting("ONVIF_PASSWORD", "") or imou_mk or ""
+    onvif_user = get_app_setting(db, "ONVIF_USERNAME", "") or "admin"
+    onvif_pass = get_app_setting(db, "ONVIF_PASSWORD", "") or imou_mk or ""
     has_onvif_creds = bool(onvif_pass)
 
     logger.info(f"Starting ONVIF WS-Discovery scan (full_probe={'yes' if has_onvif_creds else 'no'})...")
@@ -1120,7 +1126,7 @@ def discover_and_update_all_cameras():
                 found_ips[dev_id] = ip
     
     # --- METHOD B: IMOU CLOUD API SYNC (SECONDARY) ---
-    imou_keys = db.get_imou_api_keys()
+    imou_keys = cam_svc.get_imou_api_keys(db)
     cloud_new_devices = []
     if imou_keys.get('app_id') and imou_keys.get('app_secret'):
         logger.info("Starting Imou Cloud API sync...")
@@ -1364,7 +1370,7 @@ def discover_and_update_all_cameras():
                     logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
                     db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']), commit=True)
                     # Regenerate RTSP URL with new IP
-                    db.regenerate_rtsp_url(cam['id'])
+                    cam_svc.regenerate_rtsp_url(db, cam['id'])
                     results['updated_cameras'].append({
                         'name': cam['camera_name'],
                         'old_ip': cam['camera_ip'] or '',
@@ -1378,7 +1384,8 @@ def discover_and_update_all_cameras():
         for dev in all_discovered:
             cam_id = (dev.get('serial') or dev.get('id') or dev.get('ip', '')).strip()
             if cam_id and not cam_id.startswith('unidentified_'):
-                db.upsert_camera_asset(
+                cam_svc.upsert_camera_asset(
+                    db,
                     cam_id=cam_id,
                     name=dev.get('name', dev.get('manufacturer', '')),
                     ip=dev.get('ip'),
@@ -1394,7 +1401,7 @@ def discover_and_update_all_cameras():
         logger.debug(f"Asset cache error: {e}")
 
     # Save last discovery timestamp
-    db.set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
+    set_app_setting(db, "LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
 
     # Auto-register new cameras if enabled
     if new_devices:

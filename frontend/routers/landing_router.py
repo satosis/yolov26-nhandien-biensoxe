@@ -9,6 +9,8 @@ from pathlib import Path
 
 from frontend.deps import get_db, get_optional_user
 from frontend.notifications import manager
+from .cms_router import get_projects, get_news, get_news_by_slug, get_news_by_id, get_landing_settings
+from .inquiries_router import save_inquiry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,7 +21,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 async def landing_home(request: Request):
     """Home page - professional company landing page."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
@@ -28,7 +30,7 @@ async def landing_home(request: Request):
     }
     
     try:
-        projects = db.get_projects()
+        projects = get_projects(db)
     except Exception as e:
         logger.error(f"Database error getting projects: {e}")
         projects = []
@@ -47,7 +49,7 @@ async def landing_home(request: Request):
             p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
         
     try:
-        news_items = db.get_news(limit=3)
+        news_items = get_news(db, limit=3)
     except Exception as e:
         logger.error(f"Database error getting news: {e}")
         news_items = []
@@ -68,7 +70,7 @@ async def landing_home(request: Request):
         {
             "request": request, 
             "settings": settings, 
-            "projects": projects,
+            "projects": projects, 
             "news_items": news_items,
             "source_page": "home", 
             "user": get_optional_user(request)
@@ -80,7 +82,7 @@ async def landing_home(request: Request):
 async def landing_about(request: Request):
     """About us page."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE", ""),
         "zalo": raw_settings.get("LANDING_ZALO", ""),
@@ -95,7 +97,7 @@ async def landing_about(request: Request):
 async def landing_warehouse(request: Request):
     """Spoke 1 — Nha xuong cho thue."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE", ""),
         "zalo": raw_settings.get("LANDING_ZALO", ""),
@@ -104,7 +106,7 @@ async def landing_warehouse(request: Request):
     }
     
     try:
-        projects = db.get_projects()
+        projects = get_projects(db)
     except Exception as e:
         logger.error(f"Database error getting projects: {e}")
         projects = []
@@ -118,7 +120,7 @@ async def landing_warehouse(request: Request):
         {
             "request": request, 
             "settings": settings, 
-            "projects": projects,
+            "projects": projects, 
             "source_page": "warehouse", 
             "user": get_optional_user(request)
         },
@@ -129,7 +131,7 @@ async def landing_warehouse(request: Request):
 async def landing_co_tiet(request: Request):
     """Spoke 1b — CCN Co Tiet nha xuong cho thue."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE", ""),
         "zalo": raw_settings.get("LANDING_ZALO", ""),
@@ -150,7 +152,7 @@ async def landing_co_tiet(request: Request):
 @router.get("/dich-vu", response_class=HTMLResponse)
 async def landing_services(request: Request):
     """Dịch vụ & giải pháp — build-to-suit, vận hành, pháp lý FDI, hạ tầng."""
-    raw_settings = get_db().get_landing_settings()
+    raw_settings = get_landing_settings(get_db())
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
@@ -166,7 +168,7 @@ async def landing_services(request: Request):
 @router.get("/du-an", response_class=HTMLResponse)
 async def landing_projects(request: Request):
     """Tổng quan nhà xưởng — hub liệt kê KCN Trung Hà & Cổ Tiết."""
-    raw_settings = get_db().get_landing_settings()
+    raw_settings = get_landing_settings(get_db())
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
@@ -182,7 +184,7 @@ async def landing_projects(request: Request):
 @router.get("/xecau", response_class=HTMLResponse)
 async def landing_crane(request: Request):
     """Spoke (legacy) — Dịch vụ xe cẩu. Giao diện gốc (landing.css), tách khỏi Tailwind."""
-    raw_settings = get_db().get_landing_settings()
+    raw_settings = get_landing_settings(get_db())
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
@@ -198,7 +200,7 @@ async def landing_crane(request: Request):
 @router.get("/kiem-dinh-can", response_class=HTMLResponse)
 async def landing_scale(request: Request):
     """Spoke (legacy) — Kiểm định cân & cho thuê quả cân. Giao diện gốc (landing.css)."""
-    raw_settings = get_db().get_landing_settings()
+    raw_settings = get_landing_settings(get_db())
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
@@ -215,7 +217,7 @@ async def landing_scale(request: Request):
 async def landing_contact(request: Request):
     """Trang Liên hệ độc lập (GET). Form submit dùng POST /lien-he bên dưới."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {"phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", "")}
     return templates.TemplateResponse(
         "pages/landing_contact.html",
@@ -228,17 +230,17 @@ async def landing_news_detail(request: Request, slug: str):
     """Chi tiet bai viet tin tuc — slug hoac legacy numeric ID."""
     from fastapi.responses import RedirectResponse
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
     }
     # Legacy: numeric ID → redirect to slug URL
     if slug.isdigit():
-        item = db.get_news_by_id(int(slug))
+        item = get_news_by_id(db, int(slug))
         if item and item.get("slug"):
             return RedirectResponse(f"/tin-tuc/{item['slug']}", status_code=301)
         return RedirectResponse("/tin-tuc")
-    item = db.get_news_by_slug(slug)
+    item = get_news_by_slug(db, slug)
     if not item:
         return RedirectResponse("/tin-tuc")
     user = get_optional_user(request)
@@ -254,12 +256,12 @@ async def landing_news_detail(request: Request, slug: str):
 async def landing_news(request: Request):
     """Tin tức & Cập nhật — danh sách tin tức từ DB."""
     db = get_db()
-    raw_settings = db.get_landing_settings()
+    raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
     }
-    news_items = db.get_news(limit=50)
+    news_items = get_news(db, limit=50)
     for item in news_items:
         if item.get("publish_date"):
             d = item["publish_date"]
@@ -307,7 +309,7 @@ async def sitemap(request: Request):
     <priority>{priority}</priority>
   </url>\n"""
 
-    news_items = db.get_news(limit=200)
+    news_items = get_news(db, limit=200)
     for item in news_items:
         if not item.get("is_published", True):
             continue
@@ -398,7 +400,7 @@ async def contact_inquiry(
 
     try:
         db = get_db()
-        inquiry_id = db.save_inquiry(full_name, phone, company_name, demand, source_page)
+        inquiry_id = save_inquiry(db, full_name, phone, company_name, demand, source_page)
         logger.info("New inquiry saved: %s | %s | source=%s", full_name, phone, source_page)
         
         # Broadcast via WebSocket
@@ -441,7 +443,7 @@ async def warehouse_contact_legacy(
 
     try:
         db = get_db()
-        db.save_inquiry(name, phone, "", area, "warehouse_legacy")
+        save_inquiry(db, name, phone, "", area, "warehouse_legacy")
         logger.info("Legacy warehouse contact saved: %s | %s", name, phone)
     except Exception as exc:
         logger.warning("Could not save legacy contact: %s", exc)

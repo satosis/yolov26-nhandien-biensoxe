@@ -1,19 +1,52 @@
+import json
+from datetime import datetime
+import logging
+from typing import Optional
+from pathlib import Path
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
-from pathlib import Path
-from typing import Optional
-import json
-from datetime import datetime
-from backend.core.door_controller import DoorController
+from backend.iot.door_controller import DoorController
+from backend.services.settings_service import get_app_setting, set_app_setting
 from frontend.deps import get_db, get_menu_context, require_menu
-import logging
+from frontend.routers.door_providers_router import get_all_door_providers
 
 logger = logging.getLogger("rolling_doors_router")
 
 router = APIRouter(prefix="/rolling_doors")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 templates.env.add_extension('jinja2.ext.do')
+
+
+def get_all_rolling_doors(db) -> list:
+    """Lấy danh sách tất cả cửa cuốn cùng tên nhà cung cấp và cơ sở."""
+    query = """
+        SELECT rd.*, dp.name as supplier_name, s.site_name 
+        FROM rolling_doors rd
+        LEFT JOIN door_providers dp ON rd.supplier_key = dp.provider_key
+        LEFT JOIN sites s ON rd.site_id = s.id
+        ORDER BY dp.name ASC, rd.name ASC
+    """
+    return db.execute_query(query, fetchall=True, commit=False) or []
+
+
+def get_rolling_door(db, door_id: int) -> dict | None:
+    """Lấy thông tin một cửa cuốn theo ID."""
+    return db.select('rolling_doors', conditions={'id': door_id}, fetchall=False)
+
+
+def upsert_rolling_door_record(db, **data):
+    """Thêm mới hoặc cập nhật thông tin cửa cuốn."""
+    door_id = data.pop('id', None)
+    if door_id:
+        return db.update('rolling_doors', data, {'id': door_id})
+    return db.insert('rolling_doors', data)
+
+
+def delete_rolling_door_record(db, door_id: int):
+    """Xóa cửa cuốn theo ID."""
+    return db.delete('rolling_doors', {'id': door_id})
+
 
 @router.get("")
 async def rolling_doors_page(request: Request, user: dict = Depends(require_menu("rolling_doors"))):
@@ -22,14 +55,14 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
     ctx["current_menu"] = "rolling_doors"
     
     # Global Tuya settings
-    ctx["global_tuya_device_id"] = db.get_app_setting("TUYA_DEVICE_ID", "")
-    ctx["global_tuya_local_key"] = db.get_app_setting("TUYA_LOCAL_KEY", "")
-    ctx["global_tuya_ip"] = db.get_app_setting("TUYA_IP", "")
+    ctx["global_tuya_device_id"] = get_app_setting(db, "TUYA_DEVICE_ID", "")
+    ctx["global_tuya_local_key"] = get_app_setting(db, "TUYA_LOCAL_KEY", "")
+    ctx["global_tuya_ip"] = get_app_setting(db, "TUYA_IP", "")
     
     # Fetch data
-    doors = db.get_all_rolling_doors()
-    suppliers = db.get_all_door_providers()
-    sites = db.select('sites', order_by='site_name ASC')
+    doors = get_all_rolling_doors(db)
+    suppliers = get_all_door_providers(db)
+    sites = db.select('sites', order_by='site_name ASC') or []
     
     # Group doors by supplier NAME for cleaner UI grouping
     grouped_doors = {}
@@ -42,7 +75,7 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
         if isinstance(d.get('relay_config'), str):
             try:
                 d['relay_config'] = json.loads(d['relay_config'])
-            except:
+            except Exception:
                 d['relay_config'] = {}
         
         # Sanitize for JSON (datetime issues)
@@ -55,7 +88,7 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
     ctx["grouped_doors"] = grouped_doors
     ctx["suppliers"] = suppliers
     ctx["sites"] = sites
-    ctx["cameras"] = db.get_all_cameras()
+    ctx["cameras"] = db.select('cameras', order_by='camera_name ASC') or []
 
     return templates.TemplateResponse("pages/rolling_doors.html", {"request": request, **ctx})
 
@@ -69,11 +102,12 @@ async def update_tuya_global(
     user: dict = Depends(require_menu("rolling_doors")),
 ):
     db = get_db()
-    db.set_app_setting("TUYA_DEVICE_ID", device_id.strip())
-    db.set_app_setting("TUYA_LOCAL_KEY", local_key.strip())
-    db.set_app_setting("TUYA_IP", ip.strip())
+    set_app_setting(db, "TUYA_DEVICE_ID", device_id.strip())
+    set_app_setting(db, "TUYA_LOCAL_KEY", local_key.strip())
+    set_app_setting(db, "TUYA_IP", ip.strip())
     
     return RedirectResponse(url="/admin/rolling_doors", status_code=303)
+
 
 @router.post("")
 async def upsert_rolling_door(
@@ -111,11 +145,11 @@ async def upsert_rolling_door(
         # Convert numeric fields safely
         safe_port = None
         try: safe_port = int(relay_port) if relay_port and str(relay_port).strip() else None
-        except: pass
+        except Exception: pass
         
         safe_pin = None
         try: safe_pin = int(relay_pin) if relay_pin and str(relay_pin).strip() else None
-        except: pass
+        except Exception: pass
 
         relay_config = {
             "ip": relay_ip,
@@ -132,7 +166,8 @@ async def upsert_rolling_door(
     final_id = int(door_id) if door_id and str(door_id).strip() else None
     final_camera_id = int(camera_id) if camera_id and str(camera_id).strip() else None
 
-    db.upsert_rolling_door(
+    upsert_rolling_door_record(
+        db,
         id=final_id,
         name=name,
         supplier_key=supplier_key,
@@ -147,14 +182,12 @@ async def upsert_rolling_door(
     
     return RedirectResponse(url="/admin/rolling_doors", status_code=303)
 
+
 @router.post("/scan")
 async def scan_doors(request: Request, user: dict = Depends(require_menu("rolling_doors"))):
     import tinytuya
     try:
-        # Perform network scan (Tuya focus)
-        # verbose=False, color=False for JSON return
         devices = tinytuya.deviceScan(verbose=False, color=False, poll=False)
-        
         results = []
         for ip, info in devices.items():
             results.append({
@@ -169,6 +202,7 @@ async def scan_doors(request: Request, user: dict = Depends(require_menu("rollin
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
 @router.post("/hunonic/devices")
 async def get_hunonic_devices(
     request: Request,
@@ -176,17 +210,17 @@ async def get_hunonic_devices(
     password: str = Form(...),
     user: dict = Depends(require_menu("rolling_doors"))
 ):
-    from backend.core.hunonic_handler import HunonicHandler
+    from backend.iot.hunonic_handler import HunonicHandler
     try:
         handler = HunonicHandler(phone, password)
         if not handler.login():
             return {"status": "error", "message": "Login failed"}
         
         devices = handler.get_devices()
-        # Filter for relevant devices if possible, but Hunonic doesn't always have strict types
         return {"status": "success", "devices": devices}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
 
 @router.post("/{door_id}/delete")
 async def delete_rolling_door(
@@ -194,8 +228,9 @@ async def delete_rolling_door(
     request: Request,
     user: dict = Depends(require_menu("rolling_doors")),
 ):
-    get_db().delete_rolling_door(door_id)
+    delete_rolling_door_record(get_db(), door_id)
     return RedirectResponse(url="/admin/rolling_doors", status_code=303)
+
 
 @router.post("/{door_id}/control")
 async def control_rolling_door(
@@ -204,7 +239,7 @@ async def control_rolling_door(
     user: dict = Depends(require_menu("rolling_doors")),
 ):
     db = get_db()
-    door = db.get_rolling_door(door_id)
+    door = get_rolling_door(db, door_id)
     if not door:
         return {"status": "error", "message": "Door not found"}
     
@@ -230,7 +265,7 @@ async def control_rolling_door(
         # Reset auto-close state when manually opening
         if action.upper() == "OPEN":
             try:
-                from backend.core.door_auto_close import DoorAutoCloseManager
+                from backend.iot.door_auto_close import DoorAutoCloseManager
                 mgr = DoorAutoCloseManager()
                 mgr.reset_door(door_id)
             except Exception:
@@ -238,4 +273,4 @@ async def control_rolling_door(
         return {"status": "success", "message": f"Command {action} sent"}
     else:
         logger.error(f"Failed to send command {action} to door {door_id}")
-        return {"status": "error", "message": "Failed to send command. Check terminal logs."}
+        return {"status": "error", "message": f"Failed to send command {action}"}

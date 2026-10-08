@@ -44,8 +44,7 @@ def remaining_lockout(key: str) -> int:
 
 def login_user(request: Request, response: Response, user: dict):
     """Store user in session."""
-    db = get_db()
-    roles = db.get_roles()
+    roles = db.select("roles", order_by="id ASC") or []
     role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
     allowed_menus = role_info.get("allowed_menus", "") if role_info else ""
 
@@ -64,7 +63,7 @@ def logout_user(request: Request, response: Response):
     user = request.session.get("user")
     if user:
         if "id" in user:
-            get_db().delete_remember_tokens(user["id"])
+            get_db().update("users", {"remember_token": None, "remember_token_expires": None}, {"id": user["id"]})
         # Save last username so login form can prefill it
         if user.get("username"):
             response.set_cookie("last_username", user["username"], max_age=60*60*24*30, httponly=False, samesite="lax")

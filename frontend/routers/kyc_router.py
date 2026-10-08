@@ -12,7 +12,10 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from typing import Optional
 from frontend.deps import get_db, get_menu_context, require_menu, get_current_user
-from backend.core import config as cfg
+from backend.services import config as cfg
+from backend.ai.kyc_manager import KYCManager
+from frontend.routers.users_router import get_all_users, get_user_by_id
+from frontend.routers.strangers_router import get_stranger_log, update_stranger_status
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +127,9 @@ async def kyc_page(request: Request, user: dict = Depends(get_current_user)):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc"
     db = get_db()
-    kyc_detail = db.get_kyc_user_detail(user["id"])
-    kyc_docs = db.get_kyc_documents(user["id"])
+    kyc = KYCManager(db)
+    kyc_detail = kyc.get_user_detail(user["id"])
+    kyc_docs = kyc.get_documents(user["id"])
     # Build a doc_type -> doc mapping
     docs_map = {d["doc_type"]: d for d in kyc_docs}
     ctx["kyc"] = kyc_detail
@@ -144,7 +148,8 @@ async def submit_basic_info(
     id_number: str = Form(...),
 ):
     db = get_db()
-    db.update_kyc_basic_info(user["id"], full_name, phone, email, date_of_birth, id_number)
+    kyc = KYCManager(db)
+    kyc.update_basic_info(user["id"], full_name, phone, email, date_of_birth, id_number)
     logger.info("KYC Level 1 submitted for user %s", user["id"])
     return RedirectResponse(url="/kyc", status_code=303)
 
@@ -167,15 +172,16 @@ async def upload_id_doc(
         shutil.copyfileobj(file.file, buffer)
 
     db = get_db()
-    db.insert_kyc_document(user["id"], doc_type, file_path)
+    kyc = KYCManager(db)
+    kyc.insert_document(user["id"], doc_type, file_path)
 
     # Auto-advance to level 2 if both front and back uploaded
-    docs = db.get_kyc_documents(user["id"])
+    docs = kyc.get_documents(user["id"])
     doc_types = {d["doc_type"] for d in docs}
     if {"id_front", "id_back"}.issubset(doc_types):
-        kyc_detail = db.get_kyc_user_detail(user["id"])
+        kyc_detail = kyc.get_user_detail(user["id"])
         if kyc_detail and kyc_detail["kyc_level"] < 2:
-            db.update_kyc_level(user["id"], 2)
+            kyc.update_level(user["id"], 2)
 
     logger.info("KYC doc '%s' uploaded for user %s", doc_type, user["id"])
     return JSONResponse({"ok": True, "doc_type": doc_type})
@@ -232,7 +238,7 @@ async def upload_face(
                 # If it's a match but it's the SAME user, it's NOT a duplicate (re-uploading same angle)
                 if str(dup_target) != str(target_id):
                     db = get_db()
-                    dup_user = db.get_user_by_id(int(dup_target)) if dup_target.isdigit() else None
+                    dup_user = get_user_by_id(db, int(dup_target)) if dup_target.isdigit() else None
                     dup_username = dup_user["username"] if dup_user else dup_target
                     
                     logger.warning(f"KYC rejection: duplicate_face for user={target_id}. Matched {dup_target} ({dup_username}) at {max_val:.4f}")
@@ -259,16 +265,17 @@ async def upload_face(
 
     # Also record in kyc_documents
     db = get_db()
-    db.insert_kyc_document(target_id, f"face_{angle}", face_path)
+    kyc = KYCManager(db)
+    kyc.insert_document(target_id, f"face_{angle}", face_path)
 
     # Check if all 5 angles are done
-    docs = db.get_kyc_documents(target_id)
+    docs = kyc.get_documents(target_id)
     face_types = {d["doc_type"] for d in docs if d["doc_type"].startswith("face_")}
     required_faces = {f"face_{a}" for a in valid_angles}
     if required_faces.issubset(face_types):
-        kyc_detail = db.get_kyc_user_detail(target_id)
+        kyc_detail = kyc.get_user_detail(target_id)
         if kyc_detail and kyc_detail["kyc_level"] < 4:
-            db.update_kyc_level(target_id, 4)
+            kyc.update_level(target_id, 4)
             # Trigger face model reload (for background orchestrator)
             reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
             with open(reload_trigger, "w") as f:
@@ -316,16 +323,17 @@ async def delete_face(
 
     # Sync state with DB so the UI knows this face is no longer submitted
     db = get_db()
-    db.delete_kyc_document(target_id, f"face_{angle}")
+    kyc = KYCManager(db)
+    kyc.delete_document(target_id, f"face_{angle}")
     
     # Downgrade KYC level if they no longer have all 5 faces
-    docs = db.get_kyc_documents(target_id)
+    docs = kyc.get_documents(target_id)
     face_types = {d["doc_type"] for d in docs if d["doc_type"].startswith("face_")}
     required_faces = {"face_front", "face_left", "face_right", "face_up", "face_down"}
     if not required_faces.issubset(face_types):
-        kyc_detail = db.get_kyc_user_detail(target_id)
+        kyc_detail = kyc.get_user_detail(target_id)
         if kyc_detail and kyc_detail["kyc_level"] >= 3:
-            db.update_kyc_level(target_id, 2)
+            kyc.update_level(target_id, 2)
             
     return JSONResponse({"ok": True})
 
@@ -334,9 +342,10 @@ async def delete_face(
 async def reset_kyc(request: Request, user: dict = Depends(get_current_user)):
     """Allow user to reset their KYC after rejection."""
     db = get_db()
-    kyc_detail = db.get_kyc_user_detail(user["id"])
+    kyc = KYCManager(db)
+    kyc_detail = kyc.get_user_detail(user["id"])
     if kyc_detail and kyc_detail["kyc_level"] == -1:
-        db.reset_kyc(user["id"])
+        kyc.reset(user["id"])
         logger.info("KYC reset for user %s", user["id"])
     return RedirectResponse(url="/kyc", status_code=303)
 
@@ -348,9 +357,10 @@ async def kyc_admin_page(request: Request, user: dict = Depends(require_menu("us
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc_admin"
     db = get_db()
-    ctx["pending_users"] = db.get_pending_kyc_users()
+    kyc = KYCManager(db)
+    ctx["pending_users"] = kyc.get_pending_users()
     # Also get all users with kyc_level != 0 for the full list
-    all_users = db.get_all_users()
+    all_users = get_all_users(db)
     ctx["all_kyc_users"] = [u for u in all_users if u.get("kyc_level", 0) != 0] if all_users else []
     return templates.TemplateResponse("pages/kyc_admin.html", {"request": request, **ctx})
 
@@ -360,15 +370,17 @@ async def kyc_admin_detail(user_id: int, request: Request, user: dict = Depends(
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc_admin"
     db = get_db()
-    ctx["target"] = db.get_kyc_user_detail(user_id)
-    ctx["docs"] = db.get_kyc_documents(user_id)
+    kyc = KYCManager(db)
+    ctx["target"] = kyc.get_user_detail(user_id)
+    ctx["docs"] = kyc.get_documents(user_id)
     return templates.TemplateResponse("pages/kyc_admin_detail.html", {"request": request, **ctx})
 
 
 @router.post("/admin/{user_id}/approve")
 async def approve_kyc(user_id: int, request: Request, user: dict = Depends(require_menu("users"))):
     db = get_db()
-    db.approve_kyc(user_id, user["username"])
+    kyc = KYCManager(db)
+    kyc.approve(user_id, user["username"])
     logger.info("KYC approved for user %s by %s", user_id, user["username"])
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
@@ -381,7 +393,8 @@ async def reject_kyc(
     reason: str = Form("Không đạt yêu cầu"),
 ):
     db = get_db()
-    db.reject_kyc(user_id, user["username"], reason)
+    kyc = KYCManager(db)
+    kyc.reject(user_id, user["username"], reason)
     logger.info("KYC rejected for user %s by %s: %s", user_id, user["username"], reason)
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
@@ -415,11 +428,11 @@ async def register_stranger(
 ):
     """Convert a stranger log entry into a registered face for a user."""
     db = get_db()
-    stranger = db.get_stranger_log(stranger_id)
+    stranger = get_stranger_log(db, stranger_id)
     if not stranger:
         return JSONResponse({"ok": False, "error": "stranger_not_found"}, status_code=404)
         
-    target_user = db.get_user_by_id(user_id)
+    target_user = get_user_by_id(db, user_id)
     if not target_user:
         return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
         
@@ -441,22 +454,23 @@ async def register_stranger(
     logger.info("Copied stranger snapshot %s (%s) to user %s face directory.", stranger_id, direction, user_id)
     
     # Update stranger status
-    db.update_stranger_status(stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
+    update_stranger_status(db, stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
     
     # Remove from StrangerManager memory since this person is now a registered user
     try:
-        from backend.core.stranger_manager import get_stranger_manager
+        from backend.ai.stranger_manager import get_stranger_manager
         get_stranger_manager().remove(stranger_id)
     except Exception:
         pass
     
     # Also record in kyc_documents
-    db.insert_kyc_document(user_id, "face_front", target_path)
+    kyc = KYCManager(db)
+    kyc.insert_document(user_id, "face_front", target_path)
     
     # Set KYC level 4 (Verified) for the user
-    kyc_detail = db.get_kyc_user_detail(user_id)
+    kyc_detail = kyc.get_user_detail(user_id)
     if kyc_detail:
-        db.update_kyc_level(user_id, 4)
+        kyc.update_level(user_id, 4)
         
     # Invalidate internal cache
     invalidate_face_cache()

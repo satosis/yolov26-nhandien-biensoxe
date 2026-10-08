@@ -16,13 +16,11 @@ ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=ce
 from dotenv import load_dotenv
 load_dotenv()
 
-from backend.core.orchestrator import CameraOrchestrator
+from backend.services import config as cfg
+from backend.services.orchestrator import CameraOrchestrator
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-)
+# Configure logging (console + data/logs/backend.log)
+cfg.setup_logging("backend.log")
 logger = logging.getLogger("main")
 
 if __name__ == "__main__":

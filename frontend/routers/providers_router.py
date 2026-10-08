@@ -6,6 +6,7 @@ from starlette.responses import RedirectResponse
 from pathlib import Path
 
 from frontend.deps import get_db, get_menu_context, require_menu
+from backend.camera import camera_service as cam_svc
 
 router = APIRouter(prefix="/providers")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -22,10 +23,10 @@ def _mask(val) -> str:
 async def providers_page(request: Request, user: dict = Depends(require_menu("providers"))):
     ctx = get_menu_context(request, user)
     db = get_db()
-    providers = db.get_all_providers()
+    providers = cam_svc.get_all_providers(db)
     for p in providers:
         pk = p["provider_key"]
-        keys = db.get_provider_api_keys(pk)
+        keys = cam_svc.get_provider_api_keys(db, pk)
         p["_api_keys"] = keys or {}
         p["_masked"] = {k: _mask(v) for k, v in (keys or {}).items() if k != "email" and str(v or "").strip()}
     ctx["providers"] = providers
@@ -41,11 +42,11 @@ async def edit_api_keys_page(
 ):
     ctx = get_menu_context(request, user)
     db = get_db()
-    provider = db.get_provider(provider_key)
+    provider = cam_svc.get_provider(db, provider_key)
     if not provider:
         return RedirectResponse("/admin/providers", status_code=303)
     
-    keys = db.get_provider_api_keys(provider_key)
+    keys = cam_svc.get_provider_api_keys(db, provider_key)
     ctx["provider"] = provider
     ctx["api_keys"] = keys or {}
     ctx["current_menu"] = "providers"
@@ -69,7 +70,7 @@ async def save_api_keys(
         if n_stripped:
             keys[n_stripped] = v.strip()
             
-    get_db().update_provider_api_keys(provider_key, keys)
+    cam_svc.update_provider_api_keys(get_db(), provider_key, keys)
     return RedirectResponse("/admin/providers", status_code=303)
 
 
@@ -89,7 +90,8 @@ async def upsert_provider(
     logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form(None),
 ):
-    get_db().upsert_provider(
+    cam_svc.upsert_provider(
+        get_db(),
         provider_key=provider_key.strip().lower(),
         name=name.strip(),
         api_base_url=api_base_url or None,
@@ -111,7 +113,7 @@ async def delete_provider(
     request: Request,
     user: dict = Depends(require_menu("providers")),
 ):
-    get_db().delete_provider(provider_key)
+    cam_svc.delete_provider(get_db(), provider_key)
     return RedirectResponse("/admin/providers", status_code=303)
 
 
@@ -122,9 +124,10 @@ async def toggle_provider(
     user: dict = Depends(require_menu("providers")),
 ):
     db = get_db()
-    provider = db.get_provider(provider_key)
+    provider = cam_svc.get_provider(db, provider_key)
     if provider:
-        db.upsert_provider(
+        cam_svc.upsert_provider(
+            db,
             provider_key=provider["provider_key"],
             name=provider["name"],
             api_base_url=provider.get("api_base_url"),

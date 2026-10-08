@@ -20,7 +20,7 @@ import cv2
 from multiprocessing import Queue, Event, shared_memory
 from typing import Optional
 
-from backend.core import config as cfg
+from backend.services import config as cfg
 
 logger = logging.getLogger("grabber")
 
@@ -143,8 +143,9 @@ class CameraReader:
                     self._write_health_event('stream_down')
                     if self._camera_db_id:
                         try:
+                            from backend.camera.camera_service import set_camera_streaming
                             db = self._get_db()
-                            db.set_camera_streaming(self._camera_db_id, False)
+                            set_camera_streaming(db, self._camera_db_id, False)
                         except Exception as e:
                             logger.debug("[%s] Failed to reset is_streaming: %s", self.cam_id, e)
                     break
@@ -230,7 +231,7 @@ class CameraReader:
     def _get_db(self):
         """Lazy DatabaseManager — shared pool, created once."""
         if not hasattr(self, '_db_instance'):
-            from backend.core.database import DatabaseManager
+            from backend.services.database import DatabaseManager
             self._db_instance = DatabaseManager(max_pool_size=2)
         return self._db_instance
 
@@ -238,18 +239,19 @@ class CameraReader:
         """Write a health event to camera_status_log + Telegram alert on stream_down."""
         try:
             db = self._get_db()
-            db.log_camera_event(
-                cam_id=str(self.cam_id),
-                event_type=event_type,
-                started_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-            )
+            db.insert("camera_status_log", {
+                "camera_id": str(self.cam_id),
+                "status": event_type,
+                "event_type": event_type,
+                "logged_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
         except Exception as e:
             logger.debug("[%s] Health event write failed: %s", self.cam_id, e)
 
         # Telegram alert khi camera offline (stream_down hoặc crashed)
         if event_type in ('stream_down', 'crashed'):
             try:
-                from backend.core.telegram_service import notify_telegram
+                from backend.services.telegram_service import notify_telegram
                 notify_telegram(
                     f"Camera {self.cam_id} OFFLINE — {event_type} sau {self._fail_count} failures",
                     important=True,
@@ -263,8 +265,9 @@ class CameraReader:
         # Refresh URL from DB if we have the DB id
         if self._camera_db_id:
             try:
+                from backend.camera.camera_service import get_camera_rtsp_url
                 db = self._get_db()
-                fresh_url = db.get_camera_rtsp_url(self._camera_db_id)
+                fresh_url = get_camera_rtsp_url(db, self._camera_db_id)
                 if fresh_url and fresh_url != self.rtsp_url:
                     logger.info("[%s] RTSP URL refreshed from DB", self.cam_id)
                     self.rtsp_url = fresh_url
@@ -311,7 +314,7 @@ def grabber_process(
     """Entry point for multiprocessing.Process(target=grabber_process, ...)."""
     # Ignore SIGINT in child — parent handles shutdown via stop_event
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+    cfg.setup_logging("grabber.log")
 
     reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, recorder_queue,
                           stop_event, site_id, camera_db_id)

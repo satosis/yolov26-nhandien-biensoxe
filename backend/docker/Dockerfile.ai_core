@@ -54,5 +54,5 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 # Keep the ai_core image focused on backend runtime files.
 COPY backend ./backend
 
-# Run from the root so that 'from backend.core...' imports work correctly
+# Run from the root so that 'from backend.services...' and domain imports work correctly
 CMD ["python", "-u", "backend/main.py"]

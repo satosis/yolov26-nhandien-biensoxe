@@ -2,10 +2,10 @@ import time
 import logging
 import multiprocessing as mp
 
-from backend.core.grabber import grabber_process
-from backend.core.inference import inference_process
-from backend.core.recorder import recorder_worker
-from backend.core.database import DatabaseManager
+from backend.camera.grabber import grabber_process
+from backend.ai.inference import inference_process
+from backend.camera.recorder import recorder_worker
+from backend.services.database import DatabaseManager
 from backend.util.system_utils import log_system_health
 
 logger = logging.getLogger("orchestrator")
@@ -84,11 +84,12 @@ class CameraOrchestrator:
         """Start a grabber process for a specific camera."""
         cam_id = str(cam['id'])
         # Always use the database resolver which handles Imou encoding/fallbacks
-        rtsp_url = self.db.get_camera_rtsp_url(cam['id'])
+        from backend.camera import camera_service as cam_svc
+        rtsp_url = cam_svc.get_camera_rtsp_url(self.db, cam['id'])
 
         if not rtsp_url:
             logger.warning(f"Camera {cam_id} has no valid RTSP URL. Setting is_streaming=False...")
-            self.db.set_camera_streaming(cam['id'], False)
+            cam_svc.set_camera_streaming(self.db, cam['id'], False)
             return
 
         # site_ids is a list in the new schema
@@ -182,7 +183,7 @@ class CameraOrchestrator:
                 #    logs + their files; legal_hold rows are preserved.
                 if now - self._last_cleanup_ts > 43200: # Every 12 hours
                     try:
-                        from backend.core.retention_manager import RetentionManager
+                        from backend.services.retention_manager import RetentionManager
                         RetentionManager(self.db).run()
                         self._last_cleanup_ts = now
                     except Exception as e:

@@ -3,20 +3,98 @@ import logging
 import shutil
 import os
 import time
+import urllib.parse
 import bcrypt
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from typing import Optional
 from frontend.deps import get_db, get_menu_context, require_menu
-from backend.core import config as cfg
+from backend.services import config as cfg
 
-import urllib.parse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
+
+
+def get_all_users(db, limit=None, offset=None) -> list[dict]:
+    """Lấy danh sách người dùng kèm vai trò từ CSDL."""
+    query = """
+        SELECT u.id, u.username, r.role_name as role, u.created_at, u.full_name, u.note, u.site_ids, u.person_identity, u.kyc_level
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        ORDER BY u.id
+    """
+    params = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True) or []
+
+
+def get_user_by_id(db, user_id: int) -> dict | None:
+    """Lấy chi tiết một người dùng theo ID."""
+    query = """
+        SELECT u.id, u.username, u.full_name, u.role_id, u.site_ids, u.note, u.person_identity, r.role_name as role 
+        FROM users u 
+        JOIN roles r ON u.role_id = r.id 
+        WHERE u.id = %s
+    """
+    return db.execute_query(query, (user_id,), fetch=True)
+
+
+def create_user_record(db, username: str, hashed_password: str, role_name: str,
+                       full_name: str = None, note: str = None, site_ids: list | None = None) -> tuple[bool, str]:
+    """Tạo người dùng mới."""
+    existing = db.select("users", columns="id", conditions={"username": username}, fetchall=False)
+    if existing:
+        return False, f"Username '{username}' đã tồn tại."
+    query = """
+        INSERT INTO users (username, hashed_password, role_id, full_name, note, site_ids)
+        VALUES (%s, %s, (SELECT id FROM roles WHERE role_name = %s LIMIT 1), %s, %s, %s)
+        RETURNING id
+    """
+    result = db.execute_query(query, (username, hashed_password, role_name, full_name, note, site_ids), commit=True, return_id=True)
+    return (True, "") if result is not None else (False, "Lỗi CSDL khi tạo người dùng.")
+
+
+def update_user_record(db, user_id: int, username: str, role_name: str, hashed_password: str = None,
+                       full_name: str = None, note: str = None, site_ids: list | None = None) -> bool:
+    """Cập nhật thông tin người dùng."""
+    if hashed_password:
+        query = """
+            UPDATE users
+            SET username=%s,
+                role_id=(SELECT id FROM roles WHERE role_name=%s LIMIT 1),
+                hashed_password=%s,
+                full_name=%s,
+                note=%s,
+                site_ids=%s
+            WHERE id=%s
+        """
+        params = (username, role_name, hashed_password, full_name, note, site_ids, user_id)
+    else:
+        query = """
+            UPDATE users
+            SET username=%s,
+                role_id=(SELECT id FROM roles WHERE role_name=%s LIMIT 1),
+                full_name=%s,
+                note=%s,
+                site_ids=%s
+            WHERE id=%s
+        """
+        params = (username, role_name, full_name, note, site_ids, user_id)
+    return db.execute_query(query, params, commit=True) is not None
+
+
+def delete_user_record(db, user_id: int) -> bool:
+    """Xóa người dùng theo ID."""
+    return db.delete("users", {"id": user_id})
 
 
 @router.get("")
@@ -24,12 +102,10 @@ async def users_page(request: Request, error: Optional[str] = None, user: dict =
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "users"
     db = get_db()
-    users = db.get_all_users()
+    users = get_all_users(db)
     
     # Check face registration status for each user
     for u in users:
-        # Priority: person_identity -> username -> id
-        # This covers all possible folder naming conventions (old logic vs new)
         identities = [
             u.get("person_identity"),
             u.get("username"),
@@ -51,7 +127,7 @@ async def users_page(request: Request, error: Optional[str] = None, user: dict =
         logger.info("User %s has_face=%s (Checked: %s)", u.get("username"), u["has_face"], identities)
         
     ctx["all_users"] = users
-    ctx["roles"] = db.get_roles()
+    ctx["roles"] = db.select("roles", order_by="id ASC") or []
     ctx["error_msg"] = error
     
     # Pass REQUIRE_KYC setting to template
@@ -77,7 +153,9 @@ async def create_user(
         parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    ok, msg = get_db().create_user(
+    db = get_db()
+    ok, msg = create_user_record(
+        db,
         username=username,
         hashed_password=hashed,
         role_name=role_name,
@@ -111,7 +189,9 @@ async def edit_user(
     if password:
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    ok = get_db().update_user(
+    db = get_db()
+    ok = update_user_record(
+        db,
         user_id=user_id,
         username=username,
         role_name=role_name,
@@ -126,14 +206,14 @@ async def edit_user(
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
-from .kyc_router import invalidate_face_cache
-
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: int,
     request: Request,
     user: dict = Depends(require_menu("users")),
 ):
+    from .kyc_router import invalidate_face_cache
+
     # 1. Delete face directory and trigger AI reload before DB deletion
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
@@ -148,7 +228,8 @@ async def delete_user(
         f.write(str(time.time()))
 
     # 3. DB deletion
-    ok = get_db().delete_user(user_id)
+    db = get_db()
+    ok = delete_user_record(db, user_id)
     if not ok:
         logger.warning("delete_user failed for user_id=%s", user_id)
     return RedirectResponse(url="/admin/users", status_code=303)
@@ -163,10 +244,8 @@ async def upload_face(
     user: dict = Depends(require_menu("users")),
 ):
     """Upload a face image for a specific angle and trigger model reload."""
-    from fastapi.responses import JSONResponse
-
     db = get_db()
-    target_user = db.get_user_by_id(user_id)
+    target_user = get_user_by_id(db, user_id)
     if not target_user:
         if "application/json" in request.headers.get("accept", "") or request.headers.get("x-requested-with") == "XMLHttpRequest":
             return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
@@ -195,5 +274,4 @@ async def upload_face(
 
     logger.info("Face uploaded for user %s (%s), angle=%s. Reload triggered.", user_id, identity, angle)
     
-    # Return JSON for AJAX, redirect for form submissions
     return JSONResponse({"ok": True, "angle": angle, "identity": identity})

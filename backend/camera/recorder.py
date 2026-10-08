@@ -5,9 +5,9 @@ import queue
 import cv2
 from collections import deque
 from multiprocessing import Queue, Event
-from backend.core import config as cfg
-from backend.core.database import DatabaseManager
-from backend.core.telegram_service import notify_telegram_video
+from backend.services import config as cfg
+from backend.services.database import DatabaseManager
+from backend.services.telegram_service import notify_telegram_video
 
 logger = logging.getLogger("recorder")
 
@@ -119,16 +119,16 @@ class RecorderProcess:
         event_type = rec['event_type'] if len(rec['event_types']) == 1 else '+'.join(sorted(rec['event_types']))
 
         try:
-            self.db.add_video_recording(
-                cam_id=cam_id,
-                site_id=rec['site_id'],
-                event_type=event_type,
-                event_text=rec['event_text'],
-                file_path=rec['path'],
-                thumbnail_path=rec['thumbnail_path'],
-                duration=duration,
-                file_size=file_size
-            )
+            self.db.insert("video_recordings", {
+                "cam_id": str(cam_id),
+                "site_id": rec['site_id'],
+                "event_type": event_type,
+                "event_text": rec['event_text'],
+                "file_path": rec['path'],
+                "thumbnail_path": rec['thumbnail_path'],
+                "duration_seconds": int(duration),
+                "file_size_bytes": file_size
+            }, returning="id")
         except Exception as db_err:
             logger.error("Failed to save recording to DB: %s", db_err)
 

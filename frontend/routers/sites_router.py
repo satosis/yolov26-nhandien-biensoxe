@@ -12,7 +12,8 @@ templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates"
 
 def _sites_list_html(request: Request, user: dict) -> str:
     """Render sites as table rows consistent with door_providers."""
-    sites = get_db().get_sites()
+    db = get_db()
+    sites = db.select("sites", order_by="site_name") or []
     rows = []
     for s in sites:
         active = "Bật" if s.get("is_active") else "Tắt"
@@ -60,7 +61,8 @@ def _sites_list_html(request: Request, user: dict) -> str:
 async def sites_page(request: Request, user: dict = Depends(require_menu("sites"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "sites"
-    ctx["site_list"] = get_db().get_sites()
+    db = get_db()
+    ctx["site_list"] = db.select("sites", order_by="site_name") or []
     return templates.TemplateResponse("pages/sites.html", {"request": request, **ctx})
 
 
@@ -75,7 +77,14 @@ async def create_site(
     is_active: str = Form("on"),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    get_db().add_site(site_name, address or "", description or "", total_slots, active)
+    db = get_db()
+    db.insert("sites", {
+        "site_name": site_name,
+        "address": address or "",
+        "description": description or "",
+        "total_slots": total_slots,
+        "is_active": active
+    }, returning="id")
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã thêm {site_name}", "type": "success"}})
@@ -85,8 +94,8 @@ async def create_site(
 @router.get("/{site_id}/edit")
 async def edit_site_form(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
     """Return inline edit form block for HTMX swap."""
-    sites = get_db().get_sites()
-    site = next((s for s in sites if s["id"] == site_id), None)
+    db = get_db()
+    site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:
         return HTMLResponse('<div class="px-5 py-4 text-status-red text-sm">Không tìm thấy địa điểm.</div>')
     checked = "checked" if site.get("is_active") else ""
@@ -125,7 +134,7 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
       </div>
     </form>
   </td>
-</tr>'''
+  </tr>'''
     return HTMLResponse(html)
 
 
@@ -141,7 +150,14 @@ async def update_site(
     is_active: str = Form(None),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    get_db().update_site(site_id, site_name, address or "", description or "", active, total_slots)
+    db = get_db()
+    db.update("sites", {
+        "site_name": site_name,
+        "address": address or "",
+        "description": description or "",
+        "is_active": active,
+        "total_slots": total_slots
+    }, {"id": site_id})
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã cập nhật {site_name}", "type": "success"}})
@@ -150,7 +166,8 @@ async def update_site(
 
 @router.delete("/{site_id}")
 async def delete_site(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    get_db().delete_site(site_id)
+    db = get_db()
+    db.delete("sites", {"id": site_id})
     resp = HTMLResponse("")
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": "Đã xóa địa điểm", "type": "success"}})
     return resp
@@ -159,18 +176,10 @@ async def delete_site(site_id: int, request: Request, user: dict = Depends(requi
 @router.post("/{site_id}/toggle")
 async def toggle_site_status(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
     db = get_db()
-    sites = db.get_sites()
-    site = next((s for s in sites if s["id"] == site_id), None)
+    site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if site:
         new_status = not site.get("is_active", False)
-        db.update_site(
-            site_id, 
-            site["site_name"], 
-            site["address"] or "", 
-            site["description"] or "", 
-            new_status, 
-            site["total_slots"] or 0
-        )
+        db.update("sites", {"is_active": new_status}, {"id": site_id})
         msg = f"Đã {'bật' if new_status else 'tắt'} {site['site_name']}"
         html = _sites_list_html(request, user)
         resp = HTMLResponse(html)

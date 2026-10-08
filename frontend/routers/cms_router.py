@@ -11,12 +11,87 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cms", tags=["cms"])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
+
+def get_projects(db, limit: int = 10) -> list:
+    """Fetch projects for landing page, ordered by newest first."""
+    query = """
+        SELECT id, name, location, area, height, bays, load_capacity, image, description
+        FROM projects
+        ORDER BY created_at DESC
+        LIMIT %s
+    """
+    return db._execute_query(query, (limit,), fetchall=True, commit=False) or []
+
+
+def get_news(db, limit: int = 5) -> list:
+    """Fetch latest news items, with publish_date serialized to ISO string."""
+    query = """
+        SELECT id, slug, title, category, summary, image, publish_date
+        FROM news
+        ORDER BY publish_date DESC
+        LIMIT %s
+    """
+    rows = db._execute_query(query, (limit,), fetchall=True, commit=False) or []
+    for row in rows:
+        if row.get("publish_date") and not isinstance(row["publish_date"], str):
+            row["publish_date"] = row["publish_date"].isoformat()
+    return rows
+
+
+def get_news_by_slug(db, slug: str) -> dict | None:
+    """Fetch a single published news item by slug."""
+    rows = db._execute_query(
+        "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE slug = %s AND is_published IS DISTINCT FROM false",
+        (slug,), fetchall=True, commit=False
+    ) or []
+    if not rows:
+        return None
+    item = dict(rows[0])
+    if item.get("publish_date") and hasattr(item["publish_date"], "strftime"):
+        item["publish_date_str"] = item["publish_date"].strftime("%d/%m/%Y")
+    else:
+        item["publish_date_str"] = str(item.get("publish_date", ""))
+    return item
+
+
+def get_news_by_id(db, news_id: int) -> dict | None:
+    """Fetch a single published news item by ID (legacy, redirects to slug)."""
+    rows = db._execute_query(
+        "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE id = %s AND is_published IS DISTINCT FROM false",
+        (news_id,), fetchall=True, commit=False
+    ) or []
+    if not rows:
+        return None
+    item = dict(rows[0])
+    if item.get("publish_date") and hasattr(item["publish_date"], "strftime"):
+        item["publish_date_str"] = item["publish_date"].strftime("%d/%m/%Y")
+    else:
+        item["publish_date_str"] = str(item.get("publish_date", ""))
+    return item
+
+
+def get_landing_settings(db) -> dict:
+    """Batch-get all LANDING_* keys from app_settings."""
+    try:
+        rows = db._execute_query(
+            "SELECT key, value FROM app_settings WHERE key LIKE 'LANDING_%'",
+            fetchall=True,
+            commit=False,
+        )
+        if not rows:
+            return {}
+        return {row["key"]: row["value"] for row in rows}
+    except Exception as e:
+        logger.warning("get_landing_settings: query failed: %s", e)
+        return {}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def cms_dashboard(request: Request, user=Depends(get_current_user)):
     """CMS Dashboard — list projects and news."""
     db = get_db()
-    projects = db.get_projects()
-    news = db.get_news(limit=100)
+    projects = get_projects(db)
+    news = get_news(db, limit=100)
 
     ctx = get_menu_context(request, user)
     return templates.TemplateResponse(

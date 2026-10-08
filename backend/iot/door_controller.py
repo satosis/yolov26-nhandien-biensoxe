@@ -12,7 +12,7 @@ except (ImportError, RuntimeError, AttributeError):
     # This will fail on macOS because of 'select.EPOLLIN' absence
     pass
 
-from backend.core.hunonic_handler import HunonicHandler
+from backend.iot.hunonic_handler import HunonicHandler
 
 logger = logging.getLogger("door_controller")
 
@@ -47,11 +47,12 @@ class DoorController:
         self.RELAY_HTTP_URL = ""
 
         # Optional global Tuya defaults configured from the webapp.
-        from backend.core.database import DatabaseManager
+        from backend.services.database import DatabaseManager
+        from backend.services.settings_service import get_app_setting
         db = DatabaseManager()
-        self.TUYA_DEVICE_ID = db.get_app_setting("TUYA_DEVICE_ID", "")
-        self.TUYA_LOCAL_KEY = db.get_app_setting("TUYA_LOCAL_KEY", "")
-        self.TUYA_IP = db.get_app_setting("TUYA_IP", "")
+        self.TUYA_DEVICE_ID = get_app_setting(db, "TUYA_DEVICE_ID", "")
+        self.TUYA_LOCAL_KEY = get_app_setting(db, "TUYA_LOCAL_KEY", "")
+        self.TUYA_IP = get_app_setting(db, "TUYA_IP", "")
         
         self.door_state_lock = threading.Lock()
         self.door_state = "closed" # open, closed, opening, closing

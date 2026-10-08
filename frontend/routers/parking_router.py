@@ -8,6 +8,46 @@ router = APIRouter(prefix="/parking")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
+def get_occupancy_stats(db, site_id=None) -> list[dict]:
+    """Lấy thống kê chỗ đỗ theo cơ sở."""
+    query = """
+        SELECT
+            s.id,
+            s.site_name,
+            s.total_slots,
+            COUNT(vs.id) FILTER (WHERE vs.status = 'parking') AS occupied_slots
+        FROM sites s
+        LEFT JOIN vehicle_sessions vs ON s.id = vs.site_id
+    """
+    params = []
+    if site_id is not None:
+        query += " WHERE s.id = %s"
+        params.append(site_id)
+    query += " GROUP BY s.id, s.site_name, s.total_slots ORDER BY s.site_name"
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True) or []
+
+
+def get_parking_history(db, limit=50, date_filter=None) -> list[dict]:
+    """Lấy lịch sử xe ra vào bãi đỗ."""
+    where = ""
+    params = []
+    if date_filter:
+        where = "WHERE vs.entry_time::date = %s"
+        params.append(date_filter)
+    params.append(limit)
+    query = f"""
+        SELECT vs.*, s.site_name, c_in.camera_name as cam_in, c_out.camera_name as cam_out
+        FROM vehicle_sessions vs
+        LEFT JOIN sites s ON vs.site_id = s.id
+        LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id
+        LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id
+        {where}
+        ORDER BY vs.entry_time DESC
+        LIMIT %s
+    """
+    return db.execute_query(query, tuple(params), fetchall=True) or []
+
+
 def _aggregate_stats(rows: list) -> dict:
     """Collapse per-site occupancy rows into a single summary dict."""
     total_slots = sum(r.get("total_slots") or 0 for r in rows)
@@ -33,7 +73,8 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_dashboard"
     site_id = request.session.get("active_site_id") or None
-    rows = get_db().get_occupancy_stats(site_id=site_id)
+    db = get_db()
+    rows = get_occupancy_stats(db, site_id=site_id)
     ctx["stats"] = _aggregate_stats(rows)
     return templates.TemplateResponse("pages/parking_dashboard.html", {"request": request, **ctx})
 
@@ -42,7 +83,8 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
 async def logs(request: Request, date: str = None, user: dict = Depends(require_menu("parking_logs"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_logs"
-    ctx["logs"] = get_db().get_parking_history(limit=100, date_filter=date or None)
+    db = get_db()
+    ctx["logs"] = get_parking_history(db, limit=100, date_filter=date or None)
     ctx["filter_date"] = date or ""
     return templates.TemplateResponse("pages/parking_logs.html", {"request": request, **ctx})
 
@@ -53,9 +95,9 @@ async def analytics(request: Request, user: dict = Depends(require_menu("parking
     ctx["current_menu"] = "parking_analytics"
     db = get_db()
     site_id = request.session.get("active_site_id") or None
-    rows = db.get_occupancy_stats(site_id=site_id)
-    history = db.get_parking_history(limit=200)
+    rows = get_occupancy_stats(db, site_id=site_id)
+    history = get_parking_history(db, limit=200)
     ctx["stats"] = _aggregate_stats(rows)
     ctx["peak_hours"] = _build_peak_hours(history)
-    ctx["recent_events"] = db.get_parking_history(limit=10)
+    ctx["recent_events"] = get_parking_history(db, limit=10)
     return templates.TemplateResponse("pages/parking_analytics.html", {"request": request, **ctx})

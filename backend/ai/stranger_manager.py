@@ -1,9 +1,8 @@
 import logging
-import os
 import threading
 import time
 import numpy as np
-from backend.core import config as cfg
+from backend.services import config as cfg
 from backend.util.image_utils import save_face_snapshot
 
 logger = logging.getLogger(__name__)
@@ -49,12 +48,21 @@ class StrangerManager:
                 return
             target_db = db or self._db
             if target_db is None:
-                from backend.core.database import DatabaseManager
+                from backend.services.database import DatabaseManager
                 target_db = DatabaseManager()
                 self._db = target_db
 
             try:
-                rows = target_db.get_active_stranger_embeddings(limit=300)
+                rows = target_db._execute_query(
+                    """
+                    SELECT id, camera_id, image_path, direction, face_embedding, seen_count, last_seen, event_time
+                    FROM stranger_logs
+                    WHERE status = 'new' AND face_embedding IS NOT NULL
+                    ORDER BY COALESCE(last_seen, event_time) DESC
+                    LIMIT 300
+                    """,
+                    fetchall=True, commit=False
+                ) or []
                 records = []
                 embs = []
                 now = time.time()
@@ -147,7 +155,16 @@ class StrangerManager:
                         rec["last_db_sync"] = now
                         if target_db:
                             try:
-                                target_db.update_stranger_seen(stranger_id, camera_id=cam_id)
+                                target_db._execute_query(
+                                    """
+                                    UPDATE stranger_logs
+                                    SET last_seen = NOW(),
+                                        seen_count = COALESCE(seen_count, 1) + 1,
+                                        camera_id = COALESCE(%s, camera_id)
+                                    WHERE id = %s
+                                    """,
+                                    (cam_id, stranger_id), commit=True
+                                )
                             except Exception as ex:
                                 logger.warning("Error updating stranger %s in DB: %s", stranger_id, ex)
 
@@ -158,14 +175,15 @@ class StrangerManager:
             new_id = None
             if target_db:
                 try:
-                    new_id = target_db.log_stranger(
-                        camera_id=cam_id,
-                        similarity=0.0,
-                        image_path=snap_path,
-                        site_id=site_id,
-                        face_embedding=normed_emb.tobytes(),
-                        direction=direction,
-                        seen_count=1,
+                    new_id = target_db._execute_query(
+                        """
+                        INSERT INTO stranger_logs
+                            (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
+                        VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), 1, NOW())
+                        RETURNING id
+                        """,
+                        (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
+                        commit=True, return_id=True
                     )
                 except Exception as ex:
                     logger.error("Failed to log new stranger into DB: %s", ex)

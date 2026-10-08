@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from frontend.deps import get_db, get_menu_context, require_menu
-from backend.core.handwriting_ocr import extract_trip_candidates_from_document
+from backend.ai.handwriting_ocr import extract_trip_candidates_from_document
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,81 @@ def _load_scan_review(token: str) -> dict | None:
 def _delete_scan_review(token: str):
     _SCAN_REVIEWS.pop(token, None)
     _scan_review_path(token).unlink(missing_ok=True)
+
+
+def get_cargo_trips(db, vehicle_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
+    query = """
+        SELECT * FROM cargo_trips
+        WHERE vehicle_id = %s
+        ORDER BY departure_time DESC
+        LIMIT %s OFFSET %s
+    """
+    return db._execute_query(query, (vehicle_id, limit, offset), fetchall=True, commit=False) or []
+
+
+def count_cargo_trips(db, vehicle_id: int) -> int:
+    row = db._execute_query(
+        "SELECT COUNT(*) FROM cargo_trips WHERE vehicle_id = %s",
+        (vehicle_id,), fetch=True, commit=False
+    )
+    return row["count"] if row else 0
+
+
+def add_cargo_trip(db, vehicle_id: int, plate_number: str, departure_time,
+                   return_time=None, origin=None, destination=None,
+                   fuel_liters=None, fuel_price_per_liter=None,
+                   freight_revenue=None, distance_km=None) -> int | None:
+    query = """
+        INSERT INTO cargo_trips
+            (vehicle_id, plate_number, departure_time, return_time,
+             origin, destination,
+             fuel_liters, fuel_price_per_liter,
+             freight_revenue, distance_km)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        RETURNING id
+    """
+    return db._execute_query(
+        query,
+        (vehicle_id, plate_number, departure_time, return_time,
+         origin, destination,
+         fuel_liters, fuel_price_per_liter,
+         freight_revenue, distance_km),
+        commit=True, return_id=True
+    )
+
+
+def update_cargo_trip(db, trip_id: int, departure_time=None, return_time=None,
+                      origin=None, destination=None,
+                      fuel_liters=None, fuel_price_per_liter=None,
+                      freight_revenue=None, distance_km=None) -> bool:
+    fields, params = [], []
+    for col, val in [
+        ("departure_time", departure_time), ("return_time", return_time),
+        ("origin", origin), ("destination", destination),
+        ("fuel_liters", fuel_liters),
+        ("fuel_price_per_liter", fuel_price_per_liter),
+        ("freight_revenue", freight_revenue),
+        ("distance_km", distance_km),
+    ]:
+        if val is not None:
+            fields.append(f"{col} = %s")
+            params.append(val)
+    if not fields:
+        return False
+    fields.append("updated_at = NOW()")
+    params.append(trip_id)
+    return db._execute_query(
+        f"UPDATE cargo_trips SET {', '.join(fields)} WHERE id = %s",
+        tuple(params), commit=True
+    ) is not False
+
+
+def get_cargo_trip(db, trip_id: int) -> dict | None:
+    return db._execute_query("SELECT * FROM cargo_trips WHERE id = %s", (trip_id,), fetch=True, commit=False)
+
+
+def delete_cargo_trip(db, trip_id: int) -> bool:
+    return db.delete("cargo_trips", {"id": trip_id})
 
 
 def _data_uri_to_png(data_uri: str) -> bytes | None:
@@ -283,12 +358,12 @@ async def cargo_trips_page(
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
-    total = db.count_cargo_trips(vehicle_id)
+    total = count_cargo_trips(db, vehicle_id)
     total_pages = max(1, math.ceil(total / PER_PAGE))
     page = min(page, total_pages)
     offset = (page - 1) * PER_PAGE
 
-    trips = db.get_cargo_trips(vehicle_id, limit=PER_PAGE, offset=offset)
+    trips = get_cargo_trips(db, vehicle_id, limit=PER_PAGE, offset=offset)
     for t in trips:
         t["fuel_cost_total_fmt"] = _fmt_currency(t.get("fuel_cost_total"))
         t["freight_revenue_fmt"] = _fmt_currency(t.get("freight_revenue"))
@@ -500,7 +575,8 @@ async def add_cargo_trip(
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
-    db.add_cargo_trip(
+    add_cargo_trip(
+        db,
         vehicle_id=vehicle_id,
         plate_number=vehicle["plate_number"],
         departure_time=datetime.fromisoformat(departure_time),
@@ -527,7 +603,7 @@ async def edit_cargo_trip_page(
     ctx["current_menu"] = "vehicles"
 
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
-    trip = db.get_cargo_trip(trip_id)
+    trip = get_cargo_trip(db, trip_id)
     if not vehicle or not trip:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
@@ -558,7 +634,8 @@ async def edit_cargo_trip(
     distance_km: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    get_db().update_cargo_trip(
+    update_cargo_trip(
+        get_db(),
         trip_id=trip_id,
         departure_time=datetime.fromisoformat(departure_time),
         return_time=_dt(return_time),
@@ -573,12 +650,12 @@ async def edit_cargo_trip(
 
 
 @router.post("/{vehicle_id}/cargo/{trip_id}/delete")
-async def delete_cargo_trip(
+async def delete_cargo_trip_endpoint(
     vehicle_id: int,
     trip_id: int,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    get_db().delete_cargo_trip(trip_id)
+    delete_cargo_trip(get_db(), trip_id)
     return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
@@ -697,7 +774,8 @@ async def confirm_cargo_scan(
             if key.startswith(f"line_text_{idx}_")
         }
         try:
-            db.add_cargo_trip(
+            add_cargo_trip(
+                db,
                 vehicle_id=vehicle_id,
                 plate_number=vehicle["plate_number"],
                 departure_time=datetime.fromisoformat(departure_time),

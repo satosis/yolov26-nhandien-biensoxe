@@ -12,12 +12,25 @@ router = APIRouter(prefix="/telegram")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
+def upsert_telegram_bot(db, bot_name: str, token: str, chat_id: str) -> bool:
+    """Thêm hoặc cập nhật cấu hình Telegram bot."""
+    query = """
+        INSERT INTO telegram_bots (bot_name, token, chat_id, updated_at)
+        VALUES (%s, %s, %s, NOW())
+        ON CONFLICT (bot_name) DO UPDATE SET
+        token = EXCLUDED.token,
+        chat_id = EXCLUDED.chat_id,
+        updated_at = NOW()
+    """
+    return db.execute_query(query, (bot_name, token, chat_id), commit=True) is not None
+
+
 @router.get("")
 async def telegram_page(request: Request, user: dict = Depends(require_menu("telegram"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "telegram"
     db = get_db()
-    ctx["bots"] = db.get_telegram_bots()
+    ctx["bots"] = db.select("telegram_bots", order_by="id ASC") or []
     return templates.TemplateResponse("pages/telegram.html", {"request": request, **ctx})
 
 
@@ -35,7 +48,8 @@ async def add_bot(
         logger.error("Missing token for bot_name=%s", bot_name)
         return RedirectResponse(url="/admin/telegram", status_code=303)
         
-    ok = get_db().upsert_telegram_bot(bot_name.strip(), final_token.strip(), chat_id.strip())
+    db = get_db()
+    ok = upsert_telegram_bot(db, bot_name.strip(), final_token.strip(), chat_id.strip())
     if not ok:
         logger.error("upsert_telegram_bot failed for bot_name=%s", bot_name)
     return RedirectResponse(url="/admin/telegram", status_code=303)
@@ -48,7 +62,8 @@ async def test_bot(
     user: dict = Depends(require_menu("telegram")),
 ):
     import httpx
-    bot = next((b for b in get_db().get_telegram_bots() if b['bot_name'] == bot_name), None)
+    db = get_db()
+    bot = db.select("telegram_bots", conditions={"bot_name": bot_name}, fetchall=False)
     if not bot:
         return {"ok": False, "message": "Bot not found"}
     
@@ -72,7 +87,8 @@ async def delete_bot(
     request: Request,
     user: dict = Depends(require_menu("telegram")),
 ):
-    ok = get_db().delete_telegram_bot(bot_name)
+    db = get_db()
+    ok = db.delete("telegram_bots", {"bot_name": bot_name})
     if not ok:
         logger.error("delete_telegram_bot failed for bot_name=%s", bot_name)
     return RedirectResponse(url="/admin/telegram", status_code=303)

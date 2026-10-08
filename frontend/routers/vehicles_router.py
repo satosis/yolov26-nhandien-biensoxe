@@ -1,11 +1,12 @@
 """Vehicles (whitelist) router."""
+import json
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from typing import Optional, List
 from frontend.deps import get_db, get_menu_context, require_menu
-from backend.core.config import normalize_plate
+from backend.services.config import normalize_plate, trigger_ai_reload
 
 router = APIRouter(prefix="/vehicles")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
@@ -22,19 +23,77 @@ def _parse_fuel(value: Optional[str]) -> Optional[float]:
     return fc if fc >= 0 else None
 
 
+def get_whitelist_vehicles(db, site_id=None, limit=None, offset=None) -> list[dict]:
+    """Lấy danh sách xe whitelist cùng tên cơ sở tương ứng."""
+    query = """
+        SELECT w.*,
+               (SELECT array_agg(s.site_name)
+                FROM sites s WHERE s.id IN (SELECT value::int FROM jsonb_array_elements_text(COALESCE(w.site_ids, '[]'::jsonb)))) AS site_names
+        FROM plate_whitelist w
+    """
+    params = []
+    if site_id:
+        query += " WHERE (w.site_ids @> %s::jsonb OR w.site_ids = '[]'::jsonb OR w.site_ids IS NULL)"
+        params.append(json.dumps([site_id]))
+    query += " ORDER BY w.created_at DESC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True) or []
+
+
+def upsert_vehicle_whitelist(db, plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+    """Thêm hoặc cập nhật xe vào whitelist."""
+    query = """
+        INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, fuel_consumption, is_active)
+        VALUES (%s, 'white', %s, %s, %s, %s, %s, TRUE)
+        ON CONFLICT(plate_number) DO UPDATE SET
+        owner_name=EXCLUDED.owner_name,
+        added_by=EXCLUDED.added_by,
+        site_ids=EXCLUDED.site_ids,
+        note=EXCLUDED.note,
+        fuel_consumption=EXCLUDED.fuel_consumption,
+        updated_at=NOW()
+    """
+    db.execute_query(
+        query,
+        (plate_norm, label, added_by, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption),
+        commit=True
+    )
+    trigger_ai_reload()
+
+
+def update_vehicle_whitelist(db, vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+    """Cập nhật thông tin xe whitelist theo ID."""
+    query = """
+        UPDATE plate_whitelist
+        SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, fuel_consumption = %s, updated_at = NOW()
+        WHERE id = %s
+    """
+    db.execute_query(
+        query,
+        (plate_norm, label, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption, vehicle_id),
+        commit=True
+    )
+    trigger_ai_reload()
+
+
 @router.get("")
 async def vehicles_page(request: Request, user: dict = Depends(require_menu("vehicles"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
     site_id = request.session.get("active_site_id", 0) or None
     db = get_db()
-    owner_users = db.get_all_users()
+    owner_users = db.select("users", columns=["id", "username", "full_name"], order_by="full_name ASC") or []
     for owner in owner_users:
         owner["vehicle_owner_label"] = owner.get("full_name") or owner.get("username")
 
-    ctx["vehicles"] = db.get_whitelist_vehicles(site_id=site_id)
+    ctx["vehicles"] = get_whitelist_vehicles(db, site_id=site_id)
     ctx["owner_users"] = owner_users
-    ctx["site_list"] = db.get_sites(active_only=True)
+    ctx["site_list"] = db.select("sites", conditions={"is_active": True}, order_by="site_name ASC") or []
     ctx["sites"] = ctx["site_list"]
     return templates.TemplateResponse("pages/vehicles.html", {"request": request, **ctx})
 
@@ -51,7 +110,8 @@ async def add_vehicle(
 ):
     added_by = user.get("username", "admin")
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
-    get_db().upsert_vehicle_whitelist(
+    upsert_vehicle_whitelist(
+        db=get_db(),
         plate_norm=normalize_plate(plate_number),
         label=owner_name or None,
         added_by=added_by,
@@ -69,6 +129,7 @@ async def delete_vehicle(
     user: dict = Depends(require_menu("vehicles")),
 ):
     get_db().delete("plate_whitelist", {"id": plate_id})
+    trigger_ai_reload()
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
 
@@ -79,6 +140,7 @@ async def delete_vehicle_post(
     user: dict = Depends(require_menu("vehicles")),
 ):
     get_db().delete("plate_whitelist", {"id": plate_id})
+    trigger_ai_reload()
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
 
@@ -94,7 +156,8 @@ async def edit_vehicle(
     user: dict = Depends(require_menu("vehicles")),
 ):
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
-    get_db().update_vehicle_whitelist(
+    update_vehicle_whitelist(
+        db=get_db(),
         vehicle_id=vehicle_id,
         plate_norm=normalize_plate(plate_number),
         label=owner_name or None,

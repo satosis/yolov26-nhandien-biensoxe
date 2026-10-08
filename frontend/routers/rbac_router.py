@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List
 from frontend.deps import get_db, get_menu_context, require_menu
 from frontend.menu_registry import ALL_MENUS, MENU_GROUPS
+from frontend.routers.users_router import get_all_users
 
 logger = logging.getLogger("rbac_router")
 router = APIRouter(prefix="/rbac")
@@ -18,9 +19,9 @@ async def rbac_page(request: Request, user: dict = Depends(require_menu("rbac"))
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rbac"
     db = get_db()
-    roles = db.get_roles()
+    roles = db.select("roles", order_by="id ASC") or []
     # Count users per role for display
-    all_users = db.get_all_users()
+    all_users = get_all_users(db)
     role_user_counts = {}
     for u in all_users:
         rname = u.get("role", "")
@@ -43,15 +44,12 @@ async def create_role(
 ):
     menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
     db = get_db()
-    ok, msg = db.create_role(role_name)
-    if ok:
-        roles = db.get_roles()
-        new_role = next((r for r in roles if r["role_name"] == role_name), None)
-        if new_role:
-            db.update_role_permissions(new_role["id"], menus_str)
-        logger.info("Role '%s' created with menus: %s", role_name, menus_str)
+    existing = db.select("roles", conditions={"role_name": role_name}, fetchall=False)
+    if existing:
+        logger.warning("Failed to create role '%s': Role đã tồn tại.", role_name)
     else:
-        logger.warning("Failed to create role '%s': %s", role_name, msg)
+        db.insert("roles", {"role_name": role_name, "allowed_menus": menus_str}, returning="id")
+        logger.info("Role '%s' created with menus: %s", role_name, menus_str)
     return RedirectResponse(url="/admin/rbac", status_code=303)
 
 
@@ -63,7 +61,8 @@ async def update_role(
     user: dict = Depends(require_menu("rbac")),
 ):
     menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
-    get_db().update_role_permissions(role_id, menus_str)
+    db = get_db()
+    db.update("roles", {"allowed_menus": menus_str}, {"id": role_id})
     logger.info("Role %d updated: %s", role_id, menus_str)
     return RedirectResponse(url="/admin/rbac", status_code=303)
 
@@ -75,8 +74,7 @@ async def delete_role(
     user: dict = Depends(require_menu("rbac")),
 ):
     db = get_db()
-    # Check if role has users
-    roles = db.get_roles()
+    roles = db.select("roles", order_by="id ASC") or []
     target_role = next((r for r in roles if r["id"] == role_id), None)
     if not target_role:
         return JSONResponse({"detail": "Vai trò không tồn tại."}, status_code=404)
@@ -84,7 +82,7 @@ async def delete_role(
     if target_role["role_name"].lower() == "admin":
         return JSONResponse({"detail": "Không thể xóa vai trò Admin."}, status_code=400)
 
-    all_users = db.get_all_users()
+    all_users = get_all_users(db)
     users_with_role = [u for u in all_users if u.get("role") == target_role["role_name"]]
     if users_with_role:
         return JSONResponse(
@@ -92,6 +90,6 @@ async def delete_role(
             status_code=400,
         )
 
-    db.delete_role(role_id)
+    db.delete("roles", {"id": role_id})
     logger.info("Role '%s' (id=%d) deleted", target_role["role_name"], role_id)
     return RedirectResponse(url="/admin/rbac", status_code=303)

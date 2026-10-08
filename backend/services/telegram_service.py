@@ -2,13 +2,12 @@ import os
 
 import requests
 
-from backend.core.database import DatabaseManager
+from backend.services.database import DatabaseManager
 
 
 def _telegram_bots() -> list[dict]:
-    """Return configured Telegram receivers. Empty list means Telegram is disabled."""
     try:
-        return DatabaseManager().get_telegram_bots() or []
+        return DatabaseManager().select("telegram_bots") or []
     except Exception:
         return []
 

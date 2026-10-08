@@ -1,6 +1,9 @@
 import os
 import time
+import json
 import queue
+import re
+import uuid
 import signal
 import logging
 import collections
@@ -22,8 +25,8 @@ except ImportError:
 
 from insightface.app import FaceAnalysis
 
-from backend.core import config as cfg
-from backend.core.database import DatabaseManager
+from backend.services import config as cfg
+from backend.services.database import DatabaseManager
 from backend.util.ocr_utils import VNPlateOCR
 from backend.util.image_utils import save_snapshot
 from backend.util.texture_utils import check_plate_authenticity
@@ -606,7 +609,7 @@ class InferenceWorker:
         # Door auto-close manager (lazy init)
         self._door_manager = None
         try:
-            from backend.core.door_auto_close import DoorAutoCloseManager
+            from backend.iot.door_auto_close import DoorAutoCloseManager
             self._door_manager = DoorAutoCloseManager()
             self._door_manager.reload_config(self._db)
             logger.info("DoorAutoCloseManager initialized")
@@ -619,6 +622,56 @@ class InferenceWorker:
         self._last_active_ts = time.time()
         self._idle_timeout = 300 # 5 minutes
         self._trackers: dict[str, SimpleTracker] = {}
+
+    def _is_plate_whitelisted(self, plate_norm: str, site_id: Optional[int] = None) -> bool:
+        """Check whitelist trực tiếp từ InferenceWorker."""
+        if site_id:
+            query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND site_ids @> %s::jsonb AND is_active = TRUE LIMIT 1"
+            return self._db.execute_query(query, (plate_norm, json.dumps([site_id])), fetch=True) is not None
+        query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND is_active = TRUE LIMIT 1"
+        return self._db.execute_query(query, (plate_norm,), fetch=True) is not None
+
+    def _record_vehicle_entry(self, plate_norm: str, vehicle_type: str, camera_id: str, image_path: str, site_id: Optional[int] = None, plate_type: str = "white") -> bool:
+        """Ghi nhận xe vào bãi đỗ trực tiếp qua SQL."""
+        active = self._db.execute_query(
+            "SELECT id FROM vehicle_sessions WHERE plate_norm = %s AND status = 'parking' LIMIT 1",
+            (plate_norm,),
+            fetch=True
+        )
+        if active:
+            self._db.execute_query("""
+                UPDATE vehicle_sessions
+                SET entry_time = NOW(), camera_id_in = %s, entry_image = %s, site_id = %s
+                WHERE id = %s
+            """, (camera_id, image_path, site_id, active["id"]), commit=True)
+        else:
+            self._db.execute_query("""
+                INSERT INTO vehicle_sessions (plate_norm, vehicle_type, camera_id_in, entry_image, site_id, status)
+                VALUES (%s, %s, %s, %s, %s, 'parking')
+            """, (plate_norm, vehicle_type, camera_id, image_path, site_id), commit=True)
+        return True
+
+    def _add_pending_plate(self, plate_norm: str, plate_raw: str, camera_id: Optional[str] = None, site_id: Optional[int] = None, image_path: Optional[str] = None, plate_type: str = "white"):
+        """Thêm biển số lạ vào danh sách chờ duyệt với cơ chế chống trùng."""
+        clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
+        existing = self._db.execute_query("""
+            SELECT pending_id FROM pending_plates
+            WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s
+            AND (LOWER(TRIM(status)) = 'pending'
+                 OR confirmed_at_utc > NOW() - INTERVAL '60 seconds')
+            LIMIT 1
+        """, (clean_plate,), fetch=True)
+        if existing:
+            logger.info(f"Plate {plate_norm} pending or in 60s cooldown (match: {clean_plate}). Skipping.")
+            return
+
+        pid = str(uuid.uuid4())[:8]
+        logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
+        self._db.execute_query("""
+            INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
+            VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
+            ON CONFLICT (pending_id) DO NOTHING
+        """, (pid, plate_raw, plate_norm, site_id, image_path, plate_type), commit=True)
 
     def _ensure_models_loaded(self):
         """Lazy load AI models only when a frame is received."""
@@ -842,10 +895,10 @@ class InferenceWorker:
                             # Normalize once (strip spaces/dashes/dots) so whitelist
                             # match + session entry/exit are stable across OCR formatting.
                             normalized = cfg.normalize_plate(best_text)
-                            self._run_async(self._db.record_vehicle_entry, normalized, "car", cam_id, result.snapshot_path, site_id)
-                            if not self._db.is_plate_whitelisted(normalized, site_id):
+                            self._run_async(self._record_vehicle_entry, normalized, "car", cam_id, result.snapshot_path, site_id)
+                            if not self._is_plate_whitelisted(normalized, site_id):
                                 logger.info(f"UNKNOWN PLATE DETECTED: {best_text}. Adding to pending list...")
-                                self._run_async(self._db.add_pending_plate_simple, normalized, best_text, cam_id, site_id, result.snapshot_path, result.plate_type)
+                                self._run_async(self._add_pending_plate, normalized, best_text, cam_id, site_id, result.snapshot_path, result.plate_type)
 
                 self._frame_counter += 1
                 if self._frame_counter % cfg.FACE_RECOG_EVERY_N == 0:
@@ -875,7 +928,7 @@ class InferenceWorker:
                 if track and track.is_locked:
                     return # Skip stranger logging for locked identity
                 
-                from backend.core.stranger_manager import get_stranger_manager
+                from backend.ai.stranger_manager import get_stranger_manager
                 mgr = get_stranger_manager(self._db)
                 stranger_id, match_sim, is_new = mgr.process_stranger(
                     emb=emb, frame=frame, cam_id=cam_id,
@@ -948,7 +1001,7 @@ def inference_process(infer_queue: Queue, result_queue: Queue, recorder_control_
     ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+    cfg.setup_logging("inference.log")
 
     worker = InferenceWorker(infer_queue, result_queue, recorder_control_queue, stop_event)
     worker.run()

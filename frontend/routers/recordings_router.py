@@ -6,7 +6,7 @@ from frontend.deps import get_db, get_menu_context, require_menu
 import os
 import psutil
 import math
-from backend.core.config import RECORDING_DIR
+from backend.services.config import RECORDING_DIR
 
 def format_size(size_bytes):
     if not size_bytes or size_bytes == 0: return "0 B"
@@ -20,6 +20,28 @@ PER_PAGE = 20
 
 router = APIRouter(prefix="/recordings")
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
+
+
+def get_recordings(db, site_id=None, limit=50, offset=0):
+    query = "SELECT * FROM video_recordings"
+    params = []
+    if site_id:
+        query += " WHERE site_id = %s"
+        params.append(site_id)
+    query += " ORDER BY start_time DESC LIMIT %s OFFSET %s"
+    params.extend([limit, offset])
+    return db._execute_query(query, tuple(params), fetchall=True, commit=False) or []
+
+
+def count_recordings(db, site_id=None):
+    query = "SELECT COUNT(*) FROM video_recordings"
+    params = []
+    if site_id:
+        query += " WHERE site_id = %s"
+        params.append(site_id)
+    row = db._execute_query(query, tuple(params) if params else None, fetch=True, commit=False)
+    return row["count"] if row else 0
+
 
 @router.get("")
 async def recordings_page(
@@ -36,12 +58,12 @@ async def recordings_page(
     if active_site == 0: active_site = None
 
     # Pagination
-    total = db.count_recordings(site_id=active_site)
+    total = count_recordings(db, site_id=active_site)
     total_pages = max(1, math.ceil(total / PER_PAGE))
     page = min(page, total_pages)
     offset = (page - 1) * PER_PAGE
 
-    recordings = db.get_recordings(site_id=active_site, limit=PER_PAGE, offset=offset)
+    recordings = get_recordings(db, site_id=active_site, limit=PER_PAGE, offset=offset)
 
     for rec in recordings:
         if rec["file_path"]:

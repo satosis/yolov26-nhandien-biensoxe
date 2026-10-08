@@ -8,7 +8,7 @@ def get_db():
     """Get or create DatabaseManager singleton."""
     global _db
     if _db is None:
-        from backend.core.database import DatabaseManager
+        from backend.services.database import DatabaseManager
         _db = DatabaseManager()
     return _db
 
@@ -42,7 +42,7 @@ def get_menu_context(request: Request, user: dict) -> dict:
     Also refreshes session allowed_menus from DB to handle role changes."""
     from frontend.menu_registry import MENU_GROUPS
 
-    roles = get_db().get_roles()
+    roles = get_db().select("roles", order_by="id ASC") or []
     role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
     allowed_str = role_info.get("allowed_menus", "") if role_info else ""
 
@@ -70,7 +70,7 @@ def get_menu_context(request: Request, user: dict) -> dict:
         "parking_analytics", "recordings"
     }
 
-    sites = get_db().get_sites(active_only=True)
+    sites = get_db().select("sites", conditions={"is_active": True}, order_by="site_name") or []
     active_site_id = request.session.get("active_site_id", 0)
     
     # Resolve current_menu from the request path to match a menu key.
