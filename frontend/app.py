@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
         port = sys.argv[sys.argv.index("--port") + 1]
     
     print("====================================================")
-    print("   🅿  PARKING AI - FRONTEND WEB UI                 ")
+    print("   [P]  PARKING AI - FRONTEND WEB UI                ")
     print(f"   Starting server on: http://localhost:{port}".ljust(52))
     print("====================================================")
     yield
@@ -112,7 +112,9 @@ async def kill_service_worker():
 
 from backend.core import config as cfg
 os.makedirs(cfg.KNOWN_FACES_DIR, exist_ok=True)
+os.makedirs(cfg.DATA_DIR, exist_ok=True)
 os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
+os.makedirs(cfg.RECORDING_DIR, exist_ok=True)
 app.mount("/known_faces", StaticFiles(directory=cfg.KNOWN_FACES_DIR), name="known_faces")
 app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots")
 app.mount("/data/recordings", StaticFiles(directory=cfg.RECORDING_DIR), name="recordings")

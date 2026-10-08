@@ -180,36 +180,6 @@ def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) ->
             continue
     return False
 
-def scan_subnet_for_cameras(subnet_prefixes: List[str], max_workers: int = 150) -> List[str]:
-    """
-    Scans multiple /24 subnets for active devices on common camera ports.
-    subnet_prefixes should be like ['192.168.1', '192.168.0']
-    """
-    if isinstance(subnet_prefixes, str):
-        subnet_prefixes = [subnet_prefixes]
-        
-    logger.info(f"Subnet Scan: Scanning {len(subnet_prefixes)} subnet(s)...")
-    found_ips = []
-    
-    def check_ip(ip):
-        if probe_ip(ip):
-            return ip
-        return None
-
-    ips_to_check = []
-    for prefix in subnet_prefixes:
-        ips_to_check.extend([f"{prefix}.{i}" for i in range(1, 255)])
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_ip = {executor.submit(check_ip, ip): ip for ip in ips_to_check}
-        for future in concurrent.futures.as_completed(future_to_ip):
-            ip = future.result()
-            if ip:
-                found_ips.append(ip)
-                
-    logger.info(f"Subnet Scan: Found {len(found_ips)} active IP(s) across all subnets")
-    return found_ips
-
 
 def _get_local_ips() -> List[str]:
     """Get local non-loopback IPv4 addresses for multi-interface multicast."""
@@ -636,22 +606,74 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
         return None
 
 
-def get_onvif_device_info(ip: str, port: int = 80, username: str = 'admin',
-                           password: str = '', timeout: int = 5) -> dict | None:
+def check_rtsp_quick(rtsp_url: str, timeout: float = 2.0) -> tuple[bool, str]:
     """
-    Connect to an ONVIF camera and retrieve device information.
-    Thin wrapper around get_onvif_full_info() — returns only device fields.
+    Fast pre-flight check of RTSP stream URL (under 1-2s).
+    Returns (True, "OK") or (False, error_message).
     """
-    full = get_onvif_full_info(ip, port, username, password, timeout)
-    if full:
-        return {
-            'manufacturer': full['manufacturer'],
-            'model': full['model'],
-            'firmware': full['firmware'],
-            'serial': full['serial'],
-            'hardware': full['hardware'],
-        }
-    return None
+    import urllib.parse
+    import hashlib
+
+    if not rtsp_url or not rtsp_url.startswith("rtsp://"):
+        return False, "RTSP URL không hợp lệ hoặc để trống"
+
+    try:
+        parsed = urllib.parse.urlparse(rtsp_url)
+        host = parsed.hostname
+        port = parsed.port or 554
+        username = parsed.username or ''
+        password = urllib.parse.unquote(parsed.password or '')
+        path = parsed.path + ('?' + parsed.query if parsed.query else '')
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect((host, port))
+
+        clean_url = f"rtsp://{host}:{port}{path}"
+        req = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: ParkingCamera\r\nAccept: application/sdp\r\n\r\n"
+        s.sendall(req.encode())
+        resp = s.recv(2048).decode('utf-8', errors='ignore')
+
+        first_line = resp.split('\r\n')[0]
+        if '200 OK' in first_line:
+            s.close()
+            return True, "OK"
+
+        if '401' in first_line:
+            if not password:
+                s.close()
+                return False, "Camera yêu cầu mật khẩu (401 Unauthorized). Vui lòng điền Safety Code."
+
+            auth_header = re.search(r'WWW-Authenticate: Digest (.*)', resp)
+            if auth_header:
+                params = dict(re.findall(r'(\w+)="([^"]+)"', auth_header.group(1)))
+                realm = params.get('realm', '')
+                nonce = params.get('nonce', '')
+                ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
+                ha2 = hashlib.md5(f"DESCRIBE:{clean_url}".encode()).hexdigest()
+                response = hashlib.md5(f"{ha1}:{nonce}:{ha2}".encode()).hexdigest()
+                auth_str = f'Digest username="{username}", realm="{realm}", nonce="{nonce}", uri="{clean_url}", response="{response}"'
+                req2 = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 2\r\nUser-Agent: ParkingCamera\r\nAuthorization: {auth_str}\r\nAccept: application/sdp\r\n\r\n"
+                s.sendall(req2.encode())
+                resp2 = s.recv(2048).decode('utf-8', errors='ignore')
+                s.close()
+                if '200 OK' in resp2.split('\r\n')[0]:
+                    return True, "OK"
+                return False, "Sai mật khẩu camera (401 Unauthorized). Vui lòng kiểm tra lại Safety Code dưới đáy camera."
+            s.close()
+            return False, "Xác thực thất bại (401 Unauthorized)."
+
+        s.close()
+        return False, f"Camera phản hồi lỗi: {first_line}"
+    except (socket.timeout, TimeoutError):
+        return False, "Hết thời gian chờ (Timeout): Không phản hồi từ camera."
+    except ConnectionRefusedError:
+        return False, f"Kết nối bị từ chối: Cổng RTSP {port} không mở hoặc sai IP."
+    except Exception as e:
+        return False, f"Không thể kết nối tới camera: {e}"
+
+
+
 
 
 def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
@@ -859,73 +881,6 @@ def discover_from_arp(camera_ports: List[int] = None) -> List[Dict]:
 
     logger.info(f"ARP discovery: {len(arp_entries)} ARP entries, {len(candidates)} camera candidates")
     return candidates
-
-
-# ─── Smart Discovery Pipeline ─────────────────────────────────────────────
-def smart_discover_pipeline(
-    onvif_username: str = 'admin',
-    onvif_password: str = '',
-    max_onvif_workers: int = 3,
-) -> List[Dict]:
-    """
-    Three-stage pipeline optimized for ARM:
-    Stage 1 (free):    ARP table + MAC OUI filter
-    Stage 2 (cheap):   TCP port check for unknown MACs
-    Stage 3 (costly):  ONVIF unicast probe + GetStreamUri (only if credentials set)
-    """
-    # Stage 1+2
-    arp_candidates = discover_from_arp()
-
-    if not onvif_password or not arp_candidates:
-        return arp_candidates
-
-    # Stage 3: ONVIF unicast probe for each candidate
-    def _probe_candidate(candidate):
-        ip = candidate['ip']
-        ws_result = probe_onvif_unicast(ip)
-        if ws_result:
-            candidate['urn'] = ws_result.get('urn', '')
-            candidate['onvif_port'] = ws_result.get('onvif_port', 80)
-            if ws_result.get('manufacturer'):
-                candidate['vendor'] = ws_result['manufacturer']
-            candidate['model'] = ws_result.get('model', '')
-
-        onvif_port = candidate.get('onvif_port', 80)
-        full = get_onvif_full_info(ip, onvif_port,
-                                   username=onvif_username,
-                                   password=onvif_password, timeout=4)
-        if full:
-            candidate.update({
-                'serial': full.get('serial', ''),
-                'model': full.get('model', candidate.get('model', '')),
-                'firmware': full.get('firmware', ''),
-                'rtsp_url': full.get('rtsp_main', ''),
-                'rtsp_sub': full.get('rtsp_sub', ''),
-                'onvif_profiles': full.get('onvif_profiles', []),
-                'has_ptz': full.get('has_ptz', False),
-                'manufacturer': full.get('manufacturer', candidate.get('vendor', '')),
-            })
-        return candidate
-
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_onvif_workers) as executor:
-        futures = {executor.submit(_probe_candidate, c): c for c in arp_candidates}
-        done, not_done = concurrent.futures.wait(futures, timeout=15)
-        for f in not_done:
-            f.cancel()
-        for f in done:
-            try:
-                results.append(f.result())
-            except Exception as e:
-                logger.debug(f"Pipeline probe error: {e}")
-    # Include timed-out candidates with basic info
-    timed_out_ips = {futures[f]['ip'] for f in not_done}
-    for c in arp_candidates:
-        if c['ip'] in timed_out_ips:
-            results.append(c)
-
-    logger.info(f"Smart pipeline: {len(results)} cameras after ONVIF probe")
-    return results
 
 
 # ─── Auto-Registration ────────────────────────────────────────────────────
@@ -1452,18 +1407,3 @@ def discover_and_update_all_cameras():
             logger.warning(f"Auto-registration error: {e}")
 
     return results
-
-
-def update_camera_ips_by_discovery():
-    """Compatibility wrapper for legacy calls."""
-    res = discover_and_update_all_cameras()
-    return res['updated']
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    print("=== ONVIF Camera Discovery ===")
-    cams = discover_onvif_only(timeout=5, probe_details=False)
-    for c in cams:
-        print(f"  {c['manufacturer']} {c['model']} @ {c['ip']}:{c['onvif_port']} "
-              f"[{'ONLINE' if c['is_online'] else 'OFFLINE'}] ID={c['id']}")
-    print(f"\nTotal: {len(cams)} camera(s) found")

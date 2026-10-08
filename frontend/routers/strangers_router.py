@@ -26,6 +26,11 @@ async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("s
 @router.delete("/{stranger_id}")
 async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
     get_db().delete_stranger_log(stranger_id)
+    try:
+        from backend.core.stranger_manager import get_stranger_manager
+        get_stranger_manager().remove(stranger_id)
+    except Exception:
+        pass
     return RedirectResponse("/admin/strangers", status_code=303)
 
 @router.post("/register")
@@ -37,6 +42,11 @@ async def register_stranger(
     try:
         logging.info(f"Registering stranger {stranger_id} as user {user_id}")
         get_db().update_stranger_status(int(stranger_id), "registered", converted_user_id=int(user_id))
+        try:
+            from backend.core.stranger_manager import get_stranger_manager
+            get_stranger_manager().remove(int(stranger_id))
+        except Exception:
+            pass
         return RedirectResponse("/admin/strangers", status_code=303)
     except Exception as e:
         logging.exception("Failed to register stranger")
@@ -52,6 +62,11 @@ async def bulk_register_strangers(
     db = get_db()
     for sid in ids:
         db.update_stranger_status(sid, "registered", converted_user_id=user_id)
+        try:
+            from backend.core.stranger_manager import get_stranger_manager
+            get_stranger_manager().remove(sid)
+        except Exception:
+            pass
     logging.info(f"Bulk registered {len(ids)} strangers as user {user_id}")
     return {"ok": True, "count": len(ids)}
 
@@ -64,5 +79,10 @@ async def bulk_delete_strangers(
     db = get_db()
     for sid in ids:
         db.delete_stranger_log(sid)
+        try:
+            from backend.core.stranger_manager import get_stranger_manager
+            get_stranger_manager().remove(sid)
+        except Exception:
+            pass
     logging.info(f"Bulk deleted {len(ids)} strangers")
     return {"ok": True, "count": len(ids)}

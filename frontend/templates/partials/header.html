@@ -29,24 +29,15 @@
                 style="width:26px;height:26px;background:#6366f1;font-size:12px;font-weight:600;">
             {{ (user.username[0] | upper) if user and user.username else 'U' }}
           </span>
-          <span class="d-none d-sm-inline-block">{{ user.username if user else '' }}</span>
-          {% if user and user.role %}
-          <span class="badge badge-primary">{{ user.role }}</span>
-          {% endif %}
-          <i class="mdi mdi-chevron-down d-none d-sm-inline-block"></i>
+          <span class="d-none d-sm-inline-block" style="font-weight:500;">{{ user.username if user else '' }}</span>
+          <i class="mdi mdi-chevron-down d-none d-sm-inline-block text-muted" style="font-size:12px;"></i>
         </button>
-        <div class="dropdown-menu dropdown-menu-right">
-          <h6 class="dropdown-header text-muted">
-            Đăng nhập với <strong>{{ user.username if user else '' }}</strong>
-          </h6>
-          <a class="dropdown-item d-flex align-items-center" href="/admin/users">
-            <i class="bx bx-user mr-2"></i> Người dùng
-          </a>
-          <div class="dropdown-divider"></div>
+        <div class="dropdown-menu dropdown-menu-right shadow-sm border-0 py-1" style="min-width:140px;border-radius:8px;">
           <form method="POST" action="/logout" id="admin-logout-form" class="m-0">
-            <a class="dropdown-item text-danger" href="#"
-               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();">
-              <i class="bx bx-log-out mr-2"></i> Đăng xuất
+            <a class="dropdown-item text-danger d-flex align-items-center py-2" href="#"
+               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();"
+               style="gap:8px;font-size:13px;font-weight:500;">
+              <i class="bx bx-log-out font-size-16"></i> Đăng xuất
             </a>
           </form>
         </div>

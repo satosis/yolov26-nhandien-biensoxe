@@ -388,7 +388,7 @@ class FaceRecognizer:
     def __init__(self):
         preferred = ["CPUExecutionProvider"]
         self._app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=preferred)
-        self._app.prepare(ctx_id=-1, det_size=(320, 320))
+        self._app.prepare(ctx_id=-1, det_size=(640, 640))
         logger.info("FaceRecognizer initialized with buffalo_sc (InsightFace) on CPU")
 
         self._names = []
@@ -423,7 +423,12 @@ class FaceRecognizer:
                 img = cv2.imread(os.path.join(person_dir, fname))
                 if img is None: continue
                 faces = self._app.get(img)
-                if faces: embeddings.append(faces[0].normed_embedding)
+                if faces:
+                    emb = faces[0].normed_embedding
+                    embeddings.append(emb)
+                    # Store each pose individually for high multi-angle matching accuracy
+                    all_embs.append(emb)
+                    all_names.append(person)
             
             if embeddings:
                 avg_emb = np.mean(embeddings, axis=0)
@@ -450,15 +455,22 @@ class FaceRecognizer:
         return "frontal"
 
     def _score_to_percent(self, sim: float) -> float:
-        lower, upper = getattr(cfg, 'FACE_SIM_LOWER', 0.40), getattr(cfg, 'FACE_SIM_UPPER', 0.80)
-        percent = (sim - lower) / (upper - lower)
-        return float(np.clip(percent, 0.0, 1.0))
+        # Realistic calibration for ArcFace (sim 0.35 -> ~72%, 0.50 -> ~88%, 0.65+ -> ~98%)
+        if sim < 0.35:
+            return float(np.clip(sim / 0.35 * 0.70, 0.0, 0.70))
+        percent = 0.70 + (sim - 0.35) / (0.65 - 0.35) * 0.28
+        return float(np.clip(percent, 0.0, 0.99))
 
     def identify(self, frame) -> tuple[str, float, list[int], Optional[np.ndarray], str]:
         """Recognize a face and return (name, similarity, bbox, embedding, direction)."""
-        faces = self._app.get(frame)
-        if not faces:
+        raw_faces = self._app.get(frame)
+        if not raw_faces:
             return "", 0.0, [], None, "frontal"
+
+        # Filter out false positives (e.g. wall shadows, creases) with det_score < 0.55
+        faces = [f for f in raw_faces if getattr(f, 'det_score', 1.0) >= 0.55]
+        if not faces:
+            faces = raw_faces  # Fallback if all scores marginal
 
         faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
         face = faces[0]
@@ -470,8 +482,8 @@ class FaceRecognizer:
         pose = getattr(face, 'pose', None)
         direction = self._map_pose_to_direction(pose)
 
-        if w < 40 or h < 40:
-            return "TOO_SMALL", 0.0, bbox, emb, direction
+        if w < 28 or h < 28:
+            return "", 0.0, [], None, "frontal"
 
         with self._lock:
             if self._matrix is None:
@@ -481,7 +493,7 @@ class FaceRecognizer:
             idx = np.argmax(similarities)
             best_sim = float(similarities[idx])
 
-            threshold = getattr(cfg, 'FACE_RECOG_THRESHOLD', 0.40)
+            threshold = getattr(cfg, 'FACE_RECOG_THRESHOLD', 0.34)
             now = time.time()
             self._known_session = [s for s in self._known_session if now - s['ts'] < 30]
 
@@ -494,7 +506,7 @@ class FaceRecognizer:
             # Before returning STRANGER, check sticky cache
             for s in self._known_session:
                 cache_sim = float(np.dot(emb, s['emb']))
-                if cache_sim > 0.60:
+                if cache_sim > 0.45:
                     return s['name'], self._score_to_percent(cache_sim), bbox, emb, direction
 
         return "STRANGER", 0.0, bbox, emb, direction
@@ -600,7 +612,6 @@ class InferenceWorker:
             logger.info("DoorAutoCloseManager initialized")
         except Exception as e:
             logger.debug(f"DoorAutoCloseManager not available: {e}")
-        self._recent_strangers: dict[str, list] = {} # cam_id -> list of {'emb': np.ndarray, 'ts': float}
         self._frame_counter = 0
         
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -859,54 +870,44 @@ class InferenceWorker:
         name, sim, f_bbox, emb, direction = self._face_recog.identify(frame)
         result.face_name, result.face_conf = name, sim
         if name:
-            color = (0, 255, 0) if name != "STRANGER" else (0, 0, 255)
-            cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-            
             if name == "STRANGER" and emb is not None:
                 # Only log as stranger if the track isn't already locked to someone
                 if track and track.is_locked:
                     return # Skip stranger logging for locked identity
-                    
-                # Advanced Deduplication: minimize photos for same stranger
-                now = time.time()
-                if cam_id not in self._recent_strangers:
-                    self._recent_strangers[cam_id] = []
                 
-                # Cleanup old cache entries (> 5 min)
-                self._recent_strangers[cam_id] = [s for s in self._recent_strangers[cam_id] if now - s['ts'] < 300]
+                from backend.core.stranger_manager import get_stranger_manager
+                mgr = get_stranger_manager(self._db)
+                stranger_id, match_sim, is_new = mgr.process_stranger(
+                    emb=emb, frame=frame, cam_id=cam_id,
+                    bbox=f_bbox, direction=direction, site_id=site_id, db=self._db
+                )
+                if stranger_id > 0:
+                    result.face_name = f"Người lạ #{stranger_id}"
+                    if match_sim > 0:
+                        result.face_conf = match_sim
+                else:
+                    result.face_name = "Người lạ"
+
+                cv2.putText(result.annotated_frame, f"FACE: {result.face_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
-                is_duplicate = False
-                for s in self._recent_strangers[cam_id]:
-                    # Cosine similarity (dot product since they are normed)
-                    similarity = np.dot(emb, s['emb'])
-                    if similarity > 0.70: # Same person
-                        if now - s['ts'] < 60: # Within 1 min window
-                            is_duplicate = True
-                            break
-                
-                if not is_duplicate:
-                    from backend.util.image_utils import save_face_snapshot
-                    face_snap = save_face_snapshot(frame, cam_id, bbox=f_bbox)
-                    if face_snap:
-                        self._run_async(self._db.log_stranger, cam_id, sim, face_snap, site_id, emb.tobytes(), direction)
-                        self._recent_strangers[cam_id].append({'emb': emb, 'ts': now})
-                    logger.info("New stranger logged for cam %s (sim: %f)", cam_id, sim)
-                    # Trigger Smart Recording for Stranger Face
-                    if self.recorder_control_queue and not self.recorder_control_queue.full():
-                        self.recorder_control_queue.put_nowait({
-                            "cam_id": cam_id,
-                            "event_text": "Stranger Detected",
-                            "ts": time.time(),
-                            "event_type": "stranger",
-                            "site_id": site_id
-                        })
-            elif name and name != "STRANGER" and track:
-                # LOCK identity to track
-                track.identity = name
-                track.confidence = sim
-                track.is_locked = True
-                track.frames_since_last_id = 0
-                logger.info(f"Fixed identity {name} to track {track.track_id} (sim: {sim:.2f})")
+                # Trigger Smart Recording ONLY for genuinely new stranger
+                if is_new and self.recorder_control_queue and not self.recorder_control_queue.full():
+                    self.recorder_control_queue.put_nowait({
+                        "cam_id": cam_id,
+                        "event_text": f"New Stranger Detected #{stranger_id}",
+                        "ts": time.time(),
+                        "event_type": "stranger",
+                        "site_id": site_id
+                    })
+            elif name and name != "STRANGER":
+                cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                if track:
+                    # LOCK identity to track
+                    track.identity = name
+                    track.confidence = sim
+                    track.is_locked = True
+                    track.frames_since_last_id = 0
+                    logger.info(f"Fixed identity {name} to track {track.track_id} (sim: {sim:.2f})")
 
     @staticmethod
     def _on_async_done(fut):

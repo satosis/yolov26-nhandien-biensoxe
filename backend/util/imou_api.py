@@ -99,44 +99,6 @@ class ImouClient:
         dev_list = data.get("deviceList", [])
         return dev_list[0] if dev_list else {}
 
-    def get_camera_status(self, device_id: str, enable_type: str, channel_id: str = "0") -> dict:
-        """Get device switch status (e.g. closeCamera, motionDetect)."""
-        token = self.get_access_token()
-        return self._call("getDeviceCameraStatus", {
-            "token": token,
-            "deviceId": device_id,
-            "enableType": enable_type,
-            "channelId": channel_id,
-        })
-
-    def set_camera_status(self, device_id: str, enable_type: str, enable: bool, channel_id: str = "0") -> dict:
-        """Set device switch (e.g. closeCamera=False to open lens). Uses 'enable' param per Imou API spec."""
-        token = self.get_access_token()
-        return self._call("setDeviceCameraStatus", {
-            "token": token,
-            "deviceId": device_id,
-            "enableType": enable_type,
-            "enable": enable,
-            "channelId": channel_id,
-        })
-
-    def get_device_online(self, device_id: str) -> dict:
-        """Check if device is online."""
-        token = self.get_access_token()
-        return self._call("deviceOnline", {
-            "token": token,
-            "deviceId": device_id,
-        })
-
-    def get_snapshot(self, device_id: str, channel_id: str = "0") -> dict:
-        """Capture a snapshot from device. Returns dict with 'url' key."""
-        token = self.get_access_token()
-        return self._call("setDeviceSnapEnhanced", {
-            "token": token,
-            "deviceId": device_id,
-            "channelId": channel_id,
-        })
-
     def get_device_network_info(self, device_id: str, channel_id: str = "0") -> dict | None:
         """Try multiple Imou APIs to resolve the device's local IP."""
         token = self.get_access_token()
@@ -229,16 +191,6 @@ class ImouClient:
                     logger.debug(f"  [NET-FALLBACK] Failed for {did}: {e}")
 
             final_list.append(dev)
-            
-        # --- Diagnostic Dump (best-effort, portable temp dir) ---
-        try:
-            import os, tempfile
-            debug_path = os.path.join(tempfile.gettempdir(), "imou_debug.json")
-            with open(debug_path, "w") as f:
-                json.dump({"merged": final_list}, f, indent=2)
-            logger.debug("Imou Discovery: debug data dumped to %s", debug_path)
-        except Exception as e:
-            logger.debug("Imou debug dump skipped: %s", e)
 
         logger.info(f"Merged Imou device list: {len(final_list)} entries.")
         return final_list

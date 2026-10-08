@@ -696,3 +696,16 @@ body[data-sidebar-size="sm"] .vertical-menu {
     }
 }
 
+/* --- TomSelect Bootstrap form-control wrapper reset --- */
+.ts-wrapper.form-control,
+.ts-wrapper.form-control-sm,
+.ts-wrapper.form-control-lg {
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+

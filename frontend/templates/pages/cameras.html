@@ -4,16 +4,37 @@
 {% block head %}
 <style>
   /* TomSelect Light Theme for Cameras page */
+  .ts-wrapper.form-control,
+  .ts-wrapper.form-control-sm {
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
   .ts-wrapper .ts-control {
     background: #fff !important;
     border: 1px solid #ced4da !important;
     border-radius: 4px !important;
-    padding: 5px 10px !important;
+    padding: 3px 8px !important;
     color: #495057 !important;
-    min-height: 36px !important;
+    min-height: 28px !important;
+    font-size: 11.5px !important;
   }
-  .ts-wrapper .ts-control input { color: #495057 !important; background: transparent !important; }
-  .ts-wrapper.focus .ts-control { border-color: #80bdff !important; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important; }
+  .ts-wrapper .ts-control input {
+    color: #495057 !important;
+    background: transparent !important;
+    font-size: 11.5px !important;
+  }
+  .ts-wrapper .ts-control input::placeholder {
+    color: #adb5bd !important;
+    font-size: 11.5px !important;
+  }
+  .ts-wrapper.focus .ts-control {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
+  }
   .ts-dropdown {
     background: #fff !important;
     border: 1px solid rgba(0,0,0,0.15) !important;
@@ -21,7 +42,7 @@
     margin-top: 2px !important;
     box-shadow: 0 6px 12px rgba(0,0,0,0.175) !important;
   }
-  .ts-dropdown .option { padding: 6px 12px !important; color: #495057 !important; font-size: 13px; }
+  .ts-dropdown .option { padding: 6px 12px !important; color: #495057 !important; font-size: 11.5px; }
   .ts-dropdown .active { background: #007bff !important; color: #fff !important; }
   .ts-wrapper.multi .ts-control > div {
     background: #e3f2fd !important;
@@ -30,7 +51,8 @@
     border-radius: 3px !important;
     font-size: 11px !important;
     font-weight: 600 !important;
-    padding: 2px 6px !important;
+    padding: 1px 6px !important;
+    margin: 1px 3px 1px 0 !important;
   }
   .ts-wrapper.multi .ts-control > div .remove { color: #1565c0 !important; }
   .ts-wrapper .ts-control > .ts-input-fake { display: none; }
@@ -141,7 +163,8 @@
         </div>
         <div class="col-12 col-md-6 mb-3">
           <label class="font-weight-bold" style="font-size:13px;">IP / Host *</label>
-          <input name="camera_ip" id="add-camera-ip" class="form-control form-control-sm" placeholder="192.168.1.100">
+          <input name="camera_ip" id="add-camera-ip" class="form-control form-control-sm" placeholder="Nhập IP camera (VD: 192.168.1.50)">
+          <small class="text-muted" style="font-size:10px;">Nhập IP nội mạng của camera trong mạng Wi-Fi/LAN.</small>
         </div>
         <div class="col-12 col-md-6 mb-3">
           <label class="font-weight-bold" style="font-size:13px;">Port</label>
@@ -167,7 +190,7 @@
         </div>
         <div class="col-12 mb-3">
           <label class="font-weight-bold" style="font-size:13px;">Địa điểm (Sites)</label>
-          <select name="site_ids" multiple id="add-sites-select" class="form-control form-control-sm">
+          <select name="site_ids" multiple id="add-sites-select" class="w-100">
             {% for s in sites %}
             <option value="{{ s.id }}">{{ s.site_name }}</option>
             {% endfor %}
@@ -300,15 +323,20 @@
                     </div>
                     <div class="col-12 col-md-6 mb-3">
                       <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa điểm</label>
-                      <select name="site_ids" multiple id="edit-sites-{{ cam.id }}" class="form-control form-control-sm">
+                      <select name="site_ids" multiple id="edit-sites-{{ cam.id }}" class="w-100">
                         {% for s in sites %}
                         <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
                         {% endfor %}
                       </select>
                     </div>
                     <div class="col-12 col-md-6 mb-3">
-                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa chỉ IP</label>
-                      <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="192.168.1.100" class="form-control form-control-sm">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa chỉ IP *</label>
+                      <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="Nhập IP camera (VD: 192.168.1.50)" class="form-control form-control-sm">
+                      {% if not cam.camera_ip %}
+                      <small class="text-danger d-block mt-1" style="font-size:10px;">⚠️ Chưa có IP. Vui lòng click vào đây và nhập IP của camera.</small>
+                      {% else %}
+                      <small class="text-muted d-block mt-1" style="font-size:10px;">IP nội mạng trong dải Wi-Fi/LAN của camera.</small>
+                      {% endif %}
                     </div>
                     <div class="col-12 col-md-6 mb-3">
                       <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Mã an toàn (MK) / Password</label>
@@ -333,9 +361,14 @@
                   </div>
                   <div class="mb-3">
                     <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">RTSP URL <span class="font-weight-normal text-muted" style="text-transform:none;">(tự tạo)</span></label>
-                    <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
-                      class="form-control form-control-sm font-monospace text-primary"
-                      placeholder="rtsp://...">
+                    <div class="input-group input-group-sm">
+                      <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
+                        class="form-control form-control-sm font-monospace text-primary"
+                        placeholder="rtsp://...">
+                      <div class="input-group-append">
+                        <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="autoFillRtsp(this.closest('form'))" title="Tự tạo lại link RTSP">⚡ Tạo URL</button>
+                      </div>
+                    </div>
                   </div>
                   <div class="d-flex" style="gap:8px;">
                     <button type="submit" class="btn btn-primary btn-sm font-weight-bold">💾 Cập nhật</button>
@@ -647,16 +680,26 @@ function togglePassword(btn) {
  * Auto-generates RTSP URL from form fields using provider-specific templates
  */
 function autoFillRtsp(form) {
-    const type = form.querySelector('[name="camera_type"]').value;
-    const ip = form.querySelector('[name="camera_ip"]').value;
-    const port = form.querySelector('[name="camera_port"]').value || '554';
+    if (!form) return;
+    const type = form.querySelector('[name="camera_type"]')?.value || 'imou';
+    const ipInput = form.querySelector('[name="camera_ip"]');
+    const ip = (ipInput?.value || '').trim();
+    const port = (form.querySelector('[name="camera_port"]')?.value || '554').trim();
     const rtspInput = form.querySelector('[name="rtsp_url"]');
-    let mk = form.querySelector('[name="imou_mk"]').value;
+    let mk = (form.querySelector('[name="imou_mk"]')?.value || '').trim();
 
     // Fallback to global MK if form field is empty
     if (!mk) mk = GLOBAL_MK;
 
-    if (!ip || !mk) return;  // Need at least IP + password
+    if (!rtspInput) return;
+
+    if (!ip) {
+        rtspInput.value = '';
+        return;
+    }
+    if (!mk) {
+        return;
+    }
 
     let template = PROVIDER_TEMPLATES[type];
     if (!template) template = 'rtsp://{user}:{password}@{ip}:{port}/stream';
@@ -665,7 +708,7 @@ function autoFillRtsp(form) {
         .replace('{user}', 'admin')
         .replace('{password}', encodeURIComponent(mk))
         .replace('{ip}', ip)
-        .replace('{port}', port)
+        .replace('{port}', port || '554')
         .replace('{channel}', '1')
         .replace('{subtype}', type === 'imou' ? '1' : '0');
 }
@@ -735,14 +778,19 @@ async function discoverCameras() {
 }
 
 // Proactive filling: Update RTSP URL automatically when credentials change
-document.addEventListener('input', (e) => {
-    const form = e.target.closest('form');
-    if (!form || !form.id?.includes('cam') && !form.action?.includes('edit')) return;
+['input', 'change', 'keyup', 'paste'].forEach(evt => {
+    document.addEventListener(evt, (e) => {
+        const form = e.target.closest('form');
+        if (!form) return;
+        const isCamForm = (form.id && form.id.includes('cam')) ||
+                          (form.action && (form.action.includes('edit') || form.action.includes('cameras')));
+        if (!isCamForm) return;
 
-    const relevantNames = ['camera_ip', 'camera_port', 'imou_mk', 'camera_type'];
-    if (relevantNames.includes(e.target.name)) {
-        autoFillRtsp(form);
-    }
+        const relevantNames = ['camera_ip', 'camera_port', 'imou_mk', 'camera_type'];
+        if (relevantNames.includes(e.target.name)) {
+            autoFillRtsp(form);
+        }
+    });
 });
 
 // Fix for Add form submission (it didn't have an action/method)

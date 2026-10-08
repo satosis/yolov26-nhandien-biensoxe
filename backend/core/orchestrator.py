@@ -87,7 +87,8 @@ class CameraOrchestrator:
         rtsp_url = self.db.get_camera_rtsp_url(cam['id'])
 
         if not rtsp_url:
-            logger.warning(f"Camera {cam_id} has no valid RTSP URL. Skipping...")
+            logger.warning(f"Camera {cam_id} has no valid RTSP URL. Setting is_streaming=False...")
+            self.db.set_camera_streaming(cam['id'], False)
             return
 
         # site_ids is a list in the new schema
@@ -119,13 +120,12 @@ class CameraOrchestrator:
             del self.grabbers[cam_id]
 
     def run(self):
-        # On-demand model: nothing runs in the background after a (re)start.
-        # Reset any leftover streaming flags so cameras only connect when the
-        # user opens one to view (manual Start). Avoids auto-connecting at boot
-        # and the stale-flag friction (Stop-then-Start required to reconnect).
+        # Always-on mode: auto-start grabbers for all active cameras at startup
+        # so that SHM is pre-populated — clicking the stream button is instant.
         self.db._execute_query(
-            "UPDATE cameras SET is_streaming = FALSE WHERE is_streaming = TRUE"
+            "UPDATE cameras SET is_streaming = TRUE WHERE is_active = TRUE"
         )
+        logger.info("Auto-started all active cameras for instant stream.")
 
         try:
             while not self.stop_event.is_set():
@@ -148,21 +148,17 @@ class CameraOrchestrator:
                     log_system_health()
                     self._last_health_ts = now
 
-                # 2. Fetch cameras that SHOULD be streaming
+                # 2. Fetch all active cameras — grabbers always run
                 streaming_cams = self.db._execute_query(
-                    "SELECT * FROM cameras WHERE is_streaming = TRUE", fetchall=True
+                    "SELECT * FROM cameras WHERE is_active = TRUE", fetchall=True
                 ) or []
                 streaming_ids = {str(c['id']) for c in streaming_cams}
 
-                # --- DYNAMIC LIFECYCLE MANAGEMENT ---
-                # If at least one camera is TRUE, ensure InferenceWorker is running
-                if streaming_ids and not self.core_processes:
+                # --- INFERENCE ALWAYS ON ---
+                # Ensure InferenceWorker is running at all times
+                if not self.core_processes:
                      self.start_inference()
-                
-                # If NO cameras are TRUE, stop InferenceWorker to save memory
-                elif not streaming_ids and self.core_processes:
-                     self.stop_inference()
-                # ------------------------------------
+                # ---------------------------
 
                 # Start missing grabbers
                 for cam in streaming_cams:
@@ -192,7 +188,7 @@ class CameraOrchestrator:
                     except Exception as e:
                         logger.error("Retention task failed: %s", e)
 
-                time.sleep(3) # Sync interval (seconds)
+                time.sleep(1) # Sync interval (seconds)
         except Exception as e:
             logger.critical("Orchestrator encountered a FATAL error: %s", str(e), exc_info=True)
             self.stop_event.set()

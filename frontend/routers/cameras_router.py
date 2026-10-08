@@ -174,7 +174,21 @@ async def start_stream(
     request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
+    import asyncio
+    from backend.util.network_utils import check_rtsp_quick
+
     db = get_db()
+    cam = db.get_camera(camera_id)
+    if not cam:
+        return JSONResponse({"ok": False, "error": "Camera không tồn tại"}, status_code=404)
+
+    rtsp_url = db.get_camera_rtsp_url(camera_id)
+    if not rtsp_url:
+        return JSONResponse({
+            "ok": False,
+            "error": f"Camera '{cam.get('camera_name')}' chưa có địa chỉ IP hoặc mật khẩu để kết nối."
+        }, status_code=400)
+
     ok = db.set_camera_streaming(camera_id, True)
     return {"ok": ok}
 

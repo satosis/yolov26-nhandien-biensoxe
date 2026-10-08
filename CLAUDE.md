@@ -216,7 +216,7 @@ yolov26-nhandien-biensoxe/
 ├── CLAUDE.md                  # File này — CẬP NHẬT khi release tính năng mới
 ├── init.sql                   # PostgreSQL schema (source of truth)
 ├── requirements.txt           # Python deps (backend/requirements.txt)
-├── docker-compose.yml         # Chỉ service ai_core; dùng chung 1 Postgres ở host localhost:5432 (host.docker.internal trong container)
+├── docker-compose.yml         # Service postgres (camera_postgres:5432, host:5433) & ai_core (mạng shared-services)
 │
 ├── backend/                    # Core logic and services
 │   ├── main.py                # Entry point chính cho container & script

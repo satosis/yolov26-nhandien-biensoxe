@@ -3,7 +3,6 @@
 .ruff_cache/
 *.log
 nohup.out
-/data/
 __pycache__/
 *.pyc
 frontend/.runtime/

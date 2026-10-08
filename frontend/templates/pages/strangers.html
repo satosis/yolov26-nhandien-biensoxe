@@ -47,7 +47,7 @@
       <span style="font-size:1.6rem;">🕵️</span>
       <h4 class="mb-0 font-weight-bold">Người lạ</h4>
     </div>
-    <span class="text-muted" style="font-size:13px;">Threshold: 0.25 · Cooldown: 60s</span>
+    <span class="text-muted" style="font-size:13px;">Định danh tự động · Không lưu trùng lặp</span>
   </div>
 
   {% if strangers %}
@@ -96,7 +96,7 @@
           <div class="rounded overflow-hidden flex-shrink-0"
                style="width:80px;height:80px;background:#f8f9fa;border:1px solid #dee2e6;cursor:zoom-in;">
             {% if s.image_path %}
-            <img src="/snapshots/{{ s.image_path.split('/')[-1] }}"
+            <img src="/snapshots/{{ s.image_path.replace('\\', '/').split('/')[-1] }}"
                  style="width:100%;height:100%;object-fit:cover;"
                  onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
                  onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:1.4rem;\'>👤</div>'">
@@ -108,19 +108,24 @@
           <!-- Info -->
           <div>
             <div class="d-flex align-items-center flex-wrap mb-1" style="gap:6px;">
-              <span class="font-weight-bold" style="font-size:13px;">
-                Camera: {{ s.camera_name or s.camera_id }}{% if s.site_name %} ({{ s.site_name }}){% endif %}
+              <span class="font-weight-bold" style="font-size:14px;color:#1e293b;">
+                Người lạ #{{ s.id }}
+              </span>
+              <span class="badge badge-pill badge-warning text-dark font-weight-bold" style="font-size:11px;">
+                {{ s.seen_count or 1 }} lần xuất hiện
               </span>
               <span class="badge badge-pill {{ 'badge-danger' if s.status == 'new' else 'badge-primary' }}">
-                {% if s.status == 'new' %}Stranger{% else %}{{ s.status|capitalize }}{% endif %}
+                {% if s.status == 'new' %}Chưa đăng ký{% else %}{{ s.status|capitalize }}{% endif %}
               </span>
               {% if s.direction and s.direction != 'frontal' %}
               <span class="badge badge-pill badge-info text-capitalize">{{ s.direction }}</span>
               {% endif %}
             </div>
-            <span class="text-muted" style="font-size:11px;">
-              Similarity: {{ '%.2f'|format(s.similarity or 0) }} · {{ s.event_time.strftime('%d/%m/%Y %H:%M:%S') if s.event_time else '—' }}
-            </span>
+            <div class="text-muted" style="font-size:11px;line-height:1.4;">
+              <span>Cam: <b>{{ s.camera_name or s.camera_id }}</b>{% if s.site_name %} ({{ s.site_name }}){% endif %}</span>
+              · <span>Lần đầu: {{ s.event_time.strftime('%d/%m/%Y %H:%M:%S') if s.event_time else '—' }}</span>
+              · <span>Lần cuối: {{ s.last_seen.strftime('%d/%m/%Y %H:%M:%S') if s.last_seen else (s.event_time.strftime('%d/%m/%Y %H:%M:%S') if s.event_time else '—') }}</span>
+            </div>
           </div>
         </div>
 

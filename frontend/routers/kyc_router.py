@@ -443,29 +443,12 @@ async def register_stranger(
     # Update stranger status
     db.update_stranger_status(stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
     
-    # 1. Mass Deduplication: Clear other snapshots of the same person
-    embedding = stranger.get("face_embedding")
-    if embedding:
-        import numpy as np
-        target_emb = np.frombuffer(embedding, dtype=np.float32)
-        
-        # Fetch recent 'new' strangers (limit 100 to avoid excessive overhead)
-        other_strangers = db.get_stranger_logs(status="new", limit=100)
-        
-        for other in other_strangers:
-            if other["id"] == stranger_id: continue
-            
-            other_emb_bin = other.get("face_embedding")
-            if other_emb_bin:
-                other_emb = np.frombuffer(other_emb_bin, dtype=np.float32)
-                # Cosine similarity via dot product (assuming normed embeddings)
-                sim = np.dot(target_emb, other_emb)
-                
-                if sim > 0.70:
-                    db.update_stranger_status(other["id"], "converted", 
-                                              converted_user_id=user_id, 
-                                              note=f"Auto-converted matching stranger {stranger_id}")
-                    logger.info("Auto-converted similar stranger log %s (sim: %.3f)", other["id"], sim)
+    # Remove from StrangerManager memory since this person is now a registered user
+    try:
+        from backend.core.stranger_manager import get_stranger_manager
+        get_stranger_manager().remove(stranger_id)
+    except Exception:
+        pass
     
     # Also record in kyc_documents
     db.insert_kyc_document(user_id, "face_front", target_path)

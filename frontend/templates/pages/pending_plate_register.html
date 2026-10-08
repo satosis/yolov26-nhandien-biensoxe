@@ -74,7 +74,7 @@
         <div class="card-body p-2">
           <div class="rounded overflow-hidden" style="aspect-ratio:4/3;background:#f8f9fa;">
             {% if plate.image_path %}
-            <img src="/snapshots/{{ plate.image_path.split('/')[-1] }}"
+            <img src="/snapshots/{{ plate.image_path.replace('\\', '/').split('/')[-1] }}"
                  class="w-100 h-100 rounded"
                  style="object-fit:cover;cursor:zoom-in;"
                  onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))">

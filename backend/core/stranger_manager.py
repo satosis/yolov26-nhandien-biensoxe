@@ -1,0 +1,215 @@
+import logging
+import os
+import threading
+import time
+import numpy as np
+from backend.core import config as cfg
+from backend.util.image_utils import save_face_snapshot
+
+logger = logging.getLogger(__name__)
+
+
+class StrangerManager:
+    """Manages persistent stranger identification (Stranger Re-ID).
+    
+    Prevents duplicate stranger snapshots and replaces arbitrary cooldown timers
+    with persistent vector clustering and identity tracking.
+    """
+    _instance = None
+    _singleton_lock = threading.Lock()
+
+    def __init__(self, db=None):
+        self._lock = threading.Lock()
+        self._db = db
+        # List of dicts: {'id': int, 'emb': np.ndarray, 'seen_count': int,
+        #                 'last_seen': float, 'last_db_sync': float,
+        #                 'image_path': str, 'direction': str}
+        self._records = []
+        self._matrix = None  # np.ndarray shape (N, 512)
+        self._initialized = False
+
+    @classmethod
+    def get_instance(cls, db=None) -> "StrangerManager":
+        if cls._instance is None:
+            with cls._singleton_lock:
+                if cls._instance is None:
+                    cls._instance = cls(db=db)
+                    cls._instance._ensure_loaded(db)
+        elif db is not None:
+            if cls._instance._db is None:
+                cls._instance._db = db
+            cls._instance._ensure_loaded(db)
+        return cls._instance
+
+    def _ensure_loaded(self, db):
+        if self._initialized:
+            return
+        with self._lock:
+            if self._initialized:
+                return
+            target_db = db or self._db
+            if target_db is None:
+                from backend.core.database import DatabaseManager
+                target_db = DatabaseManager()
+                self._db = target_db
+
+            try:
+                rows = target_db.get_active_stranger_embeddings(limit=300)
+                records = []
+                embs = []
+                now = time.time()
+                for r in rows:
+                    raw_emb = r.get("face_embedding")
+                    if not raw_emb:
+                        continue
+                    try:
+                        emb = np.frombuffer(raw_emb, dtype=np.float32)
+                        norm = float(np.linalg.norm(emb))
+                        if norm > 1e-6:
+                            emb = (emb / norm).astype(np.float32)
+                        else:
+                            continue
+                    except Exception:
+                        continue
+
+                    records.append({
+                        "id": r["id"],
+                        "emb": emb,
+                        "seen_count": r.get("seen_count") or 1,
+                        "last_seen": now,
+                        "last_db_sync": now,
+                        "image_path": r.get("image_path") or "",
+                        "direction": r.get("direction") or "frontal",
+                    })
+                    embs.append(emb)
+
+                self._records = records
+                self._matrix = np.array(embs, dtype=np.float32) if embs else None
+                self._initialized = True
+                logger.info("StrangerManager initialized with %d active stranger identities.", len(records))
+            except Exception as e:
+                logger.error("Failed to load stranger profiles into StrangerManager: %s", e)
+
+    def process_stranger(
+        self,
+        emb: np.ndarray,
+        frame,
+        cam_id: str,
+        bbox: tuple | list,
+        direction: str = "frontal",
+        site_id: int | None = None,
+        db=None,
+    ) -> tuple[int, float, bool]:
+        """Identify or register a stranger without duplicate photos or dumb cooldown.
+
+        Returns:
+            (stranger_id: int, similarity: float, is_new: bool)
+        """
+        if emb is None:
+            return -1, 0.0, False
+
+        self._ensure_loaded(db)
+        target_db = db or self._db
+
+        # Normalize incoming embedding
+        norm = float(np.linalg.norm(emb))
+        if norm <= 1e-6:
+            return -1, 0.0, False
+        normed_emb = (emb / norm).astype(np.float32)
+
+        threshold = getattr(cfg, "STRANGER_MATCH_THRESHOLD", 0.48)
+        now = time.time()
+
+        with self._lock:
+            # 1. Match against existing strangers
+            if self._matrix is not None and len(self._matrix) > 0:
+                sims = np.dot(self._matrix, normed_emb)
+                best_idx = int(np.argmax(sims))
+                best_sim = float(sims[best_idx])
+
+                if best_sim >= threshold:
+                    # Match found! Existing stranger
+                    rec = self._records[best_idx]
+                    stranger_id = rec["id"]
+                    rec["seen_count"] += 1
+                    rec["last_seen"] = now
+
+                    # Smoothly update embedding with running average if match is strong
+                    if best_sim >= 0.55:
+                        updated_emb = 0.85 * rec["emb"] + 0.15 * normed_emb
+                        u_norm = float(np.linalg.norm(updated_emb))
+                        if u_norm > 1e-6:
+                            rec["emb"] = (updated_emb / u_norm).astype(np.float32)
+                            self._matrix[best_idx] = rec["emb"]
+
+                    # Throttle DB updates to once every 5 seconds per stranger
+                    if now - rec["last_db_sync"] >= 5.0:
+                        rec["last_db_sync"] = now
+                        if target_db:
+                            try:
+                                target_db.update_stranger_seen(stranger_id, camera_id=cam_id)
+                            except Exception as ex:
+                                logger.warning("Error updating stranger %s in DB: %s", stranger_id, ex)
+
+                    return stranger_id, best_sim, False
+
+            # 2. No match found -> Truly NEW stranger!
+            snap_path = save_face_snapshot(frame, cam_id, bbox=bbox)
+            new_id = None
+            if target_db:
+                try:
+                    new_id = target_db.log_stranger(
+                        camera_id=cam_id,
+                        similarity=0.0,
+                        image_path=snap_path,
+                        site_id=site_id,
+                        face_embedding=normed_emb.tobytes(),
+                        direction=direction,
+                        seen_count=1,
+                    )
+                except Exception as ex:
+                    logger.error("Failed to log new stranger into DB: %s", ex)
+
+            if new_id is None:
+                new_id = int(now) % 100000
+
+            new_rec = {
+                "id": new_id,
+                "emb": normed_emb,
+                "seen_count": 1,
+                "last_seen": now,
+                "last_db_sync": now,
+                "image_path": snap_path,
+                "direction": direction,
+            }
+            self._records.append(new_rec)
+            if self._matrix is None or len(self._matrix) == 0:
+                self._matrix = np.array([normed_emb], dtype=np.float32)
+            else:
+                self._matrix = np.vstack([self._matrix, normed_emb])
+
+            logger.info("New stranger registered: ID #%d from %s (snapshot: %s)", new_id, cam_id, snap_path)
+            return new_id, 0.0, True
+
+    def remove(self, stranger_id: int):
+        """Remove a stranger from memory (e.g. when deleted or converted)."""
+        with self._lock:
+            if not self._records:
+                return
+            idx = next((i for i, r in enumerate(self._records) if r["id"] == stranger_id), None)
+            if idx is not None:
+                self._records.pop(idx)
+                embs = [r["emb"] for r in self._records]
+                self._matrix = np.array(embs, dtype=np.float32) if embs else None
+                logger.info("Stranger #%d removed from StrangerManager memory.", stranger_id)
+
+    def reload(self, db=None):
+        """Reload all stranger profiles from DB."""
+        with self._lock:
+            self._initialized = False
+        self._ensure_loaded(db)
+
+
+def get_stranger_manager(db=None) -> StrangerManager:
+    """Get global singleton StrangerManager instance."""
+    return StrangerManager.get_instance(db=db)

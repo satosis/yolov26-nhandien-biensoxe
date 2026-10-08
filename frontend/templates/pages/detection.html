@@ -1,141 +1,781 @@
 {% extends "layout.html" %}
-{% block title %}Nhận diện — Parking Camera{% endblock %}
-{% block page_title %}Nhận diện AI{% endblock %}
+{% block title %}Camera AI — Parking Vision{% endblock %}
+{% block page_title %}{% endblock %}
+
 {% block content %}
-<div x-data="{ tab: 'webcam' }"
-  x-effect="if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
-  <div class="row no-gutters" style="height:calc(100vh - 200px); min-height:480px;">
+<div class="cam-app-root" x-data="{
+  tab: localStorage.getItem('detection_tab') || 'rtsp',
+  camMenuOpen: false,
+  selectedCamId: '{{ cameras[0].id if cameras else '' }}',
+  selectedCamName: '{{ cameras[0].camera_name if cameras else 'Chưa có camera' }}'
+}"
+x-init="
+  const saved = localStorage.getItem('selected_rtsp_camera');
+  if (saved) {
+    const el = document.querySelector('#rtsp-camera option[value=\'' + saved + '\']');
+    if (el) {
+      selectedCamId = saved;
+      selectedCamName = el.textContent;
+    }
+  }
+"
+x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
 
-    <!-- Video area -->
-    <div class="col-12 col-lg-8 d-flex flex-column pr-lg-2 mb-3 mb-lg-0">
-      <div class="card h-100 mb-0">
-        <!-- Tabs nav -->
-        <div class="card-header p-0 bg-transparent border-0">
-          <ul class="nav nav-tabs px-2 pt-2">
-            <li class="nav-item">
-              <a class="nav-link" href="#" :class="tab==='webcam' ? 'active' : ''"
-                @click.prevent="tab='webcam'" style="font-size:13px;">
-                <i class="bx bx-camera mr-1"></i>Live Webcam
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#" :class="tab==='rtsp' ? 'active' : ''"
-                @click.prevent="tab='rtsp'" style="font-size:13px;">
-                <i class="bx bx-broadcast mr-1"></i>Camera khu vực
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#" :class="tab==='upload' ? 'active' : ''"
-                @click.prevent="tab='upload'" style="font-size:13px;">
-                <i class="bx bx-image-add mr-1"></i>Upload ảnh
-              </a>
-            </li>
-          </ul>
+  <!-- ================= TOP APP BAR ================= -->
+  <div class="cam-app-bar">
+    <div class="d-flex align-items-center flex-wrap" style="gap:12px;">
+      <!-- Segmented Pill Tabs -->
+      <div class="cam-seg-control">
+        <button type="button" class="cam-seg-btn" :class="tab==='rtsp' ? 'active' : ''" @click="tab='rtsp'" title="Camera IP">
+          <i class="bx bx-cctv"></i>
+          <span>Camera</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='webcam' ? 'active' : ''" @click="tab='webcam'" title="Live Webcam">
+          <i class="bx bx-camera"></i>
+          <span>Webcam</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='upload' ? 'active' : ''" @click="tab='upload'" title="Tải ảnh">
+          <i class="bx bx-image-add"></i>
+          <span>Ảnh</span>
+        </button>
+      </div>
+
+      <!-- Custom Camera Dropdown Capsule -->
+      <div x-show="tab==='rtsp'" class="position-relative">
+        <button type="button" @click="camMenuOpen = !camMenuOpen" class="cam-select-capsule" title="Chọn camera">
+          <span class="cam-live-dot"></span>
+          <span class="cam-select-text" x-text="selectedCamName"></span>
+          <i class="bx bx-chevron-down cam-select-arrow" :style="camMenuOpen ? 'transform:rotate(180deg)' : ''"></i>
+        </button>
+
+        <!-- Custom Dropdown Menu (Sleek Glassmorphism, No OS Select Popup) -->
+        <div x-show="camMenuOpen"
+             @click.away="camMenuOpen = false"
+             x-cloak
+             class="cam-custom-menu">
+          {% for cam in cameras %}
+          <div class="cam-menu-item"
+               :class="selectedCamId == '{{ cam.id }}' ? 'active' : ''"
+               @click="
+                 selectedCamId = '{{ cam.id }}';
+                 selectedCamName = '{{ cam.camera_name }}';
+                 camMenuOpen = false;
+                 const sel = document.getElementById('rtsp-camera');
+                 if (sel) {
+                   sel.value = '{{ cam.id }}';
+                   sel.dispatchEvent(new Event('change'));
+                 }
+               ">
+            <span class="cam-item-dot"></span>
+            <span class="cam-item-name">{{ cam.camera_name }}</span>
+            <i class="bx bx-check ml-auto text-primary" x-show="selectedCamId == '{{ cam.id }}'"></i>
+          </div>
+          {% endfor %}
         </div>
 
-        <!-- Webcam tab -->
-        <div x-show="tab==='webcam'" class="card-body d-flex flex-column p-3 h-100">
-          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
-            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
-            onclick="window.toggleWebcam()">
-            <video id="webcam-video" autoplay playsinline muted class="w-100 h-100 d-none"
-              style="object-fit:fill; image-rendering:auto; filter:contrast(1.05) brightness(1.02) saturate(1.1);"></video>
-            <canvas id="webcam-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;"></canvas>
-            <div id="webcam-placeholder" class="text-center">
-              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
-                style="width:64px;height:64px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#6366f1">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </div>
-              <div class="text-primary font-weight-bold" style="font-size:12px;letter-spacing:.08em;">NHẤN ĐỂ MỞ CAMERA</div>
-            </div>
-          </div>
-          <div class="d-flex align-items-center justify-content-end mt-2">
-            <button id="btn-select-device" class="btn btn-light btn-sm" style="font-size:12px;">
-              <i class="bx bx-devices mr-1"></i>SELECT DEVICE
-            </button>
-          </div>
-        </div>
-
-        <!-- RTSP tab -->
-        <div x-show="tab==='rtsp'" x-cloak class="card-body d-flex flex-column p-3 h-100">
-          <div class="d-flex mb-2" style="gap:8px;">
-            <select id="rtsp-camera" class="form-control form-control-sm flex-grow-1">
-              <option value="">Chọn camera...</option>
-              {% for cam in cameras %}
-              <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
-            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
-            onclick="window.toggleRtsp()">
-            <video id="rtsp-feed" autoplay playsinline muted class="w-100 h-100 d-none" style="object-fit:fill; position:relative; z-index:0;"></video>
-            <canvas id="rtsp-overlay" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;z-index:10;"></canvas>
-            <div id="rtsp-placeholder" class="text-center" style="z-index:20; position:relative;">
-              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
-                style="width:64px;height:64px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#6366f1">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </div>
-              <div class="text-primary font-weight-bold" style="font-size:12px;letter-spacing:.08em;">NHẤN ĐỂ MỞ CAMERA</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Upload tab -->
-        <div x-show="tab==='upload'" x-cloak class="card-body d-flex flex-column p-3 h-100">
-          <input type="file" id="upload-input" accept="image/*" class="d-none">
-          <div class="rounded flex-grow-1 d-flex align-items-center justify-content-center overflow-hidden position-relative"
-            style="background:#f8f9fa; cursor:pointer; min-height:260px;"
-            onclick="document.getElementById('upload-input').click()">
-            <canvas id="upload-canvas" class="d-none mw-100 mh-100" style="object-fit:contain;"></canvas>
-            <div id="upload-placeholder" class="text-center text-muted">
-              <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-2"
-                style="width:48px;height:48px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.1);">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-              </div>
-              <div style="font-size:13px;">Chọn ảnh hoặc click để thay đổi</div>
-            </div>
-          </div>
-        </div>
+        <!-- Hidden Native Select for script compatibility -->
+        <select id="rtsp-camera" class="d-none">
+          {% for cam in cameras %}
+          <option value="{{ cam.id }}" {% if loop.first %}selected{% endif %}>{{ cam.camera_name }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
 
-    <!-- Detection sidebar -->
-    <div class="col-12 col-lg-4 d-flex flex-column pl-lg-2">
-      <div class="card h-100 mb-0">
-        <div class="card-header d-flex align-items-center justify-content-between py-2 px-3">
-          <span class="font-weight-bold" style="font-size:14px;">Kết quả nhận diện</span>
+  </div>
+
+  <!-- RTSP Error banner -->
+  <div id="rtsp-error-banner" class="cam-alert-box" style="display:none;">
+    <div class="d-flex align-items-center">
+      <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
+      <span id="rtsp-error-text">Không thể kết nối camera</span>
+    </div>
+    <button type="button" class="cam-alert-close" onclick="document.getElementById('rtsp-error-banner').style.display='none'">
+      <i class="bx bx-x"></i>
+    </button>
+  </div>
+
+  <!-- ================= WORKSTATION GRID ================= -->
+  <div class="row no-gutters cam-main-grid">
+
+    <!-- CAMERA MONITOR VIEWPORT -->
+    <div class="col-12 col-xl-8 pr-xl-2 mb-3 mb-xl-0 d-flex flex-column">
+      <div id="cam-monitor-viewport" class="cam-monitor-card">
+
+        <!-- STREAMS CONTAINER -->
+        <div class="cam-screen-surface" id="cam-screen-surface">
+
+          <!-- 1. RTSP Stream -->
+          <div x-show="tab==='rtsp'" class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <video id="rtsp-feed" autoplay playsinline muted class="cam-media-element d-none"></video>
+            <img id="rtsp-feed-img" class="cam-media-element d-none" alt="Camera Feed">
+            <canvas id="rtsp-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+            <!-- RTSP Idle -->
+            <div id="rtsp-placeholder" class="cam-hero-placeholder" onclick="window.toggleRtsp()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-play" style="font-size:36px; margin-left:3px;"></i>
+              </div>
+              <div class="cam-hero-label">Mở camera</div>
+            </div>
+          </div>
+
+          <!-- 2. Webcam Stream -->
+          <div x-show="tab==='webcam'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <video id="webcam-video" autoplay playsinline muted class="cam-media-element d-none"></video>
+            <canvas id="webcam-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+            <!-- Webcam Idle -->
+            <div id="webcam-placeholder" class="cam-hero-placeholder" onclick="window.toggleWebcam()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-camera" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Mở webcam</div>
+            </div>
+          </div>
+
+          <!-- 3. Upload Stream -->
+          <div x-show="tab==='upload'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <input type="file" id="upload-input" accept="image/*" class="d-none">
+            <canvas id="upload-canvas" class="cam-media-element d-none"></canvas>
+
+            <!-- Upload Idle -->
+            <div id="upload-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('upload-input').click()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-cloud-upload" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Chọn ảnh</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FLOATING BOTTOM CONTROLS DOCK (Icon-only, compact & sleek) -->
+        <div class="cam-floating-dock">
+          <!-- Power Toggle -->
+          <button type="button" class="dock-btn primary" id="dock-btn-power" title="Bật / Dừng" onclick="handleActiveStreamToggle()">
+            <i class="bx bx-power-off"></i>
+          </button>
+
+          <!-- Snapshot -->
+          <button type="button" class="dock-btn" id="dock-btn-snap" title="Chụp ảnh" onclick="captureSnapshot()">
+            <i class="bx bx-camera"></i>
+          </button>
+
+          <!-- Select Device (Webcam only) -->
+          <button type="button" class="dock-btn" id="btn-select-device" x-show="tab==='webcam'" title="Chọn camera">
+            <i class="bx bx-devices"></i>
+          </button>
+
+          <!-- Upload (Upload tab only) -->
+          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp">
+            <i class="bx bx-folder-open"></i>
+          </button>
+
+          <!-- Fullscreen -->
+          <button type="button" class="dock-btn" id="dock-btn-fullscreen" title="Toàn màn hình" onclick="toggleFullscreen()">
+            <i class="bx bx-fullscreen"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- AI DETECTION SIDEBAR / EVENT FEED -->
+    <div class="col-12 col-xl-4 pl-xl-2 d-flex flex-column">
+      <div class="cam-sidebar-card">
+
+        <!-- Sidebar Header -->
+        <div class="cam-sidebar-header">
           <div class="d-flex align-items-center" style="gap:8px;">
-            <button id="btn-clear-results" class="btn btn-light btn-sm p-1" title="Xoá kết quả" style="line-height:1;">
-              <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;" fill="none" viewBox="0 0 24 24"
-                stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+            <span class="cam-sidebar-title">Phát hiện</span>
+            <div id="cam-status-indicator" class="cam-live-badge" style="display:none;">
+              <span class="pulse-point"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <div class="cam-counter-pills">
+              <span class="counter-item" title="Khuôn mặt">
+                <i class="bx bx-user"></i>
+                <b id="stat-face-count">0</b>
+              </span>
+              <span class="counter-item" title="Biển số">
+                <i class="bx bx-car"></i>
+                <b id="stat-plate-count">0</b>
+              </span>
+              <span class="counter-item danger" title="Cảnh báo">
+                <i class="bx bx-error"></i>
+                <b id="stat-alert-count">0</b>
+              </span>
+            </div>
+            <button id="btn-clear-results" class="cam-btn-icon" title="Xoá danh sách">
+              <i class="bx bx-trash"></i>
             </button>
           </div>
         </div>
-        <div class="card-body p-2 overflow-auto" id="detection-results" style="max-height:calc(100vh - 280px);">
-          <div class="card mb-2">
-            <div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Chưa có kết quả</div>
+
+        <!-- Events List Container -->
+        <div class="cam-feed-container" id="detection-results">
+          <!-- Empty State -->
+          <div class="cam-empty-feed">
+            <div class="cam-empty-icon"><i class="bx bx-camera-off"></i></div>
+            <div class="cam-empty-title">Chưa có sự kiện</div>
+            <div class="cam-empty-hint">Bật camera để bắt đầu nhận diện</div>
           </div>
         </div>
+
       </div>
     </div>
 
   </div>
 </div>
 
+<!-- ================= STYLES ================= -->
 <style>
+:root {
+  --cam-bg: #090d16;
+  --cam-hud-glass: rgba(9, 13, 22, 0.82);
+}
+
+/* Hide admin footer on camera page for full-screen focus */
+.footer { display: none !important; }
+.page-content { padding-bottom: 8px !important; }
+
+.cam-app-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Top Bar */
+.cam-app-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Segmented Pill Tabs */
+.cam-seg-control {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+.cam-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none !important;
+}
+.cam-seg-btn:hover {
+  color: #1e293b;
+}
+.cam-seg-btn.active {
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.cam-seg-btn i {
+  font-size: 15px;
+}
+
+/* Camera Selector Capsule & Custom Menu */
+.cam-select-capsule {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none !important;
+}
+.cam-select-capsule:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+.cam-select-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.cam-select-arrow {
+  font-size: 14px;
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+.cam-live-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  flex-shrink: 0;
+}
+.cam-custom-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 210px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  z-index: 1000;
+}
+.cam-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cam-menu-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cam-menu-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+.cam-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* Live Badge (inside sidebar header) */
+.cam-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.pulse-point {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 5px #10b981;
+  animation: pulse-live 1.4s ease-in-out infinite;
+}
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+/* Alert Banner */
+.cam-alert-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cam-alert-close {
+  background: none;
+  border: none;
+  color: #b91c1c;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+/* Main Grid & Responsive Height */
+.cam-main-grid {
+  height: calc(100vh - 150px);
+  min-height: 500px;
+}
+
+/* Monitor Card */
+.cam-monitor-card {
+  position: relative;
+  background: var(--cam-bg);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.4), inset 0 0 80px rgba(0, 0, 0, 0.85);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* OSD Top HUD */
+.cam-osd-hud-top {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.cam-hud-item {
+  background: var(--cam-hud-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+}
+.cam-hud-clock {
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+/* Screen Surface */
+.cam-screen-surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #111827 0%, #080c14 100%);
+}
+.cam-media-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 5;
+}
+.cam-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* Hero Placeholder (Spans 100% of viewport so clicking anywhere on the black area opens camera) */
+.cam-hero-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+.cam-hero-placeholder:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.cam-hero-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  margin-bottom: 8px;
+}
+.cam-hero-placeholder:hover .cam-hero-btn {
+  transform: scale(1.12);
+  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.7);
+}
+.cam-hero-label {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: color 0.2s ease;
+}
+.cam-hero-placeholder:hover .cam-hero-label {
+  color: #f1f5f9;
+}
+
+/* Floating Bottom Dock (Icon-only) */
+.cam-floating-dock {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 35;
+  background: var(--cam-hud-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.dock-btn {
+  background: transparent;
+  border: none;
+  color: #cbd5e1;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none !important;
+}
+.dock-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+.dock-btn i {
+  font-size: 16px;
+}
+.dock-btn.primary {
+  background: #3b82f6;
+  color: #ffffff;
+}
+.dock-btn.primary:hover {
+  background: #2563eb;
+}
+.dock-btn.primary.active-stream {
+  background: #ef4444;
+}
+
+/* Sidebar */
+.cam-sidebar-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.cam-sidebar-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafbfc;
+}
+.cam-sidebar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+}
+.cam-counter-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+.counter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #475569;
+}
+.counter-item i { font-size: 12px; }
+.counter-item b { font-weight: 700; color: #1e293b; }
+.counter-item.danger { background: #fff1f2; }
+.counter-item.danger i { color: #ef4444; }
+.counter-item.danger b { color: #dc2626; }
+.cam-btn-icon {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #94a3b8;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cam-btn-icon:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+/* Feed Container */
+.cam-feed-container {
+  padding: 10px;
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Empty State */
+.cam-empty-feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 16px;
+  margin: auto;
+}
+.cam-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+.cam-empty-title {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.cam-empty-hint {
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
+/* Event Feed Card */
+.cam-event-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: transform 0.12s ease;
+  animation: slide-in-down 0.2s ease-out;
+}
+.cam-event-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.cam-event-avatar.known { background: rgba(6, 182, 212, 0.12); color: #0891b2; }
+.cam-event-avatar.stranger { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.cam-event-avatar.whitelist { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.cam-event-avatar.unknown { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.cam-event-avatar.person { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
+
+.cam-event-body {
+  flex-grow: 1;
+  min-width: 0;
+}
+.cam-event-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cam-event-meta {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.cam-event-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.cam-event-badge.known { background: #ecfeff; color: #0891b2; }
+.cam-event-badge.stranger { background: #fef2f2; color: #dc2626; }
+.cam-event-badge.whitelist { background: #ecfdf5; color: #059669; }
+.cam-event-badge.unknown { background: #fffbeb; color: #d97706; }
+.cam-event-badge.person { background: #f5f3ff; color: #7c3aed; }
+
+@keyframes radar-ping {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 0; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+@keyframes slide-in-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes spin-kf { to { transform: rotate(360deg); } }
 .spin-anim { animation: spin-kf 1s linear infinite; }
 </style>
@@ -153,241 +793,432 @@
     const uploadCanvas = document.getElementById('upload-canvas');
     const uploadPlaceholder = document.getElementById('upload-placeholder');
     const resultsDiv = document.getElementById('detection-results');
+
+    const rtspCamera = document.getElementById('rtsp-camera');
+    const rtspPlaceholder = document.getElementById('rtsp-placeholder');
+    const rtspFeed = document.getElementById('rtsp-feed');
+    const rtspFeedImg = document.getElementById('rtsp-feed-img');
+    const rtspOverlay = document.getElementById('rtsp-overlay');
+    const hudCamName = document.getElementById('hud-cam-name');
+    const statusIndicator = document.getElementById('cam-status-indicator');
+    const dockBtnPower = document.getElementById('dock-btn-power');
+
+    const statFaceCount = document.getElementById('stat-face-count');
+    const statPlateCount = document.getElementById('stat-plate-count');
+    const statAlertCount = document.getElementById('stat-alert-count');
+
     let stream = null;
     let currentDeviceId = null;
     let webcamInterval = null;
-    const captureCanvas = document.createElement('canvas'); // Persistent for performance
+    const captureCanvas = document.createElement('canvas');
 
-    function renderResults(data, append = false) {
-      if (data.error) {
-        resultsDiv.innerHTML = `<div class="card mb-2"><div class="card-body py-2 px-3 text-danger" style="font-size:13px;border-left:3px solid #dc3545;">
-        <strong>Lỗi:</strong> ${data.error}
-      </div></div>`;
-        return;
+    let rtspActive = false;
+    const rtspCaptureCanvas = document.createElement('canvas');
+    let rtspProcessing = false;
+    let rtspDetectionLoop = null;
+    let rtspLastResults = [];
+
+    function updateHudCamName() {
+      if (rtspCamera && hudCamName) {
+        const selected = rtspCamera.options[rtspCamera.selectedIndex];
+        if (selected) hudCamName.textContent = selected.text || 'Camera';
       }
-
-      // De-duplicate: Keep only 1 record per type (highest confidence)
-      const uniqueMap = {};
-      (data.results || []).forEach(r => {
-        if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
-          uniqueMap[r.type] = r;
+    }
+    if (rtspCamera) {
+      updateHudCamName();
+      rtspCamera.addEventListener('change', () => {
+        updateHudCamName();
+        localStorage.setItem('selected_rtsp_camera', rtspCamera.value);
+        if (rtspActive) {
+          window.toggleRtsp().then(() => window.toggleRtsp());
         }
       });
-      const finalResults = Object.values(uniqueMap);
-
-      if (finalResults.length === 0) {
-        resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Không phát hiện đối tượng</div></div>';
-        return;
+      const savedCam = localStorage.getItem('selected_rtsp_camera');
+      if (savedCam && Array.from(rtspCamera.options).some(o => o.value === savedCam)) {
+        rtspCamera.value = savedCam;
+        updateHudCamName();
       }
-
-      const html = finalResults.map(r => {
-        const colors = { whitelist: 'badge-success', unknown: 'badge-warning', known: 'badge-primary', stranger: 'badge-danger', no_plate: 'badge-secondary' };
-        const labels = { whitelist: 'Whitelist', unknown: 'Xe lạ', known: 'Đã biết', stranger: 'Người lạ', no_plate: 'Không rõ biển số' };
-
-        // Define plate color styles (kept as inline for exact visual fidelity)
-        const plateStyles = {
-          white: 'background:rgba(255,255,255,.15);color:#212529;border-color:rgba(255,255,255,.5);',
-          yellow: 'background:rgba(245,158,11,.15);color:#856404;border-color:rgba(245,158,11,.4);',
-          blue: 'background:rgba(59,130,246,.15);color:#1a4bb0;border-color:rgba(59,130,246,.35);',
-          red: 'background:rgba(239,68,68,.15);color:#b02a37;border-color:rgba(239,68,68,.35);'
-        };
-
-        const badgeCls = colors[r.status] || 'badge-secondary';
-
-        let badgeText = '—';
-        let mainLabel = labels[r.status] || r.status;
-        let icon = '🚗';
-
-        if (r.type === 'face') {
-          icon = '👤';
-          badgeText = 'Face';
-          if (r.status === 'known') {
-            mainLabel = r.text; // "Tên: X + id: Y"
-          }
-        } else if (r.type === 'person') {
-          icon = '🚶';
-          badgeText = 'Person';
-        } else if (r.type === 'door') {
-          icon = '🚪';
-          badgeText = 'Door';
-        } else {
-          badgeText = r.text || 'Car';
-          if (r.status === 'whitelist' && r.owner_name && r.owner_name !== 'unknown') {
-            mainLabel = r.owner_name;
-          }
-        }
-
-        let badgeInline = '';
-        if (r.type === 'plate' && r.plate_type && plateStyles[r.plate_type]) {
-          badgeInline = plateStyles[r.plate_type];
-        }
-
-        return `<div class="card mb-2">
-          <div class="card-body py-2 px-3 d-flex align-items-center" style="gap:10px;">
-            <span class="badge badge-pill ${badgeCls} text-uppercase" style="font-size:11px;min-width:60px;${badgeInline}">${icon} ${badgeText}</span>
-            <div class="flex-grow-1" style="min-width:0;">
-              <div class="font-weight-medium text-dark" style="font-size:13px;word-break:break-word;">${mainLabel}</div>
-              <div class="text-muted" style="font-size:11px;">${r.confidence}% tin cậy</div>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
-
-      resultsDiv.innerHTML = html;
     }
 
+    function setStreamActiveState(isActive) {
+      if (isActive) {
+        if (statusIndicator) statusIndicator.style.display = 'inline-flex';
+        dockBtnPower.classList.add('active-stream');
+      } else {
+        if (statusIndicator) statusIndicator.style.display = 'none';
+        dockBtnPower.classList.remove('active-stream');
+      }
+    }
+
+    window.handleActiveStreamToggle = function () {
+      const currentTab = localStorage.getItem('detection_tab') || 'rtsp';
+      if (currentTab === 'rtsp') {
+        window.toggleRtsp();
+      } else if (currentTab === 'webcam') {
+        window.toggleWebcam();
+      } else if (currentTab === 'upload') {
+        uploadInput.click();
+      }
+    };
+
+    window.toggleFullscreen = function () {
+      const elem = document.getElementById('cam-monitor-viewport');
+      if (!document.fullscreenElement) {
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    };
+
+    window.captureSnapshot = function () {
+      let activeSource = null;
+      const currentTab = localStorage.getItem('detection_tab') || 'rtsp';
+      if (currentTab === 'rtsp' && rtspActive) {
+        activeSource = (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) ? rtspFeedImg : rtspFeed;
+      } else if (currentTab === 'webcam' && stream) {
+        activeSource = video;
+      } else if (currentTab === 'upload' && !uploadCanvas.classList.contains('d-none')) {
+        activeSource = uploadCanvas;
+      }
+
+      if (!activeSource) return;
+
+      const snapCanvas = document.createElement('canvas');
+      const w = activeSource.naturalWidth || activeSource.videoWidth || activeSource.width;
+      const h = activeSource.naturalHeight || activeSource.videoHeight || activeSource.height;
+      if (!w || !h) return;
+
+      snapCanvas.width = w;
+      snapCanvas.height = h;
+      snapCanvas.getContext('2d').drawImage(activeSource, 0, 0, w, h);
+
+      const link = document.createElement('a');
+      const timeStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `snapshot_${timeStr}.jpg`;
+      link.href = snapCanvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    };
+
+    // -------------------------------------------------------------
+    // AI Canvas Bounding Box Renderer (Clean & Concise)
+    // -------------------------------------------------------------
     function drawBoxes(canvas, img, results, srcW, srcH) {
       const ctx = canvas.getContext('2d');
-      // Use natural (pixel) dimensions for HTMLImageElement, video dimensions for webcam
       const naturalW = (img instanceof HTMLImageElement) ? img.naturalWidth : (img.videoWidth || img.width);
       const naturalH = (img instanceof HTMLImageElement) ? img.naturalHeight : (img.videoHeight || img.height);
+      if (!naturalW || !naturalH) return;
+
       canvas.width = naturalW;
       canvas.height = naturalH;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // For webcam, we don't draw the video on overlay (video is behind),
-      // but for upload, we draw image first.
-      if (img instanceof HTMLImageElement) {
+      if (img instanceof HTMLImageElement && img === uploadCanvas) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
 
-      // srcW/srcH = resolution of image sent to backend (default 640×480 = webcam)
       const detW = srcW || 640;
-      const detH = srcH || 480;
+      const detH = srcH || 360;
+      const scaleX = canvas.width / detW;
+      const scaleY = canvas.height / detH;
 
       for (const r of (results || [])) {
         if (!r.bbox || r.bbox.length < 4) continue;
-
-        // Scale bbox from detection space (detW×detH) → display canvas space (naturalW×naturalH)
-        const scaleX = canvas.width / detW;
-        const scaleY = canvas.height / detH;
+        if (r.text === 'TOO_SMALL') continue;
 
         const x1 = r.bbox[0] * scaleX;
         const y1 = r.bbox[1] * scaleY;
         const x2 = r.bbox[2] * scaleX;
         const y2 = r.bbox[3] * scaleY;
+        const w = x2 - x1;
+        const h = y2 - y1;
+        if (w <= 0 || h <= 0) continue;
 
-        // Registered users ('known') now draw blue: #3b82f6
-        const color = (r.status === 'known') ? '#3b82f6' : (r.status === 'whitelist') ? '#22c55e' : (r.status === 'stranger' || r.status === 'blacklist') ? '#ef4444' : '#f59e0b';
+        let color = '#3b82f6';
+        let labelIcon = '🎯';
+        let labelText = r.text || '';
+
+        if (r.type === 'face') {
+          if (r.status === 'known') {
+            color = '#06b6d4';
+            labelIcon = '👤';
+          } else {
+            color = '#ef4444';
+            labelIcon = '⚠️';
+            labelText = 'Người lạ';
+          }
+        } else if (r.type === 'plate') {
+          if (r.status === 'whitelist') {
+            color = '#10b981';
+            labelIcon = '🚗';
+          } else {
+            color = '#f59e0b';
+            labelIcon = '🚗';
+            if (r.status === 'no_plate') labelText = 'Biển số';
+          }
+        } else if (r.type === 'person') {
+          color = '#8b5cf6';
+          labelIcon = '🚶';
+          labelText = 'Người';
+        }
+
+        // Tint
+        ctx.fillStyle = color + '15';
+        ctx.fillRect(x1, y1, w, h);
+
+        // Thin frame
+        ctx.strokeStyle = color + '66';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x1, y1, w, h);
+
+        // Corner brackets
+        const cLen = Math.min(18, w * 0.28, h * 0.28);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1 + cLen); ctx.lineTo(x1, y1); ctx.lineTo(x1 + cLen, y1);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x2 - cLen, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + cLen);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y2 - cLen); ctx.lineTo(x1, y2); ctx.lineTo(x1 + cLen, y2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x2 - cLen, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cLen);
+        ctx.stroke();
+
+        // Label pill
+        const confText = (r.confidence && r.confidence > 0) ? ` ${Math.round(r.confidence)}%` : '';
+        const pillText = `${labelIcon} ${labelText}${confText}`;
+        ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        const textMetrics = ctx.measureText(pillText);
+        const pillW = textMetrics.width + 14;
+        const pillH = 22;
+        const pillX = Math.max(0, x1);
+        const pillY = Math.max(pillH + 4, y1 - 4);
+
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.90)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(pillX, pillY - pillH, pillW, pillH, 5);
+        else ctx.rect(pillX, pillY - pillH, pillW, pillH);
+        ctx.fill();
 
         ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([]);
-        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
 
-        if (r.text) {
-          ctx.fillStyle = color;
-          const fontSize = 14;
-          ctx.font = `bold ${fontSize}px JetBrains Mono, monospace`;
-          const textWidth = ctx.measureText(r.text).width;
-          ctx.fillRect(x1, y1 - fontSize - 8, textWidth + 12, fontSize + 8);
-          ctx.fillStyle = '#fff';
-          ctx.fillText(r.text, x1 + 6, y1 - 7);
-        }
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pillText, pillX + 7, pillY - pillH / 2);
       }
+    }
+
+    // -------------------------------------------------------------
+    // Results Feed (Concise, no useless text)
+    // -------------------------------------------------------------
+    function renderResults(data) {
+      if (data.error) {
+        resultsDiv.innerHTML = `<div class="cam-event-card text-danger" style="border-color:#fecaca;">
+          <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
+          <span>${data.error}</span>
+        </div>`;
+        return;
+      }
+
+      const uniqueMap = {};
+      let faces = 0, plates = 0, alerts = 0;
+
+      (data.results || []).forEach(r => {
+        if (r.text === 'TOO_SMALL') return;
+        if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
+          uniqueMap[r.type] = r;
+        }
+        if (r.type === 'face') {
+          faces++;
+          if (r.status === 'stranger') alerts++;
+        }
+        if (r.type === 'plate') {
+          plates++;
+          if (r.status === 'unknown') alerts++;
+        }
+      });
+
+      if (statFaceCount) statFaceCount.textContent = faces;
+      if (statPlateCount) statPlateCount.textContent = plates;
+      if (statAlertCount) statAlertCount.textContent = alerts;
+
+      const finalResults = Object.values(uniqueMap);
+      if (finalResults.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="cam-empty-feed">
+            <div class="cam-empty-radar-icon"><i class="bx bx-radar"></i></div>
+            <div class="cam-empty-title">Chưa có sự kiện</div>
+          </div>`;
+        return;
+      }
+
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      const html = finalResults.map(r => {
+        let avatarClass = 'known';
+        let avatarIcon = '🚗';
+        let title = r.text || '';
+        let badgeClass = 'known';
+        let badgeText = `${r.confidence}%`;
+
+        if (r.type === 'face') {
+          avatarIcon = '👤';
+          if (r.status === 'known') {
+            avatarClass = 'known';
+            badgeClass = 'known';
+            title = r.text;
+          } else {
+            avatarClass = 'stranger';
+            badgeClass = 'stranger';
+            title = 'Người lạ';
+            badgeText = 'Cảnh báo';
+          }
+        } else if (r.type === 'plate') {
+          avatarIcon = '🚗';
+          if (r.status === 'whitelist') {
+            avatarClass = 'whitelist';
+            badgeClass = 'whitelist';
+            title = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
+            badgeText = 'Whitelist';
+          } else {
+            avatarClass = 'unknown';
+            badgeClass = 'unknown';
+            title = r.text === '(BIỂN SỐ ?)' ? 'Chưa rõ biển' : r.text;
+            badgeText = 'Xe lạ';
+          }
+        } else if (r.type === 'person') {
+          avatarIcon = '🚶';
+          avatarClass = 'person';
+          badgeClass = 'person';
+          title = 'Người';
+        }
+
+        return `
+          <div class="cam-event-card">
+            <div class="cam-event-avatar ${avatarClass}">
+              ${avatarIcon}
+            </div>
+            <div class="cam-event-body">
+              <div class="cam-event-title">${title}</div>
+              <div class="cam-event-meta">${timeStr}</div>
+            </div>
+            <span class="cam-event-badge ${badgeClass}">${badgeText}</span>
+          </div>`;
+      }).join('');
+
+      resultsDiv.innerHTML = html;
     }
 
     async function sendFrame(blob, source = 'webcam') {
-      if (!blob) {
-        console.warn("Detection aborted: Blob is null");
-        return { error: "Ảnh không hợp lệ", results: [] };
-      }
-      console.log(`Sending frame to detection API... Size: ${(blob.size / 1024).toFixed(1)} KB`);
-      if (!blob || blob.size === 0) {
-        console.error("CRITICAL: Blob is empty! Check webcam/canvas state.");
-        return { error: "Ảnh không hợp lệ (size 0)", results: [] };
-      }
+      if (!blob || blob.size === 0) return { error: "Ảnh không hợp lệ", results: [] };
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       fd.append('source', source);
-      
-      console.log("FormData created, 'file' appended. Entries:", Array.from(fd.entries()).length);
-      const resp = await fetch('/admin/detection/api/detect', { method: 'POST', body: fd });
-      if (!resp.ok) {
-        console.error("Server detection error", resp.status);
-        return { error: 'Server error ' + resp.status, results: [] };
+
+      try {
+        const resp = await fetch('/admin/detection/api/detect', { method: 'POST', body: fd });
+        if (!resp.ok) return { error: 'Server error ' + resp.status, results: [] };
+        return await resp.json();
+      } catch (err) {
+        return { error: 'Lỗi mạng: ' + err.message, results: [] };
       }
-      return await resp.json();
     }
 
+    // -------------------------------------------------------------
+    // WEBCAM ENGINE
+    // -------------------------------------------------------------
     window.stopWebcam = function () {
       if (stream) {
-        stream.getTracks().forEach(t => t.stop()); stream = null;
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
         if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
         webcamInterval = false;
-        video.classList.add('d-none'); overlay.classList.add('d-none'); placeholder.classList.remove('d-none');
+        video.classList.add('d-none');
+        overlay.classList.add('d-none');
+        placeholder.classList.remove('d-none');
+        setStreamActiveState(false);
       }
     };
 
-    // --- Webcam ---
     window.toggleWebcam = async () => {
       if (stream) {
         window.stopWebcam();
         return;
       }
-      const baseVideoConstraints = {
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-        frameRate: { ideal: 30, min: 15 }
-      };
+
       const constraints = {
         video: currentDeviceId
-          ? { deviceId: { exact: currentDeviceId }, ...baseVideoConstraints }
-          : { facingMode: { ideal: 'environment' }, ...baseVideoConstraints },
+          ? { deviceId: { exact: currentDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       };
+
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
         stream = null;
-        placeholder.classList.remove('d-none'); video.classList.add('d-none');
-        const msg = (err && err.name === 'NotAllowedError') ? 'Bạn đã từ chối quyền camera.' : ('Không mở được camera: ' + (err && err.message || err));
-        if (window.toastr) { toastr.error(msg); } else { alert(msg); }
+        placeholder.classList.remove('d-none');
+        video.classList.add('d-none');
+        const msg = (err && err.name === 'NotAllowedError') ? 'Bạn đã từ chối quyền mở camera.' : ('Không thể mở webcam: ' + (err && err.message || err));
+        if (window.toastr) toastr.error(msg); else alert(msg);
         return;
       }
-      video.srcObject = stream; video.classList.remove('d-none'); placeholder.classList.add('d-none');
+
+      video.srcObject = stream;
+      video.classList.remove('d-none');
+      placeholder.classList.add('d-none');
+      setStreamActiveState(true);
       webcamInterval = true;
       let isProcessing = false;
       let lastResults = [];
 
-      // AI detection runs independently — does NOT block video display
       const runDetection = async () => {
         if (!stream || !webcamInterval || isProcessing) return;
         if (!video.videoWidth || video.readyState < 2) return;
 
         isProcessing = true;
-        captureCanvas.width = 480;
+        captureCanvas.width = 640;
         captureCanvas.height = 360;
         const ctx = captureCanvas.getContext('2d', { alpha: false });
-        ctx.drawImage(video, 0, 0, 480, 360);
+        ctx.drawImage(video, 0, 0, 640, 360);
 
         captureCanvas.toBlob(async (blob) => {
           if (!webcamInterval) { isProcessing = false; return; }
-          const data = await sendFrame(blob);
+          const data = await sendFrame(blob, 'webcam');
           isProcessing = false;
           if (!webcamInterval) return;
           lastResults = data?.results || [];
           renderResults(data);
-        }, 'image/jpeg', 0.70);
+        }, 'image/jpeg', 0.75);
       };
 
-      // Overlay renders at display refresh rate — smooth bboxes on live video
       const drawOverlay = () => {
         if (!stream || !webcamInterval) return;
         if (video.videoWidth && lastResults.length > 0) {
           overlay.classList.remove('d-none');
           overlay.width = video.clientWidth;
           overlay.height = video.clientHeight;
-          drawBoxes(overlay, video, lastResults, 480, 360);
+          drawBoxes(overlay, video, lastResults, 640, 360);
         }
         requestAnimationFrame(drawOverlay);
       };
 
-      // Start both loops independently
-      const detectionLoop = setInterval(runDetection, 1500);
+      const detectionLoop = setInterval(runDetection, 800);
       requestAnimationFrame(drawOverlay);
 
-      // Override stop to clean up
       const origStop = window.stopWebcam;
       window.stopWebcam = function () {
         clearInterval(detectionLoop);
@@ -396,247 +1227,185 @@
       };
     };
 
-    // --- RTSP ---
-    const rtspCamera = document.getElementById('rtsp-camera');
-    const rtspPlaceholder = document.getElementById('rtsp-placeholder');
-    const rtspFeed = document.getElementById('rtsp-feed');
-    let rtspActive = false;
+    // -------------------------------------------------------------
+    // RTSP ENGINE
+    // -------------------------------------------------------------
+    const getActiveRtspEl = () => {
+      if (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) return rtspFeedImg;
+      return rtspFeed;
+    };
 
-    const rtspCaptureCanvas = document.createElement('canvas');
-    let rtspProcessing = false;
-    const rtspOverlay = document.getElementById('rtsp-overlay');
-    let rtspPeerConnection = null;
-    let rtspDetectionLoop = null;
-    let rtspLastResults = [];
-
-    // --- RTSP AI Detection (independent from video stream) ---
     const runRtspDetection = async () => {
       if (!rtspActive || rtspProcessing) return;
-      if (!rtspFeed.videoWidth || rtspFeed.readyState < 2) return;
+      const el = getActiveRtspEl();
+      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0 && el.complete) : (el.videoWidth > 0 && el.readyState >= 2);
+      if (!hasContent) return;
 
       rtspProcessing = true;
       rtspCaptureCanvas.width = 640;
-      rtspCaptureCanvas.height = 480;
+      rtspCaptureCanvas.height = 360;
       const ctx = rtspCaptureCanvas.getContext('2d', { alpha: false });
-      ctx.drawImage(rtspFeed, 0, 0, 640, 480);
+      ctx.drawImage(el, 0, 0, 640, 360);
 
       rtspCaptureCanvas.toBlob(async (blob) => {
         if (!rtspActive) { rtspProcessing = false; return; }
-        const data = await sendFrame(blob);
+        const data = await sendFrame(blob, 'rtsp');
         rtspProcessing = false;
         if (!rtspActive) return;
         rtspLastResults = data?.results || [];
         renderResults(data);
-      }, 'image/jpeg', 0.80);
+      }, 'image/jpeg', 0.70);
     };
 
-    // --- RTSP Overlay (smooth, 60fps from cached results) ---
     const drawRtspOverlay = () => {
       if (!rtspActive) return;
-      if (rtspFeed.videoWidth && rtspLastResults.length > 0) {
+      const el = getActiveRtspEl();
+      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0) : (el.videoWidth > 0);
+      if (hasContent && rtspLastResults.length > 0) {
         rtspOverlay.classList.remove('d-none');
-        rtspOverlay.width = rtspFeed.clientWidth;
-        rtspOverlay.height = rtspFeed.clientHeight;
-        drawBoxes(rtspOverlay, rtspFeed, rtspLastResults, 640, 480);
+        rtspOverlay.width = el.clientWidth;
+        rtspOverlay.height = el.clientHeight;
+        drawBoxes(rtspOverlay, el, rtspLastResults, 640, 360);
       }
       requestAnimationFrame(drawRtspOverlay);
     };
 
-    // --- WebRTC connect via go2rtc ---
-    async function connectWebRTC(camId) {
-      const pc = new RTCPeerConnection({
-        iceServers: [{urls: 'stun:stun.l.google.com:19302'}],
-        // Pre-allocate ICE candidates to reduce gathering time
-        iceCandidatePoolSize: 2,
-        // Prefer UDP for lower latency on LAN
-        iceTransportPolicy: 'all',
-      });
-      pc.addTransceiver('video', {direction: 'recvonly'});
-      // Audio inactive: RTSP camera has no audio — skip audio negotiation entirely
-      pc.addTransceiver('audio', {direction: 'inactive'});
-
-      pc.ontrack = (e) => {
-        if (e.track.kind === 'video') {
-          rtspFeed.srcObject = e.streams[0];
-          // Fire play as soon as data arrives — reduce first-frame latency
-          rtspFeed.play().catch(() => {});
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      // Trickle ICE: send offer as soon as first candidate arrives OR after 500ms,
-      // whichever comes first. Eliminates the fixed 2000ms blocking wait.
-      await new Promise((resolve) => {
-        let resolved = false;
-        const done = () => { if (!resolved) { resolved = true; resolve(); } };
-
-        // Resolve immediately if already complete (e.g. host-only candidates)
-        if (pc.iceGatheringState === 'complete') { done(); return; }
-
-        pc.onicecandidate = (ev) => {
-          // First non-null candidate available — SDP already has enough to connect on LAN
-          if (ev.candidate) done();
-          // null candidate signals gathering complete
-          else done();
-        };
-        pc.onicegatheringstatechange = () => {
-          if (pc.iceGatheringState === 'complete') done();
-        };
-
-        // Hard timeout: 500ms max wait (vs previous 2000ms)
-        setTimeout(done, 500);
-      });
-
-      const resp = await fetch(`/admin/detection/go2rtc-proxy/${camId}`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/sdp'},
-        body: pc.localDescription.sdp,
-      });
-
-      if (resp.ok) {
-        const answer = await resp.text();
-        await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: answer}));
-        rtspPeerConnection = pc;
-        return true;
-      }
-      return false;
-    }
-
-    // --- Fallback to MJPEG if go2rtc unavailable ---
     function connectMJPEG(camId) {
-      rtspFeed.src = `/admin/detection/stream/${camId}`;
+      rtspFeed.classList.add('d-none');
+      if (rtspFeedImg) {
+        rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
+        rtspFeedImg.classList.remove('d-none');
+      }
     }
 
     window.toggleRtsp = async () => {
       const camId = rtspCamera.value;
-      if (!camId) {
-        alert('Vui lòng chọn camera ở ô bên trên trước khi thu video!');
-        return;
-      }
+      if (!camId) return;
 
       if (rtspActive) {
-        // STOP
         rtspActive = false;
         if (rtspDetectionLoop) clearInterval(rtspDetectionLoop);
         rtspDetectionLoop = null;
         rtspLastResults = [];
-        if (rtspPeerConnection) { rtspPeerConnection.close(); rtspPeerConnection = null; }
-        rtspFeed.srcObject = null;
-        rtspFeed.src = '';
-        await fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST' });
-        rtspPlaceholder.classList.remove('d-none');
+        if (rtspFeedImg) {
+          rtspFeedImg.src = '';
+          rtspFeedImg.classList.add('d-none');
+        }
         rtspFeed.classList.add('d-none');
         rtspOverlay.classList.add('d-none');
         const ctx = rtspOverlay.getContext('2d');
         ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+        rtspPlaceholder.classList.remove('d-none');
+        setStreamActiveState(false);
       } else {
-        // START
+        const errBanner = document.getElementById('rtsp-error-banner');
+        if (errBanner) errBanner.style.display = 'none';
+
         rtspActive = true;
         rtspPlaceholder.classList.add('d-none');
-        rtspFeed.classList.remove('d-none');
+        setStreamActiveState(true);
+        connectMJPEG(camId);
 
-        try {
-          await fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
+        rtspDetectionLoop = setInterval(runRtspDetection, 600);
+        requestAnimationFrame(drawRtspOverlay);
+      }
+    };
 
-          // Try WebRTC first, fallback to MJPEG
-          const webrtcOk = await connectWebRTC(camId).catch(() => false);
-          if (!webrtcOk) {
-            console.log('WebRTC failed, falling back to MJPEG');
-            connectMJPEG(camId);
+    // Clear Results
+    window.clearResults = function () {
+      if (statFaceCount) statFaceCount.textContent = '0';
+      if (statPlateCount) statPlateCount.textContent = '0';
+      if (statAlertCount) statAlertCount.textContent = '0';
+      resultsDiv.innerHTML = `
+        <div class="cam-empty-feed">
+          <div class="cam-empty-radar-icon"><i class="bx bx-radar"></i></div>
+          <div class="cam-empty-title">Chưa có sự kiện</div>
+        </div>`;
+      if (overlay) {
+        const ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+      }
+      if (rtspOverlay) {
+        const rCtx = rtspOverlay.getContext('2d');
+        rCtx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+      }
+      if (uploadCanvas) {
+        const uCtx = uploadCanvas.getContext('2d');
+        uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+      }
+    };
+    if (btnClear) btnClear.addEventListener('click', window.clearResults);
+
+    // Select Device
+    if (btnDevice) {
+      btnDevice.addEventListener('click', async () => {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const vd = devices.filter(d => d.kind === 'videoinput');
+        if (!vd.length) return;
+        const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Camera ' + (i + 1)}`).join('\n');
+        const choice = prompt('Chọn camera:\n' + names, '1');
+        if (choice) {
+          const idx = parseInt(choice) - 1;
+          if (vd[idx]) {
+            currentDeviceId = vd[idx].deviceId;
+            if (stream) { window.toggleWebcam(); setTimeout(() => window.toggleWebcam(), 300); }
+          }
+        }
+      });
+    }
+
+    // Upload
+    if (uploadInput) {
+      uploadInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        uploadPlaceholder.classList.add('d-none');
+        uploadCanvas.classList.remove('d-none');
+
+        const img = new Image();
+        img.onload = async () => {
+          uploadCanvas.width = img.naturalWidth;
+          uploadCanvas.height = img.naturalHeight;
+          uploadCanvas.getContext('2d').drawImage(img, 0, 0);
+
+          resultsDiv.innerHTML = `
+            <div class="cam-event-card text-primary">
+              <i class="bx bx-loader-alt spin-anim mr-2" style="font-size:20px;"></i>
+              <span style="font-size:12.5px;">Đang phân tích...</span>
+            </div>`;
+
+          const MAX_UPLOAD = 3840;
+          let sendW = img.naturalWidth;
+          let sendH = img.naturalHeight;
+          if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
+            const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
+            sendW = Math.round(sendW * ratio);
+            sendH = Math.round(sendH * ratio);
           }
 
-          // Start independent AI detection + overlay loops
-          rtspDetectionLoop = setInterval(runRtspDetection, 1200);
-          requestAnimationFrame(drawRtspOverlay);
-        } catch (err) {
-          // Reset UI so the camera can be retried
-          rtspActive = false;
-          rtspPlaceholder.classList.remove('d-none');
-          rtspFeed.classList.add('d-none');
-          if (window.toastr) { toastr.error('Không mở được camera: ' + (err && err.message || err)); }
-        }
-      }
-    };
+          const detectCanvas = document.createElement('canvas');
+          detectCanvas.width = sendW;
+          detectCanvas.height = sendH;
+          detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
 
-    window.clearResults = function () {
-      resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-muted" style="font-size:13px;">Chưa có kết quả</div></div>';
-      const ctx = overlay.getContext('2d');
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
-      const uCtx = uploadCanvas.getContext('2d');
-      uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
-    };
+          detectCanvas.toBlob(async (blob) => {
+            const data = await sendFrame(blob, 'upload');
+            renderResults(data);
+            drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
+            URL.revokeObjectURL(img.src);
+          }, 'image/jpeg', 0.90);
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
 
-    btnClear.addEventListener('click', window.clearResults);
-
-    btnDevice.addEventListener('click', async () => {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const vd = devices.filter(d => d.kind === 'videoinput');
-      if (!vd.length) return;
-      const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Cam ' + (i + 1)}`).join('\n');
-      const choice = prompt('Chọn camera:\n' + names, '1');
-      if (choice) {
-        const idx = parseInt(choice) - 1;
-        if (vd[idx]) {
-          currentDeviceId = vd[idx].deviceId;
-          if (stream) { window.toggleWebcam(); setTimeout(() => window.toggleWebcam(), 300); }
-        }
-      }
-    });
-
-    // --- Upload ---
-    uploadInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0]; if (!file) return;
-      uploadPlaceholder.classList.add('d-none'); uploadCanvas.classList.remove('d-none');
-      const img = new Image();
-      img.onload = async () => {
-        uploadCanvas.width = img.naturalWidth; uploadCanvas.height = img.naturalHeight;
-        uploadCanvas.style.width = '100%';
-        uploadCanvas.style.height = '100%';
-        uploadCanvas.style.objectFit = 'contain';
-        
-        // Show the image immediately on screen
-        uploadCanvas.getContext('2d').drawImage(img, 0, 0);
-        
-        // Show loading state in the sidebar
-        resultsDiv.innerHTML = '<div class="card mb-2"><div class="card-body py-2 px-3 text-primary d-flex align-items-center" style="font-size:13px;"><i class="bx bx-loader-alt spin-anim mr-2" style="font-size:18px;"></i>Đang phân tích ảnh bằng AI...</div></div>';
-
-        // Cap the maximum upload dimension to 3840px (4K) to prevent browser/server out-of-memory errors
-        // This is large enough to retain plate details even on very tall images.
-        const MAX_UPLOAD = 3840;
-        let sendW = img.naturalWidth;
-        let sendH = img.naturalHeight;
-        
-        if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
-          const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
-          sendW = Math.round(sendW * ratio);
-          sendH = Math.round(sendH * ratio);
-        }
-        
-        const detectCanvas = document.createElement('canvas');
-        detectCanvas.width = sendW; 
-        detectCanvas.height = sendH;
-        detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
-        
-        detectCanvas.toBlob(async (blob) => {
-          const data = await sendFrame(blob, 'upload');
-          renderResults(data, false);
-          drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
-
-          // RAM Optimization: Revoke object URL after processing
-          URL.revokeObjectURL(img.src);
-        }, 'image/jpeg', 0.90);
-      };
-      img.src = URL.createObjectURL(file);
-    });
-    // --- RAM Optimization: Stop webcam logic when tab is hidden ---
+    // RAM Optimization
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && stream) {
-        console.log("Tab hidden, stopping webcam to save RAM.");
         window.stopWebcam();
       }
     });
+
   })();
 </script>
 {% endblock %}

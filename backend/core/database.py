@@ -1332,20 +1332,56 @@ class DatabaseManager:
         self._execute_query("DELETE FROM ocr_training_samples WHERE id = %s", (sample_id,), commit=True)
     def log_stranger(self, camera_id: str, similarity: float, image_path: str,
                      site_id: int | None = None, face_embedding: bytes | None = None,
-                     direction: str = "frontal") -> int | None:
+                     direction: str = "frontal", seen_count: int = 1) -> int | None:
         """Insert a stranger detection event. Returns the new row id."""
         with self._get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     '''INSERT INTO stranger_logs
-                           (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time)
-                       VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW())
+                           (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
+                       VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), %s, NOW())
                        RETURNING id''',
-                    (camera_id, similarity, image_path, site_id, face_embedding, direction)
+                    (camera_id, similarity, image_path, site_id, face_embedding, direction, seen_count)
                 )
                 row_id = cursor.fetchone()[0]
             conn.commit()
             return row_id
+
+    def update_stranger_seen(self, stranger_id: int, camera_id: str = None) -> bool:
+        """Increment seen_count and update last_seen for an existing stranger."""
+        with self._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    '''UPDATE stranger_logs
+                       SET last_seen = NOW(),
+                           seen_count = COALESCE(seen_count, 1) + 1,
+                           camera_id = COALESCE(%s, camera_id)
+                       WHERE id = %s''',
+                    (camera_id, stranger_id)
+                )
+            conn.commit()
+            return True
+
+    def get_active_stranger_embeddings(self, limit: int = 300, site_id: int | None = None) -> list:
+        """Fetch active strangers with non-null embeddings for re-identification."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                params = []
+                where_clauses = ["status = 'new'", "face_embedding IS NOT NULL"]
+                if site_id:
+                    where_clauses.append("(site_id = %s OR site_id IS NULL)")
+                    params.append(site_id)
+                where = "WHERE " + " AND ".join(where_clauses)
+                params.append(limit)
+                cursor.execute(f"""
+                    SELECT id, camera_id, image_path, direction, face_embedding, seen_count, last_seen, event_time
+                    FROM stranger_logs
+                    {where}
+                    ORDER BY COALESCE(last_seen, event_time) DESC
+                    LIMIT %s
+                """, params)
+                return [dict(r) for r in cursor.fetchall()]
+
     def get_stranger_logs(self, status: str | None = None, limit: int = 50, site_id: int | None = None) -> list:
         """Return stranger logs with site name and converted username.
         Optionally filter by status ('new', 'reviewed', 'converted') and site_id."""
@@ -1374,7 +1410,7 @@ class DatabaseManager:
                     LEFT JOIN sites s ON sl.site_id = s.id
                     LEFT JOIN users u ON sl.converted_user_id = u.id
                     {where}
-                    ORDER BY sl.event_time DESC
+                    ORDER BY COALESCE(sl.last_seen, sl.event_time) DESC
                     LIMIT %s
                 """, params)
                 return [dict(r) for r in cursor.fetchall()]
@@ -1407,8 +1443,20 @@ class DatabaseManager:
                 )
             conn.commit()
             return True
+
     def delete_stranger_log(self, stranger_id: int) -> bool:
-        """Hard-delete a single stranger log row."""
+        """Hard-delete a single stranger log row and its snapshot file on disk."""
+        try:
+            row = self._execute_query("SELECT image_path FROM stranger_logs WHERE id = %s", (stranger_id,), fetch=True, commit=False)
+            if row and row.get("image_path"):
+                img_path = row["image_path"]
+                if os.path.exists(img_path):
+                    try:
+                        os.remove(img_path)
+                    except OSError:
+                        pass
+        except Exception as e:
+            logger.warning("Failed to delete snapshot file for stranger %s: %s", stranger_id, e)
         return self.delete("stranger_logs", {"id": stranger_id})
 
     # ── Cargo Trips ────────────────────────────────────────────────────────────

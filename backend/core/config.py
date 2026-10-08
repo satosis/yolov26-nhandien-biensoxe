@@ -11,10 +11,11 @@ PLATE_MODEL_PATH = os.environ.get(
 RKNN_MODEL_PATH = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door.rknn")
 FACE_MODEL_DIR = os.path.join(BASE_DIR, "backend/models/insightface")
 KNOWN_FACES_DIR = os.path.join(BASE_DIR, "backend/config/faces")
-SNAPSHOT_DIR = os.path.join(BASE_DIR, "backend/data/snapshots")
-RECORDING_DIR = os.path.join(BASE_DIR, "backend/data/recordings")
+DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
+SNAPSHOT_DIR = os.environ.get("SNAPSHOT_DIR", os.path.join(DATA_DIR, "snapshots"))
+RECORDING_DIR = os.environ.get("RECORDING_DIR", os.path.join(DATA_DIR, "recordings"))
 
-for d in [KNOWN_FACES_DIR, SNAPSHOT_DIR, RECORDING_DIR]:
+for d in [KNOWN_FACES_DIR, DATA_DIR, SNAPSHOT_DIR, RECORDING_DIR]:
     os.makedirs(d, exist_ok=True)
 
 # Recognition settings
@@ -22,6 +23,7 @@ FRAME_BUFFER_SIZE = 5
 VOTE_MIN_CONF = 0.70
 FACE_RECOG_EVERY_N = 10
 FACE_RECOG_THRESHOLD = 0.40
+STRANGER_MATCH_THRESHOLD = 0.48
 FACE_SIM_LOWER = 0.35
 FACE_SIM_UPPER = 0.75
 PLATE_DETECT_EVERY_N = 3
@@ -41,7 +43,7 @@ GRAB_WIDTH = 1280
 GRAB_HEIGHT = 720
 GRAB_FPS_CAP = 20
 SHM_FRAME_BYTES = GRAB_WIDTH * GRAB_HEIGHT * 3
-RTSP_BUFFER_SIZE = 4
+RTSP_BUFFER_SIZE = 1
 RTSP_RECONNECT_DELAY = 5
 
 # Motion settings

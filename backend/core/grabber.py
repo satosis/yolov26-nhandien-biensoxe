@@ -139,21 +139,15 @@ class CameraReader:
 
                 cap = self._open_capture()
                 if cap is None:
-                    self._fail_count += 1
-                    backoff = min(_CB_BACKOFF_BASE * (2 ** (self._fail_count - 1)),
-                                  _CB_BACKOFF_MAX)
-
-                    if self._fail_count >= _CB_MAX_FAILS:
-                        self._cb_state = 'OPEN'
-                        self._cb_opened_at = time.monotonic()
-                        logger.error("[%s] Circuit OPENED after %d failures",
-                                     self.cam_id, self._fail_count)
-                        self._write_health_event('stream_down')
-                    else:
-                        logger.warning("[%s] Connect failed (%d/%d), backoff %ds",
-                                       self.cam_id, self._fail_count, _CB_MAX_FAILS, backoff)
-                    self.stop_event.wait(backoff)
-                    continue
+                    logger.error("[%s] Connection failed. Aborting grabber immediately without retry.", self.cam_id)
+                    self._write_health_event('stream_down')
+                    if self._camera_db_id:
+                        try:
+                            db = self._get_db()
+                            db.set_camera_streaming(self._camera_db_id, False)
+                        except Exception as e:
+                            logger.debug("[%s] Failed to reset is_streaming: %s", self.cam_id, e)
+                    break
 
                 # ── Connection succeeded ─────────────────────────────
                 if self._fail_count > 0 or self._cb_state == 'HALF_OPEN':
@@ -290,7 +284,7 @@ class CameraReader:
         logger.info("[%s] Attempting to open: %s", self.cam_id, masked_url)
         
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
-        if not cap.isOpened():
+        if not cap.isOpened() and not self.rtsp_url.startswith("rtsp://"):
             cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
             logger.error("[%s] Connection FAILED to: %s", self.cam_id, masked_url)

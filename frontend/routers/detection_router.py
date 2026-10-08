@@ -34,7 +34,6 @@ _last_request_time = 0
 _detection_request_count = 0
 _last_face_results = []
 _last_face_ts = 0
-_recent_stranger_cache = [] # List of {'emb': np.ndarray, 'ts': float}
 _recent_plate_cache = [] # List of {'emb': np.ndarray, 'ts': float}
 
 # --- OCR async cache: return cached result immediately, update in background ---
@@ -130,9 +129,12 @@ def _get_models():
             if os.path.exists(rt):
                 mtime = os.path.getmtime(rt)
                 if mtime > getattr(_get_models, '_last_face_reload', 0):
-                    logger.info("Frontend FaceRecognizer: Synchronizing via .reload mtime... (Clearing Throttles)")
+                    logger.info("Frontend FaceRecognizer: Hot-reloading inference module via .reload...")
                     global _recent_stranger_cache, _recent_plate_cache
-                    _face_recognizer.reload()
+                    import importlib
+                    import backend.core.inference
+                    importlib.reload(backend.core.inference)
+                    _face_recognizer = backend.core.inference.FaceRecognizer()
                     _recent_stranger_cache = []
                     _recent_plate_cache = []
                     _get_models._last_face_reload = mtime
@@ -227,9 +229,8 @@ async def detect_image(request: Request, file: UploadFile = File(...),
     contents = await file.read()
     detector, ocr, face = _get_models()
 
-    # Optimization: Only run face recognition every 2nd request from the frontend (increased frequency)
-    # OR if we have no cached results, to keep it responsive while saving RAM/CPU.
-    run_face = face is not None and (_detection_request_count % 2 == 0 or not _last_face_results)
+    # Always run face recognition — frontend now sends smaller 320x240 frames
+    run_face = face is not None
 
     def run_ai_pipeline():
         # Direct decode — skip PIL→np→cv2 chain
@@ -369,7 +370,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
             # Always run combined face identification if face model is available AND scheduled
             if run_face:
                     name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
-                    if name:
+                    if name and name != "TOO_SMALL":
                         display_text = name
                         status = "stranger"
                         
@@ -381,27 +382,20 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                                 display_text = f"Tên: {display_name} + id: {user_info['identity']}"
                                 status = "known"
                         else:
-                            # Advanced Deduplication: minimize photos for same stranger
+                            # STRANGER: Persistent stranger identification & Re-ID (NO cooldown, NO duplicate photos)
                             if emb is not None:
-                                now = time.time()
-                                # Cleanup old cache (> 5 min)
-                                global _recent_stranger_cache
-                                _recent_stranger_cache = [s for s in _recent_stranger_cache if now - s['ts'] < 300]
-                                
-                                is_duplicate = False
-                                for s in _recent_stranger_cache:
-                                    # Cosine similarity (dot product since they are normed)
-                                    similarity = np.dot(emb, s['emb'])
-                                    if similarity > 0.70: # Same person
-                                        if now - s['ts'] < 60: # Within 1 min window
-                                            is_duplicate = True
-                                            break
-                                
-                                if not is_duplicate:
-                                    snap_path = save_face_snapshot(frame_bgr, "webcam", bbox=f_bbox)
-                                    db.log_stranger("webcam", sim, snap_path, site_id=None, face_embedding=emb.tobytes())
-                                    _recent_stranger_cache.append({'emb': emb, 'ts': now})
-                                    logger.info("New stranger logged from Live Webcam (sim: %f)", sim)
+                                from backend.core.stranger_manager import get_stranger_manager
+                                mgr = get_stranger_manager(db)
+                                stranger_id, match_sim, is_new = mgr.process_stranger(
+                                    emb=emb, frame=frame_bgr, cam_id="webcam",
+                                    bbox=f_bbox, direction=direction, site_id=None, db=db
+                                )
+                                if stranger_id > 0:
+                                    display_text = f"Người lạ #{stranger_id}"
+                                    if match_sim > 0:
+                                        sim = match_sim
+                                else:
+                                    display_text = "Người lạ"
                         
                         res.append({
                             "type": "face", "text": display_text,
@@ -443,13 +437,13 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
 
     async def frame_generator():
         # --- Try SHM first (AI backend running) ---
-        shm = None
-        for attempt in range(5):
+        # Wait up to 15s for the grabber to start and write first frame
+        for attempt in range(30):
             try:
                 shm = sm.SharedMemory(name=shm_name)
                 break
             except FileNotFoundError:
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5)
 
         if shm:
             last_counter = -1
@@ -460,17 +454,16 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                 if counter != last_counter:
                     frame_raw = np.frombuffer(shm.buf[4:], dtype=np.uint8)
                     frame = frame_raw[:cfg.SHM_FRAME_BYTES].reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3))
-                    
-                    # Optimization for Mac/Mobile: Resize to 480p for smoother MJPEG streaming
-                    frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_LINEAR)
-                    
-                    jpeg_quality = getattr(cfg, 'STREAM_JPEG_QUALITY_LIVE', 70)
+                    frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_NEAREST)
+                    jpeg_quality = getattr(cfg, 'STREAM_JPEG_QUALITY_LIVE', 75)
                     ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
                     if ret:
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
                     last_counter = counter
-                await asyncio.sleep(1.0 / cfg.GRAB_FPS_CAP)
+                    await asyncio.sleep(0)   # yield control, don't sleep
+                else:
+                    await asyncio.sleep(0.02)  # 20ms poll — check for new frame
             shm.close()
             return
 
@@ -535,11 +528,11 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                     break
                 frame = latest_frame[0]
                 if frame is not None:
-                    ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 65])
+                    ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
                     if ret:
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-                await asyncio.sleep(1.0 / 10)  # 10 FPS target
+                await asyncio.sleep(0.033)  # ~30 FPS target
         finally:
             reader_alive[0] = False
 
