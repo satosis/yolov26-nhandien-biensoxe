@@ -10,7 +10,7 @@ from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from backend.services.database import db
 from backend.iot.door_controller import DoorController
-from backend.iot.door_config import normalize_relay_config, relay_config_error, with_tuya_defaults
+from backend.iot.door_config import canonical_relay_config, relay_config_error, with_tuya_defaults
 from backend.iot.hunonic_handler import HunonicHandler
 from backend.services.settings_service import get_app_setting, set_many_app_settings
 from frontend.deps import get_menu_context, require_menu, templates
@@ -75,7 +75,7 @@ async def hunonic_devices(
     password: str = Form(..., min_length=1),
     user: dict = Depends(require_menu("rolling_doors")),
 ):
-    if not phone.strip() or not password:
+    if not phone.strip():
         return JSONResponse({"ok": False, "message": "Thiếu tài khoản Hunonic."}, status_code=422)
     if urlparse(HunonicHandler.API_BASE).scheme != "https":
         logger.error("Hunonic discovery is unavailable because its API endpoint is not HTTPS")
@@ -106,7 +106,10 @@ def upsert_rolling_door_record(**data):
     door_id = data.pop('id', None)
     if door_id:
         return db.update('rolling_doors', data, {'id': door_id})
-    return db.insert('rolling_doors', data)
+    created = db.insert('rolling_doors', data)
+    if not created:
+        logger.error("Rolling door insert affected no rows")
+    return created
 
 
 def delete_rolling_door_record(door_id: int):
@@ -163,7 +166,6 @@ async def update_tuya_global(
         "TUYA_IP": ip.strip(),
     })
     if not saved:
-        logger.error("Could not save global Tuya settings")
         return HTMLResponse("Không thể lưu cấu hình Tuya.", status_code=500)
     
     return RedirectResponse(url="/admin/rolling_doors", status_code=303)
@@ -200,9 +202,6 @@ async def upsert_rolling_door(
         for value in (final_door_id, final_pin, final_camera_id)
     ):
         return HTMLResponse("ID hoặc chân relay không hợp lệ.", status_code=422)
-    if final_port is not None and final_port > 65535:
-        return HTMLResponse("Cổng relay không hợp lệ.", status_code=422)
-
     if relay_type == "hunonic_cloud":
         relay_config = {
             "phone": hunonic_phone,
@@ -228,7 +227,7 @@ async def upsert_rolling_door(
     config_error = relay_config_error(relay_type, relay_config)
     if config_error:
         return HTMLResponse(f"Cấu hình relay không hợp lệ: {config_error}.", status_code=422)
-    relay_config = normalize_relay_config(relay_type, relay_config)
+    relay_config = canonical_relay_config(relay_type, relay_config)
     if relay_type == "tuya_local":
         relay_config = {key: relay_config[key] for key in explicit_config if key in relay_config}
     
@@ -249,7 +248,6 @@ async def upsert_rolling_door(
     if not saved:
         if final_door_id is not None:
             return HTMLResponse("Không tìm thấy cửa cuốn.", status_code=404)
-        logger.error("Could not create rolling door record")
         return HTMLResponse("Không thể lưu cửa cuốn.", status_code=500)
     return RedirectResponse(url="/admin/rolling_doors", status_code=303)
 
@@ -321,7 +319,7 @@ async def control_rolling_door(
             {"ok": False, "status": "error", "message": f"Cấu hình relay không hợp lệ: {config_error}."},
             status_code=422,
         )
-    relay_config = normalize_relay_config(relay_type, relay_config)
+    relay_config = canonical_relay_config(relay_type, relay_config)
 
     controller = DoorController()
     success = controller.control_door(

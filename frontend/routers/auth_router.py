@@ -63,7 +63,7 @@ async def logout(request: Request):
 
 
 @router.post("/set-site")
-async def set_site(request: Request, site_id: int = Form(0),
+async def set_site(request: Request, site_id: int = Form(0, ge=0, le=2_147_483_647),
                    user: dict = Depends(get_current_user)):
-    request.session["active_site_id"] = site_id if site_id else 0
+    request.session["active_site_id"] = site_id
     return HTMLResponse("")

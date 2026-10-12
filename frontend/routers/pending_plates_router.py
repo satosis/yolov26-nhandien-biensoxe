@@ -109,7 +109,6 @@ async def register_plate(
         site_ids=site_ids,
         note=note,
     ):
-        logger.error("Could not register pending plate in whitelist")
         return HTMLResponse("Không thể đăng ký biển số.", status_code=500)
     
     if not delete_pending_plate_by_id(pending_id):
@@ -122,8 +121,7 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "pending_plates"
     active_site_id = ctx.get("active_site_id", 0)
-    active_site_id = int(active_site_id)
-    ctx["plates"] = get_pending_plates(site_id=active_site_id if active_site_id > 0 else None)
+    ctx["plates"] = get_pending_plates(site_id=active_site_id or None)
     return templates.TemplateResponse("pages/pending_plates.html", {"request": request, **ctx})
 
 

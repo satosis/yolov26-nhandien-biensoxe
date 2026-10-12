@@ -96,6 +96,12 @@ def normalize_relay_config(relay_type: str, relay_config: object) -> dict:
     if error:
         raise ValueError(error)
 
+    return canonical_relay_config(relay_type, relay_config)
+
+
+def canonical_relay_config(relay_type: str, relay_config: Mapping) -> dict:
+    """Canonicalize a relay config already checked by relay_config_error."""
+
     config = relay_config
     if relay_type == "hunonic_cloud":
         return {
@@ -112,7 +118,8 @@ def normalize_relay_config(relay_type: str, relay_config: object) -> dict:
     if relay_type == "gpio":
         return {"pin": config.get("pin", 11)}
 
-    normalized = {"ip": config["ip"].strip()}
+    address = config["ip"].strip()
+    normalized = {"ip": address if "://" in address else f"http://{address}"}
     if config.get("port") is not None:
         normalized["port"] = config["port"]
     return normalized

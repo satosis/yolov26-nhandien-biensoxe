@@ -1,10 +1,12 @@
 import json
+import logging
 import urllib.parse
 
 from backend.services.database import db
 from backend.services.settings_service import get_app_setting, set_many_app_settings
 
 _SITE_FILTER = "(%s::integer IS NULL OR %s::integer = ANY(site_ids))"
+logger = logging.getLogger(__name__)
 
 
 def _provider_keys_mapping(value: dict | str | None) -> dict:
@@ -41,7 +43,11 @@ def add_camera(name, cam_type, imou_device_id, rtsp_url, is_active=True,
     pk_json = json.dumps(_provider_keys_mapping(provider_keys))
     dev_id = imou_device_id.strip() if imou_device_id else None
     params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
-    return db._execute_query(query, params, commit=True, return_id=True)
+    camera_id = db._execute_query(query, params, commit=True, return_id=True)
+    if isinstance(camera_id, bool) or not isinstance(camera_id, int) or camera_id <= 0:
+        logger.error("Camera insert returned no valid ID")
+        return None
+    return camera_id
 
 
 def update_camera(camera_id, name, cam_type, imou_device_id, rtsp_url,
@@ -89,22 +95,31 @@ def upsert_camera_asset(cam_id: str, name: str, ip: str = None,
             onvif_profiles = COALESCE(EXCLUDED.onvif_profiles, cameras_asset.onvif_profiles),
             updated_at = NOW()
     """
-    return db._execute_query(query, (cam_id, name, ip, mac, serial, model, firmware,
-                                     rtsp_url, onvif_port, profiles_json), commit=True)
+    written = db._execute_query(query, (cam_id, name, ip, mac, serial, model, firmware,
+                                        rtsp_url, onvif_port, profiles_json), commit=True)
+    if not written:
+        logger.error("Camera asset write affected no row")
+    return written
 
 
 def store_onvif_detected_rtsp(camera_id: int, rtsp_url: str) -> bool:
-    return db._execute_query(
+    written = db._execute_query(
         "UPDATE cameras SET onvif_rtsp_detected = %s, updated_at = NOW() WHERE id = %s",
         (rtsp_url, camera_id), commit=True
     )
+    if not written:
+        logger.error("Camera %s ONVIF RTSP write affected no row", camera_id)
+    return written
 
 
 def regenerate_rtsp_url(camera_id: int) -> bool:
-    return db._execute_query(
+    written = db._execute_query(
         "UPDATE cameras SET rtsp_url = NULL, onvif_rtsp_detected = NULL, updated_at = NOW() WHERE id = %s",
         (camera_id,), commit=True
     )
+    if not written:
+        logger.error("Camera %s RTSP reset affected no row", camera_id)
+    return written
 
 
 def get_camera_rtsp_url(camera_id: int, subtype: int = 1) -> str | None:

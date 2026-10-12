@@ -472,6 +472,13 @@
     document.getElementById('kyc-status-text').textContent = result.message;
   }
 
+  function reportSavedPreviewFailure(angle) {
+    console.error('Saved KYC face preview failed to load:', angle);
+    const message = 'Đã lưu ảnh nhưng không tải được ảnh xem trước.';
+    document.getElementById('kyc-status-text').textContent = `❌ ${message}`;
+    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: message, type: 'error' } }));
+  }
+
   async function startKYC() {
     if (kycRunning) return;
     document.getElementById('camera-start-overlay').classList.remove('d-flex');
@@ -497,17 +504,18 @@
     video.srcObject = stream;
     const cameraReady = await new Promise((resolve) => {
       let settled = false;
-      const finish = (ready) => {
+      const finish = (ready, reason) => {
         if (settled) return;
         settled = true;
+        if (!ready) console.error('KYC camera video unavailable:', reason);
         clearTimeout(timeout);
         video.onloadedmetadata = null;
         video.onerror = null;
         resolve(ready);
       };
-      const timeout = setTimeout(() => finish(false), 8000);
+      const timeout = setTimeout(() => finish(false, 'metadata_timeout'), 8000);
       video.onloadedmetadata = () => finish(true);
-      video.onerror = () => finish(false);
+      video.onerror = () => finish(false, 'video_error');
       if (video.readyState >= 1) finish(true);
     });
     if (!cameraReady) {
@@ -568,6 +576,7 @@
           if (badge) { badge.classList.remove('d-none'); setTimeout(() => badge.style.transform = 'scale(1)', 10); }
           document.getElementById('kyc-preview-section').classList.remove('d-none');
         };
+        img.onerror = () => reportSavedPreviewFailure(step.id);
         img.src = `/known_faces/${currentUserId}/${step.id}.jpg?t=${Date.now()}`;
       }
 
@@ -936,6 +945,7 @@
                 if (badge) { badge.classList.remove('d-none'); setTimeout(() => badge.style.transform = 'scale(1)', 10); }
                 document.getElementById('kyc-preview-section').classList.remove('d-none');
             };
+            img.onerror = () => reportSavedPreviewFailure(step.id);
             img.src = `/known_faces/${currentUserId}/${step.id}.jpg?t=${Date.now()}`;
         }
 

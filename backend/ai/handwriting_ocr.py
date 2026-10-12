@@ -60,7 +60,7 @@ _CARGO_LIST_LOWER = [c.lower() for c in _CARGO_TYPES]
 
 
 def _correct_place(text: str) -> str:
-    if not text or len(text) < 3:
+    if len(text) < 3:
         return text
     folded_lookup = {_fold_text(place).lower(): place for place in _VN_PROVINCES}
     folded_text = _fold_text(text).lower()
@@ -79,7 +79,7 @@ def _correct_place(text: str) -> str:
 
 
 def _correct_cargo(text: str) -> str:
-    if not text or len(text) < 3:
+    if len(text) < 3:
         return text
     tl = text.lower()
     matches = difflib.get_close_matches(tl, _CARGO_LIST_LOWER, n=1, cutoff=0.68)
@@ -174,11 +174,10 @@ def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
     return Image.fromarray(rgb_out)
 
 
-def _make_variants(pil_img: Image.Image) -> list[Image.Image]:
-    pil_img = _normalize_line_crop(pil_img)
-    variants = [pil_img]
+def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
+    variants = [normalized_crop]
 
-    gray = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
     variants.append(Image.fromarray(cv2.cvtColor(eq, cv2.COLOR_GRAY2RGB)))
@@ -193,7 +192,7 @@ def _make_variants(pil_img: Image.Image) -> list[Image.Image]:
     normalized = cv2.divide(eq, background, scale=255)
     variants.append(Image.fromarray(cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)))
 
-    bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    bgr = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2BGR)
     denoised = cv2.fastNlMeansDenoisingColored(bgr, None, 10, 10, 7, 21)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(denoised, -1, kernel)
@@ -202,11 +201,11 @@ def _make_variants(pil_img: Image.Image) -> list[Image.Image]:
     return variants
 
 
-def _ocr_best_result(pil_img: Image.Image, predictor) -> dict:
+def _ocr_best_result(normalized_crop: Image.Image, predictor) -> dict:
     best_text = ""
     best_prob = -1.0
 
-    for variant in _make_variants(pil_img):
+    for variant in _make_variants(normalized_crop):
         text, prob = predictor.predict(variant, return_prob=True)
         text = (text or "").strip()
         logger.debug("OCR variant prob=%.3f text=%r", prob, text[:40])
@@ -223,14 +222,10 @@ def _image_to_data_uri(pil_img: Image.Image) -> str:
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def _ocr_best(pil_img: Image.Image, predictor) -> str:
-    return _ocr_best_result(pil_img, predictor)["text"]
-
-
 def _resize_for_ocr(img_bgr: np.ndarray, min_width: int = 1800, max_width: int = 3200) -> np.ndarray:
     h, w = img_bgr.shape[:2]
     if w < min_width:
-        scale = min_width / max(w, 1)
+        scale = min_width / w
     elif w > max_width:
         scale = max_width / w
     else:
@@ -360,7 +355,7 @@ def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
     lines: list[dict] = []
     for idx, crop in enumerate(crops):
         crop_preview = _normalize_line_crop(crop)
-        result = _ocr_best_result(crop, predictor)
+        result = _ocr_best_result(crop_preview, predictor)
         text = result["text"]
         if text:
             lines.append({
@@ -372,11 +367,6 @@ def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
 
     logger.info("handwriting_ocr: đọc được %d dòng", len(lines))
     return lines
-
-
-def _ocr_lines_from_bgr(img_bgr: np.ndarray) -> list[str]:
-    return [line["text"] for line in _ocr_line_results_from_bgr(img_bgr)]
-
 
 
 def _detect_line_crops(img_bgr: np.ndarray, min_width_ratio: float = 0.05) -> list[Image.Image]:
@@ -500,36 +490,12 @@ def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
         return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
-def _ocr_lines(image_bytes: bytes) -> list[str]:
-    return _ocr_lines_from_bgr(_decode_image_bgr(image_bytes))
-
-
 def _ocr_line_results(image_bytes: bytes) -> list[dict]:
     return _ocr_line_results_from_bgr(_decode_image_bgr(image_bytes))
 
 
 def _is_pdf(filename: str = "", content_type: str = "") -> bool:
     return (content_type or "").lower().startswith("application/pdf") or (filename or "").lower().endswith(".pdf")
-
-
-def _ocr_pdf_lines(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list[str]:
-    import fitz
-
-    lines: list[str] = []
-    scale = dpi / 72.0
-    matrix = fitz.Matrix(scale, scale)
-
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
-        for page_index in range(min(max_pages, doc.page_count)):
-            page = doc.load_page(page_index)
-            pix = page.get_pixmap(matrix=matrix, alpha=False)
-            img_rgb = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
-            if pix.n == 4:
-                img_rgb = cv2.cvtColor(img_rgb, cv2.COLOR_RGBA2RGB)
-            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-            lines.extend(_ocr_lines_from_bgr(img_bgr))
-
-    return lines
 
 
 def _ocr_pdf_line_results(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list[dict]:
@@ -911,32 +877,6 @@ _TRIP_FIELDS = (
 )
 
 
-def _normalize_line_items(lines: list[str] | list[dict]) -> list[dict]:
-    items: list[dict] = []
-    for idx, line in enumerate(lines):
-        if isinstance(line, dict):
-            text = (line.get("text") or "").strip()
-            conf = line.get("confidence")
-            page = line.get("page")
-        else:
-            text = str(line or "").strip()
-            conf = 1.0
-            page = None
-        if not text:
-            continue
-        item = {
-            "index": len(items) + 1,
-            "text": text,
-            "confidence": round(float(conf if conf is not None else 1.0), 4),
-        }
-        if page:
-            item["page"] = page
-        if isinstance(line, dict) and line.get("crop_image"):
-            item["crop_image"] = line["crop_image"]
-        items.append(item)
-    return items
-
-
 def _public_trip(candidate: dict) -> dict:
     return {k: candidate.get(k) for k in _TRIP_FIELDS if candidate.get(k) not in (None, "")}
 
@@ -1022,8 +962,7 @@ def _validate_candidate(candidate: dict) -> list[dict]:
     return warnings
 
 
-def _lines_to_trip_candidates(lines: list[str] | list[dict]) -> list[dict]:
-    line_items = _normalize_line_items(lines)
+def _lines_to_trip_candidates(line_items: list[dict]) -> list[dict]:
     candidates: list[dict] = []
     current: Optional[dict] = None
     year_hint = datetime.now().year
@@ -1095,7 +1034,7 @@ def _lines_to_trip_candidates(lines: list[str] | list[dict]) -> list[dict]:
 
 
 def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
-    lines = _ocr_lines(image_bytes)
+    lines = _ocr_line_results(image_bytes)
     if not lines:
         return []
     trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]
@@ -1105,7 +1044,7 @@ def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
 
 def extract_trips_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> list[dict]:
     if _is_pdf(filename, content_type):
-        lines = _ocr_pdf_lines(file_bytes)
+        lines = _ocr_pdf_line_results(file_bytes)
         if not lines:
             return []
         trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]

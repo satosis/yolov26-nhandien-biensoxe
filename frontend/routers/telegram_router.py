@@ -4,7 +4,7 @@ import logging
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 from backend.services.database import db
-from backend.services.telegram_service import _bot_url, _post_bot, is_valid_bot_token
+from backend.services.telegram_service import _bot_path, _post_bot, is_valid_bot_token
 from frontend.deps import get_menu_context, require_menu, templates
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,10 @@ def upsert_telegram_bot(bot_name: str, token: str, chat_id: str) -> bool:
         chat_id = EXCLUDED.chat_id,
         updated_at = NOW()
     """
-    return db.execute_query(query, (bot_name, token, chat_id), commit=True)
+    saved = db.execute_query(query, (bot_name, token, chat_id), commit=True)
+    if not saved:
+        logger.error("Telegram bot configuration upsert affected no rows")
+    return saved
 
 
 def _telegram_page(request: Request, user: dict, error: str | None = None, status_code: int = 200):
@@ -61,7 +64,6 @@ async def add_bot(
         return _telegram_page(request, user, "Token bot Telegram không hợp lệ.", 422)
 
     if not upsert_telegram_bot(bot_name, final_token, chat_id):
-        logger.error("Telegram bot configuration could not be saved")
         return _telegram_page(request, user, "Không thể lưu cấu hình bot.", 500)
     return RedirectResponse(url="/admin/telegram", status_code=303)
 
@@ -79,14 +81,14 @@ async def test_bot(
     if not is_valid_bot_token(token):
         logger.error("Telegram test aborted: invalid stored bot token")
         return _test_error("Cấu hình bot Telegram không hợp lệ.", 502)
-    url = _bot_url(token, "sendMessage")
+    path = _bot_path(token, "sendMessage")
 
     payload = {
         "chat_id": bot["chat_id"],
         "text": f"🤖 Thông báo thử nghiệm\n\nCấu hình: {bot_name}\nTrạng thái: Hoạt động ✅",
     }
     delivered = await asyncio.to_thread(
-        _post_bot, url, return_status=True, json=payload, timeout=10.0
+        _post_bot, path, return_status=True, json=payload, timeout=10.0
     )
     if not delivered:
         return _test_error("Telegram không gửi được tin nhắn thử. Kiểm tra cấu hình bot.", 502)

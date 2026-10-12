@@ -63,7 +63,10 @@ def save_inquiry(inquiry: InquiryInput) -> int | None:
         fetch=True,
         commit=True,
     )
-    return row["id"] if row else None
+    if row is None:
+        logger.error("Inquiry insert returned no ID")
+        return None
+    return row["id"]
 
 
 @router.get("")

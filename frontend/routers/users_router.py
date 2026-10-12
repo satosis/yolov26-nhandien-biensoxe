@@ -1,9 +1,11 @@
 import logging
 import shutil
 import os
-import time
+import tempfile
 import urllib.parse
 import bcrypt
+import cv2
+import numpy as np
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from typing import Literal, Optional
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users")
 _SITE_IDS_PATTERN = r"^\s*(?:[1-9]\d{0,9}(?:\s*,\s*[1-9]\d{0,9})*)?\s*$"
 _MAX_DB_INTEGER = 2_147_483_647
+_MAX_FACE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _parsed_site_ids(value: str | None) -> list[int] | None:
@@ -218,9 +221,7 @@ async def delete_user(
     from .kyc_router import invalidate_face_cache
 
     invalidate_face_cache()
-    reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-    with open(reload_trigger, "w") as f:
-        f.write(str(time.time()))
+    cfg.trigger_ai_reload()
 
     return {"ok": True}
 
@@ -240,19 +241,68 @@ async def upload_face(
             status_code=404,
         )
 
+    contents = await face_image.read(_MAX_FACE_UPLOAD_BYTES + 1)
+    if not contents or len(contents) > _MAX_FACE_UPLOAD_BYTES:
+        logger.warning("Admin face upload rejected: empty or oversized image for user_id=%s", user_id)
+        return JSONResponse(
+            {"ok": False, "error": "invalid_image", "message": "Ảnh không hợp lệ hoặc quá lớn."},
+            status_code=400,
+        )
+
+    image = cv2.imdecode(np.frombuffer(contents, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        logger.warning("Admin face upload rejected: unreadable image for user_id=%s", user_id)
+        return JSONResponse(
+            {"ok": False, "error": "invalid_image", "message": "Ảnh không hợp lệ."},
+            status_code=400,
+        )
+
+    encoded_ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 96])
+    if not encoded_ok:
+        logger.error("Admin face JPEG encoding failed for user_id=%s angle=%s", user_id, angle)
+        return JSONResponse(
+            {"ok": False, "error": "save_failed", "message": "Không thể lưu ảnh khuôn mặt."},
+            status_code=500,
+        )
+    jpeg_bytes = encoded.tobytes()
+    canonical_image = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if canonical_image is None:
+        logger.error("Admin face JPEG could not be decoded for user_id=%s angle=%s", user_id, angle)
+        return JSONResponse(
+            {"ok": False, "error": "save_failed", "message": "Không thể lưu ảnh khuôn mặt."},
+            status_code=500,
+        )
+
+    from .kyc_router import get_face_app, invalidate_face_cache
+
+    faces = get_face_app().get(canonical_image)
+    if not faces:
+        logger.warning("Admin face upload rejected: no face for user_id=%s", user_id)
+        return JSONResponse(
+            {"ok": False, "error": "no_face_detected", "message": "Không phát hiện khuôn mặt trong ảnh."},
+            status_code=400,
+        )
+    embedding = np.asarray(faces[0].normed_embedding, dtype=np.float32)
+    if embedding.shape != (512,) or not np.isfinite(embedding).all() or np.linalg.norm(embedding) <= 1e-6:
+        logger.warning("Admin face upload rejected: invalid face embedding for user_id=%s", user_id)
+        return JSONResponse(
+            {"ok": False, "error": "invalid_image", "message": "Ảnh khuôn mặt không hợp lệ."},
+            status_code=400,
+        )
+
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
-    os.makedirs(person_dir, exist_ok=True)
-
     file_path = os.path.join(person_dir, f"{angle}.jpg")
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(face_image.file, buffer)
+    os.makedirs(person_dir, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".face-upload-", dir=person_dir) as temporary_dir:
+        temporary_file = os.path.join(temporary_dir, "face.jpg")
+        with open(temporary_file, "wb") as buffer:
+            buffer.write(jpeg_bytes)
+        os.replace(temporary_file, file_path)
 
     invalidate_face_cache()
 
-    reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-    with open(reload_trigger, "w") as f:
-        f.write(str(time.time()))
+    cfg.trigger_ai_reload()
 
     logger.info("Face uploaded for user %s (%s), angle=%s. Reload triggered.", user_id, identity, angle)
     

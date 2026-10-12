@@ -1,10 +1,9 @@
 import logging
 import shutil
 import os
-import time
+import tempfile
 import cv2
 import numpy as np
-from insightface.app import FaceAnalysis
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Optional
@@ -16,6 +15,8 @@ from frontend.routers.users_router import get_all_users, get_user_by_id
 from frontend.routers.strangers_router import get_stranger_log, update_stranger_status
 
 logger = logging.getLogger(__name__)
+_MAX_KYC_IMAGE_BYTES = 10 * 1024 * 1024
+FaceAnalysis = None
 
 _face_app = None
 _cached_matrix = None
@@ -23,11 +24,15 @@ _cached_names = []
 _last_reload = 0
 
 def get_face_app():
-    global _face_app
+    global _face_app, FaceAnalysis
     if _face_app is None:
         logger.info("Initializing InsightFace in KYC router for duplicate checks...")
-        _face_app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=["CPUExecutionProvider"])
-        _face_app.prepare(ctx_id=-1, det_size=(320, 320))
+        if FaceAnalysis is None:
+            from insightface.app import FaceAnalysis as face_analysis_class
+            FaceAnalysis = face_analysis_class
+        face_app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=["CPUExecutionProvider"])
+        face_app.prepare(ctx_id=-1, det_size=(320, 320))
+        _face_app = face_app
     return _face_app
 
 def invalidate_face_cache():
@@ -79,10 +84,14 @@ def get_face_matrix(app):
             
             if embeddings:
                 avg_emb = np.mean(embeddings, axis=0)
-                avg_emb = avg_emb / np.linalg.norm(avg_emb)
+                norm = np.linalg.norm(avg_emb)
+                if not np.isfinite(norm) or norm <= 1e-6:
+                    logger.error("Stored KYC face embeddings cancel out for user_id=%s", person)
+                    raise ValueError(f"Stored face embeddings are inconsistent for user {person}")
+                avg_emb = avg_emb / norm
                 all_embs.append(avg_emb)
                 all_names.append(person)
-                logger.info(f"  + Indexed user {person} (Files: {', '.join(files_scanned)})")
+                logger.info("Indexed KYC face for user_id=%s (%s images)", person, len(files_scanned))
             
     if all_embs:
         _cached_matrix = np.array(all_embs)
@@ -121,14 +130,71 @@ def _kyc_error(code: str, status_code: int) -> JSONResponse:
         status_code=status_code,
     )
 
+
+async def _read_upload_image(file: UploadFile) -> bytes:
+    return await file.read(_MAX_KYC_IMAGE_BYTES + 1)
+
+
+def _canonical_jpeg(contents: bytes, kind: str, user_id: int) -> tuple[np.ndarray, bytes] | None:
+    if not contents or len(contents) > _MAX_KYC_IMAGE_BYTES:
+        logger.warning("KYC %s image is empty or oversized for user_id=%s", kind, user_id)
+        return None
+    image = cv2.imdecode(np.frombuffer(contents, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        logger.warning("KYC %s image could not be decoded for user_id=%s", kind, user_id)
+        return None
+    encoded_ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 96])
+    if not encoded_ok:
+        logger.error("KYC %s JPEG encoding failed for user_id=%s", kind, user_id)
+        raise RuntimeError("KYC JPEG encoding failed")
+    jpeg_bytes = encoded.tobytes()
+    canonical = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if canonical is None:
+        logger.error("KYC %s canonical JPEG decode failed for user_id=%s", kind, user_id)
+        raise RuntimeError("KYC canonical JPEG decode failed")
+    return canonical, jpeg_bytes
+
+
+def _face_embedding(image: np.ndarray, app: object, kind: str, user_id: int):
+    faces = app.get(image)
+    if not faces:
+        logger.warning("KYC %s image has no detectable face for user_id=%s", kind, user_id)
+        return None
+    face = max(
+        faces,
+        key=lambda item: (item.bbox[2] - item.bbox[0]) * (item.bbox[3] - item.bbox[1]),
+    ) if len(faces) > 1 else faces[0]
+    embedding = np.asarray(face.normed_embedding, dtype=np.float32)
+    if embedding.shape != (512,) or not np.isfinite(embedding).all() or np.linalg.norm(embedding) <= 1e-6:
+        logger.warning("KYC %s image has an invalid face embedding for user_id=%s", kind, user_id)
+        return None
+    return faces, embedding
+
+
+def _write_jpeg_atomic(file_path: str, jpeg_bytes: bytes) -> None:
+    directory = os.path.dirname(file_path)
+    os.makedirs(directory, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".kyc-upload-", dir=directory) as temporary_dir:
+        temporary_file = os.path.join(temporary_dir, "image.jpg")
+        with open(temporary_file, "wb") as buffer:
+            buffer.write(jpeg_bytes)
+        os.replace(temporary_file, file_path)
+
+
+def _unlink_kyc_file(file_path: str) -> None:
+    os.unlink(file_path)
+
+
+def _read_stranger_snapshot(source_path: str) -> bytes:
+    with open(source_path, "rb") as source:
+        return source.read(_MAX_KYC_IMAGE_BYTES + 1)
+
 @router.post("/clean-cache")
 async def clean_cache(user: dict = Depends(get_current_user)):
     if user.get("role", "").lower() not in ("admin", "manager"):
         return _kyc_error("forbidden", 403)
     
-    reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-    with open(reload_trigger, "w") as f:
-        f.write(str(time.time()))
+    cfg.trigger_ai_reload()
     
     invalidate_face_cache()
     
@@ -137,7 +203,6 @@ async def clean_cache(user: dict = Depends(get_current_user)):
 
 
 KYC_UPLOAD_DIR = os.path.join(os.path.dirname(cfg.SNAPSHOT_DIR), "kyc_uploads")
-os.makedirs(KYC_UPLOAD_DIR, exist_ok=True)
 
 
 
@@ -181,16 +246,17 @@ async def upload_id_doc(
     if doc_type not in ("id_front", "id_back", "selfie_with_id"):
         return _kyc_error("invalid_doc_type", 400)
 
-    user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
-    os.makedirs(user_dir, exist_ok=True)
+    contents = await _read_upload_image(file)
+    canonical = _canonical_jpeg(contents, doc_type, user["id"])
+    if canonical is None:
+        return _kyc_error("invalid_image", 400)
 
+    user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
     file_path = os.path.join(user_dir, f"{doc_type}.jpg")
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    _write_jpeg_atomic(file_path, canonical[1])
 
     kyc = KYCManager()
     if not kyc.insert_document(user["id"], doc_type, file_path):
-        logger.error("KYC document could not be recorded for user %s", user["id"])
         return _kyc_error("save_failed", 500)
 
     docs = kyc.get_documents(user["id"])
@@ -217,7 +283,7 @@ async def delete_id_doc(
     user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
     file_path = os.path.join(user_dir, f"{doc_type}.jpg")
     if os.path.exists(file_path):
-        os.remove(file_path)
+        _unlink_kyc_file(file_path)
 
     kyc = KYCManager()
     if not kyc.delete_document(user["id"], doc_type):
@@ -242,59 +308,52 @@ async def upload_face(
     if target_id != user["id"] and user.get("role", "").lower() not in ("admin", "manager"):
         return _kyc_error("forbidden", 403)
 
-    contents = await file.read()
-    nparr = np.frombuffer(contents, np.uint8)
-    img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if img_cv is None:
+    contents = await _read_upload_image(file)
+    canonical = _canonical_jpeg(contents, f"face_{angle}", target_id)
+    if canonical is None:
         return _kyc_error("invalid_image", 400)
+    img_cv, jpeg_bytes = canonical
 
     app = get_face_app()
-    if app:
-        faces = app.get(img_cv)
-        if not faces:
-            logger.warning(f"KYC rejection: no_face_detected for user={target_id}")
-            return _kyc_error("no_face_detected", 400)
-            
-        faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
-        new_emb = faces[0].normed_embedding
+    verified_face = _face_embedding(img_cv, app, f"face_{angle}", target_id)
+    if verified_face is None:
+        return _kyc_error("no_face_detected", 400)
+    _, new_emb = verified_face
 
-        cached_names, cached_matrix = get_face_matrix(app)
-        if cached_matrix is not None and len(cached_matrix) > 0:
-            similarity = np.dot(cached_matrix, new_emb)
-            idx = np.argmax(similarity)
-            max_val = similarity[idx]
-            dup_target = cached_names[idx]
+    cached_names, cached_matrix = get_face_matrix(app)
+    if cached_matrix is not None and len(cached_matrix) > 0:
+        similarity = np.dot(cached_matrix, new_emb)
+        idx = np.argmax(similarity)
+        max_val = similarity[idx]
+        dup_target = cached_names[idx]
             
-            logger.info(f"Duplicate check for user {target_id}: max_similarity={max_val:.4f} with user {dup_target}")
+        logger.info("KYC duplicate check for user_id=%s: max_similarity=%.4f with user_id=%s",
+                    target_id, max_val, dup_target)
             
-            if max_val > 0.45:
-                if str(dup_target) != str(target_id):
-                    dup_user = get_user_by_id(int(dup_target)) if dup_target.isdigit() else None
-                    dup_username = dup_user["username"] if dup_user else dup_target
+        if max_val > 0.45:
+            if str(dup_target) != str(target_id):
+                dup_user = get_user_by_id(int(dup_target)) if dup_target.isdigit() else None
+                dup_username = dup_user["username"] if dup_user else dup_target
                     
-                    logger.warning(f"KYC rejection: duplicate_face for user={target_id}. Matched {dup_target} ({dup_username}) at {max_val:.4f}")
-                    return JSONResponse({
-                        "ok": False, 
-                        "error": "duplicate_face",
-                        "message": f"Khuôn mặt này đã được cấu hình cho tài khoản: {dup_username}"
-                    }, status_code=400)
+                logger.warning("KYC duplicate face rejected for user_id=%s matched_user_id=%s similarity=%.4f",
+                               target_id, dup_target, max_val)
+                return JSONResponse({
+                    "ok": False,
+                    "error": "duplicate_face",
+                    "message": f"Khuôn mặt này đã được cấu hình cho tài khoản: {dup_username}"
+                }, status_code=400)
 
     identity = str(target_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
-    os.makedirs(person_dir, exist_ok=True)
     face_path = os.path.join(person_dir, f"{angle}.jpg")
-    
-    success = cv2.imwrite(face_path, img_cv)
-    if not success:
-        logger.error(f"Failed to write image to disk (possibly disk full): {face_path}")
-        return _kyc_error("Disk write failed", 500)
+    _write_jpeg_atomic(face_path, jpeg_bytes)
     
     invalidate_face_cache()
 
     kyc = KYCManager()
     if not kyc.insert_document(target_id, f"face_{angle}", face_path):
-        logger.error("KYC face document could not be recorded for user %s", target_id)
         return _kyc_error("save_failed", 500)
+    cfg.trigger_ai_reload()
 
     docs = kyc.get_documents(target_id)
     face_types = {d["doc_type"] for d in docs if d["doc_type"].startswith("face_")}
@@ -304,9 +363,6 @@ async def upload_face(
         if kyc_detail and kyc_detail["kyc_level"] < 4:
             if not kyc.update_level(target_id, 4):
                 return _kyc_error("user_not_found", 404)
-            reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-            with open(reload_trigger, "w") as f:
-                f.write(str(time.time()))
 
     logger.info("KYC face '%s' uploaded and indexed for user %s", angle, target_id)
     return JSONResponse({"ok": True, "angle": angle})
@@ -331,20 +387,17 @@ async def delete_face(
     face_path = os.path.join(person_dir, f"{angle}.jpg")
     
     if os.path.exists(face_path):
-        os.unlink(face_path)
+        _unlink_kyc_file(face_path)
         
         if os.path.exists(person_dir):
             has_images = any(f.lower().endswith(('.jpg', '.jpeg', '.png')) for f in os.listdir(person_dir))
             if not has_images:
-                import shutil
                 shutil.rmtree(person_dir)
                 logger.info("Removed empty face directory for user %s", target_id)
     
     invalidate_face_cache()
         
-    reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-    with open(reload_trigger, "w") as f:
-        f.write(str(time.time()))
+    cfg.trigger_ai_reload()
 
     kyc = KYCManager()
     if not kyc.delete_document(target_id, f"face_{angle}"):
@@ -403,7 +456,7 @@ async def approve_kyc(user_id: int, request: Request, user: dict = Depends(requi
     kyc = KYCManager()
     if not kyc.approve(user_id, user["username"]):
         return _kyc_error("user_not_found", 404)
-    logger.info("KYC approved for user %s by %s", user_id, user["username"])
+    logger.info("KYC approved for user_id=%s by reviewer_id=%s", user_id, user.get("id"))
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
 
@@ -417,7 +470,7 @@ async def reject_kyc(
     kyc = KYCManager()
     if not kyc.reject(user_id, user["username"], reason):
         return _kyc_error("user_not_found", 404)
-    logger.info("KYC rejected for user %s by %s", user_id, user["username"])
+    logger.info("KYC rejected for user_id=%s by reviewer_id=%s", user_id, user.get("id"))
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
 
@@ -454,6 +507,7 @@ async def register_stranger(
         
     source_path = stranger["image_path"]
     if not source_path or not os.path.exists(source_path):
+        logger.error("KYC stranger snapshot missing for stranger_id=%s", stranger_id)
         return _kyc_error("snapshot_file_missing", 404)
 
     direction = stranger.get("direction") or "frontal"
@@ -461,19 +515,19 @@ async def register_stranger(
     if angle not in ("front", "left", "right", "up", "down"):
         return _kyc_error("invalid_angle", 422)
         
-    identity = str(user_id)
-    person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
-    os.makedirs(person_dir, exist_ok=True)
-    
-    filename = f"{angle}.jpg"
-    target_path = os.path.join(person_dir, filename)
-    
-    shutil.copy2(source_path, target_path)
-    logger.info("Copied stranger snapshot %s (%s) to user %s face directory.", stranger_id, direction, user_id)
+    contents = _read_stranger_snapshot(source_path)
+    canonical = _canonical_jpeg(contents, f"stranger_snapshot_{stranger_id}", user_id)
+    if canonical is None:
+        return _kyc_error("invalid_image", 400)
+    if _face_embedding(canonical[0], get_face_app(), "stranger_snapshot", user_id) is None:
+        return _kyc_error("no_face_detected", 400)
+
+    target_path = os.path.join(cfg.KNOWN_FACES_DIR, str(user_id), f"{angle}.jpg")
+    _write_jpeg_atomic(target_path, canonical[1])
+    logger.info("Imported stranger snapshot stranger_id=%s angle=%s for user_id=%s", stranger_id, angle, user_id)
     
     kyc = KYCManager()
     if not kyc.insert_document(user_id, f"face_{angle}", target_path):
-        logger.error("KYC stranger face could not be recorded for user %s", user_id)
         return _kyc_error("save_failed", 500)
     
     kyc_detail = kyc.get_user_detail(user_id)
@@ -491,8 +545,6 @@ async def register_stranger(
         
     invalidate_face_cache()
     
-    reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-    with open(reload_trigger, "w") as f:
-        f.write(str(time.time()))
+    cfg.trigger_ai_reload()
         
     return RedirectResponse(url="/strangers", status_code=303)

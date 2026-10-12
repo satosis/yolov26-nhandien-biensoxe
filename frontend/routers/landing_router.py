@@ -310,7 +310,6 @@ async def contact_inquiry(
 
     inquiry_id = save_inquiry(inquiry)
     if inquiry_id is None:
-        logger.error("Contact inquiry was not stored")
         return JSONResponse({"ok": False, "message": "Không thể lưu yêu cầu tư vấn. Vui lòng thử lại."}, status_code=500)
     logger.info("New inquiry saved: id=%s source=%s", inquiry_id, inquiry.source_page)
 

@@ -359,9 +359,7 @@ def _source_number(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
-def _coordinates(location: object) -> tuple[float, float] | None:
-    if not isinstance(location, dict):
-        return None
+def _coordinates(location: dict) -> tuple[float, float] | None:
     lat = _source_number(location.get("lat"))
     lon = _source_number(location.get("lon"))
     if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
@@ -484,8 +482,6 @@ async def _resolve_location(value: str) -> dict | None:
 
 
 async def _driving_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float | None:
-    if _coordinates({"lat": lat1, "lon": lon1}) is None or _coordinates({"lat": lat2, "lon": lon2}) is None:
-        return None
     url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(url)
@@ -555,13 +551,12 @@ async def resolve_maps_url(url: str = Query(...)):
     if not _is_maps_url(url):
         return JSONResponse({"ok": False, "message": "Link Google Maps không hợp lệ."}, status_code=422)
     location = await _resolve_location(url)
-    if location is None or _coordinates(location) is None:
+    if location is None:
         return JSONResponse({"ok": False, "message": "Không lấy được tọa độ từ link Google Maps."}, status_code=404)
     if location["label"] == url:
-        coordinates = _coordinates(location)
         async with httpx.AsyncClient(timeout=6) as client:
             resp = await client.get(
-                f"https://nominatim.openstreetmap.org/reverse?lat={coordinates[0]}&lon={coordinates[1]}&format=json&accept-language=vi",
+                f"https://nominatim.openstreetmap.org/reverse?lat={location['lat']}&lon={location['lon']}&format=json&accept-language=vi",
                 headers={"User-Agent": "CargoCam/1.0"}
             )
             if not resp.is_success:
@@ -613,16 +608,12 @@ async def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float)
 async def calculate_distance_by_address(origin: str = Query(...), destination: str = Query(...)):
     origin_location = await _resolve_location(origin)
     destination_location = await _resolve_location(destination)
-    if not origin_location or not destination_location:
+    if origin_location is None or destination_location is None:
         return JSONResponse({"ok": False, "message": "Không tìm thấy đủ hai địa điểm."}, status_code=404)
-    origin_coords = _coordinates(origin_location)
-    destination_coords = _coordinates(destination_location)
-    if origin_coords is None or destination_coords is None:
-        return JSONResponse({"ok": False, "message": "Không lấy được tọa độ của hai địa điểm."}, status_code=404)
 
     distance_km = await _driving_distance_km(
-        *origin_coords,
-        *destination_coords,
+        origin_location["lat"], origin_location["lon"],
+        destination_location["lat"], destination_location["lon"],
     )
     if distance_km is None:
         return JSONResponse({"ok": False, "message": "Không tìm được đường đi."}, status_code=404)

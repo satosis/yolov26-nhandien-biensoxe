@@ -13,14 +13,14 @@ class StrangerManager:
     _instance = None
     _singleton_lock = threading.Lock()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         self._lock = threading.Lock()
         self._records = []
         self._matrix = None
         self._initialized = False
 
     @classmethod
-    def get_instance(cls, *args, **kwargs) -> "StrangerManager":
+    def get_instance(cls) -> "StrangerManager":
         if cls._instance is None:
             with cls._singleton_lock:
                 if cls._instance is None:
@@ -102,18 +102,10 @@ class StrangerManager:
         bbox: tuple | list,
         direction: str = "frontal",
         site_id: int | None = None,
-        *args,
-        **kwargs,
     ) -> tuple[int, float, bool]:
-        if not isinstance(emb, np.ndarray) or emb.shape != (512,) or not np.isfinite(emb).all():
-            raise ValueError("Face embedding must contain 512 finite values")
-
         self._ensure_loaded()
 
-        norm = float(np.linalg.norm(emb))
-        if not np.isfinite(norm) or norm <= 1e-6:
-            raise ValueError("Face embedding must have a non-zero norm")
-        normed_emb = (emb / norm).astype(np.float32)
+        normed_emb = emb
 
         threshold = getattr(cfg, "STRANGER_MATCH_THRESHOLD", 0.48)
         now = time.time()
@@ -206,7 +198,7 @@ class StrangerManager:
         self._ensure_loaded()
 
 
-def get_stranger_manager(*args, **kwargs) -> StrangerManager:
-    return StrangerManager.get_instance(*args, **kwargs)
+def get_stranger_manager() -> StrangerManager:
+    return StrangerManager.get_instance()
 
 

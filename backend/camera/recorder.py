@@ -40,8 +40,8 @@ class RecorderProcess:
         writer = cv2.VideoWriter(path, fourcc, cfg.GRAB_FPS_CAP, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT))
 
         if not writer.isOpened():
-            writer.release()
             logger.error("Recorder could not open event recording for camera %s", cam_id)
+            writer.release()
             raise OSError(f"Could not open event recording: {path}")
 
         buf = self._get_buffer(cam_id)
@@ -131,13 +131,10 @@ class RecorderProcess:
         while not self.stop_event.is_set():
             while self.control_queue._reader.poll():
                 trigger = self.control_queue.get()
-                cam_id = trigger.get("cam_id")
-                if not cam_id:
-                    logger.error("Recorder control event is missing cam_id")
-                    raise ValueError("Recording event is missing cam_id")
-                event_text = trigger.get("plate_text") or trigger.get("event_text") or "Event"
-                event_type = trigger.get("event_type", "plate")
-                site_id = trigger.get("site_id")
+                cam_id = trigger["cam_id"]
+                event_text = trigger.get("plate_text") or trigger["event_text"]
+                event_type = trigger["event_type"]
+                site_id = trigger["site_id"]
 
                 if cam_id in self.active_recordings:
                     self._extend_recording(cam_id, event_text, event_type)

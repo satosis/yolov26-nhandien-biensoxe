@@ -162,16 +162,12 @@ def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
     return devices
 
 def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) -> bool:
-    last_error = None
     for port in ports:
         for family, socktype, proto, _, address in socket.getaddrinfo(ip, port, type=socket.SOCK_STREAM):
             with socket.socket(family, socktype, proto) as sock:
                 sock.settimeout(timeout)
-                error = sock.connect_ex(address)
-                if error == 0:
+                if sock.connect_ex(address) == 0:
                     return True
-                last_error = errno.errorcode.get(error, str(error))
-    logger.debug("TCP probe found no open camera ports on %s (%s)", ip, last_error)
     return False
 
 
@@ -815,10 +811,8 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
                 needs_update = True
             if rtsp_url and matched.get('onvif_rtsp_detected') != rtsp_url:
                 if not cam_svc.regenerate_rtsp_url(matched['id']):
-                    logger.error("Discovered camera RTSP reset affected no row (camera_id=%s)", matched['id'])
                     raise RuntimeError("Discovered camera RTSP reset did not affect a row")
                 if not cam_svc.store_onvif_detected_rtsp(matched['id'], rtsp_url):
-                    logger.error("Discovered camera RTSP update affected no row (camera_id=%s)", matched['id'])
                     raise RuntimeError("Discovered camera RTSP update did not affect a row")
                 needs_update = True
             stats['updated' if needs_update else 'skipped'] += 1
@@ -838,11 +832,9 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
                 camera_port=554,
                 provider_keys={'mk': mk, 'mac': mac} if mk else {'mac': mac},
             )
-            if isinstance(new_id, bool) or not isinstance(new_id, int) or new_id <= 0:
-                logger.error("Automatic camera registration returned no valid ID")
+            if new_id is None:
                 raise RuntimeError("Automatic camera registration did not return a valid ID")
             if rtsp_url and not cam_svc.store_onvif_detected_rtsp(new_id, rtsp_url):
-                logger.error("New camera RTSP update affected no row (camera_id=%s)", new_id)
                 raise RuntimeError("New camera RTSP update did not affect a row")
             if not cam_svc.upsert_camera_asset(
                 cam_id=serial or ip, name=name, ip=ip, serial=serial,
@@ -850,7 +842,6 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
                 onvif_port=dev.get('onvif_port'),
                 onvif_profiles=dev.get('onvif_profiles'),
             ):
-                logger.error("New camera asset write affected no row (camera_id=%s)", new_id)
                 raise RuntimeError("New camera asset could not be stored")
             asset_written = True
             stats['registered'] += 1
@@ -865,7 +856,6 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
                 onvif_port=dev.get('onvif_port'),
                 onvif_profiles=dev.get('onvif_profiles'),
             ):
-                logger.error("Discovered camera asset write affected no row")
                 raise RuntimeError("Discovered camera asset could not be stored")
 
     return stats
@@ -1003,45 +993,42 @@ def discover_and_update_all_cameras():
                 combined_ip_map[dev_id] = dev['ip']
 
         for dev in cloud_devices:
-            did_raw = dev.get('deviceId')
+            did = dev['deviceId'].lower()
             lip = dev.get('deviceLocalIp')
 
-            if did_raw:
-                did = did_raw.strip().lower()
+            if not lip or lip == "0.0.0.0":
+                for local_id, local_ip in combined_ip_map.items():
+                    if did.upper() == local_id.upper():
+                        lip = local_ip
+                        logger.info(f"  [LOCAL→CLOUD] Matched {did} to {lip} via serial match")
+                        break
 
-                if not lip or lip == "0.0.0.0":
-                    for local_id, local_ip in combined_ip_map.items():
-                        if did.upper() == local_id.upper():
-                            lip = local_ip
-                            logger.info(f"  [LOCAL→CLOUD] Matched {did} to {lip} via serial match")
-                            break
+            results['found_cloud'] += 1
 
-                results['found_cloud'] += 1
+            if did in existing_ids:
+                if lip and lip != "0.0.0.0" and did not in found_ips:
+                    found_ips[did] = lip
+            else:
+                status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
+                raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
 
-                if did in existing_ids:
-                    if lip and lip != "0.0.0.0" and did not in found_ips:
-                        found_ips[did] = lip
-                else:
-                    status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
-                    raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
+                is_online = True
+                if raw_status is not None:
+                    status_val = str(raw_status).lower()
+                    if status_val in ['0', 'offline', 'sleep', 'off', 'false']:
+                        is_online = False
 
-                    is_online = True
-                    if raw_status is not None:
-                        status_val = str(raw_status).lower()
-                        if status_val in ['0', 'offline', 'sleep', 'off', 'false']:
-                            is_online = False
-
-                    cloud_new_devices.append({
-                        'id': did,
-                        'name': dev.get('deviceName') or (dev.get('deviceModel', 'Imou Camera') + ' ' + did[-4:]),
-                        'ip': lip if lip and lip != '0.0.0.0' else None,
-                        'type': 'imou',
-                        'source': 'cloud',
-                        'manufacturer': 'Dahua/Imou',
-                        'model': dev.get('deviceModel', ''),
-                        'is_online': is_online,
-                        'auto_found': False
-                    })
+                cloud_new_devices.append({
+                    'id': did,
+                    'name': dev.get('deviceName') or (dev.get('deviceModel', 'Imou Camera') + ' ' + did[-4:]),
+                    'ip': lip if lip and lip != '0.0.0.0' else None,
+                    'type': 'imou',
+                    'source': 'cloud',
+                    'manufacturer': 'Dahua/Imou',
+                    'model': dev.get('deviceModel', ''),
+                    'is_online': is_online,
+                    'auto_found': False
+                })
     else:
         logger.warning("Imou Cloud API keys NOT configured. Skipping cloud sync.")
     
@@ -1208,7 +1195,6 @@ def discover_and_update_all_cameras():
                         logger.error("Discovered camera IP update affected no row (camera_id=%s)", cam['id'])
                         raise RuntimeError("Discovered camera IP update did not affect a row")
                     if not cam_svc.regenerate_rtsp_url(cam['id']):
-                        logger.error("Discovered camera RTSP reset affected no row (camera_id=%s)", cam['id'])
                         raise RuntimeError("Discovered camera RTSP reset did not affect a row")
                     results['updated_cameras'].append({
                         'name': cam['camera_name'],
@@ -1233,7 +1219,6 @@ def discover_and_update_all_cameras():
                 onvif_profiles=dev.get('onvif_profiles'),
                 mac=dev.get('mac', ''),
             ):
-                logger.error("Discovered camera asset write affected no row")
                 raise RuntimeError("Discovered camera asset could not be stored")
 
     if new_devices:
@@ -1243,7 +1228,6 @@ def discover_and_update_all_cameras():
             logger.info(f"Auto-registration: {reg_result}")
 
     if not set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S")):
-        logger.error("Camera discovery timestamp setting write affected no row")
         raise RuntimeError("Camera discovery timestamp could not be stored")
 
     return results

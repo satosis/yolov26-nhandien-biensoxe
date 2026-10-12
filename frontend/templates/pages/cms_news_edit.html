@@ -9,6 +9,11 @@
       isPublished: {{ 'true' if item and item.is_published else 'false' }},
       uploading: false,
       uploadError: '',
+      previewImageError() {
+        if (!this.imageUrl) return;
+        console.error('CMS news preview image failed to load');
+        this.uploadError = 'Không thể hiển thị ảnh xem trước.';
+      },
       async uploadImage(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -17,8 +22,13 @@
         const fd = new FormData();
         fd.append('file', file);
         const data = await apiRequest('/admin/cms/upload-image', { method: 'POST', body: fd });
-        if (data.ok && data.url) { this.imageUrl = data.url; }
-        else { this.uploadError = data.message || 'Lỗi tải ảnh'; }
+        if (data.ok) {
+          if (typeof data.url === 'string' && data.url) this.imageUrl = data.url;
+          else {
+            console.error('CMS image upload response missing URL');
+            this.uploadError = 'Phản hồi tải ảnh không hợp lệ.';
+          }
+        } else { this.uploadError = data.message || 'Lỗi tải ảnh'; }
         this.uploading = false;
       }
     }));
@@ -91,7 +101,7 @@
           </div>
           <div class="rounded border bg-light d-flex align-items-center justify-content-center overflow-hidden"
                style="width:128px;height:80px;flex-shrink:0;">
-            <img :src="imageUrl" x-show="imageUrl && !uploading" class="w-100 h-100" style="object-fit:cover;" @error="$el.style.display='none'">
+            <img :src="imageUrl" x-show="imageUrl && !uploading" class="w-100 h-100" style="object-fit:cover;" @error="previewImageError(); $el.style.display='none'">
             <span x-show="uploading" class="text-muted small">Đang tải...</span>
             <span x-show="!imageUrl && !uploading" class="text-muted small">Xem trước</span>
           </div>

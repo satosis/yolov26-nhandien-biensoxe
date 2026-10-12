@@ -1,4 +1,8 @@
+import logging
+
 from backend.services.database import db
+
+logger = logging.getLogger(__name__)
 
 def get_app_setting(key: str, default: str = "") -> str:
     row = db.execute_query("SELECT value FROM app_settings WHERE key = %s", (key,), fetch=True)
@@ -16,9 +20,12 @@ def set_many_app_settings(settings: dict) -> bool:
         return True
     placeholders = ", ".join(["(%s, %s)"] * len(settings))
     params = tuple(value for pair in settings.items() for value in pair)
-    return bool(db.execute_query(
+    saved = bool(db.execute_query(
         f"INSERT INTO app_settings (key, value) VALUES {placeholders} "
         "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
         params,
         commit=True,
     ))
+    if not saved:
+        logger.error("App settings write affected no row (%d keys)", len(settings))
+    return saved

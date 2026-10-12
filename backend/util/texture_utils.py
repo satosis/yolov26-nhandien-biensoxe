@@ -1,18 +1,11 @@
 import cv2
 import numpy as np
-import logging
-
-logger = logging.getLogger("texture_utils")
 
 def check_plate_authenticity(crop) -> tuple[bool, float, str]:
-    if crop is None or crop.size == 0:
-        return False, 0.0, "empty"
-
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     
     laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
     
-    _, max_val, _, _ = cv2.minMaxLoc(gray)
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
     high_intensity_pixels = np.sum(hist[200:]) / np.sum(hist)
     

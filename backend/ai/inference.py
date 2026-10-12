@@ -110,7 +110,7 @@ def validate_plate_crop(crop) -> bool:
         return False
 
     h, w = crop.shape[:2]
-    aspect = w / max(h, 1)
+    aspect = w / h
 
     if aspect < 0.8 or aspect > 6.0:
         return False
@@ -131,17 +131,14 @@ def validate_plate_crop(crop) -> bool:
 
 
 def enhance_plate(crop):
-    if crop is None or crop.size == 0:
-        return crop
-
     h, w = crop.shape[:2]
     MIN_OCR_HEIGHT = 100
 
     if h < 40:
-        scale = max(3, min(4, MIN_OCR_HEIGHT // max(h, 1)))
+        scale = max(3, min(4, MIN_OCR_HEIGHT // h))
         upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
     elif h < MIN_OCR_HEIGHT:
-        scale = max(2, min(3, MIN_OCR_HEIGHT // max(h, 1)))
+        scale = max(2, min(3, MIN_OCR_HEIGHT // h))
         upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
     elif h < 200:
         upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
@@ -715,9 +712,6 @@ class InferenceWorker:
         return latest
 
     def _enqueue_recording_event(self, event: dict) -> None:
-        if not isinstance(event, dict) or not isinstance(event.get("cam_id"), str) or not event["cam_id"]:
-            logger.error("Recording event has no camera ID")
-            raise ValueError("Recording event requires a non-empty cam_id")
         if self.recorder_control_queue is None:
             logger.error("Recorder control queue is unavailable")
             raise RuntimeError("Recorder control queue is unavailable")
@@ -859,7 +853,7 @@ class InferenceWorker:
         name, sim, f_bbox, emb, direction = self._face_recog.identify(frame, person_bbox=person_bbox)
         result.face_name, result.face_conf = name, sim
         if name:
-            if name == "STRANGER" and emb is not None:
+            if name == "STRANGER":
                 if track and track.is_locked:
                     return
                 

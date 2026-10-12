@@ -37,23 +37,17 @@ class VNPlateOCR:
 
 
     def read(self, crop: np.ndarray) -> tuple[str, float, str]:
-        if crop is None or crop.size == 0:
-            return "", 0.0, "white"
-
         plate_type = self.detect_plate_type(crop)
         deskewed = self._deskew(crop)
 
         h, w = deskewed.shape[:2]
-        aspect = w / max(h, 1)
+        aspect = w / h
 
         if aspect < 2.0:
             logger.debug("2-line plate detected (aspect=%.2f), splitting...", aspect)
             text, conf = self._read_two_line(deskewed)
         else:
             text, conf = self._read_one_line(deskewed)
-
-        if not text:
-            return "", 0.0, plate_type
 
         cleaned = self._cleanup_plate(text)
         return cleaned, conf, plate_type
@@ -67,7 +61,7 @@ class VNPlateOCR:
         h, w = plate_img.shape[:2]
 
         if h < 120:
-            scale = max(2, min(4, 120 // max(h, 1)))
+            scale = max(2, min(4, 120 // h))
             plate_img = cv2.resize(plate_img, (w * scale, h * scale),
                                    interpolation=cv2.INTER_LANCZOS4)
 
@@ -244,7 +238,7 @@ class VNPlateOCR:
 
 
     def _structural_repair(self, text: str) -> str:
-        if not text or len(text) < 4:
+        if len(text) < 4:
             return text
 
         chars = list(text.replace("-", "").replace(".", "").replace(" ", ""))
@@ -277,8 +271,6 @@ class VNPlateOCR:
 
 
     def _cleanup_plate(self, text: str) -> str:
-        if not text:
-            return ""
         text = text.upper().replace(" ", "").replace("-", "").replace(".", "").strip()
         if len(text) < 4:
             return text
@@ -306,16 +298,10 @@ class VNPlateOCR:
 
 
     def detect_plate_type(self, crop: np.ndarray) -> str:
-        if crop is None or crop.size == 0:
-            return "white"
-
         h, w = crop.shape[:2]
         cy, cx = h // 2, w // 2
         dy, dx = max(1, h // 4), max(1, w // 4)
         roi = crop[cy - dy:cy + dy, cx - dx:cx + dx]
-        if roi.size == 0:
-            return "white"
-
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
         avg_h = np.mean(hsv[:, :, 0])
         avg_s = np.mean(hsv[:, :, 1])

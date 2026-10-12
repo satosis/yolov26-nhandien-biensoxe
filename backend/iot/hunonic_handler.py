@@ -28,23 +28,11 @@ class HunonicHandler:
             "password": self.password
         }
         
-        request_completed = False
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-            request_completed = True
-        finally:
-            if not request_completed:
-                logger.error("Hunonic login transport failed")
+        response = requests.post(url, json=payload, timeout=10)
         if not response.ok:
             logger.error("Hunonic login failed with HTTP %s", response.status_code)
         response.raise_for_status()
-        json_decoded = False
-        try:
-            data = response.json()
-            json_decoded = True
-        finally:
-            if not json_decoded:
-                logger.error("Hunonic login response was not valid JSON")
+        data = response.json()
         if not isinstance(data, dict):
             logger.error("Hunonic login response is not an object")
             raise ValueError("Hunonic login response must be an object")
@@ -69,23 +57,11 @@ class HunonicHandler:
             self.login()
         url = f"{self.API_BASE}/devices"
         headers = {"Authorization": f"Bearer {self.token}"}
-        request_completed = False
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-            request_completed = True
-        finally:
-            if not request_completed:
-                logger.error("Hunonic device-list transport failed")
+        response = requests.get(url, headers=headers, timeout=10)
         if not response.ok:
             logger.error("Hunonic device list failed with HTTP %s", response.status_code)
         response.raise_for_status()
-        json_decoded = False
-        try:
-            data = response.json()
-            json_decoded = True
-        finally:
-            if not json_decoded:
-                logger.error("Hunonic device-list response was not valid JSON")
+        data = response.json()
         if not isinstance(data, dict) or not isinstance(data.get("devices"), list):
             logger.error("Hunonic device list response has no devices array")
             raise ValueError("Hunonic devices response must contain a list")
@@ -128,23 +104,11 @@ class HunonicHandler:
         import paho.mqtt.client as mqtt
         client = mqtt.Client(client_id=f"ParkingAI_{uuid.uuid4().hex[:12]}")
         client.username_pw_set(self.phone, self.token)
-        connected = False
-        try:
-            client.connect(self.MQTT_HOST, self.MQTT_PORT, 60)
-            connected = True
-        finally:
-            if not connected:
-                logger.error("Hunonic MQTT connection failed")
+        client.connect(self.MQTT_HOST, self.MQTT_PORT, 60)
         client.loop_start()
         try:
-            publish_completed = False
-            try:
-                result = client.publish(topic, payload, qos=1)
-                result.wait_for_publish()
-                publish_completed = True
-            finally:
-                if not publish_completed:
-                    logger.error("Hunonic MQTT publish transport failed")
+            result = client.publish(topic, payload, qos=1)
+            result.wait_for_publish()
             if result.rc != mqtt.MQTT_ERR_SUCCESS:
                 logger.error("Hunonic MQTT publish failed with code %s", result.rc)
                 raise RuntimeError("Hunonic MQTT publish failed")

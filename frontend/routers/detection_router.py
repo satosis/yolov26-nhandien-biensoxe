@@ -346,12 +346,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
 
                 if status == "unknown":
                     snap_path = save_snapshot(frame_bgr, "webcam", normalized)
-                    active_site_id = request.session.get("active_site_id")
-                    s_id = None
-                    if active_site_id and str(active_site_id).isdigit():
-                        s_int = int(active_site_id)
-                        if s_int > 0:
-                            s_id = s_int
+                    s_id = request.session.get("active_site_id") or None
 
                     outcome = _add_pending_plate_simple(
                         normalized, text, "webcam", site_id=s_id,
@@ -384,7 +379,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 })
 
         name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
-        if name and name != "TOO_SMALL":
+        if name:
             display_text = name
             status = "stranger"
 
@@ -395,19 +390,15 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                     display_text = f"Tên: {display_name} + id: {user_info['identity']}"
                     status = "known"
             else:
-                if emb is not None:
-                    from backend.ai.stranger_manager import get_stranger_manager
-                    mgr = get_stranger_manager()
-                    stranger_id, match_sim, _ = mgr.process_stranger(
-                        emb=emb, frame=frame_bgr, cam_id="webcam",
-                        bbox=f_bbox, direction=direction, site_id=None
-                    )
-                    if stranger_id > 0:
-                        display_text = f"Người lạ #{stranger_id}"
-                        if match_sim > 0:
-                            sim = match_sim
-                    else:
-                        display_text = "Người lạ"
+                from backend.ai.stranger_manager import get_stranger_manager
+                mgr = get_stranger_manager()
+                stranger_id, match_sim, _ = mgr.process_stranger(
+                    emb=emb, frame=frame_bgr, cam_id="webcam",
+                    bbox=f_bbox, direction=direction, site_id=None
+                )
+                display_text = f"Người lạ #{stranger_id}"
+                if match_sim > 0:
+                    sim = match_sim
 
             res.append({
                 "type": "face", "text": display_text,

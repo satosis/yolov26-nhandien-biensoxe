@@ -59,7 +59,13 @@
       });
     }
     return navigator.mediaDevices.getUserMedia(constraints).then(
-      (stream) => ({ ok: true, stream }),
+      (stream) => {
+        if (!stream || typeof stream.getTracks !== 'function') {
+          console.error('Camera access returned an invalid stream');
+          return { ok: false, code: 'invalid_stream', message: 'Không thể mở camera. Vui lòng kiểm tra thiết bị.' };
+        }
+        return { ok: true, stream };
+      },
       (error) => {
         const code = error && (
           error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'

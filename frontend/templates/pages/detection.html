@@ -816,9 +816,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       const scaleX = canvas.width / detW;
       const scaleY = canvas.height / detH;
 
-      for (const r of (results || [])) {
-        if (!r.bbox || r.bbox.length < 4) continue;
-        if (r.text === 'TOO_SMALL') continue;
+      for (const r of results) {
 
         const x1 = r.bbox[0] * scaleX;
         const y1 = r.bbox[1] * scaleY;
@@ -922,8 +920,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       const uniqueMap = {};
       let faces = 0, plates = 0, alerts = 0;
 
-      (data.results || []).forEach(r => {
-        if (r.text === 'TOO_SMALL') return;
+      data.results.forEach(r => {
         if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
           uniqueMap[r.type] = r;
         }
@@ -1011,11 +1008,18 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     }
 
     async function sendFrame(blob, source = 'webcam') {
-      if (!blob || blob.size === 0) return { error: "Ảnh không hợp lệ", results: [] };
+      if (!blob || blob.size === 0) {
+        console.error('Detection frame encoding returned an empty image');
+        return { error: "Ảnh không hợp lệ", results: [] };
+      }
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       fd.append('source', source);
       const result = await apiRequest('/admin/detection/api/detect', { method: 'POST', body: fd });
+      if (result.ok && !Array.isArray(result.results)) {
+        console.error('Detection response missing results array');
+        return { error: 'Phản hồi nhận diện không hợp lệ', results: [] };
+      }
       return result.ok ? result : { error: result.message, results: [] };
     }
 
@@ -1083,7 +1087,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             window.stopWebcam();
             return;
           }
-          lastResults = data?.results || [];
+          lastResults = data.results;
           renderResults(data);
         }, 'image/jpeg', 0.75);
       };
@@ -1137,7 +1141,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           window.toggleRtsp();
           return;
         }
-        rtspLastResults = data?.results || [];
+        rtspLastResults = data.results;
         renderResults(data);
       }, 'image/jpeg', 0.70);
     };
@@ -1283,6 +1287,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
             URL.revokeObjectURL(img.src);
           }, 'image/jpeg', 0.90);
+        };
+        img.onerror = () => {
+          console.error('Detection upload image failed to load');
+          renderResults({ error: 'Không thể đọc ảnh đã chọn.', results: [] });
+          URL.revokeObjectURL(img.src);
         };
         img.src = URL.createObjectURL(file);
       });

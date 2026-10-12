@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from backend.services import config as cfg
@@ -6,6 +7,14 @@ from backend.services.database import db
 from backend.services.settings_service import get_app_setting
 
 logger = logging.getLogger("retention")
+
+
+def _unlink_retained_file(path: str, row_id: int, table: str, kind: str) -> None:
+    existed = os.path.lexists(path)
+    Path(path).unlink(missing_ok=True)
+    if not existed:
+        logger.error("%s record %s references a missing %s file", table, row_id, kind)
+
 
 class RetentionManager:
 
@@ -43,7 +52,7 @@ class RetentionManager:
             for path_key in ["file_path", "thumbnail_path"]:
                 path = row.get(path_key)
                 if path:
-                    Path(path).unlink(missing_ok=True)
+                    _unlink_retained_file(path, row["id"], "video_recordings", path_key)
 
             if db.delete("video_recordings", {"id": row["id"]}):
                 deleted_count += 1
@@ -59,7 +68,7 @@ class RetentionManager:
             if path and self.is_legal_hold(path):
                 continue
             if path:
-                Path(path).unlink(missing_ok=True)
+                _unlink_retained_file(path, row["id"], "stranger_logs", "image_path")
             if db.delete("stranger_logs", {"id": row["id"]}):
                 deleted_count += 1
 

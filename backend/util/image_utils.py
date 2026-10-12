@@ -2,7 +2,6 @@ from collections.abc import Sequence
 import logging
 import os
 import re
-import sys
 import time
 import uuid
 
@@ -32,36 +31,13 @@ def _snapshot_path(prefix: str) -> str:
 
 
 def _ensure_snapshot_directory() -> None:
-    created = False
-    try:
-        os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
-        created = True
-    finally:
-        if not created:
-            error = sys.exc_info()[1]
-            logger.error(
-                "Snapshot directory creation raised %s (errno=%s, directory=%s)",
-                type(error).__name__, getattr(error, "errno", None), cfg.SNAPSHOT_DIR,
-            )
+    os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
 
 
 def _write_snapshot(path: str, image, kind: str, failure_message: str) -> None:
-    returned = False
-    try:
-        written = cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, 96])
-        returned = True
-    finally:
-        if not returned:
-            error = sys.exc_info()[1]
-            error_code = getattr(error, "code", None)
-            if error_code is None:
-                error_code = getattr(error, "errno", None)
-            logger.error(
-                "%s snapshot write raised %s (code=%s, directory=%s)",
-                kind, type(error).__name__, error_code, cfg.SNAPSHOT_DIR,
-            )
+    written = cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, 96])
     if not written:
-        logger.error("%s snapshot write returned False (directory=%s)", kind, cfg.SNAPSHOT_DIR)
+        logger.error("%s snapshot write returned False", kind)
         raise OSError(failure_message)
 
 def save_snapshot(frame, cam_id: str, plate_text: str) -> str:

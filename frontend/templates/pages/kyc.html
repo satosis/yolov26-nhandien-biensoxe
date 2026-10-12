@@ -317,21 +317,12 @@ function openKycCamera() {
             });
         }, SOURCE_TIMEOUT_MS);
     });
-    const attempt = Promise.resolve().then(() => cameraRequest({
+    const attempt = cameraRequest({
         video: { width: { ideal: 640 }, height: { ideal: 640 }, facingMode: 'user' }
-    })).then(
+    }).then(
         result => {
-            if (!result || typeof result.ok !== 'boolean' ||
-                (result.ok && (!result.stream || typeof result.stream.getTracks !== 'function'))) {
-                if (!timedOut) console.error('Invalid camera result');
-                return { ok: false, message: 'Không thể khởi tạo camera.' };
-            }
             if (timedOut && result.ok) result.stream.getTracks().forEach(track => track.stop());
             return result;
-        },
-        error => {
-            if (!timedOut) console.error('Camera request failed:', error && error.name || 'UnknownError');
-            return { ok: false, message: 'Không thể mở camera. Vui lòng kiểm tra thiết bị.' };
         }
     );
     return Promise.race([attempt, timeout]).then(result => {
@@ -543,6 +534,7 @@ async function autoCaptureAndUpload() {
     const flash = document.getElementById('capture-flash');
     const step = kycSteps[currentStep];
     if (!(video.videoWidth > 0 && video.videoHeight > 0)) {
+        console.error('KYC camera frame has invalid dimensions');
         handleUploadFailure('Camera chưa có hình ảnh để chụp.');
         return;
     }
@@ -561,6 +553,7 @@ async function autoCaptureAndUpload() {
     document.getElementById('hold-bar').style.width = '100%';
     canvas.toBlob(async (blob) => {
         if (!blob) {
+            console.error('KYC camera frame encoding returned no image');
             handleUploadFailure('Không thể chụp ảnh.');
             return;
         }

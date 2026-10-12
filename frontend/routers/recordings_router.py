@@ -116,8 +116,12 @@ async def delete_recording(recording_id: int, user: dict = Depends(require_menu(
 
     for key in ("file_path", "thumbnail_path"):
         path = rec[key]
-        if path and os.path.exists(path):
-            os.remove(path)
+        if not path:
+            continue
+        if not os.path.exists(path):
+            logger.error("Recording %s references a missing %s file", recording_id, key)
+            continue
+        os.remove(path)
 
     if not db.delete("video_recordings", {"id": recording_id}):
         return JSONResponse(

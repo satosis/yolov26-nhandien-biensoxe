@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import re
 from fastapi import APIRouter, Request, Depends, Form
@@ -10,6 +11,7 @@ from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.database import db
 from backend.services.config import normalize_plate, trigger_ai_reload
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/vehicles")
 _FUEL_RE = re.compile(r"^\d+(?:[.,]\d+)?$")
 
@@ -64,6 +66,8 @@ def upsert_vehicle_whitelist(plate_norm: str, label: Optional[str], added_by: st
     )
     if saved:
         trigger_ai_reload()
+    else:
+        logger.error("Vehicle whitelist upsert affected no rows")
     return bool(saved)
 
 

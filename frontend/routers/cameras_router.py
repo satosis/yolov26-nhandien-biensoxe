@@ -41,14 +41,24 @@ def _site_ids_from_form(values: list[str] | None) -> list[int] | None:
     return ids if all(0 < site_id <= 2147483647 for site_id in ids) else None
 
 
+def _persist_derived_rtsp(camera_id: int, rtsp_url: str | None) -> bool:
+    if not rtsp_url:
+        return True
+    saved = db._execute_query(
+        "UPDATE cameras SET rtsp_url = %s WHERE id = %s", (rtsp_url, camera_id), commit=True
+    )
+    if not saved:
+        logger.error("Derived RTSP URL update affected no rows for camera_id=%s", camera_id)
+    return bool(saved)
+
+
 @router.get("")
 async def cameras_page(request: Request, user: dict = Depends(require_menu("cameras"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "cameras"
     
-    active_site_id = ctx.get("active_site_id")
-    site_id_filter = int(active_site_id) if active_site_id else None
-    cameras = cam_svc.get_all_cameras(site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
+    active_site_id = ctx["active_site_id"]
+    cameras = cam_svc.get_all_cameras(site_id=active_site_id or None)
     for cam in cameras:
         if not cam.get("rtsp_url"):
             cam["rtsp_url"] = cam_svc.get_camera_rtsp_url(cam["id"])
@@ -294,11 +304,8 @@ async def auto_add_camera(
             rtsp_saved = cam_svc.store_onvif_detected_rtsp(camera_id, rtsp_url_onvif)
         else:
             url = cam_svc.get_camera_rtsp_url(camera_id)
-            rtsp_saved = not url or db._execute_query(
-                "UPDATE cameras SET rtsp_url = %s WHERE id = %s", (url, camera_id), commit=True
-            )
+            rtsp_saved = _persist_derived_rtsp(camera_id, url)
         if not rtsp_saved:
-            logger.error("Camera auto-add RTSP persistence failed for existing camera_id=%s", camera_id)
             return JSONResponse({
                 "ok": False, "name": name, "updated": True, "partial": True,
                 "message": "Đã cập nhật camera nhưng không thể lưu địa chỉ RTSP.",
@@ -336,18 +343,15 @@ async def auto_add_camera(
             camera_port=onvif_port or 554,
             provider_keys={"mk": mk} if mk else None,
         )
-        if not new_cam_id:
+        if new_cam_id is None:
             return JSONResponse({"ok": False, "name": name, "message": "Không thể thêm camera."}, status_code=500)
         if ip:
             if rtsp_url_onvif:
                 rtsp_saved = cam_svc.store_onvif_detected_rtsp(new_cam_id, rtsp_url_onvif)
             else:
                 url = cam_svc.get_camera_rtsp_url(new_cam_id)
-                rtsp_saved = not url or db._execute_query(
-                    "UPDATE cameras SET rtsp_url = %s WHERE id = %s", (url, new_cam_id), commit=True
-                )
+                rtsp_saved = _persist_derived_rtsp(new_cam_id, url)
             if not rtsp_saved:
-                logger.error("Camera auto-add RTSP persistence failed for new camera_id=%s", new_cam_id)
                 return JSONResponse({
                     "ok": False, "name": name, "camera_id": new_cam_id, "partial": True,
                     "message": "Đã thêm camera nhưng không thể lưu địa chỉ RTSP. Kiểm tra camera đã thêm trước khi thử lại.",

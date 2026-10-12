@@ -1,10 +1,11 @@
+import logging
+
 from backend.services.database import db
+
+logger = logging.getLogger(__name__)
 
 
 class KYCManager:
-    def __init__(self):
-        pass
-
     def update_basic_info(self, user_id, full_name, phone, email, dob, id_number):
         query = '''UPDATE users SET full_name=%s, phone=%s, email=%s,
                    date_of_birth=%s, id_number=%s, kyc_level=GREATEST(kyc_level, 1)
@@ -27,7 +28,10 @@ class KYCManager:
             query, (user_id, doc_type, file_path, user_id, doc_type, file_path),
             fetch=True, commit=True,
         )
-        return bool(result["stored"])
+        stored = bool(result["stored"])
+        if not stored:
+            logger.error("KYC document write did not persist (user_id=%s, type=%r)", user_id, doc_type)
+        return stored
 
     def delete_document(self, user_id, doc_type):
         query = "DELETE FROM kyc_documents WHERE user_id=%s AND doc_type=%s"

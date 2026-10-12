@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, Form
@@ -76,8 +77,12 @@ def delete_stranger_log(stranger_id: int) -> bool:
     row = db.select("stranger_logs", columns="image_path", conditions={"id": stranger_id}, fetchall=False)
     if not row:
         return False
-    if row.get("image_path"):
-        Path(row["image_path"]).unlink(missing_ok=True)
+    path = row.get("image_path")
+    if path:
+        existed = os.path.lexists(path)
+        Path(path).unlink(missing_ok=True)
+        if not existed:
+            logger.error("Stranger record %s references a missing image file", stranger_id)
     return db.delete("stranger_logs", {"id": stranger_id})
 
 
@@ -86,7 +91,7 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "strangers"
     active_site_id = ctx.get("active_site_id")
-    ctx["strangers"] = get_stranger_logs(status="new", limit=50, site_id=active_site_id if active_site_id and active_site_id > 0 else None)
+    ctx["strangers"] = get_stranger_logs(status="new", limit=50, site_id=active_site_id or None)
     ctx["all_users"] = get_all_users()
     return templates.TemplateResponse("pages/strangers.html", {"request": request, **ctx})
 

@@ -40,23 +40,11 @@ class ImouClient:
         url = f"{self.BASE_URL}/{endpoint}"
         logger.info(f"Calling Imou API: {endpoint}")
         
-        request_completed = False
-        try:
-            resp = requests.post(url, json=payload, timeout=timeout)
-            request_completed = True
-        finally:
-            if not request_completed:
-                logger.error("Imou API %s transport failed", endpoint)
+        resp = requests.post(url, json=payload, timeout=timeout)
         if not resp.ok:
             logger.error("Imou API %s returned HTTP %s", endpoint, resp.status_code)
         resp.raise_for_status()
-        json_decoded = False
-        try:
-            body = resp.json()
-            json_decoded = True
-        finally:
-            if not json_decoded:
-                logger.error("Imou API %s returned invalid JSON", endpoint)
+        body = resp.json()
         if not isinstance(body, dict) or not isinstance(body.get("result"), dict):
             logger.error("Imou API %s returned an invalid envelope", endpoint)
             raise ValueError("Imou API response has an invalid envelope")
@@ -184,12 +172,13 @@ class ImouClient:
                 if dev.get(field) is not None and not isinstance(dev[field], (str, int, bool)):
                     logger.error("Imou deviceBaseList returned invalid status field %s", field)
                     raise ValueError("Imou device has an invalid status")
-            did = str(did_raw).strip().lower()
-            dev['deviceId'] = str(did_raw).strip()
+            device_id = str(did_raw).strip()
+            did = device_id.lower()
+            dev['deviceId'] = device_id
             dev['deviceModel'] = dev.get('deviceModel') or 'Imou Camera'
             logger.info(f"Imou Discovery: Processing device {did}")
             
-            fdev = self.get_device_detail(did_raw)
+            fdev = self.get_device_detail(device_id)
             if fdev:
                 possible_ips = [
                     fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'),
@@ -204,8 +193,8 @@ class ImouClient:
 
             current_ip = dev.get('deviceLocalIp')
             if not current_ip or current_ip == "0.0.0.0":
-                net_info = self.get_device_network_info(did_raw)
-                if net_info and net_info.get('ip'):
+                net_info = self.get_device_network_info(device_id)
+                if net_info is not None:
                     dev['deviceLocalIp'] = net_info['ip']
                     logger.info(f"  [NET-FALLBACK] Found IP {net_info['ip']} for {did} via {net_info['source']}")
 

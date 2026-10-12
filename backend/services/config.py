@@ -1,4 +1,7 @@
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -101,4 +104,7 @@ def trigger_ai_reload():
     import time
     rt = os.path.join(KNOWN_FACES_DIR, ".reload")
     with open(rt, "w") as f:
-        f.write(str(time.time()))
+        marker = str(time.time())
+        if f.write(marker) != len(marker):
+            logger.error("AI reload marker write was incomplete")
+            raise OSError("AI reload marker write was incomplete")
