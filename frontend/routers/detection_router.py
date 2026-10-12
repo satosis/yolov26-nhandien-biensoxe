@@ -5,17 +5,21 @@ import re
 import uuid
 import asyncio
 import time
-import concurrent.futures
 import hashlib
+from contextlib import closing
+from collections import OrderedDict
+from http.client import HTTPConnection
+from urllib.parse import urlencode
 import numpy as np
 import cv2
 import multiprocessing.shared_memory as sm
-from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Request, Depends, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.util.image_utils import save_snapshot
 from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
 from backend.services import config as cfg
+from backend.services.database import db
 from backend.util.bbox_utils import merge_plate_boxes
 from backend.camera import camera_service as cam_svc
 from backend.services.settings_service import get_app_setting
@@ -31,18 +35,26 @@ _face_recognizer = None
 _model_lock = threading.Lock()
 _last_request_time = 0
 
-_ocr_cache = {}
-_ocr_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="ocr-bg")
+_ocr_cache = OrderedDict()
+_ocr_lock = threading.Lock()
+MAX_OCR_CACHE_ENTRIES = 256
+MAX_RTSP_READ_FAILURES = 3
 
 def _ocr_crop_hash(crop):
     return hashlib.md5(crop[::4, ::4].tobytes()).hexdigest()
 
-def _run_ocr_background(ocr_reader, crop, crop_hash):
-    try:
+def _read_cached_ocr(ocr_reader, crop, crop_hash):
+    with _ocr_lock:
+        cached = _ocr_cache.get(crop_hash)
+        if cached and time.time() - cached[3] < 5:
+            _ocr_cache.move_to_end(crop_hash)
+            return cached[0], cached[1], cached[2]
         text, conf, ptype = ocr_reader.read(crop)
         _ocr_cache[crop_hash] = (text, conf, ptype, time.time())
-    except Exception as e:
-        logger.warning("Background OCR failed: %s", e)
+        _ocr_cache.move_to_end(crop_hash)
+        if len(_ocr_cache) > MAX_OCR_CACHE_ENTRIES:
+            _ocr_cache.popitem(last=False)
+        return text, conf, ptype
 
 async def _cleanup_models_loop():
     global _plate_detector, _ocr_reader, _face_recognizer
@@ -114,43 +126,73 @@ def _get_models():
                     
         return _plate_detector, _ocr_reader, _face_recognizer
 
+
+def _request_go2rtc_webrtc(params: dict, sdp_offer: str) -> tuple[int, str]:
+    # HTTPConnection's socket errors do not embed the request target, which can
+    # contain TURN credentials in the ICE query parameter.
+    target = "/api/webrtc?" + urlencode(params)
+    with closing(HTTPConnection("127.0.0.1", 1984, timeout=10)) as connection:
+        connection.request(
+            "POST", target, body=sdp_offer.encode("utf-8"),
+            headers={"Content-Type": "application/sdp"},
+        )
+        response = connection.getresponse()
+        return response.status, response.read().decode("utf-8", errors="replace")
+
+
 @router.post("/go2rtc-proxy/{camera_id}")
 async def go2rtc_webrtc_proxy(camera_id: int, request: Request, user: dict = Depends(require_menu("detection"))):
     import requests as http_req
-    sdp_offer = (await request.body()).decode()
+    sdp_offer = (await request.body()).decode("utf-8", errors="replace")
     stream_name = f"cam_{camera_id}"
 
     cam = cam_svc.get_camera(camera_id)
-    if cam and cam.get("rtsp_url"):
-        try:
-            http_req.put("http://localhost:1984/api/streams", json={stream_name: cam["rtsp_url"]}, timeout=3)
-        except http_req.RequestException as e:
-            logger.warning("go2rtc stream registration failed: %s", e)
+    if not cam:
+        logger.warning("go2rtc proxy: camera_id=%s was not found", camera_id)
+        return JSONResponse(
+            {"ok": False, "message": "Camera không tồn tại."},
+            status_code=404,
+        )
+    if not cam.get("rtsp_url"):
+        logger.warning("go2rtc proxy: camera_id=%s has no RTSP URL", camera_id)
+        return JSONResponse(
+            {"ok": False, "message": "Camera chưa có luồng RTSP."},
+            status_code=400,
+        )
+    registration = http_req.put(
+        "http://localhost:1984/api/streams",
+        json={stream_name: cam["rtsp_url"]},
+        timeout=3,
+    )
+    if not registration.ok:
+        logger.error("go2rtc stream registration failed for camera_id=%s (status=%s)",
+                     camera_id, registration.status_code)
+        return JSONResponse(
+            {"ok": False, "message": "Không thể đăng ký luồng camera với go2rtc."},
+            status_code=502,
+        )
 
-    codec_params = "video=h264/baseline&audio=opus"
+    params = {"src": stream_name, "video": "h264/baseline", "audio": "opus"}
 
     turn_url = get_app_setting("WEBRTC_TURN_URL", "")
     turn_user = get_app_setting("WEBRTC_TURN_USERNAME", "")
     turn_pass = get_app_setting("WEBRTC_TURN_PASSWORD", "")
     if turn_url:
-        ice_param = f"ice={turn_url}"
+        ice_param = turn_url
         if turn_user and turn_pass:
-            ice_param = f"ice={turn_url}:{turn_user}:{turn_pass}"
-        codec_params = f"{codec_params}&{ice_param}"
+            ice_param = f"{turn_url}:{turn_user}:{turn_pass}"
+        params["ice"] = ice_param
 
-    try:
-        resp = http_req.post(
-            f"http://localhost:1984/api/webrtc?src={stream_name}&{codec_params}",
-            data=sdp_offer,
-            headers={"Content-Type": "application/sdp"},
-            timeout=10,
-        )
-        if resp.status_code == 200:
-            from starlette.responses import Response
-            return Response(content=resp.text, media_type="application/sdp")
-        return JSONResponse({"error": f"go2rtc returned {resp.status_code}"}, status_code=502)
-    except http_req.RequestException as e:
-        return JSONResponse({"error": f"go2rtc unavailable: {e}"}, status_code=503)
+    status_code, response_body = await asyncio.to_thread(_request_go2rtc_webrtc, params, sdp_offer)
+    if status_code == 200:
+        from starlette.responses import Response
+        return Response(content=response_body, media_type="application/sdp")
+    logger.error("go2rtc WebRTC negotiation failed for camera_id=%s (status=%s)",
+                 camera_id, status_code)
+    return JSONResponse(
+        {"ok": False, "message": "go2rtc không thể thiết lập WebRTC."},
+        status_code=502,
+    )
 
 
 @router.get("")
@@ -175,7 +217,7 @@ def _check_whitelist(plate_text: str) -> dict | None:
     return db.execute_query(query, (clean_input,), fetch=True)
 
 
-def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None, plate_type: str = "white"):
+def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None, plate_type: str = "white") -> str | None:
     clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
     existing = db.execute_query("""
         SELECT pending_id FROM pending_plates
@@ -185,16 +227,18 @@ def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = 
         LIMIT 1
     """, (clean_plate,), fetch=True)
     if existing:
-        logger.info(f"Plate {plate_norm} pending or in 60s cooldown (match: {clean_plate}). Skipping.")
-        return
+        return "existing"
 
     pid = str(uuid.uuid4())[:8]
-    logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
-    db.execute_query("""
+    saved = db.execute_query("""
         INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
         VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
         ON CONFLICT (pending_id) DO NOTHING
     """, (pid, plate_raw, plate_norm, site_id, image_path, plate_type), commit=True)
+    if not saved:
+        logger.error("Pending plate insert returned no row for site %s", site_id)
+        return None
+    return "inserted"
 
 
 def _get_person_by_identity(identity):
@@ -221,21 +265,31 @@ def _get_person_by_identity(identity):
 
 @router.post("/api/detect")
 async def detect_image(request: Request, file: UploadFile = File(...),
-                       source: str = Form("webcam"),
                        user: dict = Depends(require_menu("detection"))):
     contents = await file.read()
+    if not contents:
+        logger.warning("Detection upload is empty")
+        return JSONResponse(
+            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
+            status_code=400,
+        )
+    frame_bgr = await asyncio.to_thread(cv2.imdecode, np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    del contents
+    if frame_bgr is None:
+        logger.warning("Detection upload could not be decoded as an image")
+        return JSONResponse(
+            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
+            status_code=400,
+        )
     detector, ocr, face = _get_models()
 
     def run_ai_pipeline():
-        nparr = np.frombuffer(contents, np.uint8)
-        frame_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if frame_bgr is None:
-            return []
-
         debug_dir = "/tmp/debug_frames"
         if os.path.exists(debug_dir):
             curr_time = int(time.time())
-            cv2.imwrite(f"{debug_dir}/frame_{curr_time}.jpg", frame_bgr)
+            if not cv2.imwrite(f"{debug_dir}/frame_{curr_time}.jpg", frame_bgr):
+                logger.error("Detection debug frame write failed in %s", debug_dir)
+                raise OSError("Could not save detection debug frame")
 
         res = []
         orig_h, orig_w = frame_bgr.shape[:2]
@@ -277,18 +331,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 if validate_plate_crop(crop):
                     processed = enhance_plate(crop)
                     ch = _ocr_crop_hash(processed)
-                    cached = _ocr_cache.get(ch)
-                    if cached and time.time() - cached[3] < 5:
-                        text, ocr_conf, p_type = cached[0], cached[1], cached[2]
-                    elif source == "upload":
-                        _run_ocr_background(ocr, processed, ch)
-                        cached = _ocr_cache.get(ch)
-                        if cached:
-                            text, ocr_conf, p_type = cached[0], cached[1], cached[2]
-                    else:
-                        _ocr_executor.submit(_run_ocr_background, ocr, processed, ch)
-                        if cached:
-                            text, ocr_conf, p_type = cached[0], cached[1], cached[2]
+                    text, ocr_conf, p_type = _read_cached_ocr(ocr, processed, ch)
 
                 status = "no_plate"
                 owner_name = "unknown"
@@ -310,9 +353,14 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                         if s_int > 0:
                             s_id = s_int
 
-                    logger.info(f"Adding unknown plate to pending list: {text} (normalized: {normalized}, site: {s_id})")
-                    _add_pending_plate_simple(normalized, text, "webcam", site_id=s_id, image_path=snap_path, plate_type=p_type)
-                    logger.info(f"Stranger plate '{text}' logged from manual detection at site {s_id}")
+                    outcome = _add_pending_plate_simple(
+                        normalized, text, "webcam", site_id=s_id,
+                        image_path=snap_path, plate_type=p_type,
+                    )
+                    if outcome is None:
+                        return None
+                    if outcome == "inserted":
+                        logger.info("Unknown plate saved from manual detection at site %s", s_id)
 
                 res.append({
                     "type": "plate",
@@ -366,10 +414,15 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
             })
 
-        logger.info(f"API Detect: results={res}")
+        logger.info("API Detect: %s results", len(res))
         return res
 
     results = await asyncio.to_thread(run_ai_pipeline)
+    if results is None:
+        return JSONResponse(
+            {"ok": False, "message": "Không thể lưu biển số chờ duyệt."},
+            status_code=500,
+        )
     
     return JSONResponse({
         "results": results, 
@@ -385,7 +438,10 @@ async def detect_image(request: Request, file: UploadFile = File(...),
 
 def _mjpeg_frame(frame, quality=75):
     ok, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
-    return b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n" if ok else b""
+    if not ok:
+        logger.error("MJPEG frame encoding failed")
+        raise RuntimeError("JPEG encoding failed")
+    return b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
 
 
 def _stream_error(message):
@@ -399,15 +455,15 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
     shm_name = f"shm_cam_{camera_id}"
 
     async def frame_generator():
-        shm = None
-        for _ in range(30):
-            try:
-                shm = sm.SharedMemory(name=shm_name)
-                break
-            except FileNotFoundError:
+        shm_path = f"/dev/shm/{shm_name}"
+        if os.path.isdir("/dev/shm"):
+            for _ in range(30):
+                if os.path.exists(shm_path):
+                    break
                 await asyncio.sleep(0.5)
 
-        if shm is not None:
+        if os.path.exists(shm_path):
+            shm = sm.SharedMemory(name=shm_name)
             try:
                 last_counter = -1
                 while not await request.is_disconnected():
@@ -442,23 +498,34 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                 if not cap.isOpened():
                     logger.error(f"Camera {camera_id}: cannot open RTSP")
                     return
+                failures = 0
                 while not reader_stop.is_set():
                     ret, frame = cap.read()
-                    if ret:
+                    if ret and frame is not None:
+                        failures = 0
                         if frame.shape[1] > 854:
                             frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_LINEAR)
                         latest_frame[0] = frame
                     else:
+                        failures += 1
+                        if failures >= MAX_RTSP_READ_FAILURES:
+                            logger.error(
+                                "Camera %s: RTSP stopped after %s consecutive read failures",
+                                camera_id,
+                                failures,
+                            )
+                            return
                         reader_stop.wait(0.3)
             finally:
                 cap.release()
+                reader_stop.set()
 
         reader_thread = threading.Thread(target=_rtsp_reader, daemon=True)
         reader_thread.start()
 
         try:
             for _ in range(30):
-                if latest_frame[0] is not None:
+                if latest_frame[0] is not None or reader_stop.is_set() or not reader_thread.is_alive():
                     break
                 await asyncio.sleep(0.2)
 
@@ -467,6 +534,9 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                 return
 
             while not await request.is_disconnected():
+                if reader_stop.is_set() or not reader_thread.is_alive():
+                    yield _stream_error("Camera disconnected")
+                    return
                 frame = latest_frame[0]
                 if frame is not None:
                     yield _mjpeg_frame(frame)

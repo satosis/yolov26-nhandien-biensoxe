@@ -1,16 +1,12 @@
-import logging
 import os
 import ssl
 import sys
-import traceback
 from pathlib import Path
 
 import certifi
-import jinja2
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse, Response
@@ -22,8 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 load_dotenv()
 
 from backend.services import config as cfg
-from frontend.deps import get_menu_context, get_optional_user, templates
-from frontend.notifications import manager
+cfg.setup_logging("frontend.log")
+
+from frontend.notifications import InquiryNotification, manager
 from frontend.routers.auth_router import router as auth_router
 from frontend.routers.cameras_router import router as cameras_router
 from frontend.routers.cargo_trips_router import router as cargo_trips_router
@@ -46,9 +43,6 @@ from frontend.routers.telegram_router import router as telegram_router
 from frontend.routers.users_router import router as users_router
 from frontend.routers.vehicles_router import router as vehicles_router
 
-cfg.setup_logging("frontend.log")
-logger = logging.getLogger("frontend.app")
-
 STATIC_CACHE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".webp", ".svg", ".ico",
     ".woff2", ".woff", ".ttf",
@@ -58,10 +52,11 @@ _KILL_SW_JS = """
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch (e) {}
-    try { await self.registration.unregister(); } catch (e) {}
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+    await self.registration.unregister();
     const cs = await self.clients.matchAll({ type: 'window' });
-    cs.forEach((c) => { try { c.navigate(c.url); } catch (e) {} });
+    await Promise.all(cs.map(c => c.navigate(c.url)));
   })());
 });
 """.strip()
@@ -150,53 +145,14 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                return
+    finally:
         manager.disconnect(websocket)
 
 
 @app.post("/api/internal/notify-inquiry")
-async def notify_inquiry(data: dict):
-    await manager.broadcast({"type": "NEW_INQUIRY", "data": data})
+async def notify_inquiry(data: InquiryNotification):
+    await manager.broadcast({"type": "NEW_INQUIRY", "data": data.model_dump()})
     return {"status": "ok"}
-
-
-def _build_error_context(request: Request) -> dict:
-    user = get_optional_user(request)
-    if user:
-        try:
-            return get_menu_context(request, user)
-        except Exception:
-            pass
-    return {
-        "user": user,
-        "menu_groups": {},
-        "sites": [],
-        "active_site_id": 0,
-        "current_menu": "",
-    }
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    if exc.status_code in (301, 302, 303, 307, 308):
-        location = exc.headers.get("Location", "/login") if exc.headers else "/login"
-        return RedirectResponse(url=location, status_code=exc.status_code)
-
-    ctx = _build_error_context(request)
-    if exc.status_code == 404:
-        return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
-    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=exc.status_code, headers=exc.headers)
-
-
-@app.exception_handler(jinja2.exceptions.TemplateNotFound)
-async def template_not_found_handler(request: Request, exc: jinja2.exceptions.TemplateNotFound):
-    ctx = _build_error_context(request)
-    return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
-
-
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
-    logger.error("Unhandled exception on %s: %s\n%s", request.url.path, exc, traceback.format_exc())
-    ctx = _build_error_context(request)
-    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=500)

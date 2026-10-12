@@ -1,11 +1,17 @@
-from fastapi import APIRouter, Request, Depends, Query
-from urllib.parse import urlencode
-from backend.services.database import db
-from frontend.deps import get_menu_context, require_menu, templates
+import logging
+import math
 import os
 import psutil
-import math
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Request, Depends, Query
+from fastapi.responses import JSONResponse
+
+from backend.services.database import db
 from backend.services.config import RECORDING_DIR
+from frontend.deps import get_menu_context, require_menu, templates
+
+logger = logging.getLogger(__name__)
 
 def format_size(size_bytes):
     if not size_bytes: return "0 B"
@@ -41,6 +47,20 @@ def count_recordings(site_id=None):
     return row["count"]
 
 
+def get_storage_info() -> dict:
+    if not os.path.isdir(RECORDING_DIR):
+        logger.warning("Recording directory unavailable")
+        return {"used": "N/A", "total": "N/A", "percent": None, "free": "N/A"}
+
+    disk = psutil.disk_usage(RECORDING_DIR)
+    return {
+        "used": format_size(disk.used),
+        "total": format_size(disk.total),
+        "percent": disk.percent,
+        "free": format_size(disk.free),
+    }
+
+
 @router.get("")
 async def recordings_page(
     request: Request,
@@ -70,16 +90,7 @@ async def recordings_page(
             rec["thumb_url"] = "/static/images/video-placeholder.png"
         rec["formatted_size"] = format_size(rec.get("file_size_bytes", 0))
 
-    try:
-        disk = psutil.disk_usage(RECORDING_DIR)
-        ctx["storage"] = {
-            "used": format_size(disk.used),
-            "total": format_size(disk.total),
-            "percent": disk.percent,
-            "free": format_size(disk.free)
-        }
-    except OSError:
-        ctx["storage"] = {"used": "N/A", "total": "N/A", "percent": 0, "free": "N/A"}
+    ctx["storage"] = get_storage_info()
 
     ctx["recordings"] = recordings
     ctx["page"] = page
@@ -98,12 +109,20 @@ async def recordings_page(
 async def delete_recording(recording_id: int, user: dict = Depends(require_menu("recordings"))):
     rec = db.select("video_recordings", conditions={"id": recording_id}, fetchall=False)
     if not rec:
-        return {"success": False, "message": "Record not found"}
+        return JSONResponse(
+            {"ok": False, "success": False, "message": "Không tìm thấy bản ghi."},
+            status_code=404,
+        )
 
     for key in ("file_path", "thumbnail_path"):
         path = rec[key]
         if path and os.path.exists(path):
             os.remove(path)
 
-    db.delete("video_recordings", {"id": recording_id})
-    return {"success": True}
+    if not db.delete("video_recordings", {"id": recording_id}):
+        return JSONResponse(
+            {"ok": False, "success": False, "message": "Không tìm thấy bản ghi."},
+            status_code=404,
+        )
+
+    return {"ok": True, "success": True}

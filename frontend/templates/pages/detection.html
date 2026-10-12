@@ -913,8 +913,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       if (data.error) {
         resultsDiv.innerHTML = `<div class="cam-event-card text-danger" style="border-color:#fecaca;">
           <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
-          <span>${data.error}</span>
+          <span class="result-error-text"></span>
         </div>`;
+        resultsDiv.querySelector('.result-error-text').textContent = data.error;
         return;
       }
 
@@ -1014,14 +1015,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       const fd = new FormData();
       fd.append('file', blob, 'frame.jpg');
       fd.append('source', source);
-
-      try {
-        const resp = await fetch('/admin/detection/api/detect', { method: 'POST', body: fd });
-        if (!resp.ok) return { error: 'Server error ' + resp.status, results: [] };
-        return await resp.json();
-      } catch (err) {
-        return { error: 'Lỗi mạng: ' + err.message, results: [] };
-      }
+      const result = await apiRequest('/admin/detection/api/detect', { method: 'POST', body: fd });
+      return result.ok ? result : { error: result.message, results: [] };
     }
 
     window.stopWebcam = function () {
@@ -1050,16 +1045,15 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         audio: false
       };
 
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
+      const camera = await cameraRequest(constraints);
+      if (!camera.ok) {
         stream = null;
         placeholder.classList.remove('d-none');
         video.classList.add('d-none');
-        const msg = (err && err.name === 'NotAllowedError') ? 'Bạn đã từ chối quyền mở camera.' : ('Không thể mở webcam: ' + (err && err.message || err));
-        if (window.toastr) toastr.error(msg); else alert(msg);
+        if (window.toastr) toastr.error(camera.message); else alert(camera.message);
         return;
       }
+      stream = camera.stream;
 
       video.srcObject = stream;
       video.classList.remove('d-none');
@@ -1084,6 +1078,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           const data = await sendFrame(blob, 'webcam');
           isProcessing = false;
           if (!webcamInterval) return;
+          if (data.error) {
+            renderResults(data);
+            window.stopWebcam();
+            return;
+          }
           lastResults = data?.results || [];
           renderResults(data);
         }, 'image/jpeg', 0.75);
@@ -1133,6 +1132,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         const data = await sendFrame(blob, 'rtsp');
         rtspProcessing = false;
         if (!rtspActive) return;
+        if (data.error) {
+          renderResults(data);
+          window.toggleRtsp();
+          return;
+        }
         rtspLastResults = data?.results || [];
         renderResults(data);
       }, 'image/jpeg', 0.70);
@@ -1218,9 +1222,16 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
     if (btnDevice) {
       btnDevice.addEventListener('click', async () => {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const vd = devices.filter(d => d.kind === 'videoinput');
-        if (!vd.length) return;
+        const result = await cameraDevicesRequest();
+        if (!result.ok) {
+          if (window.toastr) toastr.error(result.message); else alert(result.message);
+          return;
+        }
+        const vd = result.devices;
+        if (!vd.length) {
+          if (window.toastr) toastr.warning('Không tìm thấy camera.');
+          return;
+        }
         const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Camera ' + (i + 1)}`).join('\n');
         const choice = prompt('Chọn camera:\n' + names, '1');
         if (choice) {

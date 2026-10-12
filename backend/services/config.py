@@ -29,7 +29,7 @@ def setup_logging(log_filename: str = "app.log", level: int = None):
     os.makedirs(LOG_DIR, exist_ok=True)
     log_file_path = os.path.abspath(os.path.join(LOG_DIR, log_filename))
 
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s:%(lineno)d: %(message)s")
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
 

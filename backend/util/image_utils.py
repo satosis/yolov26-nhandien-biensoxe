@@ -1,35 +1,92 @@
+from collections.abc import Sequence
+import logging
 import os
+import re
+import sys
 import time
+import uuid
+
 import cv2
+
 from backend.services import config as cfg
 
+logger = logging.getLogger(__name__)
+
+
+def _snapshot_token(value: str, label: str, *, default: str | None = None) -> str:
+    if not isinstance(value, str):
+        logger.error("Invalid snapshot filename component: %s must be text", label)
+        raise ValueError(f"{label} must be text")
+    token = re.sub(r"[^A-Za-z0-9_-]+", "_", value).strip("_")[:80]
+    if token:
+        return token
+    if default is not None:
+        return default
+    logger.error("Invalid snapshot filename component: %s is empty", label)
+    raise ValueError(f"{label} is empty")
+
+
+def _snapshot_path(prefix: str) -> str:
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    return os.path.join(cfg.SNAPSHOT_DIR, f"{prefix}_{timestamp}_{uuid.uuid4().hex}.jpg")
+
+
+def _ensure_snapshot_directory() -> None:
+    created = False
+    try:
+        os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
+        created = True
+    finally:
+        if not created:
+            error = sys.exc_info()[1]
+            logger.error(
+                "Snapshot directory creation raised %s (errno=%s, directory=%s)",
+                type(error).__name__, getattr(error, "errno", None), cfg.SNAPSHOT_DIR,
+            )
+
+
+def _write_snapshot(path: str, image, kind: str, failure_message: str) -> None:
+    returned = False
+    try:
+        written = cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, 96])
+        returned = True
+    finally:
+        if not returned:
+            error = sys.exc_info()[1]
+            error_code = getattr(error, "code", None)
+            if error_code is None:
+                error_code = getattr(error, "errno", None)
+            logger.error(
+                "%s snapshot write raised %s (code=%s, directory=%s)",
+                kind, type(error).__name__, error_code, cfg.SNAPSHOT_DIR,
+            )
+    if not written:
+        logger.error("%s snapshot write returned False (directory=%s)", kind, cfg.SNAPSHOT_DIR)
+        raise OSError(failure_message)
+
 def save_snapshot(frame, cam_id: str, plate_text: str) -> str:
-    os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    safe_plate = plate_text.replace("/", "_").replace("\\", "_") or "unknown"
-    path = os.path.join(cfg.SNAPSHOT_DIR, f"{cam_id}_{safe_plate}_{ts}.jpg")
-    cv2.imwrite(path, frame, [cv2.IMWRITE_JPEG_QUALITY, 96])
+    _ensure_snapshot_directory()
+    camera = _snapshot_token(cam_id, "Camera ID")
+    plate = _snapshot_token(plate_text, "Plate text", default="unknown")
+    path = _snapshot_path(f"{camera}_{plate}")
+    _write_snapshot(path, frame, "Plate", "Could not save snapshot image")
     return path
 
-def save_face_snapshot(frame, cam_id: str, bbox: tuple = None) -> str:
-    os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"face_{cam_id}_{ts}.jpg"
-    path = os.path.join(cfg.SNAPSHOT_DIR, filename)
+def save_face_snapshot(frame, cam_id: str, bbox: Sequence[int]) -> str:
+    """Persist a padded crop of the canonical frame-bounded face box."""
+    x1, y1, x2, y2 = bbox
+    fh, fw = frame.shape[:2]
+    pad_x = (x2 - x1) // 2
+    pad_y = (y2 - y1) // 2
+    left = max(0, x1 - pad_x)
+    top = max(0, y1 - pad_y)
+    right = min(fw, x2 + pad_x)
+    bottom = min(fh, y2 + pad_y)
 
-    img_to_save = frame
-    if bbox:
-        x, y, w, h = [int(v) for v in bbox]
-        fh, fw = frame.shape[:2]
-        pad_x = int(w * 0.5)
-        pad_y = int(h * 0.5)
-        x1 = max(0, x - pad_x)
-        y1 = max(0, y - pad_y)
-        x2 = min(fw, x + w + pad_x)
-        y2 = min(fh, y + h + pad_y)
-        crop = frame[y1:y2, x1:x2]
-        if crop.size > 0:
-            img_to_save = crop
-
-    cv2.imwrite(path, img_to_save, [cv2.IMWRITE_JPEG_QUALITY, 96])
+    _ensure_snapshot_directory()
+    camera = _snapshot_token(cam_id, "Camera ID")
+    path = _snapshot_path(f"face_{camera}")
+    _write_snapshot(
+        path, frame[top:bottom, left:right], "Face", "Could not save face snapshot image"
+    )
     return path

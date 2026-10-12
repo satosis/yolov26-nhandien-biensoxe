@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import queue
 import cv2
 from collections import deque
 from multiprocessing import Queue, Event
@@ -41,38 +40,48 @@ class RecorderProcess:
         writer = cv2.VideoWriter(path, fourcc, cfg.GRAB_FPS_CAP, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT))
 
         if not writer.isOpened():
-            logger.error("Failed to open VideoWriter for path: %s", path)
-            return
+            writer.release()
+            logger.error("Recorder could not open event recording for camera %s", cam_id)
+            raise OSError(f"Could not open event recording: {path}")
 
         buf = self._get_buffer(cam_id)
         frames_written = 0
         thumbnail_path = None
-
-        for i, blob in enumerate(buf):
-            frame = cv2.imdecode(blob, cv2.IMREAD_COLOR)
-            if frame is not None:
+        recording_started = False
+        try:
+            for i, blob in enumerate(buf):
+                frame = cv2.imdecode(blob, cv2.IMREAD_COLOR)
+                if frame is None:
+                    logger.error("Recorder prebuffer frame %d could not be decoded for camera %s", i, cam_id)
+                    raise ValueError(f"Recorder prebuffer frame could not be decoded for camera {cam_id}")
                 writer.write(frame)
                 frames_written += 1
                 if i == len(buf) // 2:
                     thumb_name = f"thumb_{event_type}_{cam_id}_{timestamp_str}.jpg"
                     t_path = os.path.join(cfg.RECORDING_DIR, thumb_name)
-                    cv2.imwrite(t_path, cv2.resize(frame, (320, 180)))
+                    if not cv2.imwrite(t_path, cv2.resize(frame, (320, 180))):
+                        logger.error("Recorder thumbnail write failed for camera %s", cam_id)
+                        raise OSError(f"Could not save event thumbnail: {t_path}")
                     thumbnail_path = t_path
 
-        now = time.time()
-        self.active_recordings[cam_id] = {
-            'writer': writer,
-            'start_time': now,
-            'deadline_ts': now + EVENT_TAIL_SEC,
-            'hard_deadline_ts': now + MAX_RECORD_SEC,
-            'frames_written': frames_written,
-            'event_text': event_text,
-            'event_type': event_type,
-            'event_types': {event_type},
-            'site_id': site_id,
-            'path': path,
-            'thumbnail_path': thumbnail_path
-        }
+            now = time.time()
+            self.active_recordings[cam_id] = {
+                'writer': writer,
+                'start_time': now,
+                'deadline_ts': now + EVENT_TAIL_SEC,
+                'hard_deadline_ts': now + MAX_RECORD_SEC,
+                'frames_written': frames_written,
+                'event_text': event_text,
+                'event_type': event_type,
+                'event_types': {event_type},
+                'site_id': site_id,
+                'path': path,
+                'thumbnail_path': thumbnail_path
+            }
+            recording_started = True
+        finally:
+            if not recording_started:
+                writer.release()
         logger.info("Started event recording for %s (event: %s) -> %s", cam_id, event_text, path)
 
     def _extend_recording(self, cam_id: str, event_text: str, event_type: str):
@@ -94,7 +103,7 @@ class RecorderProcess:
 
         event_type = rec['event_type'] if len(rec['event_types']) == 1 else '+'.join(sorted(rec['event_types']))
 
-        db.insert("video_recordings", {
+        recording_id = db.insert("video_recordings", {
             "cam_id": str(cam_id),
             "site_id": rec['site_id'],
             "event_type": event_type,
@@ -104,30 +113,28 @@ class RecorderProcess:
             "duration_seconds": int(duration),
             "file_size_bytes": file_size
         }, returning="id")
+        if isinstance(recording_id, bool) or not isinstance(recording_id, int) or recording_id <= 0:
+            logger.error("Recorder metadata insert returned no ID for camera %s", cam_id)
+            raise RuntimeError("Recording metadata insert did not return a valid ID")
 
         logger.info("Finished recording for %s. Frames: %d, Duration: %.1fs, Events: %s",
                      cam_id, rec['frames_written'], duration, rec['event_types'])
 
         if rec['event_types'] & {'stranger', 'plate'}:
             caption = f"Sự kiện: {rec['event_text']}\nCamera: {cam_id}\nThời lượng: {duration:.1f}s"
-            try:
-                notify_telegram_video(rec['path'], caption, important=True)
-            except Exception as tel_err:
-                logger.error("Failed to send Telegram video: %s", tel_err)
+            notify_telegram_video(rec['path'], caption, important=True)
 
     def run(self):
         logger.info("Recorder process started (event-based, tail=%ds, max=%ds)",
                      EVENT_TAIL_SEC, MAX_RECORD_SEC)
 
         while not self.stop_event.is_set():
-            while True:
-                try:
-                    trigger = self.control_queue.get_nowait()
-                except queue.Empty:
-                    break
+            while self.control_queue._reader.poll():
+                trigger = self.control_queue.get()
                 cam_id = trigger.get("cam_id")
                 if not cam_id:
-                    continue
+                    logger.error("Recorder control event is missing cam_id")
+                    raise ValueError("Recording event is missing cam_id")
                 event_text = trigger.get("plate_text") or trigger.get("event_text") or "Event"
                 event_type = trigger.get("event_type", "plate")
                 site_id = trigger.get("site_id")
@@ -137,11 +144,14 @@ class RecorderProcess:
                 else:
                     self._start_recording(cam_id, event_text, event_type, site_id)
 
-            try:
-                item = self.record_queue.get(timeout=0.05)
+            if self.record_queue._reader.poll(0.05):
+                item = self.record_queue.get()
                 cam_id, frame = item["cam_id"], item["frame"]
 
-                _, blob = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                encoded, blob = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if not encoded:
+                    logger.error("Recorder JPEG encoding failed for camera %s", cam_id)
+                    raise RuntimeError(f"Could not encode recording frame for camera {cam_id}")
                 self._get_buffer(cam_id).append(blob)
 
                 if cam_id in self.active_recordings:
@@ -153,7 +163,7 @@ class RecorderProcess:
                     else:
                         self._finish_recording(cam_id)
 
-            except queue.Empty:
+            else:
                 now = time.time()
                 expired = [cid for cid, r in self.active_recordings.items()
                            if now > r['deadline_ts'] or now > r['hard_deadline_ts']]

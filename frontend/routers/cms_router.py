@@ -93,11 +93,12 @@ async def add_project(
     image: str = Form("/static/brain/wh_real1.jpg"),
     user=Depends(get_current_user)
 ):
-    db._execute_query(
+    saved = db._execute_query(
         "INSERT INTO projects (name, location, area, height, bays, load_capacity, image) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         (name, location, area, height, bays, load_capacity, image), commit=True
     )
-
+    if not saved:
+        return HTMLResponse("Không thể lưu dự án.", status_code=500)
     return RedirectResponse(url="/admin/cms", status_code=303)
 
 
@@ -112,7 +113,7 @@ async def news_new_page(request: Request, user=Depends(get_current_user)):
 async def news_edit_page(news_id: int, request: Request, user=Depends(get_current_user)):
     item = db._execute_query("SELECT * FROM news WHERE id=%s", (news_id,), fetch=True)
     if not item:
-        return RedirectResponse("/admin/cms")
+        return HTMLResponse("Không tìm thấy tin tức.", status_code=404)
     ctx = get_menu_context(request, user)
     return templates.TemplateResponse("pages/cms_news_edit.html", {
         "request": request, "user": user, "item": item, "current_menu": "cms", **ctx
@@ -132,25 +133,34 @@ async def news_save(
 ):
     published = is_published == "true"
     if news_id:
-        db._execute_query(
+        if not news_id.isascii() or not news_id.isdecimal() or len(news_id) > 10:
+            return HTMLResponse("ID tin tức không hợp lệ.", status_code=422)
+        news_id_value = int(news_id)
+        if not 0 < news_id_value <= 2147483647:
+            return HTMLResponse("ID tin tức không hợp lệ.", status_code=422)
+        saved = db._execute_query(
             "UPDATE news SET title=%s, category=%s, summary=%s, content=%s, image=%s, is_published=%s WHERE id=%s",
-            (title, category, summary, content, image, published, int(news_id)), commit=True
+            (title, category, summary, content, image, published, news_id_value), commit=True
         )
     else:
-        db._execute_query(
+        saved = db._execute_query(
             "INSERT INTO news (title, category, summary, content, image, is_published) VALUES (%s, %s, %s, %s, %s, %s)",
             (title, category, summary, content, image, published), commit=True
         )
+    if not saved:
+        return HTMLResponse("Không tìm thấy hoặc không thể lưu tin tức.", status_code=404 if news_id else 500)
     return RedirectResponse(url="/admin/cms", status_code=303)
 
 @router.delete("/projects/{project_id}", response_class=HTMLResponse)
 async def delete_project(project_id: int, user=Depends(get_current_user)):
-    db.delete("projects", {"id": project_id})
+    if not db.delete("projects", {"id": project_id}):
+        return HTMLResponse("Không tìm thấy dự án.", status_code=404)
     return HTMLResponse(content="")
 
 @router.delete("/news/{news_id}", response_class=HTMLResponse)
 async def delete_news(news_id: int, user=Depends(get_current_user)):
-    db.delete("news", {"id": news_id})
+    if not db.delete("news", {"id": news_id}):
+        return HTMLResponse("Không tìm thấy tin tức.", status_code=404)
     return HTMLResponse(content="")
 
 @router.post("/projects/update/{project_id}", response_class=HTMLResponse)
@@ -166,10 +176,11 @@ async def update_project(
     image: str = Form("/static/brain/wh_real1.jpg"),
     user=Depends(get_current_user)
 ):
-    db._execute_query(
+    if not db._execute_query(
         "UPDATE projects SET name=%s, location=%s, area=%s, height=%s, bays=%s, load_capacity=%s, image=%s WHERE id=%s",
         (name, location, area, height, bays, load_capacity, image, project_id), commit=True
-    )
+    ):
+        return HTMLResponse("Không tìm thấy dự án.", status_code=404)
 
     return RedirectResponse(url="/admin/cms", status_code=303)
 
@@ -182,20 +193,20 @@ async def upload_image(
 ):
     import uuid
 
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    if file.content_type not in allowed:
-        return JSONResponse({"error": "Chỉ chấp nhận JPG, PNG, WEBP, GIF"}, status_code=400)
+    extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
+    ext = extensions.get(file.content_type)
+    if ext is None:
+        return JSONResponse({"ok": False, "message": "Chỉ chấp nhận JPG, PNG, WEBP, GIF"}, status_code=400)
 
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
     filename = f"{uuid.uuid4().hex[:12]}.{ext}"
     upload_dir = Path(__file__).parent.parent / "static" / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     dest = upload_dir / filename
 
-    contents = await file.read()
+    contents = await file.read(10 * 1024 * 1024 + 1)
     if len(contents) > 10 * 1024 * 1024:
-        return JSONResponse({"error": "File quá lớn (tối đa 10MB)"}, status_code=400)
+        return JSONResponse({"ok": False, "message": "File quá lớn (tối đa 10MB)"}, status_code=400)
 
     dest.write_bytes(contents)
     url = f"/static/uploads/{filename}"
-    return JSONResponse({"url": url})
+    return JSONResponse({"ok": True, "url": url})

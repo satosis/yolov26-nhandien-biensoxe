@@ -1,8 +1,11 @@
 import time
 import logging
+import json
+import math
 from typing import Dict, List, Tuple, Optional
 
 from backend.ai.tripwire import TripwireTracker
+from backend.iot.door_config import normalize_relay_config, with_tuya_defaults
 from backend.services import config as cfg
 from backend.services.database import db
 from backend.services.settings_service import get_app_setting
@@ -101,77 +104,91 @@ class DoorAutoCloseManager:
         self._last_person_time: Dict[int, float] = {}
         self._empty_since: Dict[int, Optional[float]] = {}
         self._door_closed: Dict[int, bool] = {}
+        self._close_failed: set[int] = set()
         self._doors_config: Dict[int, dict] = {}
         self._camera_to_doors: Dict[int, List[int]] = {}
         self._last_reload = 0.0
         self._reload_interval = 60.0
 
     def reload_config(self):
-        try:
-            doors = db.execute_query("""
-                SELECT rd.id, rd.name, rd.camera_id, rd.auto_close_delay_sec,
-                       rd.relay_type, rd.relay_config, rd.site_id
-                FROM rolling_doors rd
-                WHERE rd.auto_close_enabled = TRUE AND rd.camera_id IS NOT NULL AND rd.is_active = TRUE
-            """, fetchall=True, commit=False)
-            self._doors_config.clear()
-            self._camera_to_doors.clear()
+        doors = db.execute_query("""
+            SELECT rd.id, rd.name, rd.camera_id, rd.auto_close_delay_sec,
+                   rd.relay_type, rd.relay_config, rd.site_id
+            FROM rolling_doors rd
+            WHERE rd.auto_close_enabled = TRUE AND rd.camera_id IS NOT NULL AND rd.is_active = TRUE
+        """, fetchall=True, commit=False)
+        line_ratio = float(get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
+        if not math.isfinite(line_ratio) or not 0 < line_ratio < 1:
+            raise ValueError("DOOR_TRIPWIRE_LINE_RATIO must be between 0 and 1")
+        now = time.monotonic()
+        doors_config = {}
+        camera_to_doors = {}
 
-            for door in doors:
-                door_id = door['id']
-                cam_id = door.get('camera_id')
-                if not cam_id:
-                    continue
+        for door in doors:
+            door_id = int(door['id'])
+            cam_id = int(door['camera_id'])
+            delay_sec = int(door.get('auto_close_delay_sec') or 300)
+            if delay_sec <= 0:
+                raise ValueError(f"Door {door_id} auto-close delay must be positive")
+            relay_config = door.get('relay_config') or {}
+            if isinstance(relay_config, str):
+                relay_config = json.loads(relay_config)
+            relay_type = door.get('relay_type') or 'http'
+            if relay_type == 'tuya_local':
+                relay_config = with_tuya_defaults(relay_type, relay_config, {
+                    'device_id': get_app_setting('TUYA_DEVICE_ID', ''),
+                    'local_key': get_app_setting('TUYA_LOCAL_KEY', ''),
+                    'ip': get_app_setting('TUYA_IP', ''),
+                })
+            relay_config = normalize_relay_config(relay_type, relay_config)
+            doors_config[door_id] = {
+                'name': door['name'],
+                'camera_id': cam_id,
+                'delay_sec': delay_sec,
+                'relay_type': relay_type,
+                'relay_config': relay_config,
+            }
+            camera_to_doors.setdefault(cam_id, []).append(door_id)
 
-                self._doors_config[door_id] = {
-                    'name': door['name'],
-                    'camera_id': cam_id,
-                    'delay_sec': door.get('auto_close_delay_sec', 300),
-                    'relay_type': door.get('relay_type', 'http'),
-                    'relay_config': door.get('relay_config', {}),
-                }
-
-                if cam_id not in self._camera_to_doors:
-                    self._camera_to_doors[cam_id] = []
-                self._camera_to_doors[cam_id].append(door_id)
-
-                if door_id not in self._person_counter:
-                    self._person_counter[door_id] = 0
-                    self._last_person_time[door_id] = time.monotonic()
-                    self._empty_since[door_id] = None
-                    self._door_closed[door_id] = False
-
-                if cam_id not in self._trackers:
-                    self._trackers[cam_id] = CentroidTracker(max_disappeared=15)
-
-            active = set(self._doors_config.keys())
-            for d in (self._person_counter, self._last_person_time,
-                      self._empty_since, self._door_closed):
-                for stale_id in [k for k in d if k not in active]:
-                    d.pop(stale_id, None)
-
-            line_ratio = float(get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
-
-            for cam_id in self._camera_to_doors:
-                if cam_id not in self._tripwires:
-                    self._tripwires[cam_id] = TripwireTracker(
-                        line_y_fn=lambda r=line_ratio: int(cfg.GRAB_HEIGHT * r),
-                        buffer_frames=3,
-                        cooldown_secs=2.0,
-                        stale_secs=30.0,
-                    )
-
-            active_cams = set(self._camera_to_doors.keys())
-            for old_cam in list(self._trackers):
-                if old_cam not in active_cams:
-                    del self._trackers[old_cam]
-                    self._tripwires.pop(old_cam, None)
-
-            self._last_reload = time.monotonic()
-            if self._doors_config:
-                logger.info(f"Auto-close config loaded: {len(self._doors_config)} door(s) on {len(self._camera_to_doors)} camera(s)")
-        except Exception as e:
-            logger.error(f"Failed to reload auto-close config: {e}")
+        trackers = {
+            cam_id: self._trackers.get(cam_id) or CentroidTracker(max_disappeared=15)
+            for cam_id in camera_to_doors
+        }
+        tripwires = {
+            cam_id: self._tripwires.get(cam_id) or TripwireTracker(
+                line_y_fn=lambda r=line_ratio: int(cfg.GRAB_HEIGHT * r),
+                buffer_frames=3,
+                cooldown_secs=2.0,
+                stale_secs=30.0,
+            )
+            for cam_id in camera_to_doors
+        }
+        self._close_failed = {
+            door_id for door_id in self._close_failed
+            if doors_config.get(door_id) == self._doors_config.get(door_id)
+        }
+        self._doors_config = doors_config
+        self._camera_to_doors = camera_to_doors
+        self._trackers = trackers
+        self._tripwires = tripwires
+        self._person_counter = {
+            door_id: self._person_counter.get(door_id, 0) for door_id in doors_config
+        }
+        self._last_person_time = {
+            door_id: self._last_person_time.get(door_id, now) for door_id in doors_config
+        }
+        self._empty_since = {
+            door_id: self._empty_since.get(door_id) for door_id in doors_config
+        }
+        self._door_closed = {
+            door_id: self._door_closed.get(door_id, False) for door_id in doors_config
+        }
+        self._last_reload = now
+        if doors_config:
+            logger.info(
+                "Auto-close config loaded: %d door(s) on %d camera(s)",
+                len(doors_config), len(camera_to_doors),
+            )
 
     def on_frame(self, camera_id, detections: list, frame_height: int):
         now = time.monotonic()
@@ -210,7 +227,7 @@ class DoorAutoCloseManager:
 
         for door_id in door_ids:
             config = self._doors_config.get(door_id)
-            if not config or self._door_closed.get(door_id, False):
+            if not config or self._door_closed.get(door_id, False) or door_id in self._close_failed:
                 continue
 
             counter = self._person_counter.get(door_id, 0)
@@ -235,37 +252,52 @@ class DoorAutoCloseManager:
                         self._close_door(door_id, config)
 
     def _close_door(self, door_id: int, config: dict):
-        try:
-            from backend.iot.door_controller import DoorController
-            controller = DoorController()
-            ok = controller.control_door("CLOSE", config['relay_type'], config['relay_config'])
+        from backend.iot.door_controller import DoorController
+        controller = DoorController()
+        ok = controller.control_door("CLOSE", config['relay_type'], config['relay_config'])
 
-            if ok:
-                logger.info(f"[Auto-close] Cửa '{config['name']}' đã đóng sau {config['delay_sec']}s không có người")
-                self._door_closed[door_id] = True
+        if not ok:
+            # False means the relay command was not sent (usually invalid configuration).
+            # A new configuration or an explicit reset may make one fresh attempt.
+            logger.error("Auto-close relay command was not sent for door %s", door_id)
+            self._close_failed.add(door_id)
+            event_written = db.execute_query("""
+                INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
+                VALUES (%s, %s, %s, %s, NOW())
+            """, (str(door_id), 'auto_close_failed', 'auto_close_failed',
+                  'Relay command was not sent; check door configuration'), commit=True)
 
-                try:
-                    from backend.services.telegram_service import notify_telegram
-                    notify_telegram(
-                        f"🚪 Cửa '{config['name']}' đã tự đóng sau {config['delay_sec'] // 60} phút không có người.",
-                        important=False,
-                    )
-                except Exception as e:
-                    logger.debug(f"Telegram notify failed: {e}")
+            from backend.services.telegram_service import notify_telegram
+            notify_telegram(
+                f"🚨 Cửa '{config['name']}' chưa thể tự đóng. Vui lòng kiểm tra cấu hình relay.",
+                important=True,
+            )
+            if not event_written:
+                logger.error("Auto-close failure event was not stored for door %s", door_id)
+                raise RuntimeError(f"Auto-close failure event for door {door_id} was not stored")
+            return
 
-                try:
-                    db.execute_query("""
-                        INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
-                        VALUES (%s, %s, %s, %s, NOW())
-                    """, (str(door_id), 'auto_closed', 'auto_closed', f"No person for {config['delay_sec']}s"), commit=True)
-                except Exception as e:
-                    logger.debug(f"Door event log failed: {e}")
-        except Exception as e:
-            logger.error(f"[Auto-close] Error closing door {door_id}: {e}")
+        logger.info(f"[Auto-close] Cửa '{config['name']}' đã đóng sau {config['delay_sec']}s không có người")
+        self._door_closed[door_id] = True
+
+        event_written = db.execute_query("""
+            INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
+            VALUES (%s, %s, %s, %s, NOW())
+        """, (str(door_id), 'auto_closed', 'auto_closed', f"No person for {config['delay_sec']}s"), commit=True)
+
+        from backend.services.telegram_service import notify_telegram
+        notify_telegram(
+            f"🚪 Cửa '{config['name']}' đã tự đóng sau {config['delay_sec'] // 60} phút không có người.",
+            important=False,
+        )
+        if not event_written:
+            logger.error("Auto-close event was not stored for door %s", door_id)
+            raise RuntimeError(f"Auto-close event for door {door_id} was not stored")
 
     def reset_door(self, door_id: int):
         self._person_counter[door_id] = 0
         self._empty_since[door_id] = None
         self._door_closed[door_id] = False
+        self._close_failed.discard(door_id)
         self._last_person_time[door_id] = time.monotonic()
         logger.info(f"[Door {door_id}] State reset — ready for auto-close")

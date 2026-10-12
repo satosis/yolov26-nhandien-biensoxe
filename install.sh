@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 PROJECT_ROOT=$(pwd)
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
@@ -14,14 +15,21 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 echo "📦 Installing/Updating dependencies..."
-python3 -m pip install --upgrade pip > /dev/null 2>&1
-python3 -m pip install -r backend/requirements.txt > /dev/null 2>&1
-python3 -m pip install watchdog > /dev/null 2>&1
-python3 -m pip install onnxruntime-silicon 2>/dev/null || python3 -m pip install onnxruntime > /dev/null 2>&1
+python3 -m pip install --upgrade pip
+python3 -m pip install -r backend/requirements.txt
+python3 -m pip install watchdog
+if ! python3 -m pip install onnxruntime-silicon; then
+    echo "onnxruntime-silicon is unavailable; installing onnxruntime instead."
+    python3 -m pip install onnxruntime
+fi
 
 echo "🧹 Cleaning up old processes..."
-pkill -f "uvicorn" || true
-pkill -f "python3 backend/main.py" || true
+if pgrep -f "uvicorn" > /dev/null; then
+    pkill -f "uvicorn"
+fi
+if pgrep -f "python3 backend/main.py" > /dev/null; then
+    pkill -f "python3 backend/main.py"
+fi
 sleep 1
 
 export PYTHONPATH=$PYTHONPATH:$PROJECT_ROOT
@@ -30,7 +38,9 @@ echo "🚀 Starting Java-style Hot Reload..."
 function cleanup_all() {
     echo ""
     echo "🛑 Stopping Project..."
-    pkill -P $$
+    if pgrep -P $$ > /dev/null; then
+        pkill -P $$
+    fi
     exit
 }
 trap cleanup_all SIGINT SIGTERM

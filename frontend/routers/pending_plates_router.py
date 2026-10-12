@@ -1,8 +1,10 @@
 import logging
 import re
-from fastapi import APIRouter, Request, Depends, Form, Response, Body
+from fastapi import APIRouter, Request, Depends, Form, Response
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, StringConstraints
 from starlette.responses import RedirectResponse
-from typing import List, Optional
+from typing import Annotated, Optional
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.config import normalize_plate
@@ -11,6 +13,11 @@ from frontend.routers.vehicles_router import upsert_vehicle_whitelist
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pending_plates")
+
+
+class BulkRejectInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] = Field(min_length=1)
 
 
 def get_pending_plates(site_id=None) -> list[dict]:
@@ -25,39 +32,52 @@ def get_pending_plates(site_id=None) -> list[dict]:
 
 def get_pending_plate_by_id(pending_id: str) -> dict | None:
     return db.execute_query(
-        "SELECT pending_id, plate_raw, plate_norm, image_path, plate_type, site_id, first_seen_utc FROM pending_plates WHERE pending_id = %s",
+        "SELECT pending_id, plate_raw, plate_norm, image_path, plate_type, site_id, first_seen_utc "
+        "FROM pending_plates WHERE pending_id = %s AND LOWER(TRIM(status)) = 'pending'",
         (pending_id,),
         fetch=True
     )
 
 
 def delete_pending_plate_by_id(pending_id: str) -> bool:
-    row = db.execute_query(
-        "SELECT plate_norm, image_path FROM pending_plates WHERE pending_id = %s",
-        (pending_id,),
-        fetch=True
+    result = db.execute_query(
+        """WITH deleted_plates AS (
+               DELETE FROM pending_plates AS plate
+               USING pending_plates AS target
+               WHERE target.pending_id = %s
+                 AND LOWER(TRIM(target.status)) = 'pending'
+                 AND LOWER(TRIM(plate.status)) = 'pending'
+                 AND (
+                     plate.pending_id = target.pending_id
+                     OR (
+                         target.plate_norm IS NOT NULL
+                         AND target.plate_norm <> ''
+                         AND UPPER(regexp_replace(plate.plate_norm, '[^a-zA-Z0-9]', '', 'g')) =
+                             UPPER(regexp_replace(target.plate_norm, '[^a-zA-Z0-9]', '', 'g'))
+                     )
+                 )
+               RETURNING plate.pending_id, plate.image_path
+           ), deleted_logs AS (
+               DELETE FROM stranger_logs
+               WHERE image_path IN (
+                   SELECT image_path FROM deleted_plates
+                   WHERE pending_id = %s AND image_path IS NOT NULL
+               )
+               RETURNING id
+           )
+           SELECT EXISTS(
+               SELECT 1 FROM deleted_plates WHERE pending_id = %s
+           ) AS deleted""",
+        (pending_id, pending_id, pending_id), fetch=True, commit=True,
     )
-    if not row:
-        return False
-    plate_norm = row.get("plate_norm")
-    img_path = row.get("image_path")
-    if plate_norm:
-        clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
-        db.execute_query("""
-            DELETE FROM pending_plates 
-            WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s 
-            AND LOWER(TRIM(status)) = 'pending'
-        """, (clean_plate,), commit=True)
-    if img_path:
-        db.execute_query("DELETE FROM stranger_logs WHERE image_path = %s", (img_path,), commit=True)
-    return True
+    return bool(result["deleted"])
 
 
 @router.get("/{pending_id}/register")
 async def register_page(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
     plate = get_pending_plate_by_id(pending_id)
     if not plate:
-        return RedirectResponse("/admin/pending_plates", status_code=303)
+        return HTMLResponse("Không tìm thấy biển số chờ duyệt.", status_code=404)
 
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "pending_plates"
@@ -72,21 +92,28 @@ async def register_plate(
     request: Request,
     plate_number: str = Form(...),
     owner_name: Optional[str] = Form(None),
-    site_ids: List[str] = Form(default=[]),
+    site_ids: list[PositiveInt] = Form(default=[]),
     note: Optional[str] = Form(None),
     user: dict = Depends(require_menu("pending_plates")),
 ):
+    if not get_pending_plate_by_id(pending_id):
+        return HTMLResponse("Không tìm thấy biển số chờ duyệt.", status_code=404)
+    plate_norm = normalize_plate(plate_number)
+    if not re.fullmatch(r"[A-Z0-9]+", plate_norm):
+        return HTMLResponse("Biển số không hợp lệ.", status_code=422)
     username = user.get("username", "admin")
-    site_ids_int = [int(s) for s in site_ids if s and s.strip()]
-    upsert_vehicle_whitelist(
-        plate_norm=normalize_plate(plate_number),
+    if not upsert_vehicle_whitelist(
+        plate_norm=plate_norm,
         label=owner_name,
         added_by=username,
-        site_ids=site_ids_int,
+        site_ids=site_ids,
         note=note,
-    )
+    ):
+        logger.error("Could not register pending plate in whitelist")
+        return HTMLResponse("Không thể đăng ký biển số.", status_code=500)
     
-    delete_pending_plate_by_id(pending_id)
+    if not delete_pending_plate_by_id(pending_id):
+        return HTMLResponse("Không tìm thấy biển số chờ duyệt.", status_code=404)
     return RedirectResponse("/admin/pending_plates", status_code=303)
 
 
@@ -101,20 +128,31 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
 
 
 @router.post("/bulk-reject")
-async def bulk_reject_plates(payload: dict = Body(...), user: dict = Depends(require_menu("pending_plates"))):
-    ids = [str(i) for i in payload.get("ids", [])]
-    for pid in ids:
-        delete_pending_plate_by_id(pid)
-    logger.info(f"Bulk rejected {len(ids)} pending plates")
-    return {"ok": True, "count": len(ids)}
+async def bulk_reject_plates(payload: BulkRejectInput, user: dict = Depends(require_menu("pending_plates"))):
+    deleted = 0
+    missing = []
+    for pending_id in dict.fromkeys(payload.ids):
+        if delete_pending_plate_by_id(pending_id):
+            deleted += 1
+        else:
+            missing.append(pending_id)
+    if deleted:
+        logger.info("Bulk rejected %s pending plates", deleted)
+    if missing:
+        return JSONResponse(
+            {"ok": False, "message": "Một số biển số không tồn tại.", "count": deleted, "missing": missing},
+            status_code=404,
+        )
+    return {"ok": True, "count": deleted}
 
 
 @router.post("/{pending_id}/approve")
 @router.post("/{pending_id}/reject")
 async def resolve_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
-    logger.info("Resolving pending plate %s by %s", pending_id, user.get("username", "admin"))
-    delete_pending_plate_by_id(pending_id)
-    
+    if not delete_pending_plate_by_id(pending_id):
+        return HTMLResponse("Không tìm thấy biển số chờ duyệt.", status_code=404)
+    logger.info("Resolved pending plate %s by %s", pending_id, user.get("username", "admin"))
+
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):
         return Response("", status_code=200)
     return RedirectResponse("/admin/pending_plates", status_code=303)

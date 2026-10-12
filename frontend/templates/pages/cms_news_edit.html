@@ -5,7 +5,7 @@
 <script>
   document.addEventListener('alpine:init', () => {
     Alpine.data('newsEditor', () => ({
-      imageUrl: '{{ item.image if item else "" }}',
+      imageUrl: {{ (item.image if item else "") | tojson }},
       isPublished: {{ 'true' if item and item.is_published else 'false' }},
       uploading: false,
       uploadError: '',
@@ -16,12 +16,9 @@
         this.uploadError = '';
         const fd = new FormData();
         fd.append('file', file);
-        try {
-          const r = await fetch('/admin/cms/upload-image', { method: 'POST', body: fd });
-          const data = await r.json();
-          if (data.url) { this.imageUrl = data.url; }
-          else { this.uploadError = data.error || 'Lỗi tải ảnh'; }
-        } catch { this.uploadError = 'Lỗi kết nối'; }
+        const data = await apiRequest('/admin/cms/upload-image', { method: 'POST', body: fd });
+        if (data.ok && data.url) { this.imageUrl = data.url; }
+        else { this.uploadError = data.message || 'Lỗi tải ảnh'; }
         this.uploading = false;
       }
     }));
@@ -121,6 +118,7 @@
       </div>
       <div class="card-body p-0">
         <textarea name="content" id="editor">{{ item.content if item else '' }}</textarea>
+        <p id="editor-status" class="text-danger small px-3 pt-2 d-none" role="alert"></p>
       </div>
     </div>
 
@@ -160,7 +158,16 @@
 
 <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
 <script>
-  ClassicEditor.create(document.querySelector('#editor'), {
+  function showEditorFailure(code) {
+    console.error('CKEditor init failed:', code);
+    const status = document.getElementById('editor-status');
+    status.textContent = 'Không tải được trình soạn thảo. Bạn vẫn có thể nhập nội dung vào ô văn bản.';
+    status.classList.remove('d-none');
+  }
+  if (!window.ClassicEditor) {
+    showEditorFailure('ScriptUnavailable');
+  } else {
+    ClassicEditor.create(document.querySelector('#editor'), {
     toolbar: [
       'heading', '|',
       'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
@@ -169,9 +176,8 @@
       'undo', 'redo'
     ],
     language: 'vi'
-  }).catch(function(err) {
-    console.error('CKEditor init error:', err);
-  });
+    }).then(null, (error) => showEditorFailure(error && error.name || 'UnknownError'));
+  }
 </script>
 
 

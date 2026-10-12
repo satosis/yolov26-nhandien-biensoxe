@@ -15,11 +15,7 @@ def get_system_stats():
     }
 
 def log_system_health():
-    try:
-        stats = get_system_stats()
-    except (OSError, psutil.Error) as exc:
-        logger.warning("System health unavailable: %s", exc)
-        return
+    stats = get_system_stats()
     logger.info(
         f"System Health: CPU {stats['cpu_percent']}% | "
         f"MEM {stats['memory_percent']}% | "

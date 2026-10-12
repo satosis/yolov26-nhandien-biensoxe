@@ -1,15 +1,18 @@
 import base64
+import calendar
+from html import escape
 import json
 import math
 import httpx
 import logging
+import re
 import secrets
 import time
 import urllib.parse
 from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, Query, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from frontend.deps import get_menu_context, require_menu, templates
@@ -25,6 +28,20 @@ SCAN_REVIEW_TTL = 30 * 60
 SCAN_REVIEW_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_scan_reviews"
 OCR_SAMPLE_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_ocr_samples"
 _SCAN_REVIEWS: dict[str, dict] = {}
+_TRIP_DATE_RE = re.compile(
+    r"(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})"
+    r"(?:[T ](?P<hour>\d{2}):(?P<minute>\d{2})"
+    r"(?::(?P<second>\d{2})(?:\.(?P<fraction>\d{1,6}))?)?)?",
+    re.ASCII,
+)
+_TRIP_NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?(?:[eE][+-]?\d{1,3})?", re.ASCII)
+_SOURCE_NUMBER_RE = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d{1,3})?", re.ASCII)
+_TRIP_NUMBER_LABELS = {
+    "fuel_liters": "Số lít dầu",
+    "fuel_price_per_liter": "Giá dầu",
+    "freight_revenue": "Cước vận chuyển",
+    "distance_km": "Quãng đường",
+}
 
 
 def _scan_review_path(token: str) -> Path:
@@ -89,7 +106,7 @@ def add_cargo_trip(vehicle_id: int, plate_number: str, departure_time,
         VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
     """
-    return db._execute_query(
+    trip_id = db._execute_query(
         query,
         (vehicle_id, plate_number, departure_time, return_time,
          origin, destination,
@@ -97,31 +114,22 @@ def add_cargo_trip(vehicle_id: int, plate_number: str, departure_time,
          freight_revenue, distance_km),
         commit=True, return_id=True
     )
+    if trip_id is None:
+        logger.error("Cargo trip insert returned no ID for vehicle %s", vehicle_id)
+    return trip_id
 
 
-def update_cargo_trip(trip_id: int, departure_time=None, return_time=None,
-                      origin=None, destination=None,
-                      fuel_liters=None, fuel_price_per_liter=None,
-                      freight_revenue=None, distance_km=None) -> bool:
-    fields, params = [], []
-    for col, val in [
-        ("departure_time", departure_time), ("return_time", return_time),
-        ("origin", origin), ("destination", destination),
-        ("fuel_liters", fuel_liters),
-        ("fuel_price_per_liter", fuel_price_per_liter),
-        ("freight_revenue", freight_revenue),
-        ("distance_km", distance_km),
-    ]:
-        if val is not None:
-            fields.append(f"{col} = %s")
-            params.append(val)
-    if not fields:
-        return False
-    fields.append("updated_at = NOW()")
-    params.append(trip_id)
+def update_cargo_trip(trip_id: int, *, departure_time, return_time, origin,
+                      destination, fuel_liters, fuel_price_per_liter,
+                      freight_revenue, distance_km) -> bool:
     return db._execute_query(
-        f"UPDATE cargo_trips SET {', '.join(fields)} WHERE id = %s",
-        tuple(params), commit=True
+        """UPDATE cargo_trips SET departure_time = %s, return_time = %s,
+           origin = %s, destination = %s, fuel_liters = %s,
+           fuel_price_per_liter = %s, freight_revenue = %s,
+           distance_km = %s, updated_at = NOW() WHERE id = %s""",
+        (departure_time, return_time, origin, destination, fuel_liters,
+         fuel_price_per_liter, freight_revenue, distance_km, trip_id),
+        commit=True,
     )
 
 
@@ -131,6 +139,30 @@ def get_cargo_trip(trip_id: int) -> dict | None:
 
 def delete_cargo_trip(trip_id: int) -> bool:
     return db.delete("cargo_trips", {"id": trip_id})
+
+
+def add_reviewed_cargo_trips(vehicle_id: int, plate_number: str, trips: list[dict]) -> bool:
+    if not trips:
+        return True
+    columns = (
+        "vehicle_id", "plate_number", "departure_time", "return_time", "origin",
+        "destination", "fuel_liters", "fuel_price_per_liter", "freight_revenue", "distance_km",
+    )
+    placeholders = ", ".join(["(" + ", ".join(["%s"] * len(columns)) + ")"] * len(trips))
+    values = tuple(
+        value
+        for trip in trips
+        for value in (vehicle_id, plate_number, *(trip[column] for column in columns[2:]))
+    )
+    query = "INSERT INTO cargo_trips (" + ", ".join(columns) + ") VALUES " + placeholders + " RETURNING id"
+    rows = db._execute_query(query, values, fetchall=True, commit=True)
+    if not isinstance(rows, list) or len(rows) != len(trips):
+        logger.error(
+            "Cargo trip bulk insert returned %s IDs for %s rows on vehicle %s",
+            len(rows) if isinstance(rows, list) else 0, len(trips), vehicle_id,
+        )
+        return False
+    return True
 
 
 def _data_uri_to_png(data_uri: str) -> bytes | None:
@@ -225,6 +257,72 @@ def _dt(v):
     return datetime.fromisoformat(v) if v and v.strip() else None
 
 
+def _valid_trip_datetime(value: str) -> bool:
+    match = _TRIP_DATE_RE.fullmatch(value)
+    if match is None:
+        return False
+    year, month, day = (int(match[name]) for name in ("year", "month", "day"))
+    if not (1 <= year <= 9999 and 1 <= month <= 12):
+        return False
+    if not (1 <= day <= calendar.monthrange(year, month)[1]):
+        return False
+    if match["hour"] is not None:
+        return (
+            0 <= int(match["hour"]) <= 23
+            and 0 <= int(match["minute"]) <= 59
+            and (match["second"] is None or 0 <= int(match["second"]) <= 59)
+        )
+    return True
+
+
+def _normalise_trip_fields(raw: dict[str, str | None]) -> tuple[dict | None, str | None]:
+    values = {field: str(raw.get(field) or "").strip() for field in (
+        "departure_time", "return_time", "origin", "destination", *_TRIP_NUMBER_LABELS,
+    )}
+    if not values["departure_time"] or not _valid_trip_datetime(values["departure_time"]):
+        return None, "Ngày xuất phát không hợp lệ."
+    if values["return_time"] and not _valid_trip_datetime(values["return_time"]):
+        return None, "Ngày về không hợp lệ."
+    numbers = {}
+    for field, label in _TRIP_NUMBER_LABELS.items():
+        value = values[field]
+        if not value:
+            numbers[field] = None
+            continue
+        if len(value) > 40 or _TRIP_NUMBER_RE.fullmatch(value) is None:
+            return None, f"{label} phải là số không âm hợp lệ."
+        number = _num(value)
+        if not math.isfinite(number) or number > 1_000_000_000_000:
+            return None, f"{label} phải là số không âm hợp lệ."
+        numbers[field] = number
+
+    departure = datetime.fromisoformat(values["departure_time"])
+    returned = _dt(values["return_time"])
+    if returned is not None and returned < departure:
+        return None, "Ngày về phải từ ngày xuất phát trở đi."
+    return {
+        "departure_time": departure,
+        "return_time": returned,
+        "origin": values["origin"] or None,
+        "destination": values["destination"] or None,
+        **numbers,
+    }, None
+
+
+def _trip_form_error(message: str, back_url: str) -> HTMLResponse:
+    return HTMLResponse(
+        "<!doctype html><html lang='vi'><meta charset='utf-8'>"
+        "<title>Dữ liệu chuyến hàng không hợp lệ</title>"
+        "<body style='font:16px system-ui;max-width:40rem;margin:3rem auto;padding:1rem'>"
+        "<h1>Chưa lưu chuyến hàng</h1>"
+        f"<p>{escape(message)}</p>"
+        "<button type='button' onclick='history.back()'>Quay lại sửa</button> "
+        f"<a href='{escape(back_url, quote=True)}'>Mở lại biểu mẫu</a>"
+        "</body></html>",
+        status_code=422,
+    )
+
+
 def _geocode_query_variants(q: str) -> list[str]:
     q = (q or "").strip()
     if not q:
@@ -251,6 +349,47 @@ def _geocode_query_variants(q: str) -> list[str]:
     return result
 
 
+def _source_number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return None
+    text = str(value).strip()
+    if len(text) > 40 or _SOURCE_NUMBER_RE.fullmatch(text) is None:
+        return None
+    number = float(text)
+    return number if math.isfinite(number) else None
+
+
+def _coordinates(location: object) -> tuple[float, float] | None:
+    if not isinstance(location, dict):
+        return None
+    lat = _source_number(location.get("lat"))
+    lon = _source_number(location.get("lon"))
+    if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _geocode_result(data: object, fallback_label: str) -> dict | None:
+    if not isinstance(data, list):
+        logger.warning("Nominatim response is not a list")
+        return None
+    if not data:
+        return None
+    if not isinstance(data[0], dict):
+        logger.warning("Nominatim response contains an invalid location")
+        return None
+    coordinates = _coordinates(data[0])
+    if coordinates is None:
+        logger.warning("Nominatim response contains invalid coordinates")
+        return None
+    label = data[0].get("display_name")
+    return {
+        "lat": coordinates[0],
+        "lon": coordinates[1],
+        "label": label.strip() if isinstance(label, str) and label.strip() else fallback_label,
+    }
+
+
 async def _geocode_location(q: str) -> dict | None:
     if not q or not q.strip():
         return None
@@ -260,14 +399,54 @@ async def _geocode_location(q: str) -> dict | None:
                 f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query)}&format=json&limit=1&accept-language=vi&countrycodes=vn",
                 headers={"User-Agent": "CargoCam/1.0"}
             )
+            if resp.is_error:
+                logger.warning("Nominatim location lookup returned HTTP %s", resp.status_code)
+            resp.raise_for_status()
             data = resp.json()
-            if data:
-                return {
-                    "lat": data[0]["lat"],
-                    "lon": data[0]["lon"],
-                    "label": data[0].get("display_name") or query,
-                    "query": query,
-                }
+            location = _geocode_result(data, query)
+            if location:
+                return {**location, "query": query}
+    return None
+
+
+_SHORT_MAPS_HOSTS = {"goo.gl", "maps.app.goo.gl", "maps.app"}
+_MAPS_URL_RE = re.compile(
+    r"https://(?:google\.com|www\.google\.com|maps\.google\.com|goo\.gl|maps\.app\.goo\.gl|maps\.app)(?:[/?#][^\x00-\x20\x7f]*)?",
+    re.IGNORECASE,
+)
+
+
+def _is_maps_url(value: str) -> bool:
+    return _MAPS_URL_RE.fullmatch(value) is not None
+
+
+async def _expand_maps_url(url: str) -> str | None:
+    if not _is_maps_url(url):
+        return None
+    if urllib.parse.urlparse(url).hostname not in _SHORT_MAPS_HOSTS:
+        return url
+    async with httpx.AsyncClient(timeout=8) as client:
+        for _ in range(4):
+            response = await client.head(url, follow_redirects=False)
+            if response.is_error:
+                logger.warning("Google Maps short link request returned HTTP %s", response.status_code)
+                response.raise_for_status()
+            location = response.headers.get("location")
+            if response.status_code not in (301, 302, 303, 307, 308) or not location:
+                logger.warning("Google Maps short link did not provide a redirect")
+                return None
+            if location.startswith("//"):
+                url = "https:" + location
+            elif location.startswith(("http://", "https://")):
+                url = location
+            else:
+                url = urllib.parse.urljoin(url, location)
+            if not _is_maps_url(url):
+                logger.warning("Google Maps short link redirected to an unsupported host")
+                return None
+            if urllib.parse.urlparse(url).hostname not in _SHORT_MAPS_HOSTS:
+                return url
+    logger.warning("Google Maps short link exceeded the redirect limit")
     return None
 
 
@@ -275,47 +454,56 @@ async def _resolve_location(value: str) -> dict | None:
     value = (value or "").strip()
     if not value:
         return None
-    if "google.com" not in value and "goo.gl" not in value and "maps.app" not in value:
+    if not value.startswith(("http://", "https://")):
         return await _geocode_location(value)
+    url = await _expand_maps_url(value)
+    if url is None:
+        return None
 
-    try:
-        url = value
-        if "goo.gl" in url or "maps.app.goo.gl" in url or "maps.app" in url:
-            async with httpx.AsyncClient(timeout=8) as client:
-                resp = await client.head(url, follow_redirects=True)
-                url = str(resp.url)
+    import re
+    match = re.search(r'/place/([^/]+)', url)
+    if match:
+        raw = match.group(1).split("@")[0].split("?")[0]
+        name = urllib.parse.unquote_plus(raw).strip().strip(",").strip()
+        if name:
+            geocoded = await _geocode_location(name)
+            if geocoded:
+                geocoded["label"] = name
+                return geocoded
+            return None
 
-        import re
-        match = re.search(r'/place/([^/]+)', url)
-        if match:
-            raw = match.group(1).split("@")[0].split("?")[0]
-            name = urllib.parse.unquote_plus(raw).strip().strip(",").strip()
-            if name:
-                geocoded = await _geocode_location(name)
-                if geocoded:
-                    geocoded["label"] = name
-                    return geocoded
-                return {"label": name}
-
-        coord = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
-        if not coord:
-            coord = re.search(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url)
-        if coord:
-            lat, lon = coord.group(1), coord.group(2)
-            return {"lat": lat, "lon": lon, "label": value}
-    except Exception:
-        logger.exception("Failed to resolve location: %s", value)
+    coord = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
+    if not coord:
+        coord = re.search(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url)
+    if coord:
+        lat, lon = coord.group(1), coord.group(2)
+        coordinates = _coordinates({"lat": lat, "lon": lon})
+        if coordinates:
+            return {"lat": coordinates[0], "lon": coordinates[1], "label": value}
     return None
 
 
 async def _driving_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float | None:
+    if _coordinates({"lat": lat1, "lon": lon1}) is None or _coordinates({"lat": lat2, "lon": lon2}) is None:
+        return None
     url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(url)
+        if resp.is_error:
+            logger.warning("OSRM route lookup returned HTTP %s", resp.status_code)
+        resp.raise_for_status()
         data = resp.json()
-    if data.get("code") != "Ok":
+    if not isinstance(data, dict) or data.get("code") != "Ok":
+        logger.warning("OSRM route response did not report success")
         return None
-    dist_m = data["routes"][0]["distance"]
+    routes = data.get("routes")
+    if not isinstance(routes, list) or not routes or not isinstance(routes[0], dict):
+        logger.warning("OSRM route response is missing a route")
+        return None
+    dist_m = _source_number(routes[0].get("distance"))
+    if dist_m is None or dist_m < 0:
+        logger.warning("OSRM route response has an invalid distance")
+        return None
     return round(dist_m / 1000, 1)
 
 
@@ -364,137 +552,117 @@ async def cargo_trips_page(
 
 @router.get("/api/resolve-maps")
 async def resolve_maps_url(url: str = Query(...)):
-    import re, urllib.parse
-    try:
-        if "goo.gl" in url or "maps.app.goo.gl" in url or "maps.app" in url:
-            async with httpx.AsyncClient(timeout=8) as client:
-                resp = await client.head(url, follow_redirects=True)
-                url = str(resp.url)
-
-        m = re.search(r'/place/([^/]+)', url)
-        if m:
-            raw = m.group(1).split("@")[0].split("?")[0]
-            name = urllib.parse.unquote_plus(raw).strip().strip(",").strip()
-            if name:
-                try:
-                    async with httpx.AsyncClient(timeout=6) as client:
-                        resp = await client.get(
-                            f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(name)}&format=json&limit=1",
-                            headers={"User-Agent": "CargoCam/1.0"}
-                        )
-                        gdata = resp.json()
-                        if gdata:
-                            return JSONResponse({"ok": True, "label": name, "lat": gdata[0]["lat"], "lon": gdata[0]["lon"]})
-                except httpx.RequestError:
-                    logger.debug("Geocode lookup unavailable for %s", name, exc_info=True)
-                return JSONResponse({"ok": True, "label": name})
-
-        coord = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
-        if not coord:
-            coord = re.search(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url)
-        if coord:
-            lat, lon = coord.group(1), coord.group(2)
-            async with httpx.AsyncClient(timeout=6) as client:
-                resp = await client.get(
-                    f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&accept-language=vi",
-                    headers={"User-Agent": "CargoCam/1.0"}
-                )
-                data = resp.json()
-            a = data.get("address", {})
-            parts = [
-                a.get("road") or a.get("pedestrian"),
-                a.get("suburb") or a.get("quarter") or a.get("neighbourhood"),
-                a.get("city") or a.get("town") or a.get("village") or a.get("county"),
-            ]
-            label = ", ".join(p for p in parts if p)
-            if label:
-                return JSONResponse({"ok": True, "label": label, "lat": lat, "lon": lon})
-
-        return JSONResponse({"ok": False, "msg": "Không đọc được link Google Maps."})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)})
+    if not _is_maps_url(url):
+        return JSONResponse({"ok": False, "message": "Link Google Maps không hợp lệ."}, status_code=422)
+    location = await _resolve_location(url)
+    if location is None or _coordinates(location) is None:
+        return JSONResponse({"ok": False, "message": "Không lấy được tọa độ từ link Google Maps."}, status_code=404)
+    if location["label"] == url:
+        coordinates = _coordinates(location)
+        async with httpx.AsyncClient(timeout=6) as client:
+            resp = await client.get(
+                f"https://nominatim.openstreetmap.org/reverse?lat={coordinates[0]}&lon={coordinates[1]}&format=json&accept-language=vi",
+                headers={"User-Agent": "CargoCam/1.0"}
+            )
+            if not resp.is_success:
+                logger.warning("Nominatim reverse geocoding returned HTTP %s", resp.status_code)
+                return JSONResponse({"ok": False, "message": "Dịch vụ bản đồ không khả dụng."}, status_code=502)
+            data = resp.json()
+        a = data.get("address", {}) if isinstance(data, dict) else {}
+        if not isinstance(a, dict):
+            a = {}
+        parts = [
+            a.get("road") or a.get("pedestrian"),
+            a.get("suburb") or a.get("quarter") or a.get("neighbourhood"),
+            a.get("city") or a.get("town") or a.get("village") or a.get("county"),
+        ]
+        label = ", ".join(p.strip() for p in parts if isinstance(p, str) and p.strip())
+        if label:
+            location["label"] = label
+    return JSONResponse({"ok": True, **location})
 
 
 @router.get("/api/geocode")
 async def geocode_address(q: str = Query(...)):
-    try:
-        async with httpx.AsyncClient(timeout=6) as client:
-            resp = await client.get(
-                f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(q)}&format=json&limit=1&accept-language=vi",
-                headers={"User-Agent": "CargoCam/1.0"}
-            )
-            data = resp.json()
-        if data:
-            return JSONResponse({
-                "ok": True,
-                "lat": data[0]["lat"],
-                "lon": data[0]["lon"],
-                "label": data[0]["display_name"]
-            })
-        return JSONResponse({"ok": False, "msg": "Không tìm thấy địa điểm."})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)})
+    async with httpx.AsyncClient(timeout=6) as client:
+        resp = await client.get(
+            f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(q)}&format=json&limit=1&accept-language=vi",
+            headers={"User-Agent": "CargoCam/1.0"}
+        )
+        if not resp.is_success:
+            logger.warning("Nominatim geocoding returned HTTP %s", resp.status_code)
+            return JSONResponse({"ok": False, "message": "Dịch vụ bản đồ không khả dụng."}, status_code=502)
+        data = resp.json()
+    location = _geocode_result(data, q)
+    if location:
+        return JSONResponse({"ok": True, **location})
+    return JSONResponse({"ok": False, "message": "Không tìm thấy địa điểm."}, status_code=404)
 
 
 @router.get("/api/calculate-distance")
 async def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float):
-    try:
-        distance = await _driving_distance_km(lat1, lon1, lat2, lon2)
-        if distance is not None:
-            return JSONResponse({"ok": True, "distance_km": distance})
-        return JSONResponse({"ok": False, "msg": "Không tìm được đường đi."})
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)})
+    if _coordinates({"lat": lat1, "lon": lon1}) is None or _coordinates({"lat": lat2, "lon": lon2}) is None:
+        return JSONResponse({"ok": False, "message": "Tọa độ không hợp lệ."}, status_code=422)
+    distance = await _driving_distance_km(lat1, lon1, lat2, lon2)
+    if distance is not None:
+        return JSONResponse({"ok": True, "distance_km": distance})
+    return JSONResponse({"ok": False, "message": "Không tìm được đường đi."}, status_code=404)
 
 
 @router.get("/api/calculate-distance-by-address")
 async def calculate_distance_by_address(origin: str = Query(...), destination: str = Query(...)):
-    try:
-        origin_location = await _resolve_location(origin)
-        destination_location = await _resolve_location(destination)
-        if not origin_location or not destination_location:
-            return JSONResponse({"ok": False, "msg": "Khong tim thay du 2 dia diem."})
-        if not all(origin_location.get(k) for k in ("lat", "lon")) or not all(destination_location.get(k) for k in ("lat", "lon")):
-            return JSONResponse({"ok": False, "msg": "Khong lay duoc toa do cua 2 dia diem."})
+    origin_location = await _resolve_location(origin)
+    destination_location = await _resolve_location(destination)
+    if not origin_location or not destination_location:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy đủ hai địa điểm."}, status_code=404)
+    origin_coords = _coordinates(origin_location)
+    destination_coords = _coordinates(destination_location)
+    if origin_coords is None or destination_coords is None:
+        return JSONResponse({"ok": False, "message": "Không lấy được tọa độ của hai địa điểm."}, status_code=404)
 
-        distance_km = await _driving_distance_km(
-            float(origin_location["lat"]),
-            float(origin_location["lon"]),
-            float(destination_location["lat"]),
-            float(destination_location["lon"]),
-        )
-        if distance_km is None:
-            return JSONResponse({"ok": False, "msg": "Khong tim duoc duong di."})
+    distance_km = await _driving_distance_km(
+        *origin_coords,
+        *destination_coords,
+    )
+    if distance_km is None:
+        return JSONResponse({"ok": False, "message": "Không tìm được đường đi."}, status_code=404)
 
-        return JSONResponse({
-            "ok": True,
-            "distance_km": distance_km,
-            "origin": origin_location,
-            "destination": destination_location,
-        })
-    except Exception as e:
-        return JSONResponse({"ok": False, "error": str(e)})
+    return JSONResponse({
+        "ok": True,
+        "distance_km": distance_km,
+        "origin": origin_location,
+        "destination": destination_location,
+    })
 
 
 @router.get("/api/fuel-price")
 async def get_fuel_price_api(target_date: str = Query(None)):
-    try:
-        d = target_date or date.today().isoformat()
-        url = f"https://giaxanghomnay.com/api/pvdate/{d}"
-        async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            data = resp.json()
-        items = data[0] if data and isinstance(data[0], list) else data
-        diesel = next(
-            (r for r in items if "DO" in r.get("title", "") and "0,05" in r.get("title", "")),
-            next((r for r in items if "DO" in r.get("title", "")), None)
-        )
-        if diesel:
-            return JSONResponse({"ok": True, "price": diesel["zone1_price"], "title": diesel["title"], "date": d})
-        return JSONResponse({"ok": False, "price": None})
-    except Exception as e:
-        return JSONResponse({"ok": False, "price": None, "error": str(e)})
+    d = target_date or date.today().isoformat()
+    if len(d) != 10 or not _valid_trip_datetime(d):
+        return JSONResponse({"ok": False, "message": "Ngày tra giá dầu không hợp lệ.", "price": None}, status_code=422)
+    url = f"https://giaxanghomnay.com/api/pvdate/{d}"
+    async with httpx.AsyncClient(timeout=8) as client:
+        resp = await client.get(url)
+        if resp.is_error:
+            logger.warning("Fuel price request returned HTTP %s", resp.status_code)
+        resp.raise_for_status()
+        data = resp.json()
+    items = data[0] if isinstance(data, list) and data and isinstance(data[0], list) else data
+    if not isinstance(items, list):
+        logger.warning("Fuel price response is not a list")
+        return JSONResponse({"ok": False, "message": "Dữ liệu giá dầu không hợp lệ.", "price": None}, status_code=502)
+    diesel_items = [r for r in items if isinstance(r, dict) and isinstance(r.get("title"), str)]
+    if items and not diesel_items:
+        logger.warning("Fuel price response contains no valid entries")
+    diesel = next(
+        (r for r in diesel_items if "DO" in r["title"] and "0,05" in r["title"]),
+        next((r for r in diesel_items if "DO" in r["title"]), None)
+    )
+    if diesel:
+        price = _source_number(diesel.get("zone1_price"))
+        if price is not None and price > 0:
+            return JSONResponse({"ok": True, "price": price, "title": diesel["title"], "date": d})
+    return JSONResponse({"ok": False, "message": "Không tìm thấy giá dầu.", "price": None}, status_code=404)
 
 
 @router.get("/{vehicle_id}/cargo/add")
@@ -532,18 +700,26 @@ async def create_cargo_trip(
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
-    add_cargo_trip(
+    trip_fields, error = _normalise_trip_fields({
+        "departure_time": departure_time,
+        "return_time": return_time,
+        "origin": origin,
+        "destination": destination,
+        "fuel_liters": fuel_liters,
+        "fuel_price_per_liter": fuel_price_per_liter,
+        "freight_revenue": freight_revenue,
+        "distance_km": distance_km,
+    })
+    if error:
+        return _trip_form_error(error, f"/admin/vehicles/{vehicle_id}/cargo/add")
+
+    trip_id = add_cargo_trip(
         vehicle_id=vehicle_id,
         plate_number=vehicle["plate_number"],
-        departure_time=datetime.fromisoformat(departure_time),
-        return_time=_dt(return_time),
-        origin=origin or None,
-        destination=destination or None,
-        fuel_liters=_num(fuel_liters),
-        fuel_price_per_liter=_num(fuel_price_per_liter),
-        freight_revenue=_num(freight_revenue),
-        distance_km=_num(distance_km),
+        **trip_fields,
     )
+    if trip_id is None:
+        return HTMLResponse("Không thể lưu chuyến hàng.", status_code=500)
     return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
@@ -559,14 +735,12 @@ async def edit_cargo_trip_page(
 
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     trip = get_cargo_trip(trip_id)
-    if not vehicle or not trip:
+    if not vehicle or not trip or trip.get("vehicle_id") != vehicle_id:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     for dt_col in ("departure_time", "return_time"):
         if trip.get(dt_col) and hasattr(trip[dt_col], "isoformat"):
             trip[dt_col] = trip[dt_col].isoformat()
-        elif trip.get(dt_col) and isinstance(trip[dt_col], str):
-            pass
 
     ctx["vehicle"] = vehicle
     ctx["trip"] = trip
@@ -587,17 +761,26 @@ async def edit_cargo_trip(
     distance_km: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    update_cargo_trip(
-        trip_id=trip_id,
-        departure_time=datetime.fromisoformat(departure_time),
-        return_time=_dt(return_time),
-        origin=origin or None,
-        destination=destination or None,
-        fuel_liters=_num(fuel_liters),
-        fuel_price_per_liter=_num(fuel_price_per_liter),
-        freight_revenue=_num(freight_revenue),
-        distance_km=_num(distance_km),
-    )
+    vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
+    trip = get_cargo_trip(trip_id)
+    if not vehicle or not trip or trip.get("vehicle_id") != vehicle_id:
+        return RedirectResponse(url="/admin/vehicles", status_code=303)
+
+    trip_fields, error = _normalise_trip_fields({
+        "departure_time": departure_time,
+        "return_time": return_time,
+        "origin": origin,
+        "destination": destination,
+        "fuel_liters": fuel_liters,
+        "fuel_price_per_liter": fuel_price_per_liter,
+        "freight_revenue": freight_revenue,
+        "distance_km": distance_km,
+    })
+    if error:
+        return _trip_form_error(error, f"/admin/vehicles/{vehicle_id}/cargo/{trip_id}/edit")
+
+    if not update_cargo_trip(trip_id=trip_id, **trip_fields):
+        return HTMLResponse("Không tìm thấy chuyến hàng.", status_code=404)
     return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
@@ -607,8 +790,12 @@ async def delete_cargo_trip_endpoint(
     trip_id: int,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    delete_cargo_trip(trip_id)
-    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
+    trip = get_cargo_trip(trip_id)
+    if not trip or trip.get("vehicle_id") != vehicle_id:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy chuyến hàng."}, status_code=404)
+    if not delete_cargo_trip(trip_id):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy chuyến hàng."}, status_code=404)
+    return {"ok": True}
 
 
 @router.post("/{vehicle_id}/cargo/scan")
@@ -624,15 +811,11 @@ async def scan_handwriting(
 
     image_bytes = await image.read()
 
-    try:
-        scan_result = extract_trip_candidates_from_document(
-            image_bytes,
-            filename=image.filename or "",
-            content_type=image.content_type or "",
-        )
-    except Exception as e:
-        logger.error("handwriting_ocr failed: %s", e)
-        return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
+    scan_result = extract_trip_candidates_from_document(
+        image_bytes,
+        filename=image.filename or "",
+        content_type=image.content_type or "",
+    )
 
     token = secrets.token_urlsafe(24)
     _save_scan_review(token, {
@@ -690,17 +873,12 @@ async def confirm_cargo_scan(
     if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
         return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
 
-    saved = 0
     skipped = 0
     scan_result = review.get("scan_result", {})
     candidates = scan_result.get("candidates", [])
-    row_indexes = sorted({
-        key.split("_", 1)[1]
-        for key in form.keys()
-        if key.startswith("departure_") or key.startswith("skip_")
-    }, key=lambda v: int(v) if v.isdigit() else 0)
-
-    for idx in row_indexes:
+    pending_rows = []
+    for row_index in range(len(candidates)):
+        idx = str(row_index)
         if form.get(f"skip_{idx}") == "on":
             skipped += 1
             continue
@@ -717,33 +895,26 @@ async def confirm_cargo_scan(
             "freight_revenue": str(form.get(f"revenue_{idx}") or "").strip(),
             "distance_km": str(form.get(f"distance_{idx}") or "").strip(),
         }
+        trip_fields, error = _normalise_trip_fields({**corrected, "fuel_price_per_liter": None})
+        if error:
+            return _trip_form_error(
+                f"Chuyến {row_index + 1}: {error}",
+                f"/admin/vehicles/{vehicle_id}/cargo/scan/review?token={urllib.parse.quote(token)}",
+            )
         corrected_line_texts = {
             key.rsplit("_", 1)[1]: str(value or "").strip()
             for key, value in form.items()
             if key.startswith(f"line_text_{idx}_")
         }
-        try:
-            add_cargo_trip(
-                vehicle_id=vehicle_id,
-                plate_number=vehicle["plate_number"],
-                departure_time=datetime.fromisoformat(departure_time),
-                return_time=_dt(corrected["return_time"]),
-                origin=(corrected["origin"] or None),
-                destination=(corrected["destination"] or None),
-                fuel_liters=_num(corrected["fuel_liters"]),
-                fuel_price_per_liter=None,
-                freight_revenue=_num(corrected["freight_revenue"]),
-                distance_km=_num(corrected["distance_km"]),
-            )
-            if idx.isdigit() and int(idx) < len(candidates):
-                try:
-                    _persist_ocr_sample(token, vehicle_id, idx, candidates[int(idx)], corrected, corrected_line_texts)
-                except Exception as sample_error:
-                    logger.warning("Failed to persist cargo OCR sample: %s | row=%s", sample_error, idx)
-            saved += 1
-        except Exception as e:
-            skipped += 1
-            logger.warning("Failed to save reviewed cargo scan row: %s | row=%s", e, idx)
+        pending_rows.append((row_index, trip_fields, corrected, corrected_line_texts))
+
+    if not add_reviewed_cargo_trips(
+        vehicle_id, vehicle["plate_number"], [trip_fields for _, trip_fields, _, _ in pending_rows],
+    ):
+        return HTMLResponse("Không thể lưu các chuyến hàng đã duyệt.", status_code=500)
+
+    for row_index, trip_fields, corrected, corrected_line_texts in pending_rows:
+        _persist_ocr_sample(token, vehicle_id, str(row_index), candidates[row_index], corrected, corrected_line_texts)
 
     _delete_scan_review(token)
-    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scanned={saved}&scan_skipped={skipped}", status_code=303)
+    return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scanned={len(pending_rows)}&scan_skipped={skipped}", status_code=303)

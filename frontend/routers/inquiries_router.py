@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import HTMLResponse
 import logging
@@ -6,6 +8,17 @@ from frontend.deps import get_menu_context, require_menu, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inquiries")
+
+
+@dataclass(frozen=True)
+class InquiryInput:
+    """Contact data after it has been normalized and validated at the boundary."""
+
+    full_name: str
+    phone: str
+    company_name: str
+    demand: str
+    source_page: str
 
 
 def get_inquiries(limit: int = 100, offset: int = 0, unread_only: bool = False) -> list:
@@ -37,10 +50,18 @@ def delete_inquiry_record(inquiry_id: int) -> bool:
     return bool(db._execute_query("DELETE FROM inquiries WHERE id = %s", (inquiry_id,), commit=True))
 
 
-def save_inquiry(full_name: str, phone: str, company_name: str = "", demand: str = "", source_page: str = "home") -> int | None:
+def save_inquiry(inquiry: InquiryInput) -> int | None:
     row = db._execute_query(
         "INSERT INTO inquiries (full_name, phone, company_name, demand, source_page) VALUES (%s, %s, %s, %s, %s) RETURNING id",
-        (full_name, phone, company_name, demand, source_page), fetch=True, commit=True
+        (
+            inquiry.full_name,
+            inquiry.phone,
+            inquiry.company_name,
+            inquiry.demand,
+            inquiry.source_page,
+        ),
+        fetch=True,
+        commit=True,
     )
     return row["id"] if row else None
 
@@ -62,17 +83,20 @@ async def mark_all_read(__user: dict = Depends(require_menu("inquiries"))):
 
 @router.post("/{inquiry_id}/read", response_class=HTMLResponse)
 async def mark_read(inquiry_id: int, _user: dict = Depends(require_menu("inquiries"))):
-    mark_inquiry_read(inquiry_id)
+    if not mark_inquiry_read(inquiry_id):
+        return HTMLResponse("Không tìm thấy yêu cầu tư vấn.", status_code=404)
     return HTMLResponse('<svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>')
 
 
 @router.post("/{inquiry_id}/note", response_class=HTMLResponse)
 async def save_note(inquiry_id: int, note: str = Form(""), _user: dict = Depends(require_menu("inquiries"))):
-    update_inquiry_note(inquiry_id, note.strip())
+    if not update_inquiry_note(inquiry_id, note.strip()):
+        return HTMLResponse("Không tìm thấy yêu cầu tư vấn.", status_code=404)
     return HTMLResponse("")
 
 
 @router.delete("/{inquiry_id}", response_class=HTMLResponse)
 async def delete_inquiry_endpoint(inquiry_id: int, _user: dict = Depends(require_menu("inquiries"))):
-    delete_inquiry_record(inquiry_id)
+    if not delete_inquiry_record(inquiry_id):
+        return HTMLResponse("Không tìm thấy yêu cầu tư vấn.", status_code=404)
     return HTMLResponse("")

@@ -1,4 +1,3 @@
-
 <section id="lien-he" class="section">
   <div class="container">
     <div class="section-header text-center">
@@ -24,7 +23,7 @@
         </div>
       </div>
       <div class="contact-form-wrapper">
-        <form id="contact-form" novalidate>
+        <form id="contact-form" data-contact-form novalidate>
           <input type="hidden" name="source_page" value="{{ source_page | default('home') }}">
           <div class="form-group">
             <label class="form-label" for="full_name">Họ và tên *</label>
@@ -54,46 +53,3 @@
     </div>
   </div>
 </section>
-
-<script>
-  (function () {
-    const form = document.getElementById('contact-form');
-    const btn = document.getElementById('contact-submit-btn');
-    if (!form) return;
-
-    function showToast(ok, msg) {
-      const existing = document.getElementById('contact-toast');
-      if (existing) existing.remove();
-      const el = document.createElement('div');
-      el.id = 'contact-toast';
-      el.style.cssText = 'position:fixed;top:24px;right:24px;z-index:9999;max-width:360px;width:calc(100% - 48px);transform:translateX(120%);transition:transform 0.3s ease-out;background:' + (ok ? '#16a34a' : '#e11d48') + ';color:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.25);padding:16px 20px;display:flex;gap:12px;align-items:flex-start;';
-      el.setAttribute('role', 'alert');
-      el.innerHTML = '<span class="material-symbols-outlined">' + (ok ? 'check_circle' : 'warning') + '</span><p style="font-size:0.9rem;font-weight:600;line-height:1.4;margin:0;">' + msg + '</p>';
-      document.body.appendChild(el);
-      requestAnimationFrame(() => { el.style.transform = 'translateX(0)'; });
-      setTimeout(() => { el.style.transform = 'translateX(120%)'; setTimeout(() => el.remove(), 350); }, 4500);
-    }
-
-    form.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      const full_name = form.querySelector('[name=full_name]').value.trim();
-      const phone = form.querySelector('[name=phone]').value.trim();
-      if (!full_name || full_name.length < 2) { showToast(false, 'Vui lòng nhập họ tên (ít nhất 2 ký tự).'); return; }
-      if (!phone || !/^[0-9\s\+\-\.]{7,20}$/.test(phone)) { showToast(false, 'Số điện thoại không hợp lệ.'); return; }
-
-      btn.disabled = true;
-      const oldText = btn.textContent;
-      btn.textContent = 'Đang gửi…';
-      try {
-        const res = await fetch('/lien-he', { method: 'POST', body: new FormData(form) });
-        if (res.ok) { showToast(true, 'Gửi thành công! Chúng tôi sẽ liên hệ lại trong vòng 30 phút.'); form.reset(); }
-        else { showToast(false, 'Có lỗi xảy ra. Vui lòng thử lại hoặc gọi hotline.'); }
-      } catch (_) {
-        showToast(false, 'Không thể kết nối. Vui lòng kiểm tra mạng và thử lại.');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = oldText;
-      }
-    });
-  })();
-</script>

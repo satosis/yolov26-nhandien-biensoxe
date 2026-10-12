@@ -7,10 +7,15 @@
     playing: null,
     deleteRecording(id) {
         if(confirm('Bạn có chắc muốn xóa đoạn ghi hình này?')) {
-            fetch('/admin/recordings/' + id, { method: 'DELETE' })
-            .then(res => res.json())
+            apiRequest('/admin/recordings/' + id, { method: 'DELETE' })
             .then(data => {
-                if(data.success) window.location.reload();
+                if (data.ok && data.success) {
+                    window.location.reload();
+                    return;
+                }
+                window.dispatchEvent(new CustomEvent('showToast', {
+                    detail: { msg: data.message || 'Không thể xóa bản ghi hình.', type: 'error' }
+                }));
             });
         }
     }
@@ -30,15 +35,17 @@
                     </div>
                 </div>
                 <div class="text-right">
-                    <span class="font-weight-bold text-primary" style="font-family:monospace;">{{ storage.percent }}%</span><br>
+                    <span class="font-weight-bold text-primary" style="font-family:monospace;">{% if storage.percent is none %}N/A{% else %}{{ storage.percent }}%{% endif %}</span><br>
                     <small class="text-muted">Đã dùng {{ storage.used }}</small>
                 </div>
             </div>
 
 
+            {% if storage.percent is not none %}
             <div class="progress" style="height:10px;">
                 <div class="progress-bar bg-primary" role="progressbar" style="width: {{ storage.percent }}%" aria-valuenow="{{ storage.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
+            {% endif %}
 
 
             <div class="d-flex justify-content-between mt-3">

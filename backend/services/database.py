@@ -3,6 +3,8 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 import logging
+import re
+import sys
 import threading
 from dotenv import load_dotenv
 
@@ -14,7 +16,13 @@ load_dotenv(_env_file if os.path.exists(_env_file) else None)
 
 class DatabaseManager:
     def __init__(self, max_pool_size=15):
-        self._pool = pool.ThreadedConnectionPool(1, max_pool_size, os.environ.get("DATABASE_URL", ""))
+        initialized = False
+        try:
+            self._pool = pool.ThreadedConnectionPool(1, max_pool_size, os.environ.get("DATABASE_URL", ""))
+            initialized = True
+        finally:
+            if not initialized:
+                logger.error("Database connection pool initialization failed")
 
     @contextmanager
     def _get_connection(self):
@@ -22,27 +30,42 @@ class DatabaseManager:
         try:
             yield conn
         finally:
-            self._pool.putconn(conn)
+            try:
+                conn.rollback()
+            finally:
+                self._pool.putconn(conn)
 
     def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
-        with self._get_connection() as conn:
-            cursor_factory = RealDictCursor if fetch or fetchall else None
-            with conn.cursor(cursor_factory=cursor_factory) as cursor:
-                cursor.execute(query, params)
-                result = True
-                if fetch:
-                    row = cursor.fetchone()
-                    result = dict(row) if row is not None else None
-                elif fetchall:
-                    result = [dict(row) for row in cursor.fetchall()]
-                elif return_id:
-                    row = cursor.fetchone()
-                    result = row[0] if row else None
-                if commit:
-                    conn.commit()
-                else:
-                    conn.rollback()
-                return result
+        statement = query.lstrip().split(None, 1)[0].upper()
+        completed = False
+        try:
+            with self._get_connection() as conn:
+                cursor_factory = RealDictCursor if fetch or fetchall else None
+                with conn.cursor(cursor_factory=cursor_factory) as cursor:
+                    cursor.execute(query, params)
+                    result = cursor.rowcount > 0 if statement in {"INSERT", "UPDATE", "DELETE"} else True
+                    if fetch:
+                        row = cursor.fetchone()
+                        result = dict(row) if row is not None else None
+                    elif fetchall:
+                        result = [dict(row) for row in cursor.fetchall()]
+                    elif return_id:
+                        row = cursor.fetchone()
+                        result = row[0] if row else None
+                    if commit:
+                        conn.commit()
+            completed = True
+        finally:
+            if not completed:
+                error = sys.exc_info()[1]
+                error_type = type(error).__name__ if error is not None else "UnknownError"
+                raw_sqlstate = getattr(error, "pgcode", None)
+                sqlstate = raw_sqlstate if isinstance(raw_sqlstate, str) and re.fullmatch(r"[A-Z0-9]{5}", raw_sqlstate) else "unavailable"
+                logger.error(
+                    "Database %s operation failed (%s, SQLSTATE=%s); SQL and parameters omitted",
+                    statement, error_type, sqlstate,
+                )
+        return result
 
     execute_query = _execute_query
 
@@ -55,8 +78,10 @@ class DatabaseManager:
         return self._execute_query(query, tuple(data.values()), commit=True, return_id=bool(returning))
 
     def update(self, table_name, data: dict, conditions: dict):
-        if not data or not conditions:
-            return False
+        if not data:
+            raise ValueError("Database update requires values")
+        if not conditions:
+            raise ValueError("Database update requires conditions")
         set_clause = ', '.join([f"{k} = %s" for k in data.keys()])
         where_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
@@ -81,7 +106,7 @@ class DatabaseManager:
 
     def delete(self, table_name, conditions: dict):
         if not conditions:
-            return False
+            raise ValueError("Database delete requires conditions")
         where_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
         query = f"DELETE FROM {table_name} WHERE {where_clause}"
         return self._execute_query(query, tuple(conditions.values()), commit=True)

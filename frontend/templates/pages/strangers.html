@@ -10,34 +10,36 @@
     total: {{ strangers|length }},
     allIds: [{% for s in strangers %}'{{ s.id }}'{{ ',' if not loop.last }}{% endfor %}],
     toggleAll(e) { this.selected = e.target.checked ? [...this.allIds] : []; },
+    async submitChange(url, payload) {
+      this.busy = true;
+      const result = await apiRequest(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (result.ok) {
+        location.reload();
+        return;
+      }
+      this.busy = false;
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: { msg: result.message || 'Không thể cập nhật người lạ.', type: 'error' }
+      }));
+    },
     async bulkRegister() {
       if (!this.selected.length || !this.bulkUser || this.busy) return;
-      this.busy = true;
-      await fetch('/admin/strangers/bulk-register', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: this.selected, user_id: this.bulkUser })
+      await this.submitChange('/admin/strangers/bulk-register', {
+        ids: this.selected, user_id: this.bulkUser
       });
-      location.reload();
     },
     async bulkDelete() {
       if (!this.selected.length || this.busy) return;
       if (!confirm('Xóa vĩnh viễn ' + this.selected.length + ' người lạ đã chọn khỏi DB? Không thể hoàn tác.')) return;
-      this.busy = true;
-      await fetch('/admin/strangers/bulk-delete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: this.selected })
-      });
-      location.reload();
+      await this.submitChange('/admin/strangers/bulk-delete', { ids: this.selected });
     },
     async deleteOne(id) {
       if (this.busy) return;
       if (!confirm('Xóa vĩnh viễn người lạ này khỏi DB? Không thể hoàn tác.')) return;
-      this.busy = true;
-      await fetch('/admin/strangers/bulk-delete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [id] })
-      });
-      location.reload();
+      await this.submitChange('/admin/strangers/bulk-delete', { ids: [id] });
     }
   }">
 
@@ -99,7 +101,7 @@
             <img src="/snapshots/{{ s.image_path.replace('\\', '/').split('/')[-1] }}"
                  style="width:100%;height:100%;object-fit:cover;"
                  onclick="window.dispatchEvent(new CustomEvent('show-image', { detail: { src: this.src } }))"
-                 onerror="this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:1.4rem;\'>👤</div>'">
+                 onerror="console.error('Failed to load stranger snapshot'); this.parentElement.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;height:100%;font-size:1.4rem;\'>👤</div>'">
             {% else %}
             <div class="d-flex align-items-center justify-content-center h-100" style="font-size:1.4rem;">👤</div>
             {% endif %}

@@ -12,10 +12,13 @@ def set_app_setting(key: str, value: str) -> bool:
     return set_many_app_settings({key: value})
 
 def set_many_app_settings(settings: dict) -> bool:
-    for k, v in settings.items():
-        db.execute_query(
-            "INSERT INTO app_settings (key, value) VALUES (%s, %s) "
-            "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
-            (k, v), commit=True
-        )
-    return True
+    if not settings:
+        return True
+    placeholders = ", ".join(["(%s, %s)"] * len(settings))
+    params = tuple(value for pair in settings.items() for value in pair)
+    return bool(db.execute_query(
+        f"INSERT INTO app_settings (key, value) VALUES {placeholders} "
+        "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()",
+        params,
+        commit=True,
+    ))

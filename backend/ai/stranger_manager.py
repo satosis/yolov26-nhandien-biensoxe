@@ -18,13 +18,6 @@ class StrangerManager:
         self._records = []
         self._matrix = None
         self._initialized = False
-        self._executor = None
-
-    def _get_executor(self):
-        if self._executor is None:
-            import concurrent.futures
-            self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="StrangerDB")
-        return self._executor
 
     @classmethod
     def get_instance(cls, *args, **kwargs) -> "StrangerManager":
@@ -42,66 +35,64 @@ class StrangerManager:
             if self._initialized:
                 return
 
-            try:
-                rows = db._execute_query(
-                    """
-                    SELECT id, camera_id, image_path, direction, face_embedding, seen_count, last_seen, event_time
-                    FROM stranger_logs
-                    WHERE status = 'new' AND face_embedding IS NOT NULL
-                    ORDER BY COALESCE(last_seen, event_time) DESC
-                    LIMIT 300
-                    """,
-                    fetchall=True, commit=False
-                )
-                records = []
-                embs = []
-                now = time.time()
-                for r in rows:
-                    raw_emb = r.get("face_embedding")
-                    if not raw_emb:
-                        continue
-                    try:
-                        emb = np.frombuffer(raw_emb, dtype=np.float32)
-                        norm = float(np.linalg.norm(emb))
-                        if norm > 1e-6:
-                            emb = (emb / norm).astype(np.float32)
-                        else:
-                            continue
-                    except Exception:
-                        continue
-
-                    records.append({
-                        "id": r["id"],
-                        "emb": emb,
-                        "seen_count": r.get("seen_count") or 1,
-                        "last_seen": now,
-                        "last_db_sync": now,
-                        "image_path": r.get("image_path") or "",
-                        "direction": r.get("direction") or "frontal",
-                    })
-                    embs.append(emb)
-
-                self._records = records
-                self._matrix = np.array(embs, dtype=np.float32) if embs else None
-                self._initialized = True
-                logger.info("StrangerManager initialized with %d active stranger identities.", len(records))
-            except Exception as e:
-                logger.error("Failed to load stranger profiles into StrangerManager: %s", e)
-
-    def _async_db_update(self, cam_id, stranger_id):
-        try:
-            db._execute_query(
+            rows = db._execute_query(
                 """
-                UPDATE stranger_logs
-                SET last_seen = NOW(),
-                    seen_count = COALESCE(seen_count, 1) + 1,
-                    camera_id = COALESCE(%s, camera_id)
-                WHERE id = %s
+                SELECT id, camera_id, image_path, direction, face_embedding, seen_count, last_seen, event_time
+                FROM stranger_logs
+                WHERE status = 'new' AND face_embedding IS NOT NULL
+                ORDER BY COALESCE(last_seen, event_time) DESC
+                LIMIT 300
                 """,
-                (cam_id, stranger_id), commit=True
+                fetchall=True, commit=False
             )
-        except Exception as ex:
-            logger.warning("Error updating stranger %s in DB: %s", stranger_id, ex)
+            records = []
+            embs = []
+            now = time.time()
+            for r in rows:
+                raw_emb = r.get("face_embedding")
+                if not isinstance(raw_emb, (bytes, bytearray, memoryview)) or len(raw_emb) != 512 * 4:
+                    logger.error("Stored stranger embedding has invalid length for record %s", r["id"])
+                    raise ValueError(f"Stranger {r['id']} has an invalid stored embedding size")
+                emb = np.frombuffer(raw_emb, dtype=np.float32)
+                if not np.isfinite(emb).all():
+                    logger.error("Stored stranger embedding has non-finite values for record %s", r["id"])
+                    raise ValueError(f"Stranger {r['id']} has a non-finite stored embedding")
+                norm = float(np.linalg.norm(emb))
+                if not np.isfinite(norm) or norm <= 1e-6:
+                    logger.error("Stored stranger embedding has zero norm for record %s", r["id"])
+                    raise ValueError(f"Stranger {r['id']} has a zero stored embedding")
+                emb = (emb / norm).astype(np.float32)
+
+                records.append({
+                    "id": r["id"],
+                    "emb": emb,
+                    "seen_count": r.get("seen_count") or 1,
+                    "last_seen": now,
+                    "last_db_sync": now,
+                    "image_path": r.get("image_path") or "",
+                    "direction": r.get("direction") or "frontal",
+                })
+                embs.append(emb)
+
+            self._records = records
+            self._matrix = np.array(embs, dtype=np.float32) if embs else None
+            self._initialized = True
+            logger.info("StrangerManager initialized with %d active stranger identities.", len(records))
+
+    def _update_db(self, cam_id, stranger_id):
+        updated = db._execute_query(
+            """
+            UPDATE stranger_logs
+            SET last_seen = NOW(),
+                seen_count = COALESCE(seen_count, 1) + 1,
+                camera_id = COALESCE(%s, camera_id)
+            WHERE id = %s
+            """,
+            (cam_id, stranger_id), commit=True
+        )
+        if not updated:
+            logger.error("Stranger record %s was missing during database sync", stranger_id)
+            raise RuntimeError(f"Stranger record {stranger_id} is missing during sync")
 
     def process_stranger(
         self,
@@ -114,14 +105,14 @@ class StrangerManager:
         *args,
         **kwargs,
     ) -> tuple[int, float, bool]:
-        if emb is None:
-            return -1, 0.0, False
+        if not isinstance(emb, np.ndarray) or emb.shape != (512,) or not np.isfinite(emb).all():
+            raise ValueError("Face embedding must contain 512 finite values")
 
         self._ensure_loaded()
 
         norm = float(np.linalg.norm(emb))
-        if norm <= 1e-6:
-            return -1, 0.0, False
+        if not np.isfinite(norm) or norm <= 1e-6:
+            raise ValueError("Face embedding must have a non-zero norm")
         normed_emb = (emb / norm).astype(np.float32)
 
         threshold = getattr(cfg, "STRANGER_MATCH_THRESHOLD", 0.48)
@@ -159,28 +150,24 @@ class StrangerManager:
 
         if match_found:
             if need_db_sync:
-                self._get_executor().submit(self._async_db_update, cam_id, stranger_id)
+                self._update_db(cam_id, stranger_id)
             return stranger_id, best_sim, False
 
         # Phase 2: New stranger detected. Perform disk snapshot and DB insert OUTSIDE lock!
         snap_path = save_face_snapshot(frame, cam_id, bbox=bbox)
-        new_id = None
-        try:
-            new_id = db._execute_query(
-                """
-                INSERT INTO stranger_logs
-                    (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
-                VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), 1, NOW())
-                RETURNING id
-                """,
-                (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
-                commit=True, return_id=True
-            )
-        except Exception as ex:
-            logger.error("Failed to log new stranger into DB: %s", ex)
-
-        if new_id is None:
-            new_id = int(now) % 100000
+        new_id = db._execute_query(
+            """
+            INSERT INTO stranger_logs
+                (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
+            VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), 1, NOW())
+            RETURNING id
+            """,
+            (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
+            commit=True, return_id=True
+        )
+        if isinstance(new_id, bool) or not isinstance(new_id, int) or new_id <= 0:
+            logger.error("Stranger record insert returned no valid ID")
+            raise RuntimeError("Stranger record insert did not return a valid ID")
 
         # Phase 3: Fast memory update for the new stranger with lock
         new_rec = {

@@ -4,6 +4,8 @@ import os
 import re
 import logging
 import difflib
+import calendar
+import math
 import unicodedata
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -205,15 +207,12 @@ def _ocr_best_result(pil_img: Image.Image, predictor) -> dict:
     best_prob = -1.0
 
     for variant in _make_variants(pil_img):
-        try:
-            text, prob = predictor.predict(variant, return_prob=True)
-            text = (text or "").strip()
-            logger.debug("OCR variant prob=%.3f text=%r", prob, text[:40])
-            if prob > best_prob:
-                best_prob = prob
-                best_text = text
-        except Exception as e:
-            logger.debug("OCR variant error: %s", e)
+        text, prob = predictor.predict(variant, return_prob=True)
+        text = (text or "").strip()
+        logger.debug("OCR variant prob=%.3f text=%r", prob, text[:40])
+        if prob > best_prob:
+            best_prob = prob
+            best_text = text
 
     return {"text": best_text, "confidence": max(0.0, float(best_prob))}
 
@@ -360,19 +359,16 @@ def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
     predictor = _get_predictor()
     lines: list[dict] = []
     for idx, crop in enumerate(crops):
-        try:
-            crop_preview = _normalize_line_crop(crop)
-            result = _ocr_best_result(crop, predictor)
-            text = result["text"]
-            if text:
-                lines.append({
-                    "index": idx + 1,
-                    "text": text,
-                    "confidence": round(result["confidence"], 4),
-                    "crop_image": _image_to_data_uri(crop_preview),
-                })
-        except Exception as e:
-            logger.warning("VietOCR line error: %s", e)
+        crop_preview = _normalize_line_crop(crop)
+        result = _ocr_best_result(crop, predictor)
+        text = result["text"]
+        if text:
+            lines.append({
+                "index": idx + 1,
+                "text": text,
+                "confidence": round(result["confidence"], 4),
+                "crop_image": _image_to_data_uri(crop_preview),
+            })
 
     logger.info("handwriting_ocr: đọc được %d dòng", len(lines))
     return lines
@@ -499,18 +495,9 @@ def _detect_line_crops_by_contours(
 
 
 def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
-    try:
-        import io
-
-        with Image.open(io.BytesIO(image_bytes)) as img:
-            img = ImageOps.exif_transpose(img).convert("RGB")
-            return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    except Exception:
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        img_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if img_bgr is not None:
-            return img_bgr
-    raise ValueError("Cannot decode image")
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
 def _ocr_lines(image_bytes: bytes) -> list[str]:
@@ -526,10 +513,7 @@ def _is_pdf(filename: str = "", content_type: str = "") -> bool:
 
 
 def _ocr_pdf_lines(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list[str]:
-    try:
-        import fitz
-    except Exception as exc:
-        raise RuntimeError("PDF scan support requires PyMuPDF") from exc
+    import fitz
 
     lines: list[str] = []
     scale = dpi / 72.0
@@ -549,10 +533,7 @@ def _ocr_pdf_lines(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list
 
 
 def _ocr_pdf_line_results(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list[dict]:
-    try:
-        import fitz
-    except Exception as exc:
-        raise RuntimeError("PDF scan support requires PyMuPDF") from exc
+    import fitz
 
     lines: list[dict] = []
     scale = dpi / 72.0
@@ -577,10 +558,7 @@ def _ocr_pdf_line_results(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) 
 
 
 def _pdf_quality_summary(pdf_bytes: bytes, max_pages: int = 3, dpi: int = 150) -> dict:
-    try:
-        import fitz
-    except Exception:
-        return {"warnings": ["Không kiểm tra được chất lượng PDF vì thiếu PyMuPDF."]}
+    import fitz
 
     page_qualities: list[dict] = []
     scale = dpi / 72.0
@@ -674,10 +652,10 @@ def _parse_number(s: str) -> Optional[float]:
         pass
     else:
         s = s.replace(".", "")
-    try:
-        return float(s)
-    except Exception:
+    if len(s) > 32 or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", s):
         return None
+    value = float(s)
+    return value if math.isfinite(value) else None
 
 
 def _parse_date(line: str, year_hint: int = None) -> Optional[str]:
@@ -688,16 +666,50 @@ def _parse_date(line: str, year_hint: int = None) -> Optional[str]:
     year = int(_normalize_ocr_digits(m.group(3))) if m.group(3) else (year_hint or datetime.now().year)
     if year < 100:
         year += 2000
-    if not (1 <= day <= 31 and 1 <= month <= 12):
+    if not (1 <= year <= 9999 and 1 <= month <= 12):
+        return None
+    if not (1 <= day <= calendar.monthrange(year, month)[1]):
         return None
     t = _TIME_RE.search(line)
     hour = int(t.group(1)) if t else 0
     minute = int(t.group(2)) if t and t.group(2) else 0
-    try:
-        dt = datetime(year, month, day, min(hour, 23), min(minute, 59))
-        return dt.isoformat(timespec="minutes")
-    except Exception:
+    dt = datetime(year, month, day, min(hour, 23), min(minute, 59))
+    return dt.isoformat(timespec="minutes")
+
+
+_ISO_DATETIME_RE = re.compile(
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})"
+)
+_DECIMAL_RE = re.compile(r"[0-9]+(?:\.[0-9]+)?")
+
+
+def _validated_datetime(value: object) -> Optional[datetime]:
+    if not isinstance(value, str):
         return None
+    match = _ISO_DATETIME_RE.fullmatch(value)
+    if not match:
+        return None
+    year, month, day, hour, minute = (int(part) for part in match.groups())
+    if not (1 <= year <= 9999 and 1 <= month <= 12):
+        return None
+    if not (1 <= day <= calendar.monthrange(year, month)[1]):
+        return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return datetime(year, month, day, hour, minute)
+
+
+def _validated_number(value: object) -> Optional[float]:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return float(value) if abs(value) <= 1_000_000_000_000_000 else None
+    if isinstance(value, float):
+        if not math.isfinite(value) or abs(value) > 1_000_000_000_000_000:
+            return None
+        return float(value)
+    if isinstance(value, str) and len(value) <= 32 and _DECIMAL_RE.fullmatch(value):
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) else None
+    return None
 
 
 _ROUTE_METRIC_RE = re.compile(
@@ -954,25 +966,24 @@ def _validate_candidate(candidate: dict) -> list[dict]:
 
     dep = candidate.get("departure_time")
     ret = candidate.get("return_time")
+    dep_dt = None
     if not dep:
         add("danger", "departure_time", "Thiếu ngày xuất phát.")
     else:
-        try:
-            dep_dt = datetime.fromisoformat(dep)
+        dep_dt = _validated_datetime(dep)
+        if dep_dt is None:
+            add("danger", "departure_time", "Ngày xuất phát không hợp lệ.")
+        else:
             now = datetime.now()
             if dep_dt < now - timedelta(days=730) or dep_dt > now + timedelta(days=90):
                 add("warning", "departure_time", "Ngày xuất phát nằm ngoài khoảng thường gặp.")
-        except Exception:
-            add("danger", "departure_time", "Ngày xuất phát không hợp lệ.")
 
     if ret:
-        try:
-            ret_dt = datetime.fromisoformat(ret)
-            dep_dt = datetime.fromisoformat(dep) if dep else None
-            if dep_dt and ret_dt < dep_dt:
-                add("danger", "return_time", "Ngày về nhỏ hơn ngày xuất phát.")
-        except Exception:
+        ret_dt = _validated_datetime(ret)
+        if ret_dt is None:
             add("danger", "return_time", "Ngày về không hợp lệ.")
+        elif dep_dt and ret_dt < dep_dt:
+            add("danger", "return_time", "Ngày về nhỏ hơn ngày xuất phát.")
 
     for field in ("origin", "destination"):
         value = (candidate.get(field) or "").strip()
@@ -981,32 +992,29 @@ def _validate_candidate(candidate: dict) -> list[dict]:
 
     fuel = candidate.get("fuel_liters")
     if fuel is not None:
-        try:
-            fuel_val = float(fuel)
-            if fuel_val <= 0 or fuel_val > 500:
-                add("warning", "fuel_liters", "Số lít dầu nằm ngoài khoảng thường gặp.")
-        except Exception:
+        fuel_val = _validated_number(fuel)
+        if fuel_val is None:
             add("warning", "fuel_liters", "Số lít dầu không hợp lệ.")
+        elif fuel_val <= 0 or fuel_val > 500:
+            add("warning", "fuel_liters", "Số lít dầu nằm ngoài khoảng thường gặp.")
 
     revenue = candidate.get("freight_revenue")
     if revenue is not None:
-        try:
-            revenue_val = float(revenue)
-            if revenue_val <= 0 or revenue_val > 100_000_000:
-                add("warning", "freight_revenue", "Cước vận chuyển nằm ngoài khoảng thường gặp.")
-            elif revenue_val < 10_000:
-                add("warning", "freight_revenue", "Cước vận chuyển quá nhỏ, có thể thiếu số 0.")
-        except Exception:
+        revenue_val = _validated_number(revenue)
+        if revenue_val is None:
             add("warning", "freight_revenue", "Cước vận chuyển không hợp lệ.")
+        elif revenue_val <= 0 or revenue_val > 100_000_000:
+            add("warning", "freight_revenue", "Cước vận chuyển nằm ngoài khoảng thường gặp.")
+        elif revenue_val < 10_000:
+            add("warning", "freight_revenue", "Cước vận chuyển quá nhỏ, có thể thiếu số 0.")
 
     distance = candidate.get("distance_km")
     if distance is not None:
-        try:
-            distance_val = float(distance)
-            if distance_val <= 0 or distance_val > 2500:
-                add("warning", "distance_km", "Số km nằm ngoài khoảng thường gặp.")
-        except Exception:
+        distance_val = _validated_number(distance)
+        if distance_val is None:
             add("warning", "distance_km", "Số km không hợp lệ.")
+        elif distance_val <= 0 or distance_val > 2500:
+            add("warning", "distance_km", "Số km nằm ngoài khoảng thường gặp.")
 
     if not candidate.get("origin") and not candidate.get("destination"):
         add("warning", "route", "Chưa nhận ra tuyến đường.")

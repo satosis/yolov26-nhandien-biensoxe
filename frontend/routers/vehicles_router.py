@@ -1,5 +1,9 @@
 import json
+import math
+import re
 from fastapi import APIRouter, Request, Depends, Form
+from fastapi.responses import HTMLResponse
+from pydantic import PositiveInt
 from starlette.responses import RedirectResponse
 from typing import Optional, List
 from frontend.deps import get_menu_context, require_menu, templates
@@ -7,16 +11,17 @@ from backend.services.database import db
 from backend.services.config import normalize_plate, trigger_ai_reload
 
 router = APIRouter(prefix="/vehicles")
+_FUEL_RE = re.compile(r"^\d+(?:[.,]\d+)?$")
 
 
 def _parse_fuel(value: Optional[str]) -> Optional[float]:
     if not value or not value.strip():
         return None
-    try:
-        fc = float(value.strip().replace(",", "."))
-    except ValueError:
+    normalized = value.strip()
+    if len(normalized) > 40 or not _FUEL_RE.fullmatch(normalized):
         return None
-    return fc if fc >= 0 else None
+    fc = float(normalized.replace(",", "."))
+    return fc if math.isfinite(fc) and fc >= 0 else None
 
 
 def get_whitelist_vehicles(site_id=None, limit=None, offset=None) -> list[dict]:
@@ -40,7 +45,7 @@ def get_whitelist_vehicles(site_id=None, limit=None, offset=None) -> list[dict]:
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
-def upsert_vehicle_whitelist(plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+def upsert_vehicle_whitelist(plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None) -> bool:
     query = """
         INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, fuel_consumption, is_active)
         VALUES (%s, 'white', %s, %s, %s, %s, %s, TRUE)
@@ -52,26 +57,30 @@ def upsert_vehicle_whitelist(plate_norm: str, label: Optional[str], added_by: st
         fuel_consumption=EXCLUDED.fuel_consumption,
         updated_at=NOW()
     """
-    db.execute_query(
+    saved = db.execute_query(
         query,
         (plate_norm, label, added_by, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption),
         commit=True
     )
-    trigger_ai_reload()
+    if saved:
+        trigger_ai_reload()
+    return bool(saved)
 
 
-def update_vehicle_whitelist(vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+def update_vehicle_whitelist(vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None) -> bool:
     query = """
         UPDATE plate_whitelist
         SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, fuel_consumption = %s, updated_at = NOW()
         WHERE id = %s
     """
-    db.execute_query(
+    updated = db.execute_query(
         query,
         (plate_norm, label, json.dumps(site_ids) if site_ids else '[]', note, fuel_consumption, vehicle_id),
         commit=True
     )
-    trigger_ai_reload()
+    if updated:
+        trigger_ai_reload()
+    return bool(updated)
 
 
 @router.get("")
@@ -94,22 +103,26 @@ async def vehicles_page(request: Request, user: dict = Depends(require_menu("veh
 async def add_vehicle(
     request: Request,
     plate_number: str = Form(...),
-    site_ids: List[str] = Form(default=[]),
+    site_ids: List[PositiveInt] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     fuel_consumption: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
     added_by = user.get("username", "admin")
-    site_ids_int = [int(s) for s in site_ids if s and s.strip()]
-    upsert_vehicle_whitelist(
-        plate_norm=normalize_plate(plate_number),
+    plate_norm = normalize_plate(plate_number)
+    fuel_value = _parse_fuel(fuel_consumption)
+    if not plate_norm or (fuel_consumption and fuel_consumption.strip() and fuel_value is None):
+        return HTMLResponse("Biển số hoặc mức tiêu hao nhiên liệu không hợp lệ.", status_code=422)
+    if not upsert_vehicle_whitelist(
+        plate_norm=plate_norm,
         label=owner_name or None,
         added_by=added_by,
-        site_ids=site_ids_int,
+        site_ids=site_ids,
         note=note,
-        fuel_consumption=_parse_fuel(fuel_consumption),
-    )
+        fuel_consumption=fuel_value,
+    ):
+        return HTMLResponse("Không thể lưu xe.", status_code=500)
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
 
@@ -121,7 +134,8 @@ async def delete_vehicle_post(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    db.delete("plate_whitelist", {"id": plate_id})
+    if not db.delete("plate_whitelist", {"id": plate_id}):
+        return HTMLResponse("Không tìm thấy xe.", status_code=404)
     trigger_ai_reload()
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
@@ -131,19 +145,23 @@ async def edit_vehicle(
     vehicle_id: int,
     request: Request,
     plate_number: str = Form(...),
-    site_ids: List[str] = Form(default=[]),
+    site_ids: List[PositiveInt] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     fuel_consumption: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    site_ids_int = [int(s) for s in site_ids if s and s.strip()]
-    update_vehicle_whitelist(
+    plate_norm = normalize_plate(plate_number)
+    fuel_value = _parse_fuel(fuel_consumption)
+    if not plate_norm or (fuel_consumption and fuel_consumption.strip() and fuel_value is None):
+        return HTMLResponse("Biển số hoặc mức tiêu hao nhiên liệu không hợp lệ.", status_code=422)
+    if not update_vehicle_whitelist(
         vehicle_id=vehicle_id,
-        plate_norm=normalize_plate(plate_number),
+        plate_norm=plate_norm,
         label=owner_name or None,
-        site_ids=site_ids_int,
+        site_ids=site_ids,
         note=note,
-        fuel_consumption=_parse_fuel(fuel_consumption),
-    )
+        fuel_consumption=fuel_value,
+    ):
+        return HTMLResponse("Không tìm thấy xe.", status_code=404)
     return RedirectResponse(url="/admin/vehicles", status_code=303)

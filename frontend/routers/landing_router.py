@@ -1,13 +1,13 @@
 import logging
 import re
 from datetime import datetime
-from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, Response
+from fastapi import APIRouter, BackgroundTasks, Request, Form
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from frontend.deps import get_optional_user, templates
 from frontend.notifications import manager
 from .cms_router import get_projects, get_news, get_news_by_slug, get_news_by_id, get_landing_settings
-from .inquiries_router import save_inquiry
+from .inquiries_router import InquiryInput, save_inquiry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -259,69 +259,74 @@ Sitemap: {base}/sitemap.xml
 
 
 
-_PHONE_RE = re.compile(r"^[0-9\s\+\-\.]{7,20}$")
-
-_SUCCESS_HTML = """<div id="contact-result"
-         class="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-green-700 text-sm"
-         role="status" aria-live="polite">
-      <div class="flex items-center gap-2 font-bold mb-1">
-        <span class="material-symbols-outlined text-green-600 text-base">check_circle</span>
-        Đã gửi thành công!
-      </div>
-      <p class="text-green-600 text-sm">
-        Chúng tôi sẽ liên hệ lại với bạn trong vòng 30 phút trong giờ làm việc. Cảm ơn bạn đã quan tâm!
-      </p>
-    </div>"""
+_PHONE_RE = re.compile(r"^(?:0|84)(?:3|5|7|8|9)\d{8}$")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
-def _error_html(errors: list[str]) -> str:
-    items = "".join(f'<li class="list-disc ml-4">{e}</li>' for e in errors)
-    return f"""<div id="contact-result"
-         class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-rose-700 text-sm"
-         role="alert">
-      <div class="flex items-center gap-2 font-semibold mb-2">
-        <span class="material-symbols-outlined text-rose-500 text-base">warning</span>
-        Vui lòng kiểm tra lại:
-      </div>
-      <ul>{items}</ul>
-    </div>"""
+def _normalise_inquiry(
+    full_name: str,
+    phone: str,
+    company_name: str,
+    demand: str,
+    source_page: str,
+) -> tuple[InquiryInput | None, dict[str, str]]:
+    """Convert raw form values into the sole internal contact-data format."""
+    name = _WHITESPACE_RE.sub(" ", full_name.strip())
+    phone_number = re.sub(r"[\s.\-]", "", phone.strip())
+    if phone_number.startswith("+"):
+        phone_number = phone_number[1:]
+    if phone_number.startswith("84"):
+        phone_number = f"0{phone_number[2:]}"
+
+    errors: dict[str, str] = {}
+    if len(name) < 2:
+        errors["full_name"] = "Vui lòng nhập họ tên (ít nhất 2 ký tự)."
+    if not _PHONE_RE.fullmatch(phone_number):
+        errors["phone"] = "Số điện thoại không hợp lệ."
+    if errors:
+        return None, errors
+
+    return InquiryInput(
+        full_name=name,
+        phone=phone_number,
+        company_name=_WHITESPACE_RE.sub(" ", company_name.strip()),
+        demand=demand.strip(),
+        source_page=source_page.strip()[:80] or "home",
+    ), {}
 
 
-@router.post("/lien-he", response_class=HTMLResponse)
+@router.post("/lien-he", response_class=JSONResponse)
 async def contact_inquiry(
+    background_tasks: BackgroundTasks,
     full_name: str = Form(""),
     phone: str = Form(""),
     company_name: str = Form(""),
     demand: str = Form(""),
     source_page: str = Form("home"),
 ):
-    full_name = full_name.strip()
-    phone = phone.strip()
-    company_name = company_name.strip()
-    demand = demand.strip()
-
-    errors: list[str] = []
-    if not full_name or len(full_name) < 2:
-        errors.append("Họ tên không hợp lệ (tối thiểu 2 ký tự).")
-    if not phone or not _PHONE_RE.match(phone):
-        errors.append("Số điện thoại không hợp lệ.")
-
+    inquiry, errors = _normalise_inquiry(full_name, phone, company_name, demand, source_page)
     if errors:
-        return HTMLResponse(_error_html(errors), status_code=400)
+        return JSONResponse({"ok": False, "message": next(iter(errors.values())), "fields": errors}, status_code=422)
 
-    inquiry_id = save_inquiry(full_name, phone, company_name, demand, source_page)
-    logger.info("New inquiry saved: %s | %s | source=%s", full_name, phone, source_page)
+    inquiry_id = save_inquiry(inquiry)
+    if inquiry_id is None:
+        logger.error("Contact inquiry was not stored")
+        return JSONResponse({"ok": False, "message": "Không thể lưu yêu cầu tư vấn. Vui lòng thử lại."}, status_code=500)
+    logger.info("New inquiry saved: id=%s source=%s", inquiry_id, inquiry.source_page)
 
-    import asyncio
-    asyncio.create_task(manager.broadcast({
+    background_tasks.add_task(manager.broadcast, {
         "type": "NEW_INQUIRY",
         "data": {
             "id": inquiry_id,
-            "full_name": full_name,
-            "phone": phone,
-            "demand": demand,
-            "source_page": source_page
+            "full_name": inquiry.full_name,
+            "phone": inquiry.phone,
+            "demand": inquiry.demand,
+            "source_page": inquiry.source_page,
         }
-    }))
+    })
 
-    return HTMLResponse(_SUCCESS_HTML, status_code=200)
+    return JSONResponse({
+        "ok": True,
+        "message": "Gửi thành công! Chúng tôi sẽ liên hệ lại trong vòng 30 phút.",
+        "inquiry_id": inquiry_id,
+    })

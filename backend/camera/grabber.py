@@ -4,7 +4,6 @@ import logging
 import signal
 import numpy as np
 import cv2
-import queue
 from multiprocessing import Queue, Event, shared_memory
 from typing import Optional
 
@@ -12,6 +11,8 @@ from backend.services import config as cfg
 from backend.services.database import db
 
 logger = logging.getLogger("grabber")
+MAX_RTSP_READ_FAILURES = 3
+STABLE_STREAM_SECONDS = 10
 
 
 def _build_roi_mask(h: int, w: int, scale: float = 1.0) -> np.ndarray:
@@ -36,6 +37,22 @@ def _motion_in_roi(prev_gray: np.ndarray, curr_gray: np.ndarray, mask: np.ndarra
     return any(cv2.contourArea(c) > cfg.MOTION_THRESHOLD for c in contours)
 
 
+def _enqueue_latest(queue_: Queue, item: dict, producer_lock) -> bool:
+    """Drop new tokens at capacity; the consumer collapses queued stale tokens."""
+    with producer_lock:
+        if queue_.full():
+            return False
+        queue_.put_nowait(item)
+        return True
+
+
+def _enqueue_recording_frame(queue_: Queue, cam_id: str, frame: np.ndarray, producer_lock) -> bool:
+    with producer_lock:
+        if queue_.full():
+            return False
+        queue_.put_nowait({"cam_id": cam_id, "frame": frame.copy()})
+        return True
+
 
 class CameraReader:
 
@@ -49,6 +66,8 @@ class CameraReader:
         infer_queue: Queue,
         recorder_queue: Queue,
         stop_event: Event,
+        infer_queue_lock,
+        recorder_queue_lock,
         site_id: int = None,
         camera_db_id: int = None,
     ):
@@ -56,19 +75,14 @@ class CameraReader:
         self.rtsp_url = rtsp_url
         self.shm_name = shm_name
         self.infer_queue = infer_queue
+        self.infer_queue_lock = infer_queue_lock
         self.recorder_queue = recorder_queue
+        self.recorder_queue_lock = recorder_queue_lock
         self.stop_event = stop_event
         self.site_id = site_id
         self._camera_db_id = camera_db_id
 
         total = self.HEADER_BYTES + cfg.SHM_FRAME_BYTES
-        try:
-            stale = shared_memory.SharedMemory(name=shm_name, create=False)
-            stale.close()
-            stale.unlink()
-            logger.warning("[%s] Cleaned stale SHM '%s' — InferenceWorker cache may need refresh", cam_id, shm_name)
-        except FileNotFoundError:
-            pass
         self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
         self._buf = np.ndarray(
             (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3),
@@ -79,35 +93,34 @@ class CameraReader:
         self._counter[0] = 0
 
     def run(self):
-        logger.info("[%s] Grabber started → %s", self.cam_id, self.rtsp_url)
+        logger.info("[%s] Grabber started", self.cam_id)
         frame_interval = 1.0 / cfg.GRAB_FPS_CAP
         roi_mask: Optional[np.ndarray] = None
         prev_gray: Optional[np.ndarray] = None
         frame_idx = 0
         cap = None
+        read_failures = 0
 
         try:
             while not self.stop_event.is_set():
                 cap = self._open_capture()
                 if cap is None:
-                    logger.error("[%s] Connection failed. Aborting grabber immediately without retry.", self.cam_id)
-                    self._write_health_event('stream_down')
-                    if self._camera_db_id:
-                        try:
-                            from backend.camera.camera_service import set_camera_streaming
-                            set_camera_streaming(self._camera_db_id, False)
-                        except Exception as e:
-                            logger.debug("[%s] Failed to reset is_streaming: %s", self.cam_id, e)
+                    self._mark_stream_down()
                     break
 
                 logger.info("[%s] Stream opened", self.cam_id)
                 t_last = time.monotonic()
+                read_failed = False
+                stable_frames = 0
 
                 while not self.stop_event.is_set():
                     ret, frame = cap.read()
                     if not ret or frame is None:
-                        logger.warning("[%s] Frame read failed — reconnecting", self.cam_id)
+                        read_failed = True
                         break
+                    stable_frames += 1
+                    if stable_frames >= max(1, int(cfg.GRAB_FPS_CAP * STABLE_STREAM_SECONDS)):
+                        read_failures = 0
 
                     t_now = time.monotonic()
                     if t_now < t_last + frame_interval:
@@ -130,11 +143,10 @@ class CameraReader:
                     np.copyto(self._buf, frame)
                     self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
 
-                    if self.recorder_queue and not self.recorder_queue.full():
-                        self.recorder_queue.put_nowait({
-                            "cam_id": self.cam_id,
-                            "frame": frame.copy(),
-                        })
+                    if self.recorder_queue:
+                        _enqueue_recording_frame(
+                            self.recorder_queue, self.cam_id, frame, self.recorder_queue_lock
+                        )
 
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     if prev_gray is not None and frame_idx % cfg.PLATE_DETECT_EVERY_N == 0:
@@ -149,14 +161,7 @@ class CameraReader:
                                 "ts": time.time(),
                                 "site_id": self.site_id,
                             }
-                            try:
-                                self.infer_queue.put_nowait(token)
-                            except queue.Full:
-                                try:
-                                    self.infer_queue.get_nowait()
-                                    self.infer_queue.put_nowait(token)
-                                except Exception:
-                                    pass
+                            _enqueue_latest(self.infer_queue, token, self.infer_queue_lock)
 
                         prev_gray = small_gray
                     elif prev_gray is None:
@@ -165,14 +170,15 @@ class CameraReader:
 
                 cap.release()
                 cap = None
-                if not self.stop_event.is_set():
-                    logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
+                if read_failed and not self.stop_event.is_set():
+                    read_failures += 1
+                    if read_failures >= MAX_RTSP_READ_FAILURES:
+                        logger.error("[%s] Frame read failed %d times", self.cam_id, read_failures)
+                        self._mark_stream_down()
+                        break
+                    logger.debug("[%s] Frame read retry %d/%d in %ds",
+                                 self.cam_id, read_failures, MAX_RTSP_READ_FAILURES - 1, cfg.RTSP_RECONNECT_DELAY)
                     self.stop_event.wait(cfg.RTSP_RECONNECT_DELAY)
-        except Exception as e:
-            logger.critical("[%s] Grabber CRASHED: %s", self.cam_id, str(e), exc_info=True)
-            self._write_health_event('crashed')
-            raise
-
         finally:
             if cap is not None:
                 cap.release()
@@ -180,54 +186,54 @@ class CameraReader:
             self._shm.unlink()
             logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
+    def _mark_stream_down(self):
+        if self._camera_db_id:
+            from backend.camera.camera_service import set_camera_streaming
+            if not set_camera_streaming(self._camera_db_id, False):
+                logger.error("[%s] Camera streaming state update affected no row", self.cam_id)
+                raise RuntimeError(f"Camera {self.cam_id} streaming state could not be disabled")
+        self._write_health_event('stream_down')
+
     def _write_health_event(self, event_type: str):
-        try:
-            db.insert("camera_status_log", {
-                "camera_id": str(self.cam_id),
-                "status": event_type,
-                "event_type": event_type,
-                "logged_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            })
-        except Exception as e:
-            logger.debug("[%s] Health event write failed: %s", self.cam_id, e)
+        saved = db.insert("camera_status_log", {
+            "camera_id": str(self.cam_id),
+            "status": event_type,
+            "event_type": event_type,
+            "logged_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+        if not saved:
+            logger.error("[%s] Camera health event insert returned no row (%s)", self.cam_id, event_type)
+            raise RuntimeError(f"Camera {self.cam_id} health event could not be stored")
 
         if event_type in ('stream_down', 'crashed'):
-            try:
-                from backend.services.telegram_service import notify_telegram
-                notify_telegram(
-                    f"Camera {self.cam_id} OFFLINE — {event_type}",
-                    important=True,
-                )
-            except Exception:
-                logger.exception("[%s] Telegram alert failed", self.cam_id)
+            from backend.services.telegram_service import notify_telegram
+            notify_telegram(
+                f"Camera {self.cam_id} OFFLINE — {event_type}",
+                important=True,
+            )
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
         if self._camera_db_id:
-            try:
-                from backend.camera.camera_service import get_camera_rtsp_url
-                fresh_url = get_camera_rtsp_url(self._camera_db_id)
-                if fresh_url and fresh_url != self.rtsp_url:
-                    logger.info("[%s] RTSP URL refreshed from DB", self.cam_id)
-                    self.rtsp_url = fresh_url
-            except Exception as e:
-                logger.debug("[%s] URL refresh failed: %s", self.cam_id, e)
+            from backend.camera.camera_service import get_camera_rtsp_url
+            fresh_url = get_camera_rtsp_url(self._camera_db_id)
+            if not fresh_url:
+                logger.error("[%s] Camera has no valid RTSP URL in DB", self.cam_id)
+                return None
+            if fresh_url != self.rtsp_url:
+                logger.info("[%s] RTSP URL refreshed from DB", self.cam_id)
+                self.rtsp_url = fresh_url
 
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         
-        masked_url = self.rtsp_url
-        if "@" in self.rtsp_url:
-            parts = self.rtsp_url.split("@")
-            prefix = parts[0].split(":")
-            if len(prefix) > 2:
-                masked_url = f"{prefix[0]}:***@{parts[1]}"
-        
-        logger.info("[%s] Attempting to open: %s", self.cam_id, masked_url)
+        logger.info("[%s] Attempting to open camera stream", self.cam_id)
         
         cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         if not cap.isOpened() and not self.rtsp_url.startswith("rtsp://"):
+            cap.release()
             cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
             cap.release()
+            logger.error("[%s] Camera stream could not be opened", self.cam_id)
             return None
 
         cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_NONE)
@@ -243,6 +249,8 @@ def grabber_process(
     infer_queue: Queue,
     recorder_queue: Queue,
     stop_event: Event,
+    infer_queue_lock,
+    recorder_queue_lock,
     site_id: int = None,
     camera_db_id: int = None,
 ):
@@ -250,5 +258,5 @@ def grabber_process(
     cfg.setup_logging("grabber.log")
 
     reader = CameraReader(cam_id, rtsp_url, shm_name, infer_queue, recorder_queue,
-                          stop_event, site_id, camera_db_id)
+                          stop_event, infer_queue_lock, recorder_queue_lock, site_id, camera_db_id)
     reader.run()

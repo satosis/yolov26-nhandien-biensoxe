@@ -137,12 +137,11 @@ function toggleEditForm(roleId) {
 
 async function deleteRole(roleId, roleName) {
   if (!confirm('Xóa vai trò "' + roleName + '"?\nNgười dùng thuộc vai trò này sẽ không thể đăng nhập.')) return;
-  const res = await fetch('/admin/rbac/' + roleId, { method: 'DELETE' });
-  if (res.ok || res.redirected) {
+  const result = await apiRequest('/admin/rbac/' + roleId, { method: 'DELETE' });
+  if (result.ok) {
     window.location.href = '/admin/rbac';
   } else {
-    const data = await res.json().catch(() => ({}));
-    alert(data.detail || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.');
+    alert(result.message || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.');
   }
 }
 </script>

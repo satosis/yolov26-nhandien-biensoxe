@@ -55,19 +55,51 @@
   (function() {
     const ws_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws_url = `${ws_protocol}//${window.location.host}/ws/notifications`;
+    let reconnects = 0;
+    const maxReconnects = 3;
+
+    function notificationFrom(raw) {
+      if (typeof raw !== 'string') {
+        console.error('Invalid notification frame type');
+        return Promise.resolve(null);
+      }
+      return Promise.resolve().then(() => JSON.parse(raw)).then(
+        (message) => {
+          if (!message || message.type !== 'NEW_INQUIRY') return null;
+          const data = message.data;
+          if (!data || typeof data.full_name !== 'string' || typeof data.phone !== 'string') {
+            console.error('Invalid inquiry notification shape');
+            return null;
+          }
+          return { fullName: data.full_name, phone: data.phone };
+        },
+        () => {
+          console.error('Invalid notification JSON frame');
+          return null;
+        },
+      );
+    }
+
     function connect() {
       const ws = new WebSocket(ws_url);
       ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'NEW_INQUIRY' && window.toastr) {
-            toastr.info(`${msg.data.phone || ''}`, `📩 Tin tư vấn mới: ${msg.data.full_name || ''}`,
+        notificationFrom(event.data).then((notification) => {
+          if (notification && window.toastr) {
+            toastr.options.escapeHtml = true;
+            toastr.info(notification.phone, `📩 Tin tư vấn mới: ${notification.fullName}`,
               { onclick: () => window.location.href = '/admin/inquiries', timeOut: 8000 });
           }
-        } catch (err) { console.error(err); }
+        });
       };
-      ws.onclose = () => setTimeout(connect, 5000);
-      ws.onerror = (err) => console.error('WS error:', err);
+      ws.onclose = () => {
+        if (reconnects >= maxReconnects) {
+          console.error('Notification WebSocket disconnected after three reconnects');
+          if (window.toastr) toastr.warning('Mất kết nối thông báo. Hãy tải lại trang.');
+          return;
+        }
+        reconnects += 1;
+        setTimeout(connect, 5000);
+      };
     }
     connect();
   })();

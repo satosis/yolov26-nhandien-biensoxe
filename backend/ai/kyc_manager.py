@@ -12,10 +12,22 @@ class KYCManager:
         return db._execute_query(query, (full_name, phone, email, dob, id_number, user_id), commit=True)
 
     def insert_document(self, user_id, doc_type, file_path):
-        query = '''INSERT INTO kyc_documents (user_id, doc_type, file_path)
-                   VALUES (%s, %s, %s)
-                   ON CONFLICT DO NOTHING'''
-        return db._execute_query(query, (user_id, doc_type, file_path), commit=True)
+        query = '''WITH inserted AS (
+                       INSERT INTO kyc_documents (user_id, doc_type, file_path)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT DO NOTHING
+                       RETURNING 1
+                   )
+                   SELECT EXISTS(SELECT 1 FROM inserted)
+                       OR EXISTS(
+                           SELECT 1 FROM kyc_documents
+                           WHERE user_id=%s AND doc_type=%s AND file_path=%s
+                       ) AS stored'''
+        result = db._execute_query(
+            query, (user_id, doc_type, file_path, user_id, doc_type, file_path),
+            fetch=True, commit=True,
+        )
+        return bool(result["stored"])
 
     def delete_document(self, user_id, doc_type):
         query = "DELETE FROM kyc_documents WHERE user_id=%s AND doc_type=%s"
@@ -52,33 +64,53 @@ class KYCManager:
         return db._execute_query(query, fetchall=True, commit=False)
 
     def approve(self, user_id, reviewer):
-        db._execute_query(
-            '''UPDATE users SET kyc_level=4, kyc_reviewed_at=NOW(),
-               kyc_reviewed_by=%s, kyc_reject_reason=NULL WHERE id=%s''',
-            (reviewer, user_id), commit=True
+        result = db._execute_query(
+            '''WITH updated_user AS (
+                   UPDATE users SET kyc_level=4, kyc_reviewed_at=NOW(),
+                       kyc_reviewed_by=%s, kyc_reject_reason=NULL
+                   WHERE id=%s RETURNING id
+               ), updated_documents AS (
+                   UPDATE kyc_documents
+                   SET status='approved', reviewed_at=NOW(), reviewed_by=%s
+                   WHERE user_id IN (SELECT id FROM updated_user)
+                   RETURNING user_id
+               )
+               SELECT EXISTS(SELECT 1 FROM updated_user) AS changed''',
+            (reviewer, user_id, reviewer), fetch=True, commit=True,
         )
-        return db._execute_query(
-            "UPDATE kyc_documents SET status='approved', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
-            (reviewer, user_id), commit=True
-        )
+        return bool(result["changed"])
 
     def reject(self, user_id, reviewer, reason):
-        db._execute_query(
-            '''UPDATE users SET kyc_level=-1, kyc_reviewed_at=NOW(),
-               kyc_reviewed_by=%s, kyc_reject_reason=%s WHERE id=%s''',
-            (reviewer, reason, user_id), commit=True
+        result = db._execute_query(
+            '''WITH updated_user AS (
+                   UPDATE users SET kyc_level=-1, kyc_reviewed_at=NOW(),
+                       kyc_reviewed_by=%s, kyc_reject_reason=%s
+                   WHERE id=%s RETURNING id
+               ), updated_documents AS (
+                   UPDATE kyc_documents
+                   SET status='rejected', reviewed_at=NOW(), reviewed_by=%s
+                   WHERE user_id IN (SELECT id FROM updated_user)
+                   RETURNING user_id
+               )
+               SELECT EXISTS(SELECT 1 FROM updated_user) AS changed''',
+            (reviewer, reason, user_id, reviewer), fetch=True, commit=True,
         )
-        return db._execute_query(
-            "UPDATE kyc_documents SET status='rejected', reviewed_at=NOW(), reviewed_by=%s WHERE user_id=%s",
-            (reviewer, user_id), commit=True
-        )
+        return bool(result["changed"])
 
     def reset(self, user_id):
-        db._execute_query(
-            '''UPDATE users SET kyc_level=0, kyc_submitted_at=NULL,
-               kyc_reviewed_at=NULL, kyc_reviewed_by=NULL, kyc_reject_reason=NULL
-               WHERE id=%s''',
-            (user_id,), commit=True
+        result = db._execute_query(
+            '''WITH updated_user AS (
+                   UPDATE users SET kyc_level=0, kyc_submitted_at=NULL,
+                       kyc_reviewed_at=NULL, kyc_reviewed_by=NULL,
+                       kyc_reject_reason=NULL
+                   WHERE id=%s RETURNING id
+               ), deleted_documents AS (
+                   DELETE FROM kyc_documents
+                   WHERE user_id IN (SELECT id FROM updated_user)
+                   RETURNING user_id
+               )
+               SELECT EXISTS(SELECT 1 FROM updated_user) AS changed''',
+            (user_id,), fetch=True, commit=True,
         )
-        return db._execute_query("DELETE FROM kyc_documents WHERE user_id=%s", (user_id,), commit=True)
+        return bool(result["changed"])
 

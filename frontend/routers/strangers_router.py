@@ -1,13 +1,29 @@
-from fastapi import APIRouter, Request, Depends, Form, Body
 import logging
 from pathlib import Path
+
+from fastapi import APIRouter, Request, Depends, Form
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 from starlette.responses import RedirectResponse
+
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.ai.stranger_manager import get_stranger_manager
-from frontend.routers.users_router import get_all_users
+from frontend.routers.users_router import get_all_users, get_user_by_id
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/strangers")
+
+
+class BulkRegisterInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[PositiveInt] = Field(min_length=1)
+    user_id: PositiveInt
+
+
+class BulkDeleteInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[PositiveInt] = Field(min_length=1)
 
 
 def get_stranger_logs(status: str | None = None, limit: int = 50, site_id: int | None = None) -> list:
@@ -57,8 +73,10 @@ def update_stranger_status(stranger_id: int, status: str,
 
 
 def delete_stranger_log(stranger_id: int) -> bool:
-    row = db._execute_query("SELECT image_path FROM stranger_logs WHERE id = %s", (stranger_id,), fetch=True, commit=False)
-    if row and row.get("image_path"):
+    row = db.select("stranger_logs", columns="image_path", conditions={"id": stranger_id}, fetchall=False)
+    if not row:
+        return False
+    if row.get("image_path"):
         Path(row["image_path"]).unlink(missing_ok=True)
     return db.delete("stranger_logs", {"id": stranger_id})
 
@@ -75,51 +93,77 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
 
 @router.post("/{stranger_id}/review")
 async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
-    update_stranger_status(stranger_id, "reviewed")
+    if not update_stranger_status(stranger_id, "reviewed"):
+        return HTMLResponse("Không tìm thấy người lạ.", status_code=404)
     return RedirectResponse("/admin/strangers", status_code=303)
 
 
 @router.delete("/{stranger_id}")
 async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
-    delete_stranger_log(stranger_id)
+    if not delete_stranger_log(stranger_id):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy người lạ."}, status_code=404)
     get_stranger_manager().remove(stranger_id)
-    return RedirectResponse("/admin/strangers", status_code=303)
+    return {"ok": True}
 
 
 @router.post("/register")
 async def register_stranger(
-    stranger_id: int = Form(...),
-    user_id: int = Form(...),
+    stranger_id: int = Form(..., gt=0),
+    user_id: int = Form(..., gt=0),
     user_auth: dict = Depends(require_menu("strangers"))
 ):
-    logging.info("Registering stranger %s as user %s", stranger_id, user_id)
-    update_stranger_status(stranger_id, "registered", converted_user_id=user_id)
+    if not get_user_by_id(user_id):
+        return HTMLResponse("Không tìm thấy người dùng.", status_code=404)
+    if not update_stranger_status(stranger_id, "registered", converted_user_id=user_id):
+        return HTMLResponse("Không tìm thấy người lạ.", status_code=404)
+    logger.info("Registered stranger %s as user %s", stranger_id, user_id)
     get_stranger_manager().remove(stranger_id)
     return RedirectResponse("/admin/strangers", status_code=303)
 
 
 @router.post("/bulk-register")
 async def bulk_register_strangers(
-    payload: dict = Body(...),
+    payload: BulkRegisterInput,
     user: dict = Depends(require_menu("strangers"))
 ):
-    ids = [int(i) for i in payload.get("ids", [])]
-    user_id = int(payload.get("user_id"))
-    for sid in ids:
-        update_stranger_status(sid, "registered", converted_user_id=user_id)
-        get_stranger_manager().remove(sid)
-    logging.info(f"Bulk registered {len(ids)} strangers as user {user_id}")
-    return {"ok": True, "count": len(ids)}
+    if not get_user_by_id(payload.user_id):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy người dùng."}, status_code=404)
+    updated = 0
+    missing = []
+    for sid in dict.fromkeys(payload.ids):
+        if update_stranger_status(sid, "registered", converted_user_id=payload.user_id):
+            updated += 1
+            get_stranger_manager().remove(sid)
+        else:
+            missing.append(sid)
+    if updated:
+        logger.info("Bulk registered %s strangers as user %s", updated, payload.user_id)
+    if missing:
+        return JSONResponse(
+            {"ok": False, "message": "Một số người lạ không tồn tại.", "count": updated, "missing": missing},
+            status_code=404,
+        )
+    return {"ok": True, "count": updated}
 
 
 @router.post("/bulk-delete")
 async def bulk_delete_strangers(
-    payload: dict = Body(...),
+    payload: BulkDeleteInput,
     user: dict = Depends(require_menu("strangers"))
 ):
-    ids = [int(i) for i in payload.get("ids", [])]
-    for sid in ids:
-        delete_stranger_log(sid)
-        get_stranger_manager().remove(sid)
-    logging.info(f"Bulk deleted {len(ids)} strangers")
-    return {"ok": True, "count": len(ids)}
+    deleted = 0
+    missing = []
+    for sid in dict.fromkeys(payload.ids):
+        if delete_stranger_log(sid):
+            deleted += 1
+            get_stranger_manager().remove(sid)
+        else:
+            missing.append(sid)
+    if deleted:
+        logger.info("Bulk deleted %s strangers", deleted)
+    if missing:
+        return JSONResponse(
+            {"ok": False, "message": "Một số người lạ không tồn tại.", "count": deleted, "missing": missing},
+            status_code=404,
+        )
+    return {"ok": True, "count": deleted}

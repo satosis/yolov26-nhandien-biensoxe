@@ -19,6 +19,7 @@
 
 
   <script src="/static/admin/js/htmx.min.js?v=2.1"></script>
+  <script src="/static/admin/js/api-client.js?v=1.1"></script>
   <script src="/static/admin/js/alpine.min.js?v=2.1" defer></script>
   <script src="/static/admin/js/tom-select.complete.min.js?v=2.4.1"></script>
   <style>
@@ -75,19 +76,23 @@
     confirm(){
       if(this.confirmUrl){
         if(this.reload){
-          fetch(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(()=>window.location.reload());
+          apiRequest(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+            .then(result=>{
+              if(result.ok){ window.location.reload(); return; }
+              window.dispatchEvent(new CustomEvent('showToast', {
+                detail:{msg:result.message || 'Không thể thực hiện thao tác.',type:'error'}
+              }));
+            });
         } else if(this.confirmTarget && typeof htmx!=='undefined'){
           const url=this.confirmUrl+(this.confirmUrl.includes('?')?'&':'?')+'hx=1';
           htmx.ajax(this.confirmMethod,url,{target:this.confirmTarget,swap:this.confirmSwap,headers:{'X-HTMX-Action':'true'}});
         } else {
-          fetch(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
-            .then(r=>r.json().catch(()=>({ok:r.ok})))
+          apiRequest(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
             .then(d=>{
-              const ok = d && (d.ok!==false);
-              const msg = (d && d.message) || (ok ? 'Thành công' : 'Thất bại');
+              const ok = d.ok;
+              const msg = d.message || (ok ? 'Thành công' : 'Thất bại');
               if(window.toastr){ toastr[ok?'success':'error'](msg); } else { alert(msg); }
-            })
-            .catch(()=>{ if(window.toastr){ toastr.error('Lỗi kết nối'); } });
+            });
         }
       }
       setTimeout(()=>{this.open=false;},10);
@@ -129,16 +134,27 @@
     if (window.toastr) {
       toastr.options = {
         closeButton:true, progressBar:true, positionClass:"toast-top-right",
+        escapeHtml:true,
         timeOut:"4000", extendedTimeOut:"1000",
         showMethod:"fadeIn", hideMethod:"fadeOut"
       };
     }
-    document.body.addEventListener("showToast", (e) => {
+    window.addEventListener("showToast", (e) => {
       const d = e.detail || {};
       const msg = d.msg || d.value || "";
       const type = (d.type || "success");
       if (window.toastr && toastr[type]) { toastr[type](msg); }
       else { alert(msg); }
+    });
+    document.body.addEventListener("htmx:responseError", () => {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail:{msg:'Không thể thực hiện thao tác. Vui lòng thử lại.',type:'error'}
+      }));
+    });
+    document.body.addEventListener("htmx:sendError", () => {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail:{msg:'Không thể kết nối tới máy chủ.',type:'error'}
+      }));
     });
   </script>
   {% block scripts %}{% endblock %}

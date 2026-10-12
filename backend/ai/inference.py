@@ -1,12 +1,15 @@
 import os
 import time
 import json
-import queue
 import re
 import uuid
 import signal
 import logging
 import collections
+import importlib
+import importlib.util
+import math
+from numbers import Real
 import threading
 import ssl
 import certifi
@@ -19,11 +22,8 @@ from dataclasses import dataclass, field
 from multiprocessing import Queue, Event, shared_memory
 from typing import Optional
 
-try:
-    import onnxruntime as ort
-    _HAS_ORT = True
-except ImportError:
-    _HAS_ORT = False
+ort = importlib.import_module("onnxruntime") if importlib.util.find_spec("onnxruntime") else None
+_HAS_ORT = ort is not None
 
 from insightface.app import FaceAnalysis
 
@@ -35,6 +35,52 @@ from backend.util.texture_utils import check_plate_authenticity
 from backend.util.bbox_utils import merge_plate_boxes
 
 logger = logging.getLogger("inference")
+
+
+def _face_embedding(face) -> np.ndarray:
+    emb = getattr(face, "normed_embedding", None)
+    if not isinstance(emb, np.ndarray) or emb.shape != (512,) or emb.dtype.kind not in "iuf":
+        logger.error("Face model returned an invalid embedding shape or type")
+        raise ValueError("Face model returned an invalid embedding shape")
+    emb = emb.astype(np.float32, copy=False)
+    if not np.isfinite(emb).all():
+        logger.error("Face model returned a non-finite embedding")
+        raise ValueError("Face model returned a non-finite embedding")
+    norm = float(np.linalg.norm(emb))
+    if not np.isfinite(norm) or norm <= 1e-6:
+        logger.error("Face model returned a zero embedding")
+        raise ValueError("Face model returned a zero embedding")
+    return emb / norm
+
+
+def _face_bbox_in_frame(raw_bbox, offset_x: int, offset_y: int, frame_shape) -> list[int] | None:
+    """Normalize model coordinates once, before they reach snapshot persistence."""
+    if (
+        not isinstance(raw_bbox, (list, tuple, np.ndarray))
+        or (isinstance(raw_bbox, np.ndarray) and raw_bbox.ndim != 1)
+        or len(raw_bbox) != 4
+        or any(not isinstance(value, Real) for value in raw_bbox)
+    ):
+        logger.error("Face model returned an invalid bounding box")
+        raise ValueError("Face model returned an invalid bounding box")
+    bbox = np.asarray(raw_bbox, dtype=np.float64)
+    if not np.isfinite(bbox).all():
+        logger.error("Face model returned an invalid bounding box")
+        raise ValueError("Face model returned an invalid bounding box")
+
+    x1, y1, x2, y2 = bbox
+    if x2 <= x1 or y2 <= y1:
+        logger.error("Face model returned a bounding box with invalid dimensions")
+        raise ValueError("Face model returned a bounding box with invalid dimensions")
+
+    frame_h, frame_w = frame_shape[:2]
+    left = math.floor(np.clip(x1 + offset_x, 0, frame_w))
+    top = math.floor(np.clip(y1 + offset_y, 0, frame_h))
+    right = math.ceil(np.clip(x2 + offset_x, 0, frame_w))
+    bottom = math.ceil(np.clip(y2 + offset_y, 0, frame_h))
+    if right - left < 28 or bottom - top < 28:
+        return None
+    return [left, top, right, bottom]
 
 
 def _patch_e2e_loss():
@@ -163,48 +209,30 @@ class PlateDetector:
         
         logger.info("PlateDetector: Initializing... Target model: %s", model_path)
 
-        if model_path.endswith(".pt"):
-            if os.path.exists(model_path):
-                try:
-                    import torch
-                    from ultralytics import YOLO
+        if model_path.endswith(".pt") and os.path.exists(model_path):
+            import torch
+            from ultralytics import YOLO
 
-                    _patch_e2e_loss()
-                    
-                    self._model = YOLO(model_path, task="detect")
-                    device = "cpu"
-                    if torch.backends.mps.is_available():
-                        device = "mps"
-                        self._model.to(device)
-                        logger.info("PlateDetector: PyTorch hardware acceleration ENABLED (MPS)")
-                    else:
-                        self._model.to("cpu")
-                        logger.info("PlateDetector: PyTorch loaded using CPU")
-                    self._engine_type = f"yolo_{device}"
-                    return
-                except Exception as e:
-                    logger.error("PlateDetector: PyTorch load failed: %s", e)
-            else:
-                logger.error("PlateDetector: Requested .pt file NOT FOUND: %s", model_path)
+            _patch_e2e_loss()
+            self._model = YOLO(model_path, task="detect")
+            device = "mps" if torch.backends.mps.is_available() else "cpu"
+            self._model.to(device)
+            logger.info("PlateDetector: PyTorch loaded using %s", device.upper())
+            self._engine_type = f"yolo_{device}"
+            return
 
         rknn_path = cfg.RKNN_MODEL_PATH
-        if rknn_path and os.path.exists(rknn_path):
-            try:
-                from rknnlite.api import RKNNLite
-                self._rknn = RKNNLite()
-                ret = self._rknn.load_rknn(rknn_path)
-                if ret == 0:
-                    ret = self._rknn.init_runtime()
-                if ret == 0:
-                    self._engine_type = "rknn"
-                    logger.info("PlateDetector: Successfully loaded RKNN (NPU) engine: %s", rknn_path)
-                else:
-                    logger.warning("PlateDetector: RKNN load/init failed (code: %d)", ret)
-                    self._rknn = None
-            except ImportError:
-                pass
-            except Exception as e:
-                logger.warning("PlateDetector: RKNN initialization error: %s", e)
+        if rknn_path and os.path.exists(rknn_path) and importlib.util.find_spec("rknnlite"):
+            from rknnlite.api import RKNNLite
+            self._rknn = RKNNLite()
+            ret = self._rknn.load_rknn(rknn_path)
+            if ret == 0:
+                ret = self._rknn.init_runtime()
+            if ret != 0:
+                logger.error("RKNN model load or initialization failed (code=%s)", ret)
+                raise RuntimeError(f"RKNN load/init failed with code {ret}")
+            self._engine_type = "rknn"
+            logger.info("PlateDetector: Successfully loaded RKNN (NPU) engine: %s", rknn_path)
 
         if self._engine_type == "cpu" and _HAS_ORT:
             path = model_path
@@ -223,31 +251,29 @@ class PlateDetector:
                 if not is_int8:
                     providers.insert(0, 'CoreMLExecutionProvider')
                     provider_options.insert(0, {"MLComputeUnits": "CPUAndGPU"})
-                try:
-                    self._ort_session = ort.InferenceSession(path, providers=providers, provider_options=provider_options)
-                    active = self._ort_session.get_providers()
-                    if "CoreMLExecutionProvider" in active:
-                        self._engine_type = "coreml"
-                        logger.info("PlateDetector: ONNX + CoreML: %s", path)
-                    else:
-                        self._engine_type = "onnx_cpu"
-                        logger.info("PlateDetector: ONNX CPU: %s", path)
-                except Exception as e:
-                    logger.warning("PlateDetector: ONNX init failed: %s", e)
-                    self._ort_session = None
+                self._ort_session = ort.InferenceSession(path, providers=providers, provider_options=provider_options)
+                active = self._ort_session.get_providers()
+                if "CoreMLExecutionProvider" in active:
+                    self._engine_type = "coreml"
+                    logger.info("PlateDetector: ONNX + CoreML: %s", path)
+                else:
+                    self._engine_type = "onnx_cpu"
+                    logger.info("PlateDetector: ONNX CPU: %s", path)
 
         if self._engine_type == "cpu":
-            try:
-                from ultralytics import YOLO
+            if not os.path.exists(model_path):
+                logger.error("Configured plate model is missing")
+                raise FileNotFoundError(f"PlateDetector model not found: {model_path}")
+            if model_path.endswith(".onnx"):
+                logger.error("ONNX Runtime is unavailable for the configured plate model")
+                raise RuntimeError("ONNX Runtime is required for the configured plate model")
+            from ultralytics import YOLO
 
-                _patch_e2e_loss()
-                
-                self._model = YOLO(cfg.PLATE_MODEL_PATH, task="detect")
-                self._model.to("cpu")
-                self._engine_type = "yolo_cpu"
-                logger.info("PlateDetector: Fallback to YOLO CPU: %s", cfg.PLATE_MODEL_PATH)
-            except Exception as e:
-                raise RuntimeError("No inference engine available") from e
+            _patch_e2e_loss()
+            self._model = YOLO(cfg.PLATE_MODEL_PATH, task="detect")
+            self._model.to("cpu")
+            self._engine_type = "yolo_cpu"
+            logger.info("PlateDetector: Fallback to YOLO CPU: %s", cfg.PLATE_MODEL_PATH)
 
     def detect(self, frame):
         if self._model:
@@ -256,6 +282,7 @@ class PlateDetector:
             return self._detect_onnx(frame)
         elif self._engine_type == "rknn":
             return self._detect_rknn(frame)
+        logger.error("PlateDetector has no available inference engine")
         raise RuntimeError("No inference engine available")
 
     def _detect_rknn(self, frame):
@@ -342,7 +369,9 @@ class FaceRecognizer:
         logger.info("FaceRecognizer: Reload complete. %d identities loaded.", len(self._names))
 
     def _load_known_faces(self):
-        if not os.path.isdir(cfg.KNOWN_FACES_DIR): return
+        if not os.path.isdir(cfg.KNOWN_FACES_DIR):
+            logger.error("Known faces directory is missing")
+            raise FileNotFoundError(f"Known faces directory is missing: {cfg.KNOWN_FACES_DIR}")
         
         all_embs = []
         all_names = []
@@ -354,11 +383,14 @@ class FaceRecognizer:
             embeddings = []
             for fname in os.listdir(person_dir):
                 if not fname.lower().endswith((".jpg", ".jpeg", ".png")): continue
-                img = cv2.imread(os.path.join(person_dir, fname))
-                if img is None: continue
+                image_path = os.path.join(person_dir, fname)
+                img = cv2.imread(image_path)
+                if img is None:
+                    logger.error("Known face image cannot be decoded")
+                    raise ValueError(f"Known face image cannot be decoded: {image_path}")
                 faces = self._app.get(img)
                 if faces:
-                    emb = faces[0].normed_embedding
+                    emb = _face_embedding(faces[0])
                     embeddings.append(emb)
                     all_embs.append(emb)
                     all_names.append(person)
@@ -425,23 +457,22 @@ class FaceRecognizer:
         if not faces:
             faces = raw_faces
 
-        faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
-        face = faces[0]
+        visible_faces = []
+        for face in faces:
+            bbox = _face_bbox_in_frame(face.bbox, offset_x, offset_y, frame.shape)
+            if bbox is not None:
+                visible_faces.append((face, bbox))
+        if not visible_faces:
+            return "", 0.0, [], None, "frontal"
 
-        w, h = face.bbox[2]-face.bbox[0], face.bbox[3]-face.bbox[1]
-        emb = face.normed_embedding
-        bbox = [
-            int(face.bbox[0] + offset_x),
-            int(face.bbox[1] + offset_y),
-            int(face.bbox[2] + offset_x),
-            int(face.bbox[3] + offset_y),
-        ]
+        face, bbox = max(
+            visible_faces,
+            key=lambda item: (item[1][2] - item[1][0]) * (item[1][3] - item[1][1]),
+        )
+        emb = _face_embedding(face)
 
         pose = getattr(face, 'pose', None)
         direction = self._map_pose_to_direction(pose)
-
-        if w < 28 or h < 28:
-            return "", 0.0, [], None, "frontal"
 
         with self._lock:
             if self._matrix is None:
@@ -540,6 +571,7 @@ class InferenceWorker:
     def __init__(self, infer_queue: Queue, recorder_control_queue: Queue, stop_event: Event):
         self.infer_queue = infer_queue
         self.recorder_control_queue = recorder_control_queue
+        self._recorder_control_lock = threading.Lock()
         self.stop_event = stop_event
 
         self._plate_detector = None
@@ -550,17 +582,14 @@ class InferenceWorker:
         self._shm_clients: dict[str, shared_memory.SharedMemory] = {}
         self._seen_plates: dict[str, float] = {}
 
-        self._door_manager = None
-        try:
-            from backend.iot.door_auto_close import DoorAutoCloseManager
-            self._door_manager = DoorAutoCloseManager()
-            self._door_manager.reload_config()
-            logger.info("DoorAutoCloseManager initialized")
-        except Exception as e:
-            logger.debug(f"DoorAutoCloseManager not available: {e}")
+        from backend.iot.door_auto_close import DoorAutoCloseManager
+        self._door_manager = DoorAutoCloseManager()
+        self._door_manager.reload_config()
+        logger.info("DoorAutoCloseManager initialized")
         self._frame_counter = 0
         
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self._pending_tasks: set[concurrent.futures.Future] = set()
         self._last_face_reload = 0
         self._last_active_ts = time.time()
         self._idle_timeout = 300
@@ -580,19 +609,22 @@ class InferenceWorker:
             fetch=True
         )
         if active:
-            db.execute_query("""
+            saved = db.execute_query("""
                 UPDATE vehicle_sessions
                 SET entry_time = NOW(), camera_id_in = %s, entry_image = %s, site_id = %s
                 WHERE id = %s
             """, (camera_id, image_path, site_id, active["id"]), commit=True)
         else:
-            db.execute_query("""
+            saved = db.execute_query("""
                 INSERT INTO vehicle_sessions (plate_norm, vehicle_type, camera_id_in, entry_image, site_id, status)
                 VALUES (%s, %s, %s, %s, %s, 'parking')
             """, (plate_norm, vehicle_type, camera_id, image_path, site_id), commit=True)
+        if not saved:
+            logger.error("Vehicle session write affected no rows")
+            raise RuntimeError("Vehicle session was not stored")
         return True
 
-    def _add_pending_plate(self, plate_norm: str, plate_raw: str, camera_id: Optional[str] = None, site_id: Optional[int] = None, image_path: Optional[str] = None, plate_type: str = "white"):
+    def _add_pending_plate(self, plate_norm: str, plate_raw: str, camera_id: Optional[str] = None, site_id: Optional[int] = None, image_path: Optional[str] = None, plate_type: str = "white") -> bool:
         clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
         existing = db.execute_query("""
             SELECT pending_id FROM pending_plates
@@ -603,15 +635,19 @@ class InferenceWorker:
         """, (clean_plate,), fetch=True)
         if existing:
             logger.info(f"Plate {plate_norm} pending or in 60s cooldown (match: {clean_plate}). Skipping.")
-            return
+            return False
 
         pid = str(uuid.uuid4())[:8]
         logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
-        db.execute_query("""
+        saved = db.execute_query("""
             INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
             VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
             ON CONFLICT (pending_id) DO NOTHING
         """, (pid, plate_raw, plate_norm, site_id, image_path, plate_type), commit=True)
+        if not saved:
+            logger.error("Pending plate write affected no rows")
+            raise RuntimeError("Pending plate was not stored")
+        return True
 
     def _ensure_models_loaded(self):
         if self._plate_detector is not None:
@@ -629,25 +665,19 @@ class InferenceWorker:
             return
             
         logger.info("--- Idle Timeout: Releasing AI Models to free memory ---")
-        try:
-            self._plate_detector.close()
-            
-            self._plate_detector = None
-            self._ocr = None
-            self._face_recog = None
-            logger.info("--- AI Models Unloaded and resources released. ---")
-        except Exception as e:
-            logger.warning("Error during model unloading: %s", e)
+        self._plate_detector.close()
+        self._plate_detector = None
+        self._ocr = None
+        self._face_recog = None
+        logger.info("--- AI Models Unloaded and resources released. ---")
 
     def cleanup(self):
         logger.info("InferenceWorker cleaning up...")
         self._executor.shutdown(wait=True)
         self._unload_models()
-        for name, shm in list(self._shm_clients.items()):
-            try:
-                shm.close()
-            except Exception as e:
-                logger.warning("SHM close failed for %s: %s", name, e)
+        for shm in self._shm_clients.values():
+            shm.close()
+        self._check_async_tasks()
         logger.info("InferenceWorker cleanup complete")
 
     def _get_voter(self, cam_id: str) -> PlateVoter:
@@ -671,21 +701,46 @@ class InferenceWorker:
             frame = arr.copy()
             if int(counter[0]) == c1:
                 return frame
-        return frame
+        logger.error("Shared frame changed during all read attempts")
+        raise RuntimeError(f"Shared frame changed during all read attempts: {shm_name}")
+
+    def _next_latest_token(self) -> dict | None:
+        """Read one token, then collapse any queued stale frames at the queue boundary."""
+        if not self.infer_queue._reader.poll(0.5):
+            return None
+
+        latest = self.infer_queue.get()
+        while self.infer_queue._reader.poll():
+            latest = self.infer_queue.get()
+        return latest
+
+    def _enqueue_recording_event(self, event: dict) -> None:
+        if not isinstance(event, dict) or not isinstance(event.get("cam_id"), str) or not event["cam_id"]:
+            logger.error("Recording event has no camera ID")
+            raise ValueError("Recording event requires a non-empty cam_id")
+        if self.recorder_control_queue is None:
+            logger.error("Recorder control queue is unavailable")
+            raise RuntimeError("Recorder control queue is unavailable")
+        with self._recorder_control_lock:
+            if self.recorder_control_queue.full():
+                logger.error("Recorder control queue is full; event was not delivered")
+                raise RuntimeError("Recorder control queue is full; event was not delivered")
+            self.recorder_control_queue.put_nowait(event)
 
     def run(self):
         logger.info("Inference worker started")
         reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
         
-        try:
+        def run_loop():
             while not self.stop_event.is_set():
+                self._check_async_tasks()
                 now = time.time()
 
-                if self.infer_queue.empty():
+                token = self._next_latest_token()
+                if token is None:
                     if (now - self._last_active_ts > self._idle_timeout) and self._plate_detector is not None:
                         self._unload_models()
 
-                    time.sleep(0.1)
                     continue
 
                 self._last_active_ts = now
@@ -698,23 +753,12 @@ class InferenceWorker:
                         self._seen_plates.clear()
                         self._last_face_reload = mtime
                         logger.info("InferenceWorker: AI index synchronized via mtime: %s", mtime)
-                try:
-                    token = self.infer_queue.get(timeout=0.5)
-                    # Real-time catchup: drop stale tokens if queue has accumulated backlog
-                    while not self.infer_queue.empty():
-                        try:
-                            token = self.infer_queue.get_nowait()
-                        except queue.Empty:
-                            break
-                except queue.Empty:
-                    continue
-
                 cam_id, shm_name, ts = token["cam_id"], token["shm_name"], token["ts"]
                 site_id = token.get("site_id")
                 frame = self._get_shm_frame(shm_name)
 
                 result = InferenceResult(cam_id=cam_id, ts=ts)
-                result.annotated_frame = frame 
+                result.annotated_frame = frame.copy()
 
                 detections = self._plate_detector.detect(frame)
                 detections = merge_plate_boxes(detections)
@@ -736,17 +780,17 @@ class InferenceWorker:
                     cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(result.annotated_frame, f"{display_name} {det_conf:.2f}", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                     
-                    if det_conf > 0.80 and track.identity == "STRANGER" and self.recorder_control_queue and not self.recorder_control_queue.full():
+                    if det_conf > 0.80 and track.identity == "STRANGER":
                         now_t = time.time()
                         if now_t - track.last_trigger_ts > 1.0:
-                            track.last_trigger_ts = now_t
-                            self.recorder_control_queue.put_nowait({
+                            self._enqueue_recording_event({
                                 "cam_id": cam_id,
                                 "event_text": "Person (Stranger)",
                                 "ts": now_t,
                                 "event_type": "person",
                                 "site_id": site_id
                             })
+                            track.last_trigger_ts = now_t
                 
                 for x1, y1, x2, y2, det_conf, cls_id in other_dets:
                     if cls_id == 0:
@@ -785,14 +829,13 @@ class InferenceWorker:
                                 self._seen_plates = {k: v for k, v in self._seen_plates.items() if v > _cut}
                             result.snapshot_path = save_snapshot(frame, cam_id, best_text)
                             
-                            if self.recorder_control_queue and not self.recorder_control_queue.full():
-                                self.recorder_control_queue.put_nowait({
-                                    "cam_id": cam_id,
-                                    "plate_text": best_text,
-                                    "ts": time.time(),
-                                    "event_type": "plate",
-                                    "site_id": site_id
-                                })
+                            self._enqueue_recording_event({
+                                "cam_id": cam_id,
+                                "plate_text": best_text,
+                                "ts": time.time(),
+                                "event_type": "plate",
+                                "site_id": site_id
+                            })
 
                             normalized = cfg.normalize_plate(best_text)
                             self._run_async(self._record_vehicle_entry, normalized, "car", cam_id, result.snapshot_path, site_id)
@@ -807,9 +850,7 @@ class InferenceWorker:
                         if not track.is_locked or track.frames_since_last_id > 100:
                             self._run_async(self._async_face_identify, frame, cam_id, site_id, result, track)
 
-        except Exception as e:
-            logger.critical("InferenceWorker CRASHED: %s", str(e), exc_info=True)
-            raise
+        run_loop()
 
     def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult, track: PersonTrack = None):
         if self._face_recog is None:
@@ -828,17 +869,14 @@ class InferenceWorker:
                     emb=emb, frame=frame, cam_id=cam_id,
                     bbox=f_bbox, direction=direction, site_id=site_id
                 )
-                if stranger_id > 0:
-                    result.face_name = f"Người lạ #{stranger_id}"
-                    if match_sim > 0:
-                        result.face_conf = match_sim
-                else:
-                    result.face_name = "Người lạ"
+                result.face_name = f"Người lạ #{stranger_id}"
+                if match_sim > 0:
+                    result.face_conf = match_sim
 
                 cv2.putText(result.annotated_frame, f"FACE: {result.face_name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
-                if is_new and self.recorder_control_queue and not self.recorder_control_queue.full():
-                    self.recorder_control_queue.put_nowait({
+                if is_new:
+                    self._enqueue_recording_event({
                         "cam_id": cam_id,
                         "event_text": f"New Stranger Detected #{stranger_id}",
                         "ts": time.time(),
@@ -854,15 +892,15 @@ class InferenceWorker:
                     track.frames_since_last_id = 0
                     logger.info(f"Fixed identity {name} to track {track.track_id} (sim: {sim:.2f})")
 
-    @staticmethod
-    def _on_async_done(fut):
-        exc = fut.exception()
-        if exc:
-            logger.error("Async inference task failed: %s", exc, exc_info=exc)
+    def _check_async_tasks(self):
+        completed = {task for task in self._pending_tasks if task.done()}
+        self._pending_tasks.difference_update(completed)
+        for task in completed:
+            task.result()
 
     def _run_async(self, fn, *args):
         fut = self._executor.submit(fn, *args)
-        fut.add_done_callback(self._on_async_done)
+        self._pending_tasks.add(fut)
         return fut
 
     def _async_ocr(self, crop, voter: PlateVoter, cam_id: str, result: InferenceResult):

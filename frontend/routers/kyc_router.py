@@ -63,11 +63,19 @@ def get_face_matrix(app):
                 if not fname.lower().endswith((".jpg", ".jpeg", ".png")): continue
                 fpath = os.path.join(person_dir, fname)
                 img = cv2.imread(fpath)
-                if img is None: continue
+                if img is None:
+                    logger.error("Stored KYC face image is unreadable for user_id=%s", person)
+                    raise ValueError(f"Stored face image is unreadable for user {person}")
                 faces = app.get(img)
-                if faces: 
-                    embeddings.append(faces[0].normed_embedding)
-                    files_scanned.append(fname)
+                if not faces:
+                    logger.error("Stored KYC face image has no face for user_id=%s", person)
+                    raise ValueError(f"Stored face image has no detectable face for user {person}")
+                embedding = np.asarray(faces[0].normed_embedding, dtype=np.float32)
+                if embedding.shape != (512,) or not np.isfinite(embedding).all() or np.linalg.norm(embedding) <= 1e-6:
+                    logger.error("Stored KYC face image has an invalid embedding for user_id=%s", person)
+                    raise ValueError(f"Stored face image has an invalid embedding for user {person}")
+                embeddings.append(embedding)
+                files_scanned.append(fname)
             
             if embeddings:
                 avg_emb = np.mean(embeddings, axis=0)
@@ -91,10 +99,32 @@ def get_face_matrix(app):
 
 router = APIRouter(prefix="/kyc")
 
+_KYC_ERROR_MESSAGES = {
+    "forbidden": "Bạn không có quyền thực hiện thao tác này.",
+    "invalid_doc_type": "Loại giấy tờ không hợp lệ.",
+    "invalid_angle": "Góc chụp không hợp lệ.",
+    "invalid_image": "Ảnh không hợp lệ. Vui lòng chụp lại.",
+    "no_face_detected": "Không phát hiện khuôn mặt trong ảnh.",
+    "Disk write failed": "Không thể lưu ảnh. Vui lòng thử lại.",
+    "stranger_not_found": "Không tìm thấy người lạ.",
+    "user_not_found": "Không tìm thấy người dùng.",
+    "snapshot_file_missing": "Không tìm thấy ảnh chụp nguồn.",
+    "document_not_found": "Không tìm thấy giấy tờ cần xóa.",
+    "save_failed": "Không thể lưu thông tin xác minh. Vui lòng thử lại.",
+    "invalid_state": "Trạng thái xác minh đã thay đổi. Vui lòng tải lại trang.",
+}
+
+
+def _kyc_error(code: str, status_code: int) -> JSONResponse:
+    return JSONResponse(
+        {"ok": False, "error": code, "message": _KYC_ERROR_MESSAGES[code]},
+        status_code=status_code,
+    )
+
 @router.post("/clean-cache")
 async def clean_cache(user: dict = Depends(get_current_user)):
     if user.get("role", "").lower() not in ("admin", "manager"):
-        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+        return _kyc_error("forbidden", 403)
     
     reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
     with open(reload_trigger, "w") as f:
@@ -135,7 +165,8 @@ async def submit_basic_info(
     id_number: str = Form(...),
 ):
     kyc = KYCManager()
-    kyc.update_basic_info(user["id"], full_name, phone, email, date_of_birth, id_number)
+    if not kyc.update_basic_info(user["id"], full_name, phone, email, date_of_birth, id_number):
+        return _kyc_error("user_not_found", 404)
     logger.info("KYC Level 1 submitted for user %s", user["id"])
     return RedirectResponse(url="/kyc", status_code=303)
 
@@ -148,7 +179,7 @@ async def upload_id_doc(
     file: UploadFile = File(...),
 ):
     if doc_type not in ("id_front", "id_back", "selfie_with_id"):
-        return JSONResponse({"ok": False, "error": "invalid_doc_type"}, status_code=400)
+        return _kyc_error("invalid_doc_type", 400)
 
     user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
     os.makedirs(user_dir, exist_ok=True)
@@ -158,14 +189,17 @@ async def upload_id_doc(
         shutil.copyfileobj(file.file, buffer)
 
     kyc = KYCManager()
-    kyc.insert_document(user["id"], doc_type, file_path)
+    if not kyc.insert_document(user["id"], doc_type, file_path):
+        logger.error("KYC document could not be recorded for user %s", user["id"])
+        return _kyc_error("save_failed", 500)
 
     docs = kyc.get_documents(user["id"])
     doc_types = {d["doc_type"] for d in docs}
     if {"id_front", "id_back"}.issubset(doc_types):
         kyc_detail = kyc.get_user_detail(user["id"])
         if kyc_detail and kyc_detail["kyc_level"] < 2:
-            kyc.update_level(user["id"], 2)
+            if not kyc.update_level(user["id"], 2):
+                return _kyc_error("user_not_found", 404)
 
     logger.info("KYC doc '%s' uploaded for user %s", doc_type, user["id"])
     return JSONResponse({"ok": True, "doc_type": doc_type})
@@ -178,7 +212,7 @@ async def delete_id_doc(
     doc_type: str = Form(...),
 ):
     if doc_type not in ("id_front", "id_back", "selfie_with_id"):
-        return JSONResponse({"ok": False, "error": "invalid_doc_type"}, status_code=400)
+        return _kyc_error("invalid_doc_type", 400)
 
     user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
     file_path = os.path.join(user_dir, f"{doc_type}.jpg")
@@ -186,7 +220,8 @@ async def delete_id_doc(
         os.remove(file_path)
 
     kyc = KYCManager()
-    kyc.delete_document(user["id"], doc_type)
+    if not kyc.delete_document(user["id"], doc_type):
+        return _kyc_error("document_not_found", 404)
     logger.info("KYC doc '%s' deleted for user %s", doc_type, user["id"])
     return JSONResponse({"ok": True, "doc_type": doc_type})
 
@@ -201,24 +236,24 @@ async def upload_face(
 ):
     valid_angles = ("front", "left", "right", "up", "down")
     if angle not in valid_angles:
-        return JSONResponse({"ok": False, "error": "invalid_angle"}, status_code=400)
+        return _kyc_error("invalid_angle", 400)
 
     target_id = target_user_id if target_user_id else user["id"]
     if target_id != user["id"] and user.get("role", "").lower() not in ("admin", "manager"):
-        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
+        return _kyc_error("forbidden", 403)
 
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
     img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img_cv is None:
-        return JSONResponse({"ok": False, "error": "invalid_image"}, status_code=400)
+        return _kyc_error("invalid_image", 400)
 
     app = get_face_app()
     if app:
         faces = app.get(img_cv)
         if not faces:
             logger.warning(f"KYC rejection: no_face_detected for user={target_id}")
-            return JSONResponse({"ok": False, "error": "no_face_detected"}, status_code=400)
+            return _kyc_error("no_face_detected", 400)
             
         faces = sorted(faces, key=lambda f: (f.bbox[2]-f.bbox[0])*(f.bbox[3]-f.bbox[1]), reverse=True)
         new_emb = faces[0].normed_embedding
@@ -252,12 +287,14 @@ async def upload_face(
     success = cv2.imwrite(face_path, img_cv)
     if not success:
         logger.error(f"Failed to write image to disk (possibly disk full): {face_path}")
-        return JSONResponse({"ok": False, "error": "Disk write failed"}, status_code=500)
+        return _kyc_error("Disk write failed", 500)
     
     invalidate_face_cache()
 
     kyc = KYCManager()
-    kyc.insert_document(target_id, f"face_{angle}", face_path)
+    if not kyc.insert_document(target_id, f"face_{angle}", face_path):
+        logger.error("KYC face document could not be recorded for user %s", target_id)
+        return _kyc_error("save_failed", 500)
 
     docs = kyc.get_documents(target_id)
     face_types = {d["doc_type"] for d in docs if d["doc_type"].startswith("face_")}
@@ -265,7 +302,8 @@ async def upload_face(
     if required_faces.issubset(face_types):
         kyc_detail = kyc.get_user_detail(target_id)
         if kyc_detail and kyc_detail["kyc_level"] < 4:
-            kyc.update_level(target_id, 4)
+            if not kyc.update_level(target_id, 4):
+                return _kyc_error("user_not_found", 404)
             reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
             with open(reload_trigger, "w") as f:
                 f.write(str(time.time()))
@@ -283,12 +321,12 @@ async def delete_face(
 ):
     valid_angles = ("front", "left", "right", "up", "down")
     if angle not in valid_angles:
-        return JSONResponse({"ok": False, "error": "invalid_angle"}, status_code=400)
+        return _kyc_error("invalid_angle", 400)
     
     target_id = target_user_id if target_user_id else user["id"]
     if target_id != user["id"] and user.get("role", "").lower() not in ("admin", "manager"):
-        return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
-        
+        return _kyc_error("forbidden", 403)
+
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, str(target_id))
     face_path = os.path.join(person_dir, f"{angle}.jpg")
     
@@ -309,15 +347,17 @@ async def delete_face(
         f.write(str(time.time()))
 
     kyc = KYCManager()
-    kyc.delete_document(target_id, f"face_{angle}")
-    
+    if not kyc.delete_document(target_id, f"face_{angle}"):
+        return _kyc_error("document_not_found", 404)
+
     docs = kyc.get_documents(target_id)
     face_types = {d["doc_type"] for d in docs if d["doc_type"].startswith("face_")}
     required_faces = {"face_front", "face_left", "face_right", "face_up", "face_down"}
     if not required_faces.issubset(face_types):
         kyc_detail = kyc.get_user_detail(target_id)
         if kyc_detail and kyc_detail["kyc_level"] >= 3:
-            kyc.update_level(target_id, 2)
+            if not kyc.update_level(target_id, 2):
+                return _kyc_error("user_not_found", 404)
             
     return JSONResponse({"ok": True})
 
@@ -326,9 +366,13 @@ async def delete_face(
 async def reset_kyc(request: Request, user: dict = Depends(get_current_user)):
     kyc = KYCManager()
     kyc_detail = kyc.get_user_detail(user["id"])
-    if kyc_detail and kyc_detail["kyc_level"] == -1:
-        kyc.reset(user["id"])
-        logger.info("KYC reset for user %s", user["id"])
+    if not kyc_detail:
+        return _kyc_error("user_not_found", 404)
+    if kyc_detail["kyc_level"] != -1:
+        return _kyc_error("invalid_state", 409)
+    if not kyc.reset(user["id"]):
+        return _kyc_error("user_not_found", 404)
+    logger.info("KYC reset for user %s", user["id"])
     return RedirectResponse(url="/kyc", status_code=303)
 
 
@@ -357,7 +401,8 @@ async def kyc_admin_detail(user_id: int, request: Request, user: dict = Depends(
 @router.post("/admin/{user_id}/approve")
 async def approve_kyc(user_id: int, request: Request, user: dict = Depends(require_menu("users"))):
     kyc = KYCManager()
-    kyc.approve(user_id, user["username"])
+    if not kyc.approve(user_id, user["username"]):
+        return _kyc_error("user_not_found", 404)
     logger.info("KYC approved for user %s by %s", user_id, user["username"])
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
@@ -370,8 +415,9 @@ async def reject_kyc(
     reason: str = Form("Không đạt yêu cầu"),
 ):
     kyc = KYCManager()
-    kyc.reject(user_id, user["username"], reason)
-    logger.info("KYC rejected for user %s by %s: %s", user_id, user["username"], reason)
+    if not kyc.reject(user_id, user["username"], reason):
+        return _kyc_error("user_not_found", 404)
+    logger.info("KYC rejected for user %s by %s", user_id, user["username"])
     return RedirectResponse(url="/kyc/admin", status_code=303)
 
 
@@ -400,38 +446,48 @@ async def register_stranger(
 ):
     stranger = get_stranger_log(stranger_id)
     if not stranger:
-        return JSONResponse({"ok": False, "error": "stranger_not_found"}, status_code=404)
+        return _kyc_error("stranger_not_found", 404)
         
     target_user = get_user_by_id(user_id)
     if not target_user:
-        return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
+        return _kyc_error("user_not_found", 404)
         
     source_path = stranger["image_path"]
     if not source_path or not os.path.exists(source_path):
-        return JSONResponse({"ok": False, "error": "snapshot_file_missing"}, status_code=404)
+        return _kyc_error("snapshot_file_missing", 404)
+
+    direction = stranger.get("direction") or "frontal"
+    angle = "front" if direction == "frontal" else direction
+    if angle not in ("front", "left", "right", "up", "down"):
+        return _kyc_error("invalid_angle", 422)
         
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
     os.makedirs(person_dir, exist_ok=True)
     
-    direction = stranger.get("direction", "frontal")
-    filename = "front.jpg" if direction == "frontal" else f"{direction}.jpg"
+    filename = f"{angle}.jpg"
     target_path = os.path.join(person_dir, filename)
     
     shutil.copy2(source_path, target_path)
     logger.info("Copied stranger snapshot %s (%s) to user %s face directory.", stranger_id, direction, user_id)
     
-    update_stranger_status(stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
-    
-    from backend.ai.stranger_manager import get_stranger_manager
-    get_stranger_manager().remove(stranger_id)
-    
     kyc = KYCManager()
-    kyc.insert_document(user_id, "face_front", target_path)
+    if not kyc.insert_document(user_id, f"face_{angle}", target_path):
+        logger.error("KYC stranger face could not be recorded for user %s", user_id)
+        return _kyc_error("save_failed", 500)
     
     kyc_detail = kyc.get_user_detail(user_id)
     if kyc_detail:
-        kyc.update_level(user_id, 4)
+        if not kyc.update_level(user_id, 4):
+            return _kyc_error("user_not_found", 404)
+    else:
+        return _kyc_error("user_not_found", 404)
+
+    if not update_stranger_status(stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP"):
+        return _kyc_error("stranger_not_found", 404)
+
+    from backend.ai.stranger_manager import get_stranger_manager
+    get_stranger_manager().remove(stranger_id)
         
     invalidate_face_cache()
     

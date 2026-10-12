@@ -86,39 +86,52 @@
     document.getElementById('add-cam-form').scrollIntoView({ behavior: 'smooth' });
   },
   async autoAddDevice(dev, skipReload = false) {
-    try {
-        const payload = {...dev};
-        if (dev.rtsp_url_onvif) {
-            payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
-        }
-        const resp = await fetch('/admin/cameras/auto-add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        const result = await resp.json();
-        if (result.ok) {
-            dev._added = true;
-            dev._updated = true;
-            if (!skipReload) setTimeout(() => window.location.reload(), 600);
-        }
-        return result.ok;
-    } catch (e) {
-        console.error('Auto-add failed:', e);
-        return false;
+    const payload = {...dev};
+    if (dev.rtsp_url_onvif) {
+        payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
     }
+    const result = await apiRequest('/admin/cameras/auto-add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    if (result.partial && result.camera_id) {
+        dev.camera_id = result.camera_id;
+        dev._exists = true;
+    }
+    if (result.ok) {
+        dev._added = true;
+        dev._updated = true;
+        if (!skipReload) setTimeout(() => window.location.reload(), 600);
+    } else if (!skipReload) {
+        window.dispatchEvent(new CustomEvent('showToast', {
+            detail: { msg: result.message, type: 'error' }
+        }));
+    }
+    return result;
   },
   async addAllDevices() {
-    const toAdd = this.discoveredDevices.filter(d => !d._added);
+    const toAdd = this.discoveredDevices.filter(d => !d._exists && !d._added);
     const toUpdate = this.discoveredDevices.filter(d => d._exists && !d._updated);
     let changed = 0;
-    for (const dev of toAdd) {
-        const ok = await this.autoAddDevice(dev, true);
-        if (ok) changed++;
+    const failed = [];
+    for (const dev of [...toAdd, ...toUpdate]) {
+        const result = await this.autoAddDevice(dev, true);
+        if (result.ok) changed++;
+        else failed.push({ name: dev.name || dev.id || dev.ip || 'Camera', message: result.message });
     }
-    for (const dev of toUpdate) {
-        const ok = await this.autoAddDevice(dev, true);
-        if (ok) changed++;
+    if (failed.length) {
+        for (const item of failed) {
+            window.dispatchEvent(new CustomEvent('showToast', {
+                detail: { msg: `${item.name}: ${item.message}`, type: 'error' }
+            }));
+        }
+        if (changed) {
+            window.dispatchEvent(new CustomEvent('showToast', {
+                detail: { msg: `Đã lưu ${changed} camera. Tải lại trang để xem danh sách mới.`, type: 'success' }
+            }));
+        }
+        return;
     }
     if (changed > 0) window.location.reload();
   }
@@ -538,9 +551,9 @@
                           <template x-if="!dev._added">
                             <div class="d-flex justify-content-end" style="gap:4px;">
                               <button @click="autoAddDevice(dev)" class="btn btn-primary btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">
-                                + Thêm
+                                <span x-text="dev._exists ? 'Thử lại' : '+ Thêm'"></span>
                               </button>
-                              <button @click="selectDiscovered(dev)" class="btn btn-light btn-sm" style="font-size:10px;padding:2px 6px;" title="Tùy chỉnh">✏️</button>
+                              <button @click="selectDiscovered(dev)" x-show="!dev._exists" class="btn btn-light btn-sm" style="font-size:10px;padding:2px 6px;" title="Tùy chỉnh">✏️</button>
                             </div>
                           </template>
                           <template x-if="dev._added">
@@ -726,38 +739,30 @@ async function discoverCameras() {
     ];
     const timers = progressSteps.map(s => setTimeout(() => { text.innerText = s.text; }, s.delay));
 
-    try {
-        const resp = await fetch('/admin/cameras/discover', { method: 'POST' });
-        const data = await resp.json();
-        timers.forEach(clearTimeout);
+    const data = await apiRequest('/admin/cameras/discover', { method: 'POST' });
+    timers.forEach(clearTimeout);
 
-        if (data.error) {
-            window.dispatchEvent(new CustomEvent('show-confirm', {
-                detail: { title: 'Lỗi dò tìm', message: data.error, confirmText: 'Đóng', isAlert: true }
-            }));
-        } else {
-            const updated = data.updated || 0;
-            const registered = data.auto_registered || 0;
-            const newDevs = (data.new_devices || []).length;
-            const onlineCount = (data.existing_devices || []).filter(d => d.is_online).length;
+    if (!data.ok) {
+        window.dispatchEvent(new CustomEvent('show-confirm', {
+            detail: { title: 'Lỗi dò tìm', message: data.message, confirmText: 'Đóng', isAlert: true }
+        }));
+    } else {
+        const updated = data.updated || 0;
+        const registered = data.auto_registered || 0;
+        const newDevs = (data.new_devices || []).length;
+        const onlineCount = (data.existing_devices || []).filter(d => d.is_online).length;
 
-            window.dispatchEvent(new CustomEvent('show-discovery', {
-                detail: {
-                    devices: data.devices || [],
-                    updated_cameras: data.updated_cameras || [],
-                    summary: { updated, registered, newDevs, onlineCount }
-                }
-            }));
-
-            if (updated > 0 || registered > 0) {
-                setTimeout(() => window.location.reload(), 1500);
+        window.dispatchEvent(new CustomEvent('show-discovery', {
+            detail: {
+                devices: data.devices || [],
+                updated_cameras: data.updated_cameras || [],
+                summary: { updated, registered, newDevs, onlineCount }
             }
+        }));
+
+        if (updated > 0 || registered > 0) {
+            setTimeout(() => window.location.reload(), 1500);
         }
-    } catch (e) {
-        timers.forEach(clearTimeout);
-        text.innerText = "Lỗi mạng";
-        setTimeout(() => { text.innerText = "Dò tìm Camera"; }, 2000);
-        return;
     }
 
     btn.disabled = false;
@@ -785,27 +790,24 @@ document.getElementById('add-cam-form')?.addEventListener('submit', async (e) =>
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
     if (btn) { btn.disabled = true; btn.textContent = 'Đang lưu...'; }
-    try {
-        const fd = new FormData(e.target);
-        const res = await fetch('/admin/cameras', { method: 'POST', body: fd, redirect: 'follow' });
-        if (res.ok || res.redirected) {
-            window.location.reload();
-        } else {
-            const err = await res.text();
-            window.dispatchEvent(new CustomEvent('show-confirm', {
-                detail: {
-                    title: 'Lỗi thêm camera',
-                    message: 'Không thể thêm camera mới: ' + err,
-                    confirmText: 'Đóng',
-                    isAlert: true
-                }
-            }));
-            if (btn) { btn.disabled = false; btn.textContent = '💾 Lưu'; }
-        }
-    } catch (err) {
-        console.error('Add camera error:', err);
+    const result = await apiRequest('/admin/cameras', {
+        method: 'POST',
+        body: new FormData(e.target),
+        headers: { Accept: 'application/json' },
+    });
+    if (result.ok) {
         window.location.reload();
+        return;
     }
+    window.dispatchEvent(new CustomEvent('show-confirm', {
+        detail: {
+            title: 'Lỗi thêm camera',
+            message: result.message,
+            confirmText: 'Đóng',
+            isAlert: true
+        }
+    }));
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Lưu'; }
 });
 
 document.addEventListener('change', (e) => {

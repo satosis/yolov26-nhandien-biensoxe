@@ -1,6 +1,7 @@
 
 import socket
 import select
+import errno
 import time
 import logging
 import xml.etree.ElementTree as ET
@@ -8,7 +9,7 @@ import re
 import uuid as uuid_mod
 import concurrent.futures
 from typing import List, Dict
-from urllib.parse import urlparse
+from urllib.parse import unquote
 
 from backend.camera import camera_service as cam_svc
 from backend.services.database import db
@@ -64,26 +65,26 @@ def _parse_scopes(scope_text: str) -> dict:
 
 def _get_local_broadcast_addresses() -> List[str]:
     import subprocess
+    import shutil
+
     addrs = []
-    try:
-        output = subprocess.check_output(['ip', '-4', 'addr'], timeout=3, stderr=subprocess.DEVNULL).decode()
+    ip_cmd = shutil.which('ip')
+    if ip_cmd:
+        output = subprocess.check_output([ip_cmd, '-4', 'addr'], timeout=3, stderr=subprocess.DEVNULL).decode()
         for line in output.split('\n'):
             if 'brd' in line and 'inet' in line:
                 parts = line.strip().split()
                 for i, p in enumerate(parts):
                     if p == 'brd' and i + 1 < len(parts):
                         addrs.append(parts[i + 1])
-    except Exception:
-        try:
-            output = subprocess.check_output(['ifconfig'], timeout=3, stderr=subprocess.DEVNULL).decode()
-            for line in output.split('\n'):
-                if 'broadcast' in line:
-                    parts = line.strip().split()
-                    for i, p in enumerate(parts):
-                        if p == 'broadcast' and i + 1 < len(parts):
-                            addrs.append(parts[i + 1])
-        except Exception:
-            pass
+    elif ifconfig_cmd := shutil.which('ifconfig'):
+        output = subprocess.check_output([ifconfig_cmd], timeout=3, stderr=subprocess.DEVNULL).decode()
+        for line in output.split('\n'):
+            if 'broadcast' in line:
+                parts = line.strip().split()
+                for i, p in enumerate(parts):
+                    if p == 'broadcast' and i + 1 < len(parts):
+                        addrs.append(parts[i + 1])
     return addrs
 
 
@@ -101,94 +102,105 @@ def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
     probe_str = json.dumps(probe)
 
     broadcast_addrs = _get_local_broadcast_addresses()
-    broadcast_addrs.extend(['255.255.255.255', '<broadcast>'])
+    broadcast_addrs.append('255.255.255.255')
     broadcast_addrs = list(dict.fromkeys(broadcast_addrs))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    sock.settimeout(timeout)
 
     try:
         logger.info(f"Dahua Discovery: Broadcasting to {broadcast_addrs}")
         for addr in broadcast_addrs:
-            try:
-                sock.sendto(probe_str.encode(), (addr, DAHUA_DISCOVERY_PORT))
-            except Exception as e:
-                logger.debug(f"Dahua Discovery: Failed to send to {addr}: {e}")
+            sock.sendto(probe_str.encode(), (addr, DAHUA_DISCOVERY_PORT))
         
         start_time = time.time()
         seen_serials = set()
         
         while time.time() - start_time < timeout:
-            try:
-                data, addr = sock.recvfrom(4096)
-                resp_str = data.decode('utf-8', errors='ignore')
-                if '"result"' in resp_str and '"sn"' in resp_str:
-                    resp = json.loads(resp_str)
-                    res = resp.get('result', {})
-                    sn = res.get('sn', '').lower()
-                    if sn and sn not in seen_serials:
-                        devices.append({
-                            'id': sn,
-                            'ip': addr[0],
-                            'port': res.get('port', 37777),
-                            'model': res.get('deviceType', ''),
-                            'manufacturer': 'Dahua/Imou',
-                            'serial': sn,
-                            'source': 'dahua_udp'
-                        })
-                        seen_serials.add(sn)
-                        logger.info(f"Dahua Discovery: Found {sn} @ {addr[0]}")
-            except socket.timeout:
+            remaining = timeout - (time.time() - start_time)
+            if not select.select([sock], [], [], max(0, remaining))[0]:
                 break
-            except Exception as e:
-                logger.debug(f"Dahua Discovery parse error: {e}")
+            data, addr = sock.recvfrom(4096)
+            resp_str = data.decode('utf-8', errors='replace')
+            if '\ufffd' in resp_str:
+                logger.debug("Dahua Discovery: Invalid UTF-8 from %s", addr[0])
+                continue
+            if '"result"' not in resp_str or '"sn"' not in resp_str:
+                continue
+            resp = json.loads(resp_str)
+            res = resp.get('result') if isinstance(resp, dict) else None
+            if not isinstance(res, dict):
+                logger.debug("Dahua Discovery: Invalid result from %s", addr[0])
+                continue
+            sn = res.get('sn')
+            if not isinstance(sn, str):
+                logger.debug("Dahua Discovery: Invalid serial from %s", addr[0])
+                continue
+            sn = sn.strip().lower()
+            port = res.get('port', 37777)
+            model = res.get('deviceType', '')
+            if not sn or len(sn) > 128 or isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+                logger.debug("Dahua Discovery: Invalid device identity or port from %s", addr[0])
+                continue
+            if not isinstance(model, str):
+                model = ''
+            if sn and sn not in seen_serials:
+                devices.append({
+                    'id': sn,
+                    'ip': addr[0],
+                    'port': port,
+                    'model': model,
+                    'manufacturer': 'Dahua/Imou',
+                    'serial': sn,
+                    'source': 'dahua_udp'
+                })
+                seen_serials.add(sn)
+                logger.info("Dahua Discovery: Found %s @ %s", sn, addr[0])
     finally:
         sock.close()
     
     return devices
 
 def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) -> bool:
+    last_error = None
     for port in ports:
-        try:
-            with socket.create_connection((ip, port), timeout=timeout):
-                return True
-        except OSError:
-            continue
+        for family, socktype, proto, _, address in socket.getaddrinfo(ip, port, type=socket.SOCK_STREAM):
+            with socket.socket(family, socktype, proto) as sock:
+                sock.settimeout(timeout)
+                error = sock.connect_ex(address)
+                if error == 0:
+                    return True
+                last_error = errno.errorcode.get(error, str(error))
+    logger.debug("TCP probe found no open camera ports on %s (%s)", ip, last_error)
     return False
 
 
 def _get_local_ips() -> List[str]:
     import subprocess
+    import shutil
+
     ips = []
-    try:
-        output = subprocess.check_output(['ip', '-4', 'addr'], timeout=3, stderr=subprocess.DEVNULL).decode()
+    for command in (['ip', '-4', 'addr'], ['ifconfig']):
+        if not shutil.which(command[0]):
+            continue
+        output = subprocess.check_output(command, timeout=3, stderr=subprocess.DEVNULL).decode()
         for line in output.split('\n'):
             if 'inet ' in line and '127.0.0.1' not in line:
                 parts = line.strip().split()
-                for p in parts:
-                    if '/' in p and p.split('/')[0].count('.') == 3:
-                        ips.append(p.split('/')[0])
-    except Exception:
-        try:
-            output = subprocess.check_output(['ifconfig'], timeout=3, stderr=subprocess.DEVNULL).decode()
-            for line in output.split('\n'):
-                if 'inet ' in line and '127.0.0.1' not in line:
-                    parts = line.strip().split()
+                if command[0] == 'ip':
+                    ips.extend(p.split('/')[0] for p in parts if '/' in p and p.split('/')[0].count('.') == 3)
+                else:
                     for i, p in enumerate(parts):
                         if p == 'inet' and i + 1 < len(parts):
                             ips.append(parts[i + 1])
-        except Exception:
-            pass
+        if ips:
+            break
+
     if not ips:
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(('239.255.255.250', 3702))
-            ips = [s.getsockname()[0]]
-            s.close()
-        except Exception:
-            pass
-    return ips
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect((WS_DISCOVERY_MCAST_ADDR, WS_DISCOVERY_PORT))
+            ips.append(sock.getsockname()[0])
+    return list(dict.fromkeys(ips))
 
 
 def discover_onvif_cameras(timeout=6):
@@ -208,52 +220,44 @@ def discover_onvif_cameras(timeout=6):
         '<Types>dn:NetworkVideoTransmitter</Types></Probe></Body></Envelope>'
     )
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    sock.setblocking(False)
-    sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 4)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
     probe_data = probe_xml.encode()
     local_ips = _get_local_ips()
 
-    for _ in range(3):
-        try:
-            sock.sendto(probe_data, (WS_DISCOVERY_MCAST_ADDR, WS_DISCOVERY_PORT))
-        except Exception as e:
-            logger.debug(f"ONVIF Discovery: Default send failed: {e}")
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 4)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        for local_ip in local_ips:
-            try:
+        for _ in range(3):
+            sock.sendto(probe_data, (WS_DISCOVERY_MCAST_ADDR, WS_DISCOVERY_PORT))
+
+            for local_ip in local_ips:
                 sock.setsockopt(
                     socket.IPPROTO_IP, socket.IP_MULTICAST_IF,
                     socket.inet_aton(local_ip)
                 )
                 sock.sendto(probe_data, (WS_DISCOVERY_MCAST_ADDR, WS_DISCOVERY_PORT))
-            except Exception as e:
-                logger.debug(f"ONVIF Discovery: Send on {local_ip} failed: {e}")
-        time.sleep(0.15)
+            time.sleep(0.15)
 
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        ready = select.select([sock], [], [], 0.5)
-        if ready[0]:
-            try:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            ready = select.select([sock], [], [], 0.5)
+            if ready[0]:
                 data, addr = sock.recvfrom(65535)
                 ip = addr[0]
                 if ip in seen_ips:
                     continue
 
-                xml_str = data.decode('utf-8', errors='ignore')
+                xml_str = data.decode('utf-8', errors='replace')
+                if '\ufffd' in xml_str:
+                    logger.debug("ONVIF Discovery: Invalid UTF-8 from %s", ip)
+                    continue
                 cam_info = _parse_probe_match(xml_str, ip)
                 if cam_info:
                     cameras.append(cam_info)
                     seen_ips.add(ip)
                     logger.info(f"ONVIF Discovery: Found {cam_info.get('manufacturer', '?')} "
-                               f"{cam_info.get('model', '?')} @ {ip}")
-            except Exception as e:
-                logger.debug(f"ONVIF Discovery: Error processing response from {addr}: {e}")
+                                f"{cam_info.get('model', '?')} @ {ip}")
 
-    sock.close()
     logger.info(f"ONVIF WS-Discovery found {len(cameras)} camera(s) in {timeout}s "
                 f"(probed {len(local_ips)} interface(s))")
     return cameras
@@ -273,331 +277,332 @@ def probe_onvif_unicast(ip: str, port: int = 80) -> dict | None:
         '<Types>dn:NetworkVideoTransmitter</Types></Probe></Body></Envelope>'
     )
 
-    sock = None
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(3)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.sendto(probe_xml.encode(), (ip, WS_DISCOVERY_PORT))
-        data, addr = sock.recvfrom(65535)
-        xml_str = data.decode('utf-8', errors='ignore')
-        return _parse_probe_match(xml_str, ip)
-    except Exception as e:
-        logger.debug(f"Unicast ONVIF probe to {ip}:{port} failed: {e}")
+        if not select.select([sock], [], [], 3)[0]:
+            logger.debug("Unicast ONVIF probe to %s:%s timed out", ip, port)
+            return None
+        data, _ = sock.recvfrom(65535)
+    xml_str = data.decode('utf-8', errors='replace')
+    if '\ufffd' in xml_str:
+        logger.debug("ONVIF unicast response has invalid UTF-8 from %s", ip)
         return None
-    finally:
-        if sock is not None:
-            try:
-                sock.close()
-            except Exception:
-                pass
+    return _parse_probe_match(xml_str, ip)
 
 
 def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
-    try:
-        xml_str = xml_str.lstrip('\ufeff')
-        root = ET.fromstring(xml_str)
-        
-        ns = {
-            's': 'http://www.w3.org/2003/05/soap-envelope',
-            'd': 'http://schemas.xmlsoap.org/ws/2005/04/discovery',
-            'a': 'http://schemas.xmlsoap.org/ws/2004/08/addressing',
-            'd04': 'http://schemas.xmlsoap.org/ws/2004/08/discovery',
-        }
-        
-        probe_match = root.find('.//d:ProbeMatch', ns) or root.find('.//d04:ProbeMatch', ns)
-        if probe_match is None:
-            return _parse_probe_match_regex(xml_str, fallback_ip)
-        
-        urn = ""
-        epr = probe_match.find('.//a:EndpointReference/a:Address', ns)
-        if epr is not None and epr.text:
-            urn = epr.text.strip()
-        
-        urn_id = ""
-        urn_match = re.search(r'uuid:([a-zA-Z0-9\-]+)', urn)
-        if urn_match:
-            urn_id = urn_match.group(1)
-        
-        xaddrs_text = ""
-        xaddrs_el = probe_match.find('d:XAddrs', ns) or probe_match.find('d04:XAddrs', ns)
-        if xaddrs_el is not None and xaddrs_el.text:
-            xaddrs_text = xaddrs_el.text.strip()
-        
-        ip = fallback_ip
-        onvif_port = 80
-        if xaddrs_text:
-            for xaddr in xaddrs_text.split():
-                try:
-                    parsed = urlparse(xaddr.strip())
-                    if parsed.hostname:
-                        ip = parsed.hostname
-                        onvif_port = parsed.port or 80
-                        break
-                except Exception:
-                    pass
+    xml_str = xml_str.lstrip('\ufeff')
+    if '\ufffd' in xml_str:
+        logger.debug("ONVIF ProbeMatch has invalid UTF-8")
+        return None
+    root = ET.fromstring(xml_str)
 
-        scopes_text = ""
-        scopes_el = probe_match.find('d:Scopes', ns) or probe_match.find('d04:Scopes', ns)
-        if scopes_el is not None and scopes_el.text:
-            scopes_text = scopes_el.text.strip()
-        
-        scopes = _parse_scopes(scopes_text)
-        
-        types_text = ""
-        types_el = probe_match.find('d:Types', ns) or probe_match.find('d04:Types', ns)
-        if types_el is not None and types_el.text:
-            types_text = types_el.text.strip()
-        
-        manufacturer = scopes.get('manufacturer', '')
-        if not manufacturer:
-            combined = (xaddrs_text + scopes_text + urn).lower()
-            if 'dahua' in combined or 'imou' in combined:
-                manufacturer = 'Dahua/Imou'
-            elif 'hikvision' in combined or 'hikv' in combined:
-                manufacturer = 'Hikvision'
-            elif 'axis' in combined:
-                manufacturer = 'Axis'
-            elif 'tapo' in combined or 'tp-link' in combined or 'vigi' in combined:
-                manufacturer = 'TP-Link'
-            elif 'uniview' in combined or 'unv' in combined:
-                manufacturer = 'Uniview'
-            elif 'hanwha' in combined or 'samsung' in combined:
-                manufacturer = 'Hanwha'
-            elif 'bosch' in combined:
-                manufacturer = 'Bosch'
-        
-        return {
-            'ip': ip,
-            'urn': urn_id,
-            'urn_full': urn,
-            'xaddrs': xaddrs_text,
-            'onvif_port': onvif_port,
-            'scopes': scopes,
-            'scopes_raw': scopes_text,
-            'types': types_text,
-            'manufacturer': manufacturer or scopes.get('manufacturer', 'Unknown'),
-            'model': scopes.get('model', scopes.get('hardware', '')),
-            'name': scopes.get('name', ''),
-            'firmware': scopes.get('firmware', ''),
-            'profiles': scopes.get('profiles', []),
-            'raw_xml': xml_str
-        }
-        
-    except ET.ParseError:
-        return _parse_probe_match_regex(xml_str, fallback_ip)
-    except Exception as e:
-        logger.debug(f"Error parsing ProbeMatch: {e}")
-        return _parse_probe_match_regex(xml_str, fallback_ip)
+    ns = {
+        's': 'http://www.w3.org/2003/05/soap-envelope',
+        'd': 'http://schemas.xmlsoap.org/ws/2005/04/discovery',
+        'a': 'http://schemas.xmlsoap.org/ws/2004/08/addressing',
+        'd04': 'http://schemas.xmlsoap.org/ws/2004/08/discovery',
+    }
 
+    probe_match = root.find('.//d:ProbeMatch', ns)
+    if probe_match is None:
+        probe_match = root.find('.//d04:ProbeMatch', ns)
+    if probe_match is None:
+        logger.debug("ONVIF response has no ProbeMatch")
+        return None
 
-def _parse_probe_match_regex(xml_str: str, fallback_ip: str) -> dict | None:
-    urn_match = re.search(r'uuid:([a-zA-Z0-9\-]+)', xml_str)
-    urn = urn_match.group(1) if urn_match else ""
-    
-    xaddrs_match = re.search(r'<[^>]*XAddrs[^>]*>(.*?)</[^>]*XAddrs>', xml_str, re.DOTALL)
-    xaddrs = xaddrs_match.group(1).strip() if xaddrs_match else ""
-    
+    urn = ""
+    epr = probe_match.find('.//a:EndpointReference/a:Address', ns)
+    if epr is not None and epr.text:
+        urn = epr.text.strip()
+
+    urn_id = ""
+    urn_match = re.search(r'uuid:([a-zA-Z0-9\-]+)', urn)
+    if urn_match:
+        urn_id = urn_match.group(1)
+
+    raw_xaddrs = ""
+    xaddrs_el = probe_match.find('d:XAddrs', ns)
+    if xaddrs_el is None:
+        xaddrs_el = probe_match.find('d04:XAddrs', ns)
+    if xaddrs_el is not None and xaddrs_el.text:
+        raw_xaddrs = xaddrs_el.text.strip()
+
     ip = fallback_ip
     onvif_port = 80
-    if xaddrs:
-        try:
-            parsed = urlparse(xaddrs.split()[0])
-            if parsed.hostname:
-                ip = parsed.hostname
-                onvif_port = parsed.port or 80
-        except Exception:
-            pass
-    
-    scopes_match = re.search(r'<[^>]*Scopes[^>]*>(.*?)</[^>]*Scopes>', xml_str, re.DOTALL)
-    scopes_text = scopes_match.group(1).strip() if scopes_match else ""
+    xaddrs_text = ""
+    if raw_xaddrs:
+        for xaddr in raw_xaddrs.split():
+            address = re.fullmatch(
+                r"(?P<scheme>https?)://(?P<host>\[[0-9A-Fa-f:.%]+\]|[A-Za-z0-9.-]+)"
+                r"(?::(?P<port>[0-9]{1,5}))?(?:/[^\s#]*)?",
+                xaddr,
+                re.IGNORECASE,
+            )
+            if address is None:
+                logger.debug("ONVIF ProbeMatch contains an invalid XAddr")
+                continue
+            candidate_port = int(address.group("port") or (443 if address.group("scheme").lower() == "https" else 80))
+            if not 1 <= candidate_port <= 65535:
+                logger.debug("ONVIF ProbeMatch contains an invalid XAddr port")
+                continue
+            ip = address.group("host").strip("[]")
+            onvif_port = candidate_port
+            xaddrs_text = xaddr.split("?", 1)[0]
+            break
+
+    if not urn_id and not xaddrs_text:
+        logger.debug("ONVIF ProbeMatch has no valid device identity or address")
+        return None
+
+    scopes_text = ""
+    scopes_el = probe_match.find('d:Scopes', ns)
+    if scopes_el is None:
+        scopes_el = probe_match.find('d04:Scopes', ns)
+    if scopes_el is not None and scopes_el.text:
+        scopes_text = scopes_el.text.strip()
+
     scopes = _parse_scopes(scopes_text)
-    
+
+    types_text = ""
+    types_el = probe_match.find('d:Types', ns)
+    if types_el is None:
+        types_el = probe_match.find('d04:Types', ns)
+    if types_el is not None and types_el.text:
+        types_text = types_el.text.strip()
+
+    manufacturer = scopes.get('manufacturer', '')
+    if not manufacturer:
+        combined = (xaddrs_text + scopes_text + urn).lower()
+        if 'dahua' in combined or 'imou' in combined:
+            manufacturer = 'Dahua/Imou'
+        elif 'hikvision' in combined or 'hikv' in combined:
+            manufacturer = 'Hikvision'
+        elif 'axis' in combined:
+            manufacturer = 'Axis'
+        elif 'tapo' in combined or 'tp-link' in combined or 'vigi' in combined:
+            manufacturer = 'TP-Link'
+        elif 'uniview' in combined or 'unv' in combined:
+            manufacturer = 'Uniview'
+        elif 'hanwha' in combined or 'samsung' in combined:
+            manufacturer = 'Hanwha'
+        elif 'bosch' in combined:
+            manufacturer = 'Bosch'
+
     return {
         'ip': ip,
-        'urn': urn,
-        'urn_full': f'urn:uuid:{urn}' if urn else '',
-        'xaddrs': xaddrs,
+        'urn': urn_id,
+        'urn_full': urn,
+        'xaddrs': xaddrs_text,
         'onvif_port': onvif_port,
         'scopes': scopes,
         'scopes_raw': scopes_text,
-        'types': '',
-        'manufacturer': scopes.get('manufacturer', 'Unknown'),
+        'types': types_text,
+        'manufacturer': manufacturer or scopes.get('manufacturer', 'Unknown'),
         'model': scopes.get('model', scopes.get('hardware', '')),
         'name': scopes.get('name', ''),
         'firmware': scopes.get('firmware', ''),
         'profiles': scopes.get('profiles', []),
-        'raw_xml': xml_str
     }
-
 
 def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
                         password: str = '', timeout: int = 6) -> dict | None:
-    try:
-        from onvif import ONVIFCamera
-        from zeep.transports import Transport
-        from requests import Session
+    from onvif import ONVIFCamera
+    from zeep.transports import Transport
+    from requests import Session
+    from urllib.parse import quote, urlunparse
 
-        session = Session()
-        session.timeout = timeout
-        transport = Transport(timeout=timeout, session=session)
-
-        cam = ONVIFCamera(ip, port, username, password,
-                          no_cache=True, transport=transport)
-
-        device_service = cam.create_devicemgmt_service()
-        info = device_service.GetDeviceInformation()
-        result = {
-            'manufacturer': getattr(info, 'Manufacturer', ''),
-            'model': getattr(info, 'Model', ''),
-            'firmware': getattr(info, 'FirmwareVersion', ''),
-            'serial': getattr(info, 'SerialNumber', ''),
-            'hardware': getattr(info, 'HardwareId', ''),
-            'rtsp_main': '',
-            'rtsp_sub': None,
-            'onvif_profiles': [],
-            'has_ptz': False,
-        }
-
-        try:
-            media_service = cam.create_media_service()
-            profiles = media_service.GetProfiles()
-
-            for i, profile in enumerate(profiles or []):
-                token = profile.token
-                name = getattr(profile, 'Name', token)
-
-                width, height, encoding = 0, 0, ''
-                vec = getattr(profile, 'VideoEncoderConfiguration', None)
-                if vec:
-                    encoding = getattr(vec, 'Encoding', '')
-                    res = getattr(vec, 'Resolution', None)
-                    if res:
-                        width = getattr(res, 'Width', 0)
-                        height = getattr(res, 'Height', 0)
-
-                rtsp_url = ''
-                try:
-                    stream_setup = media_service.create_type('GetStreamUri')
-                    stream_setup.ProfileToken = token
-                    stream_setup.StreamSetup = {
-                        'Stream': 'RTP-Unicast',
-                        'Transport': {'Protocol': 'RTSP'}
-                    }
-                    uri_resp = media_service.GetStreamUri(stream_setup)
-                    rtsp_url = getattr(uri_resp, 'Uri', '') or ''
-
-                    if rtsp_url and username:
-                        parsed = urlparse(rtsp_url)
-                        if not parsed.username:
-                            from urllib.parse import urlunparse
-                            netloc = f"{username}:{password}@{parsed.hostname}"
-                            if parsed.port:
-                                netloc += f":{parsed.port}"
-                            rtsp_url = urlunparse((
-                                parsed.scheme, netloc, parsed.path,
-                                parsed.params, parsed.query, parsed.fragment
-                            ))
-                except Exception as e:
-                    logger.debug(f"GetStreamUri failed for profile {token} on {ip}: {e}")
-
-                profile_info = {
-                    'token': token,
-                    'name': str(name),
-                    'rtsp_url': rtsp_url,
-                    'width': width,
-                    'height': height,
-                    'encoding': str(encoding),
-                }
-                result['onvif_profiles'].append(profile_info)
-
-                if i == 0 and rtsp_url:
-                    result['rtsp_main'] = rtsp_url
-                elif i == 1 and rtsp_url:
-                    result['rtsp_sub'] = rtsp_url
-
-        except Exception as e:
-            logger.debug(f"Media service probe failed for {ip}:{port}: {e}")
-
-        try:
-            ptz_service = cam.create_ptz_service()
-            ptz_service.GetConfigurations()
-            result['has_ptz'] = True
-        except Exception:
-            pass
-
-        logger.info(f"ONVIF full info for {ip}:{port}: {result['manufacturer']} {result['model']}, "
-                     f"{len(result['onvif_profiles'])} profiles, PTZ={result['has_ptz']}")
-        return result
-
-    except Exception as e:
-        logger.debug(f"ONVIF full info probe for {ip}:{port} failed: {e}")
+    if not probe_ip(ip, ports=[port], timeout=timeout):
         return None
+
+    session = Session()
+    session.timeout = timeout
+    transport = Transport(timeout=timeout, session=session)
+    cam = ONVIFCamera(ip, port, username, password,
+                      no_cache=True, transport=transport)
+
+    device_service = cam.create_devicemgmt_service()
+    info = device_service.GetDeviceInformation()
+    result = {
+        'manufacturer': getattr(info, 'Manufacturer', ''),
+        'model': getattr(info, 'Model', ''),
+        'firmware': getattr(info, 'FirmwareVersion', ''),
+        'serial': getattr(info, 'SerialNumber', ''),
+        'hardware': getattr(info, 'HardwareId', ''),
+        'rtsp_main': '',
+        'rtsp_sub': None,
+        'onvif_profiles': [],
+        'has_ptz': False,
+    }
+
+    media_service = cam.create_media_service()
+    profiles = media_service.GetProfiles() or []
+    result['has_ptz'] = any(bool(getattr(profile, 'PTZConfiguration', None)) for profile in profiles)
+    for i, profile in enumerate(profiles):
+        token = profile.token
+        name = getattr(profile, 'Name', token)
+
+        width, height, encoding = 0, 0, ''
+        vec = getattr(profile, 'VideoEncoderConfiguration', None)
+        if vec:
+            encoding = getattr(vec, 'Encoding', '')
+            res = getattr(vec, 'Resolution', None)
+            if res:
+                width = getattr(res, 'Width', 0)
+                height = getattr(res, 'Height', 0)
+
+        stream_setup = media_service.create_type('GetStreamUri')
+        stream_setup.ProfileToken = token
+        stream_setup.StreamSetup = {
+            'Stream': 'RTP-Unicast',
+            'Transport': {'Protocol': 'RTSP'}
+        }
+        uri_resp = media_service.GetStreamUri(stream_setup)
+        uri = getattr(uri_resp, 'Uri', '') or ''
+        rtsp_url = ''
+        if uri:
+            parsed = urlparse(uri)
+            stream_port = parsed.port
+            if parsed.scheme in ('rtsp', 'rtsps') and parsed.hostname:
+                rtsp_url = uri
+                if username and not parsed.username:
+                    host = parsed.hostname
+                    if ':' in host:
+                        host = f"[{host}]"
+                    netloc = f"{quote(username, safe='')}:{quote(password or '', safe='')}@{host}"
+                    if stream_port:
+                        netloc += f":{stream_port}"
+                    rtsp_url = urlunparse((
+                        parsed.scheme, netloc, parsed.path,
+                        parsed.params, parsed.query, parsed.fragment
+                    ))
+            else:
+                logger.debug("GetStreamUri returned an invalid RTSP endpoint on %s", ip)
+
+        result['onvif_profiles'].append({
+            'token': token,
+            'name': str(name),
+            'rtsp_url': rtsp_url,
+            'width': width,
+            'height': height,
+            'encoding': str(encoding),
+        })
+        if i == 0 and rtsp_url:
+            result['rtsp_main'] = rtsp_url
+        elif i == 1 and rtsp_url:
+            result['rtsp_sub'] = rtsp_url
+
+    logger.info("ONVIF full info for %s:%s: %s %s, %s profiles, PTZ=%s",
+                ip, port, result['manufacturer'], result['model'],
+                len(result['onvif_profiles']), result['has_ptz'])
+    return result
 
 
 def check_rtsp_quick(rtsp_url: str, timeout: float = 2.0) -> tuple[bool, str]:
-    import urllib.parse
     import hashlib
 
+    host = None
+    port = None
+
+    def failed(message: str, reason: str) -> tuple[bool, str]:
+        logger.warning("RTSP probe failed on %s:%s: %s", host or "<invalid host>", port or "?", reason)
+        return False, message
+
     if not rtsp_url or not rtsp_url.startswith("rtsp://"):
-        return False, "RTSP URL không hợp lệ hoặc để trống"
+        return failed("RTSP URL không hợp lệ hoặc để trống", "missing or unsupported URL")
 
+    target = re.fullmatch(
+        r"rtsp://(?:(?P<credentials>[^@/?#\s]+)@)?"
+        r"(?P<host>\[[0-9A-Fa-f:.%]+\]|[A-Za-z0-9.-]+)"
+        r"(?::(?P<port>[0-9]{1,5}))?(?P<path>/[^\s#]*)?",
+        rtsp_url,
+        re.IGNORECASE,
+    )
+    if target is None or (target.group("port") and not 1 <= int(target.group("port")) <= 65535):
+        return failed("RTSP URL không hợp lệ", "invalid host or port")
+    host = target.group("host").strip("[]")
+    port = int(target.group("port") or 554)
+    credentials = target.group("credentials") or ""
+    username, _, password = credentials.partition(":")
+    password = unquote(password)
+    path = target.group("path") or ""
+    uri_host = f"[{host}]" if ':' in host else host
+    clean_url = f"rtsp://{uri_host}:{port}{path}"
+    req = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: ParkingCamera\r\nAccept: application/sdp\r\n\r\n"
+
+    def _receive(sock):
+        if not select.select([sock], [], [], timeout)[0]:
+            return None
+        return sock.recv(2048).decode('utf-8', errors='ignore')
+
+    last_error = None
+    for family, socktype, proto, _, address in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+        with socket.socket(family, socktype, proto) as sock:
+            sock.settimeout(timeout)
+            error = sock.connect_ex(address)
+            if error:
+                last_error = error
+                continue
+            sock.sendall(req.encode())
+            resp = _receive(sock)
+            if resp is None:
+                return failed("Hết thời gian chờ (Timeout): Không phản hồi từ camera.", "timeout")
+
+            first_line = resp.split('\r\n')[0]
+            if '200 OK' in first_line:
+                return True, "OK"
+
+            if '401' in first_line:
+                if not password:
+                    return failed("Camera yêu cầu mật khẩu (401 Unauthorized). Vui lòng điền Safety Code.", "authentication required")
+
+                auth_header = re.search(r'WWW-Authenticate: Digest (.*)', resp)
+                if auth_header:
+                    params = dict(re.findall(r'(\w+)="([^"]+)"', auth_header.group(1)))
+                    realm = params.get('realm', '')
+                    nonce = params.get('nonce', '')
+                    ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
+                    ha2 = hashlib.md5(f"DESCRIBE:{clean_url}".encode()).hexdigest()
+                    response = hashlib.md5(f"{ha1}:{nonce}:{ha2}".encode()).hexdigest()
+                    auth_str = f'Digest username="{username}", realm="{realm}", nonce="{nonce}", uri="{clean_url}", response="{response}"'
+                    req2 = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 2\r\nUser-Agent: ParkingCamera\r\nAuthorization: {auth_str}\r\nAccept: application/sdp\r\n\r\n"
+                    sock.sendall(req2.encode())
+                    resp2 = _receive(sock)
+                    if resp2 is None:
+                        return failed("Hết thời gian chờ (Timeout): Không phản hồi từ camera.", "authentication timeout")
+                    if '200 OK' in resp2.split('\r\n')[0]:
+                        return True, "OK"
+                    return failed("Sai mật khẩu camera (401 Unauthorized). Vui lòng kiểm tra lại Safety Code dưới đáy camera.", "authentication rejected")
+                return failed("Xác thực thất bại (401 Unauthorized).", "digest challenge missing")
+
+            status = re.match(r'^RTSP/\d(?:\.\d)?\s+(\d{3})', first_line)
+            if status:
+                return failed(f"Camera phản hồi mã {status.group(1)}", f"status {status.group(1)}")
+            return failed("Camera phản hồi không hợp lệ", "invalid response")
+
+    if last_error in (errno.ETIMEDOUT, errno.EWOULDBLOCK, errno.EAGAIN):
+        return failed("Hết thời gian chờ (Timeout): Không phản hồi từ camera.", "connect timeout")
+    if last_error == errno.ECONNREFUSED:
+        return failed(f"Kết nối bị từ chối: Cổng RTSP {port} không mở hoặc sai IP.", "connection refused")
+    return failed("Không thể kết nối tới camera.", f"connect error {errno.errorcode.get(last_error, last_error)}")
+
+
+
+
+
+def _run_bounded_probes(entries, probe, max_workers: int, timeout: float, label: str):
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
     try:
-        parsed = urllib.parse.urlparse(rtsp_url)
-        host = parsed.hostname
-        port = parsed.port or 554
-        username = parsed.username or ''
-        password = urllib.parse.unquote(parsed.password or '')
-        path = parsed.path + ('?' + parsed.query if parsed.query else '')
-
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        s.connect((host, port))
-
-        clean_url = f"rtsp://{host}:{port}{path}"
-        req = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: ParkingCamera\r\nAccept: application/sdp\r\n\r\n"
-        s.sendall(req.encode())
-        resp = s.recv(2048).decode('utf-8', errors='ignore')
-
-        first_line = resp.split('\r\n')[0]
-        if '200 OK' in first_line:
-            s.close()
-            return True, "OK"
-
-        if '401' in first_line:
-            if not password:
-                s.close()
-                return False, "Camera yêu cầu mật khẩu (401 Unauthorized). Vui lòng điền Safety Code."
-
-            auth_header = re.search(r'WWW-Authenticate: Digest (.*)', resp)
-            if auth_header:
-                params = dict(re.findall(r'(\w+)="([^"]+)"', auth_header.group(1)))
-                realm = params.get('realm', '')
-                nonce = params.get('nonce', '')
-                ha1 = hashlib.md5(f"{username}:{realm}:{password}".encode()).hexdigest()
-                ha2 = hashlib.md5(f"DESCRIBE:{clean_url}".encode()).hexdigest()
-                response = hashlib.md5(f"{ha1}:{nonce}:{ha2}".encode()).hexdigest()
-                auth_str = f'Digest username="{username}", realm="{realm}", nonce="{nonce}", uri="{clean_url}", response="{response}"'
-                req2 = f"DESCRIBE {clean_url} RTSP/1.0\r\nCSeq: 2\r\nUser-Agent: ParkingCamera\r\nAuthorization: {auth_str}\r\nAccept: application/sdp\r\n\r\n"
-                s.sendall(req2.encode())
-                resp2 = s.recv(2048).decode('utf-8', errors='ignore')
-                s.close()
-                if '200 OK' in resp2.split('\r\n')[0]:
-                    return True, "OK"
-                return False, "Sai mật khẩu camera (401 Unauthorized). Vui lòng kiểm tra lại Safety Code dưới đáy camera."
-            s.close()
-            return False, "Xác thực thất bại (401 Unauthorized)."
-
-        s.close()
-        return False, f"Camera phản hồi lỗi: {first_line}"
-    except (socket.timeout, TimeoutError):
-        return False, "Hết thời gian chờ (Timeout): Không phản hồi từ camera."
-    except ConnectionRefusedError:
-        return False, f"Kết nối bị từ chối: Cổng RTSP {port} không mở hoặc sai IP."
-    except Exception as e:
-        return False, f"Không thể kết nối tới camera: {e}"
-
-
-
+        futures = [executor.submit(probe, entry) for entry in entries]
+        _, pending = concurrent.futures.wait(futures, timeout=timeout)
+        if pending:
+            logger.error("%s timed out for %s camera(s)", label, len(pending))
+            raise TimeoutError(f"{label} timed out for {len(pending)} camera(s)")
+        return [future.result() for future in futures]
+    finally:
+        # Running probes have their own socket timeouts; do not let pool shutdown
+        # extend this discovery call beyond its deadline.
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
@@ -639,38 +644,33 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
 
     if online_entries and onvif_password:
         def _probe_full(entry):
-            try:
-                full = get_onvif_full_info(
-                    entry['ip'], entry['onvif_port'],
-                    username=onvif_username, password=onvif_password, timeout=5
-                )
-                if full:
-                    if full.get('manufacturer'):
-                        entry['manufacturer'] = full['manufacturer']
-                    if full.get('model'):
-                        entry['model'] = full['model']
-                    if full.get('firmware'):
-                        entry['firmware'] = full['firmware']
-                    if full.get('serial'):
-                        entry['serial'] = full['serial']
-                        entry['id'] = full['serial']
-                    if full.get('hardware'):
-                        entry['hardware'] = full['hardware']
-                    entry['rtsp_url_onvif'] = full.get('rtsp_main', '')
-                    entry['rtsp_sub_onvif'] = full.get('rtsp_sub', '') or ''
-                    entry['onvif_profiles'] = full.get('onvif_profiles', [])
-                    entry['has_ptz'] = full.get('has_ptz', False)
-                    entry['type'] = _guess_provider_type(entry['manufacturer'], entry['model'])
-            except Exception as e:
-                logger.debug(f"Full probe failed for {entry['ip']}: {e}")
+            return get_onvif_full_info(
+                entry['ip'], entry['onvif_port'],
+                username=onvif_username, password=onvif_password, timeout=5
+            )
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(_probe_full, entry): entry for entry in online_entries}
-            done, not_done = concurrent.futures.wait(futures, timeout=10)
-            for f in not_done:
-                f.cancel()
-                ip = futures[f]['ip']
-                logger.warning(f"ONVIF full probe timed out for {ip}")
+        full_results = _run_bounded_probes(
+            online_entries, _probe_full, max_workers=4, timeout=10,
+            label="ONVIF full probe",
+        )
+        for entry, full in zip(online_entries, full_results):
+            if full:
+                if full.get('manufacturer'):
+                    entry['manufacturer'] = full['manufacturer']
+                if full.get('model'):
+                    entry['model'] = full['model']
+                if full.get('firmware'):
+                    entry['firmware'] = full['firmware']
+                if full.get('serial'):
+                    entry['serial'] = full['serial']
+                    entry['id'] = full['serial']
+                if full.get('hardware'):
+                    entry['hardware'] = full['hardware']
+                entry['rtsp_url_onvif'] = full.get('rtsp_main', '')
+                entry['rtsp_sub_onvif'] = full.get('rtsp_sub', '') or ''
+                entry['onvif_profiles'] = full.get('onvif_profiles', [])
+                entry['has_ptz'] = full.get('has_ptz', False)
+                entry['type'] = _guess_provider_type(entry['manufacturer'], entry['model'])
 
     for entry in results:
         if not entry['name']:
@@ -708,8 +708,12 @@ def lookup_mac_vendor(mac: str) -> str:
 
 
 def read_arp_table() -> List[Dict]:
+    import os
+    import shutil
+    import subprocess
+
     entries = []
-    try:
+    if os.path.isfile('/proc/net/arp'):
         with open('/proc/net/arp', 'r') as f:
             lines = f.readlines()[1:]
         for line in lines:
@@ -719,21 +723,19 @@ def read_arp_table() -> List[Dict]:
                 if mac and mac != '00:00:00:00:00:00':
                     entries.append({'ip': ip, 'mac': mac, 'iface': iface})
         return entries
-    except FileNotFoundError:
-        pass
-    try:
-        import subprocess
-        output = subprocess.check_output(['arp', '-a'], timeout=3, stderr=subprocess.DEVNULL).decode()
-        for line in output.split('\n'):
-            if '(incomplete)' in line:
-                continue
-            m = re.match(r'.*?\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\da-fA-F:]+)\s+on\s+(\w+)', line)
-            if m:
-                ip, mac, iface = m.group(1), m.group(2).lower(), m.group(3)
-                if mac and mac != 'ff:ff:ff:ff:ff:ff':
-                    entries.append({'ip': ip, 'mac': mac, 'iface': iface})
-    except Exception as e:
-        logger.debug(f"ARP table read error: {e}")
+    arp_cmd = shutil.which('arp')
+    if not arp_cmd:
+        logger.debug("ARP command is unavailable")
+        return entries
+    output = subprocess.check_output([arp_cmd, '-a'], timeout=3, stderr=subprocess.DEVNULL).decode()
+    for line in output.split('\n'):
+        if '(incomplete)' in line:
+            continue
+        m = re.match(r'.*?\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\da-fA-F:]+)\s+on\s+(\w+)', line)
+        if m:
+            ip, mac, iface = m.group(1), m.group(2).lower(), m.group(3)
+            if mac and mac != 'ff:ff:ff:ff:ff:ff':
+                entries.append({'ip': ip, 'mac': mac, 'iface': iface})
     return entries
 
 
@@ -790,6 +792,7 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
     auto_site_ids = [sites[0]['id']] if len(sites) == 1 else None
 
     for dev in discovered:
+        asset_written = False
         ip = dev.get('ip')
         serial = (dev.get('serial') or '').strip().upper()
         mac = dev.get('mac', '')
@@ -802,14 +805,21 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
         if matched:
             needs_update = False
             if ip and matched.get('camera_ip') != ip:
-                db._execute_query(
+                updated = db._execute_query(
                     "UPDATE cameras SET camera_ip = %s, updated_at = NOW() WHERE id = %s",
                     (ip, matched['id']), commit=True
                 )
+                if not updated:
+                    logger.error("Discovered camera IP update affected no row (camera_id=%s)", matched['id'])
+                    raise RuntimeError("Discovered camera IP update did not affect a row")
                 needs_update = True
             if rtsp_url and matched.get('onvif_rtsp_detected') != rtsp_url:
-                cam_svc.regenerate_rtsp_url(matched['id'])
-                cam_svc.store_onvif_detected_rtsp(matched['id'], rtsp_url)
+                if not cam_svc.regenerate_rtsp_url(matched['id']):
+                    logger.error("Discovered camera RTSP reset affected no row (camera_id=%s)", matched['id'])
+                    raise RuntimeError("Discovered camera RTSP reset did not affect a row")
+                if not cam_svc.store_onvif_detected_rtsp(matched['id'], rtsp_url):
+                    logger.error("Discovered camera RTSP update affected no row (camera_id=%s)", matched['id'])
+                    raise RuntimeError("Discovered camera RTSP update did not affect a row")
                 needs_update = True
             stats['updated' if needs_update else 'skipped'] += 1
         elif auto_enabled:
@@ -828,39 +838,42 @@ def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
                 camera_port=554,
                 provider_keys={'mk': mk, 'mac': mac} if mk else {'mac': mac},
             )
-            if new_id:
-                if rtsp_url:
-                    cam_svc.store_onvif_detected_rtsp(new_id, rtsp_url)
-                cam_svc.upsert_camera_asset(
-                    cam_id=serial or ip, name=name, ip=ip, serial=serial,
-                    model=model, rtsp_url=rtsp_url, mac=mac,
-                    onvif_port=dev.get('onvif_port'),
-                    onvif_profiles=dev.get('onvif_profiles'),
-                )
-                stats['registered'] += 1
-                logger.info(f"Auto-registered: {name} @ {ip}")
-            else:
-                stats['skipped'] += 1
+            if isinstance(new_id, bool) or not isinstance(new_id, int) or new_id <= 0:
+                logger.error("Automatic camera registration returned no valid ID")
+                raise RuntimeError("Automatic camera registration did not return a valid ID")
+            if rtsp_url and not cam_svc.store_onvif_detected_rtsp(new_id, rtsp_url):
+                logger.error("New camera RTSP update affected no row (camera_id=%s)", new_id)
+                raise RuntimeError("New camera RTSP update did not affect a row")
+            if not cam_svc.upsert_camera_asset(
+                cam_id=serial or ip, name=name, ip=ip, serial=serial,
+                model=model, rtsp_url=rtsp_url, mac=mac,
+                onvif_port=dev.get('onvif_port'),
+                onvif_profiles=dev.get('onvif_profiles'),
+            ):
+                logger.error("New camera asset write affected no row (camera_id=%s)", new_id)
+                raise RuntimeError("New camera asset could not be stored")
+            asset_written = True
+            stats['registered'] += 1
+            logger.info(f"Auto-registered: {name} @ {ip}")
         else:
             stats['skipped'] += 1
 
-        if mac or serial:
-            try:
-                cam_svc.upsert_camera_asset(
-                    cam_id=serial or mac or ip, name=f"{vendor} {model}".strip() or ip,
-                    ip=ip, serial=serial, model=model, rtsp_url=rtsp_url, mac=mac,
-                    onvif_port=dev.get('onvif_port'),
-                    onvif_profiles=dev.get('onvif_profiles'),
-                )
-            except Exception as e:
-                logger.warning("Failed to cache discovered camera asset (%s): %s", ip, e)
+        if (mac or serial) and not asset_written:
+            if not cam_svc.upsert_camera_asset(
+                cam_id=serial or mac or ip, name=f"{vendor} {model}".strip() or ip,
+                ip=ip, serial=serial, model=model, rtsp_url=rtsp_url, mac=mac,
+                onvif_port=dev.get('onvif_port'),
+                onvif_profiles=dev.get('onvif_profiles'),
+            ):
+                logger.error("Discovered camera asset write affected no row")
+                raise RuntimeError("Discovered camera asset could not be stored")
 
     return stats
 
 def discover_and_update_all_cameras():
     from backend.util.imou_api import ImouClient
     
-    results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'error': None, 'new_devices': [], 'updated_cameras': []}
+    results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'new_devices': [], 'updated_cameras': []}
     
     all_cams = db._execute_query("SELECT id, camera_name, imou_device_id, camera_ip FROM cameras", fetchall=True)
     results['total'] = len(all_cams)
@@ -905,34 +918,33 @@ def discover_and_update_all_cameras():
         ]
         if dahua_to_probe:
             def _probe_dahua_serial(dev):
-                try:
-                    full = get_onvif_full_info(
-                        dev['ip'], dev.get('onvif_port', 80),
-                        username='admin', password=imou_mk, timeout=4
-                    )
-                    if full:
-                        if full.get('serial'):
-                            dev['serial'] = full['serial']
-                            dev['id'] = full['serial'].lower()
-                        if full.get('model'):
-                            dev['model'] = full['model']
-                        if full.get('firmware'):
-                            dev['firmware'] = full['firmware']
-                        if full.get('rtsp_main') and not dev.get('rtsp_url_onvif'):
-                            dev['rtsp_url_onvif'] = full['rtsp_main']
-                        if full.get('rtsp_sub') and not dev.get('rtsp_sub_onvif'):
-                            dev['rtsp_sub_onvif'] = full['rtsp_sub']
-                        if full.get('onvif_profiles') and not dev.get('onvif_profiles'):
-                            dev['onvif_profiles'] = full['onvif_profiles']
-                        if full.get('has_ptz'):
-                            dev['has_ptz'] = True
-                        logger.info(f"  ONVIF full probe (Imou): {dev['ip']} → S/N={dev.get('serial', '?')}")
-                except Exception as e:
-                    logger.debug(f"ONVIF serial probe failed for {dev['ip']}: {e}")
+                return get_onvif_full_info(
+                    dev['ip'], dev.get('onvif_port', 80),
+                    username='admin', password=imou_mk, timeout=4
+                )
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                futures = {executor.submit(_probe_dahua_serial, dev): dev for dev in dahua_to_probe}
-                concurrent.futures.wait(futures, timeout=12)
+            full_results = _run_bounded_probes(
+                dahua_to_probe, _probe_dahua_serial, max_workers=3, timeout=12,
+                label="ONVIF serial probe",
+            )
+            for dev, full in zip(dahua_to_probe, full_results):
+                if full:
+                    if full.get('serial'):
+                        dev['serial'] = full['serial']
+                        dev['id'] = full['serial'].lower()
+                    if full.get('model'):
+                        dev['model'] = full['model']
+                    if full.get('firmware'):
+                        dev['firmware'] = full['firmware']
+                    if full.get('rtsp_main') and not dev.get('rtsp_url_onvif'):
+                        dev['rtsp_url_onvif'] = full['rtsp_main']
+                    if full.get('rtsp_sub') and not dev.get('rtsp_sub_onvif'):
+                        dev['rtsp_sub_onvif'] = full['rtsp_sub']
+                    if full.get('onvif_profiles') and not dev.get('onvif_profiles'):
+                        dev['onvif_profiles'] = full['onvif_profiles']
+                    if full.get('has_ptz'):
+                        dev['has_ptz'] = True
+                    logger.info(f"  ONVIF full probe (Imou): {dev['ip']} → S/N={dev.get('serial', '?')}")
 
     onvif_ips = {dev['ip'] for dev in local_found}
     for dev in dahua_found:
@@ -977,63 +989,59 @@ def discover_and_update_all_cameras():
     cloud_new_devices = []
     if imou_keys.get('app_id') and imou_keys.get('app_secret'):
         logger.info("Starting Imou Cloud API sync...")
-        try:
-            client = ImouClient(imou_keys['app_id'], imou_keys['app_secret'])
-            cloud_devices = client.list_devices()
-            logger.info(f"Cloud API found {len(cloud_devices)} device(s).")
+        client = ImouClient(imou_keys['app_id'], imou_keys['app_secret'])
+        cloud_devices = client.list_devices()
+        logger.info(f"Cloud API found {len(cloud_devices)} device(s).")
 
-            combined_ip_map = {}
-            for dev in dahua_found:
-                if dev.get('serial'):
-                    combined_ip_map[dev['serial'].lower()] = dev['ip']
-            for dev in local_found:
-                dev_id = (dev.get('id') or dev.get('serial') or '').lower()
-                if dev_id:
-                    combined_ip_map[dev_id] = dev['ip']
+        combined_ip_map = {}
+        for dev in dahua_found:
+            if dev.get('serial'):
+                combined_ip_map[dev['serial'].lower()] = dev['ip']
+        for dev in local_found:
+            dev_id = (dev.get('id') or dev.get('serial') or '').lower()
+            if dev_id:
+                combined_ip_map[dev_id] = dev['ip']
 
-            for dev in cloud_devices:
-                did_raw = dev.get('deviceId')
-                lip = dev.get('deviceLocalIp')
+        for dev in cloud_devices:
+            did_raw = dev.get('deviceId')
+            lip = dev.get('deviceLocalIp')
 
-                if did_raw:
-                    did = did_raw.strip().lower()
+            if did_raw:
+                did = did_raw.strip().lower()
 
-                    if (not lip or lip == "0.0.0.0"):
-                        for local_id, local_ip in combined_ip_map.items():
-                            if did.upper() == local_id.upper():
-                                lip = local_ip
-                                logger.info(f"  [LOCAL→CLOUD] Matched {did} to {lip} via serial match")
-                                break
-                    
-                    results['found_cloud'] += 1
-                    
-                    if did in existing_ids:
-                        if lip and lip != "0.0.0.0" and did not in found_ips:
-                            found_ips[did] = lip
-                    else:
-                        status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
-                        raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
-                        
-                        is_online = True
-                        if raw_status is not None:
-                            status_val = str(raw_status).lower()
-                            if status_val in ['0', 'offline', 'sleep', 'off', 'false']:
-                                is_online = False
-                        
-                        cloud_new_devices.append({
-                            'id': did,
-                            'name': dev.get('deviceName') or (dev.get('deviceModel', 'Imou Camera') + ' ' + did[-4:]),
-                            'ip': lip if lip and lip != '0.0.0.0' else None,
-                            'type': 'imou',
-                            'source': 'cloud',
-                            'manufacturer': 'Dahua/Imou',
-                            'model': dev.get('deviceModel', ''),
-                            'is_online': is_online,
-                            'auto_found': False
-                        })
-        except Exception as e:
-            results['error'] = str(e)
-            logger.error(f"Cloud discovery error: {e}")
+                if not lip or lip == "0.0.0.0":
+                    for local_id, local_ip in combined_ip_map.items():
+                        if did.upper() == local_id.upper():
+                            lip = local_ip
+                            logger.info(f"  [LOCAL→CLOUD] Matched {did} to {lip} via serial match")
+                            break
+
+                results['found_cloud'] += 1
+
+                if did in existing_ids:
+                    if lip and lip != "0.0.0.0" and did not in found_ips:
+                        found_ips[did] = lip
+                else:
+                    status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
+                    raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
+
+                    is_online = True
+                    if raw_status is not None:
+                        status_val = str(raw_status).lower()
+                        if status_val in ['0', 'offline', 'sleep', 'off', 'false']:
+                            is_online = False
+
+                    cloud_new_devices.append({
+                        'id': did,
+                        'name': dev.get('deviceName') or (dev.get('deviceModel', 'Imou Camera') + ' ' + did[-4:]),
+                        'ip': lip if lip and lip != '0.0.0.0' else None,
+                        'type': 'imou',
+                        'source': 'cloud',
+                        'manufacturer': 'Dahua/Imou',
+                        'model': dev.get('deviceModel', ''),
+                        'is_online': is_online,
+                        'auto_found': False
+                    })
     else:
         logger.warning("Imou Cloud API keys NOT configured. Skipping cloud sync.")
     
@@ -1055,19 +1063,16 @@ def discover_and_update_all_cameras():
                 for arp_ip in list(arp_ips_with_camera_ports):
                     if arp_ip in seen_ips or arp_ip in [d.get('ip') for d in cloud_new_devices if d.get('ip')]:
                         continue
-                    try:
-                        full = get_onvif_full_info(arp_ip, 80, 'admin', imou_mk, timeout=4)
-                        if full and full.get('serial', '').upper() == did:
-                            dev['ip'] = arp_ip
-                            if full.get('rtsp_main'):
-                                dev['rtsp_url_onvif'] = full['rtsp_main']
-                            if full.get('rtsp_sub'):
-                                dev['rtsp_sub_onvif'] = full['rtsp_sub']
-                            found_ips[dev['id']] = arp_ip
-                            logger.info(f"  [ONVIF→CLOUD] Resolved {did} → {arp_ip} via ONVIF serial match")
-                            break
-                    except Exception as e:
-                        logger.debug(f"  ONVIF probe {arp_ip} for {did}: {e}")
+                    full = get_onvif_full_info(arp_ip, 80, 'admin', imou_mk, timeout=4)
+                    if full and full.get('serial', '').upper() == did:
+                        dev['ip'] = arp_ip
+                        if full.get('rtsp_main'):
+                            dev['rtsp_url_onvif'] = full['rtsp_main']
+                        if full.get('rtsp_sub'):
+                            dev['rtsp_sub_onvif'] = full['rtsp_sub']
+                        found_ips[dev['id']] = arp_ip
+                        logger.info(f"  [ONVIF→CLOUD] Resolved {did} → {arp_ip} via ONVIF serial match")
+                        break
 
         resolved = sum(1 for d in cloud_no_ip if d.get('ip'))
         logger.info(f"ARP IP resolution: {resolved}/{len(cloud_no_ip)} cloud device(s) resolved")
@@ -1196,8 +1201,15 @@ def discover_and_update_all_cameras():
                 new_ip = found_ips[did_lower]
                 if cam['camera_ip'] != new_ip:
                     logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
-                    db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']), commit=True)
-                    cam_svc.regenerate_rtsp_url(cam['id'])
+                    if not db._execute_query(
+                        "UPDATE cameras SET camera_ip = %s WHERE id = %s",
+                        (new_ip, cam['id']), commit=True,
+                    ):
+                        logger.error("Discovered camera IP update affected no row (camera_id=%s)", cam['id'])
+                        raise RuntimeError("Discovered camera IP update did not affect a row")
+                    if not cam_svc.regenerate_rtsp_url(cam['id']):
+                        logger.error("Discovered camera RTSP reset affected no row (camera_id=%s)", cam['id'])
+                        raise RuntimeError("Discovered camera RTSP reset did not affect a row")
                     results['updated_cameras'].append({
                         'name': cam['camera_name'],
                         'old_ip': cam['camera_ip'] or '',
@@ -1205,35 +1217,33 @@ def discover_and_update_all_cameras():
                     })
                     results['updated'] += 1
 
-    try:
-        all_discovered = list(local_found) + list(dahua_found) + list(cloud_new_devices)
-        for dev in all_discovered:
-            cam_id = (dev.get('serial') or dev.get('id') or dev.get('ip', '')).strip()
-            if cam_id and not cam_id.startswith('unidentified_'):
-                cam_svc.upsert_camera_asset(
-                    cam_id=cam_id,
-                    name=dev.get('name', dev.get('manufacturer', '')),
-                    ip=dev.get('ip'),
-                    serial=dev.get('serial', ''),
-                    model=dev.get('model', ''),
-                    firmware=dev.get('firmware', ''),
-                    rtsp_url=dev.get('rtsp_url_onvif', ''),
-                    onvif_port=dev.get('onvif_port'),
-                    onvif_profiles=dev.get('onvif_profiles'),
-                    mac=dev.get('mac', ''),
-                )
-    except Exception as e:
-        logger.debug(f"Asset cache error: {e}")
-
-    set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
+    all_discovered = list(local_found) + list(dahua_found) + list(cloud_new_devices)
+    for dev in all_discovered:
+        cam_id = (dev.get('serial') or dev.get('id') or dev.get('ip', '')).strip()
+        if cam_id and not cam_id.startswith('unidentified_'):
+            if not cam_svc.upsert_camera_asset(
+                cam_id=cam_id,
+                name=dev.get('name', dev.get('manufacturer', '')),
+                ip=dev.get('ip'),
+                serial=dev.get('serial', ''),
+                model=dev.get('model', ''),
+                firmware=dev.get('firmware', ''),
+                rtsp_url=dev.get('rtsp_url_onvif', ''),
+                onvif_port=dev.get('onvif_port'),
+                onvif_profiles=dev.get('onvif_profiles'),
+                mac=dev.get('mac', ''),
+            ):
+                logger.error("Discovered camera asset write affected no row")
+                raise RuntimeError("Discovered camera asset could not be stored")
 
     if new_devices:
-        try:
-            reg_result = auto_register_discovered_cameras(new_devices)
-            results['auto_registered'] = reg_result.get('registered', 0)
-            if reg_result['registered'] > 0:
-                logger.info(f"Auto-registration: {reg_result}")
-        except Exception as e:
-            logger.warning(f"Auto-registration error: {e}")
+        reg_result = auto_register_discovered_cameras(new_devices)
+        results['auto_registered'] = reg_result.get('registered', 0)
+        if reg_result['registered'] > 0:
+            logger.info(f"Auto-registration: {reg_result}")
+
+    if not set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S")):
+        logger.error("Camera discovery timestamp setting write affected no row")
+        raise RuntimeError("Camera discovery timestamp could not be stored")
 
     return results

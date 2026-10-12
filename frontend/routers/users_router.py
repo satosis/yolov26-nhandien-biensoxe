@@ -5,8 +5,8 @@ import time
 import urllib.parse
 import bcrypt
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
-from fastapi.responses import RedirectResponse, JSONResponse
-from typing import Optional
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from typing import Literal, Optional
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.database import db
 from backend.services import config as cfg
@@ -14,6 +14,14 @@ from backend.services import config as cfg
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users")
+_SITE_IDS_PATTERN = r"^\s*(?:[1-9]\d{0,9}(?:\s*,\s*[1-9]\d{0,9})*)?\s*$"
+_MAX_DB_INTEGER = 2_147_483_647
+
+
+def _parsed_site_ids(value: str | None) -> list[int] | None:
+    if not value or not value.strip():
+        return None
+    return [int(site_id.strip()) for site_id in value.split(",")]
 
 
 def get_all_users(limit=None, offset=None) -> list[dict]:
@@ -53,8 +61,11 @@ def create_user_record(username: str, hashed_password: str, role_name: str,
         VALUES (%s, %s, (SELECT id FROM roles WHERE role_name = %s LIMIT 1), %s, %s, %s)
         RETURNING id
     """
-    db.execute_query(query, (username, hashed_password, role_name, full_name, note, site_ids), commit=True, return_id=True)
-    return True, ""
+    new_id = db.execute_query(
+        query, (username, hashed_password, role_name, full_name, note, site_ids),
+        commit=True, return_id=True,
+    )
+    return (True, "") if new_id is not None else (False, "Không thể tạo người dùng.")
 
 
 def update_user_record(user_id: int, username: str, role_name: str, hashed_password: str = None,
@@ -134,12 +145,12 @@ async def create_user(
     password: str = Form(...),
     full_name: Optional[str] = Form(None),
     role_name: str = Form(...),
-    site_ids: Optional[str] = Form(None),
+    site_ids: Optional[str] = Form(None, pattern=_SITE_IDS_PATTERN),
     note: Optional[str] = Form(None),
 ):
-    parsed_site_ids = None
-    if site_ids:
-        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
+    parsed_site_ids = _parsed_site_ids(site_ids)
+    if parsed_site_ids and any(site_id > _MAX_DB_INTEGER for site_id in parsed_site_ids):
+        return HTMLResponse("ID địa điểm không hợp lệ.", status_code=422)
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     ok, msg = create_user_record(
@@ -164,18 +175,18 @@ async def edit_user(
     password: Optional[str] = Form(None),
     full_name: Optional[str] = Form(None),
     role_name: str = Form(...),
-    site_ids: Optional[str] = Form(None),
+    site_ids: Optional[str] = Form(None, pattern=_SITE_IDS_PATTERN),
     note: Optional[str] = Form(None),
 ):
-    parsed_site_ids = None
-    if site_ids:
-        parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
+    parsed_site_ids = _parsed_site_ids(site_ids)
+    if parsed_site_ids and any(site_id > _MAX_DB_INTEGER for site_id in parsed_site_ids):
+        return HTMLResponse("ID địa điểm không hợp lệ.", status_code=422)
 
     hashed = None
     if password:
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    update_user_record(
+    updated = update_user_record(
         user_id=user_id,
         username=username,
         role_name=role_name,
@@ -184,6 +195,8 @@ async def edit_user(
         note=note or None,
         site_ids=parsed_site_ids,
     )
+    if not updated:
+        return HTMLResponse("Không tìm thấy người dùng.", status_code=404)
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
@@ -193,21 +206,23 @@ async def delete_user(
     request: Request,
     user: dict = Depends(require_menu("users")),
 ):
-    from .kyc_router import invalidate_face_cache
-
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
     if os.path.isdir(person_dir):
         shutil.rmtree(person_dir)
         logger.info("Deleted face directory for user %s", user_id)
 
+    if not delete_user_record(user_id):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy người dùng."}, status_code=404)
+
+    from .kyc_router import invalidate_face_cache
+
     invalidate_face_cache()
     reload_trigger = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
     with open(reload_trigger, "w") as f:
         f.write(str(time.time()))
 
-    delete_user_record(user_id)
-    return RedirectResponse(url="/admin/users", status_code=303)
+    return {"ok": True}
 
 
 @router.post("/{user_id}/face")
@@ -215,17 +230,15 @@ async def upload_face(
     user_id: int,
     request: Request,
     face_image: UploadFile = File(...),
-    angle: str = Form("front"),
+    angle: Literal["front", "left", "right", "up", "down"] = Form("front"),
     user: dict = Depends(require_menu("users")),
 ):
     target_user = get_user_by_id(user_id)
     if not target_user:
-        if "application/json" in request.headers.get("accept", "") or request.headers.get("x-requested-with") == "XMLHttpRequest":
-            return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
-        return RedirectResponse(url="/admin/users?error=user_not_found", status_code=303)
-
-    if angle not in ["front", "left", "right", "up", "down"]:
-        angle = "front"
+        return JSONResponse(
+            {"ok": False, "error": "user_not_found", "message": "Không tìm thấy người dùng."},
+            status_code=404,
+        )
 
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)

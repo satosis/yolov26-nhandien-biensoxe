@@ -347,6 +347,31 @@
 </div>
 
 <script>
+  function discoveredDeviceItem(name, details, label, onSelect) {
+    const item = document.createElement('div');
+    item.className = 'card mb-2';
+    const body = document.createElement('div');
+    body.className = 'card-body p-3 d-flex align-items-center justify-content-between';
+    const description = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'font-weight-bold';
+    title.style.fontSize = '14px';
+    title.textContent = name;
+    const metadata = document.createElement('code');
+    metadata.style.cssText = 'font-size:10px;letter-spacing:1px;';
+    metadata.textContent = details;
+    description.append(title, metadata);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm btn-primary font-weight-bold';
+    button.style.cssText = 'font-size:11px;letter-spacing:1px;';
+    button.textContent = label;
+    button.addEventListener('click', onSelect);
+    body.append(description, button);
+    item.appendChild(body);
+    return item;
+  }
+
   function controlDoor(btn, doorId, action) {
     const originalText = btn.innerText;
     btn.innerText = '...';
@@ -355,19 +380,17 @@
     const formData = new FormData();
     formData.append('action', action);
 
-    fetch(`/admin/rolling_doors/${doorId}/control`, {
+    apiRequest(`/admin/rolling_doors/${doorId}/control`, {
       method: 'POST',
       body: formData
     })
-    .then(r => r.json())
     .then(data => {
-      if (data.status === 'success') {
+      if (data.ok && data.api_status === 'success') {
         console.log(data.message);
       } else {
-        alert('Lỗi: ' + data.message);
+        alert('Lỗi: ' + (data.message || 'Không thể điều khiển cửa.'));
       }
     })
-    .catch(err => alert('Lỗi kết nối: ' + err))
     .finally(() => {
       btn.innerText = originalText;
       btn.disabled = false;
@@ -389,40 +412,31 @@
     document.getElementById('discovery-searching').style.display = '';
     document.getElementById('discovery-results').style.display = 'none';
 
-    fetch('/admin/rolling_doors/scan', { method: 'POST' })
-      .then(r => r.json())
+    apiRequest('/admin/rolling_doors/scan', { method: 'POST' })
       .then(data => {
         document.getElementById('discovery-searching').style.display = 'none';
         document.getElementById('discovery-results').style.display = '';
 
         const list = document.getElementById('discovery-list');
-        list.innerHTML = '';
+        list.replaceChildren();
 
-        if (data.status === 'success' && data.devices.length > 0) {
+        if (!data.ok) {
+          list.textContent = data.message || 'Không thể quét thiết bị.';
+          return;
+        }
+
+        if (data.api_status === 'success' && Array.isArray(data.devices) && data.devices.length > 0) {
           data.devices.forEach(dev => {
-            const item = document.createElement('div');
-            item.className = 'card mb-2';
-            item.innerHTML = `
-              <div class="card-body p-3 d-flex align-items-center justify-content-between">
-                <div>
-                  <div class="font-weight-bold" style="font-size:14px;">${dev.name}</div>
-                  <code style="font-size:10px;letter-spacing:1px;">IP: ${dev.ip} | ID: ${dev.device_id} | Ver: ${dev.version}</code>
-                </div>
-                <button onclick="selectDiscovered('${dev.ip}', '${dev.device_id}', 'tuya_local')"
-                        class="btn btn-sm btn-primary font-weight-bold" style="font-size:11px;letter-spacing:1px;">
-                  DÙNG THIẾT BỊ NÀY
-                </button>
-              </div>
-            `;
-            list.appendChild(item);
+            list.appendChild(discoveredDeviceItem(
+              dev.name,
+              `IP: ${dev.ip} | ID: ${dev.device_id} | Ver: ${dev.version}`,
+              'DÙNG THIẾT BỊ NÀY',
+              () => selectDiscovered(dev.ip, dev.device_id, 'tuya_local'),
+            ));
           });
         } else {
           list.innerHTML = '<div class="py-4 text-center text-muted" style="font-size:13px;">Không tìm thấy thiết bị nào. Kiểm tra mạng WiFi và thử lại.</div>';
         }
-      })
-      .catch(err => {
-        alert('Discovery failed: ' + err);
-        closeModal('discovery-modal');
       });
   }
 
@@ -498,39 +512,29 @@
     formData.append('phone', phone);
     formData.append('password', pass);
 
-    fetch('/admin/rolling_doors/hunonic/devices', {
+    apiRequest('/admin/rolling_doors/hunonic/devices', {
       method: 'POST',
       body: formData
     })
-    .then(r => r.json())
     .then(data => {
-      if (data.status === 'success') {
+      if (data.ok && data.api_status === 'success' && Array.isArray(data.devices)) {
         openModal('discovery-modal');
         document.getElementById('discovery-searching').style.display = 'none';
         document.getElementById('discovery-results').style.display = '';
 
         const list = document.getElementById('discovery-list');
-        list.innerHTML = '';
+        list.replaceChildren();
 
         data.devices.forEach(dev => {
-          const item = document.createElement('div');
-          item.className = 'card mb-2';
-          item.innerHTML = `
-            <div class="card-body p-3 d-flex align-items-center justify-content-between">
-              <div>
-                <div class="font-weight-bold" style="font-size:14px;">${dev.name || 'Hunonic Device'}</div>
-                <code style="font-size:10px;letter-spacing:1px;">ID: ${dev.id}</code>
-              </div>
-              <button onclick="selectHunonicDevice('${dev.id}')"
-                      class="btn btn-sm btn-primary font-weight-bold" style="font-size:11px;letter-spacing:1px;">
-                CHỌN
-              </button>
-            </div>
-          `;
-          list.appendChild(item);
+          list.appendChild(discoveredDeviceItem(
+            dev.name || 'Hunonic Device',
+            `ID: ${dev.id}`,
+            'CHỌN',
+            () => selectHunonicDevice(dev.id),
+          ));
         });
       } else {
-        alert('Lỗi: ' + data.message);
+        alert('Lỗi: ' + (data.message || 'Không thể lấy danh sách thiết bị.'));
       }
     })
     .finally(() => {

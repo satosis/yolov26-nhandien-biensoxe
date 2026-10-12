@@ -232,6 +232,20 @@ const HOLD_TIME = 1500;
 let modelsLoaded = false;
 let dirHistory = [];
 const HISTORY_SIZE = 5;
+const MAX_UPLOAD_FAILURES = 3;
+const MAX_START_FAILURES = 3;
+const MAX_DETECTION_FAILURES = 3;
+const MAX_NO_FRAME_CHECKS = 30;
+const SOURCE_TIMEOUT_MS = 30000;
+const DETECTION_TIMEOUT_MS = 5000;
+let uploadFailures = 0;
+let uploadInProgress = false;
+let startFailures = 0;
+let detectionFailures = 0;
+let detectionInProgress = false;
+let detectionGeneration = 0;
+let kycStarting = false;
+let noFrameChecks = 0;
 
 const doneFaces = new Set([
   {% for angle in face_angles %}{% if docs.get('face_' + angle) %}'{{ angle }}',{% endif %}{% endfor %}
@@ -245,12 +259,102 @@ const kycSteps = [
     { id: 'down',  instruction: 'Cúi đầu xuống dưới' }
 ].filter(s => !doneFaces.has(s.id));
 
-async function loadModels() {
-    if (modelsLoaded) return;
+function loadModels() {
+    if (modelsLoaded) return Promise.resolve({ ok: true });
+    if (!window.faceapi || !faceapi.nets ||
+        !faceapi.nets.tinyFaceDetector || !faceapi.nets.faceLandmark68TinyNet) {
+        console.error('Face model library unavailable');
+        return Promise.resolve({ ok: false, message: 'Không tải được thư viện nhận diện khuôn mặt.' });
+    }
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
-    modelsLoaded = true;
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Face model load timed out');
+            resolve({
+                ok: false,
+                code: 'timeout',
+                message: 'Tải mô hình nhận diện quá lâu. Vui lòng thử lại.'
+            });
+        }, SOURCE_TIMEOUT_MS);
+    });
+    const load = Promise.resolve().then(() => Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL)
+    ])).then(
+        () => {
+            modelsLoaded = true;
+            return { ok: true };
+        },
+        error => {
+            if (!timedOut) console.error('Face model load failed:', error && error.name || 'UnknownError');
+            return { ok: false, message: 'Không tải được mô hình nhận diện khuôn mặt.' };
+        }
+    );
+    return Promise.race([load, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
+function openKycCamera() {
+    if (typeof window.cameraRequest !== 'function') {
+        console.error('Camera request helper unavailable');
+        return Promise.resolve({ ok: false, message: 'Không thể khởi tạo camera.' });
+    }
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Camera access timed out');
+            resolve({
+                ok: false,
+                code: 'timeout',
+                message: 'Camera không phản hồi. Hãy kiểm tra quyền truy cập và thử lại.'
+            });
+        }, SOURCE_TIMEOUT_MS);
+    });
+    const attempt = Promise.resolve().then(() => cameraRequest({
+        video: { width: { ideal: 640 }, height: { ideal: 640 }, facingMode: 'user' }
+    })).then(
+        result => {
+            if (!result || typeof result.ok !== 'boolean' ||
+                (result.ok && (!result.stream || typeof result.stream.getTracks !== 'function'))) {
+                if (!timedOut) console.error('Invalid camera result');
+                return { ok: false, message: 'Không thể khởi tạo camera.' };
+            }
+            if (timedOut && result.ok) result.stream.getTracks().forEach(track => track.stop());
+            return result;
+        },
+        error => {
+            if (!timedOut) console.error('Camera request failed:', error && error.name || 'UnknownError');
+            return { ok: false, message: 'Không thể mở camera. Vui lòng kiểm tra thiết bị.' };
+        }
+    );
+    return Promise.race([attempt, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
+function stopKyc(message) {
+    kycStarting = false;
+    kycRunning = false;
+    detectionGeneration++;
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = null;
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    document.getElementById('webcam-video').srcObject = null;
+    document.getElementById('camera-loading').style.display = 'none';
+    document.getElementById('kyc-status-text').textContent = '❌ ' + message;
+    const button = document.getElementById('btn-start-camera');
+    button.classList.remove('d-none');
+    button.disabled = startFailures >= MAX_START_FAILURES;
+    if (button.disabled) button.textContent = 'Đã dừng sau 3 lần thử. Hãy tải lại trang.';
 }
 
 function estimateDirection(landmarks) {
@@ -277,19 +381,63 @@ function estimateDirection(landmarks) {
     return 'front';
 }
 
+function faceDetectionResult(video) {
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Face detection timed out');
+            resolve({ ok: false, message: 'Nhận diện khuôn mặt quá lâu.' });
+        }, DETECTION_TIMEOUT_MS);
+    });
+    const detectionTask = Promise.resolve().then(async () => {
+        const detection = await faceapi.detectSingleFace(
+            video,
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 })
+        ).withFaceLandmarks(true);
+        if (timedOut) return { ok: false, message: 'Nhận diện khuôn mặt quá lâu.' };
+        return detection
+            ? { ok: true, hasFace: true, direction: estimateDirection(detection.landmarks) }
+            : { ok: true, hasFace: false };
+    }).then(
+        result => result,
+        error => {
+            if (!timedOut) console.error('Face detection failed:', error && error.name || 'UnknownError');
+            return { ok: false, message: 'Nhận diện khuôn mặt gặp lỗi.' };
+        }
+    );
+    return Promise.race([detectionTask, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
 async function startKYC() {
+    if (kycRunning || kycStarting || startFailures >= MAX_START_FAILURES) return;
+    kycStarting = true;
     document.getElementById('kyc-status-text').textContent = '⏳ Đang tải AI nhận diện...';
     document.getElementById('btn-start-camera').classList.add('d-none');
-    await loadModels();
-    if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: {ideal:640}, height: {ideal:640}, facingMode: "user" }
-        });
-        document.getElementById('webcam-video').srcObject = stream;
+    document.getElementById('camera-loading').style.display = 'flex';
+    const models = await loadModels();
+    if (!models.ok) {
+        startFailures++;
+        stopKyc(models.message);
+        return;
     }
+    const camera = await openKycCamera();
+    if (!camera.ok) {
+        startFailures++;
+        stopKyc(camera.message);
+        return;
+    }
+    stream = camera.stream;
+    document.getElementById('webcam-video').srcObject = stream;
     document.getElementById('camera-loading').style.display = 'none';
+    kycStarting = false;
     kycRunning = true;
-    currentStep = 0;
+    startFailures = 0;
+    uploadFailures = 0;
     runStep();
 }
 
@@ -303,20 +451,61 @@ function runStep() {
     document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
     holdStart = 0;
     dirHistory = [];
+    uploadInProgress = false;
+    detectionFailures = 0;
+    noFrameChecks = 0;
+    detectionGeneration++;
+    const generation = detectionGeneration;
     if (detectInterval) clearInterval(detectInterval);
-    detectInterval = setInterval(() => detectFace(step.id), 300);
+    detectInterval = setInterval(() => detectFace(step.id, generation), 300);
 }
 
-async function detectFace(expectedDir) {
+function handleUploadFailure(message) {
     if (!kycRunning) return;
+    uploadFailures++;
+    const status = document.getElementById('kyc-status-text');
+    if (uploadFailures >= MAX_UPLOAD_FAILURES) {
+        stopKyc(`${message} Đã dừng sau ${MAX_UPLOAD_FAILURES} lần thử.`);
+        window.dispatchEvent(new CustomEvent('showToast', {
+            detail: { msg: status.textContent, type: 'error' }
+        }));
+        return;
+    }
+    status.textContent = `❌ ${message} Đang thử lại (${uploadFailures}/${MAX_UPLOAD_FAILURES})...`;
+    setTimeout(() => runStep(), 3000);
+}
+
+async function detectFace(expectedDir, generation) {
+    if (!kycRunning || detectionInProgress || generation !== detectionGeneration) return;
     const video = document.getElementById('webcam-video');
-    if (video.readyState < 2) return;
-    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
-        .withFaceLandmarks(true);
+    if (video.readyState < 2) {
+        noFrameChecks++;
+        if (noFrameChecks >= MAX_NO_FRAME_CHECKS) {
+            console.error('Camera frames unavailable');
+            stopKyc('Camera không gửi hình ảnh. Hãy kiểm tra thiết bị và thử lại.');
+        }
+        return;
+    }
+    noFrameChecks = 0;
+    detectionInProgress = true;
+    const result = await faceDetectionResult(video);
+    detectionInProgress = false;
+    if (uploadInProgress || !kycRunning || generation !== detectionGeneration) return;
     const ring = document.getElementById('video-ring');
     const bar = document.getElementById('hold-bar');
     const status = document.getElementById('kyc-status-text');
-    if (!detection) {
+    if (!result.ok) {
+        detectionFailures++;
+        if (detectionFailures >= MAX_DETECTION_FAILURES) {
+            stopKyc(result.message + ' Đã dừng sau 3 lần lỗi.');
+        } else {
+            status.textContent = '❌ ' + result.message + ' Đang thử lại (' +
+                detectionFailures + '/' + MAX_DETECTION_FAILURES + ')...';
+        }
+        return;
+    }
+    detectionFailures = 0;
+    if (!result.hasFace) {
         ring.style.borderColor = 'rgba(255,100,100,0.5)';
         ring.style.boxShadow = 'none';
         bar.style.width = '0%';
@@ -324,7 +513,7 @@ async function detectFace(expectedDir) {
         status.textContent = '❌ Không phát hiện khuôn mặt';
         return;
     }
-    const dir = estimateDirection(detection.landmarks);
+    const dir = result.direction;
     if (dir === expectedDir) {
         ring.style.borderColor = 'rgba(100,255,150,0.8)';
         ring.style.boxShadow = '0 0 20px rgba(100,255,150,0.3)';
@@ -333,7 +522,8 @@ async function detectFace(expectedDir) {
         const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
         bar.style.width = pct + '%';
         status.textContent = `✅ Đúng hướng! Giữ yên... ${Math.ceil((HOLD_TIME - elapsed) / 1000)}s`;
-        if (elapsed >= HOLD_TIME) {
+        if (elapsed >= HOLD_TIME && !uploadInProgress) {
+            uploadInProgress = true;
             clearInterval(detectInterval);
             autoCaptureAndUpload();
         }
@@ -352,54 +542,61 @@ async function autoCaptureAndUpload() {
     const canvas = document.getElementById('capture-canvas');
     const flash = document.getElementById('capture-flash');
     const step = kycSteps[currentStep];
+    if (!(video.videoWidth > 0 && video.videoHeight > 0)) {
+        handleUploadFailure('Camera chưa có hình ảnh để chụp.');
+        return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+        console.error('KYC capture canvas unavailable');
+        handleUploadFailure('Không thể chụp ảnh từ camera.');
+        return;
+    }
     flash.style.opacity = '1';
     setTimeout(() => flash.style.opacity = '0', 150);
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
+    context.drawImage(video, 0, 0);
     document.getElementById('kyc-status-text').textContent = '⏳ Đang lưu...';
     document.getElementById('hold-bar').style.width = '100%';
     canvas.toBlob(async (blob) => {
+        if (!blob) {
+            handleUploadFailure('Không thể chụp ảnh.');
+            return;
+        }
         const formData = new FormData();
-        formData.append('face_image', blob, `${step.id}.jpg`);
-        const res = await fetch(`/kyc/face/${step.id}?t=${Date.now()}`, {
+        formData.append('angle', step.id);
+        formData.append('file', blob, `${step.id}.jpg`);
+        const data = await apiRequest('/kyc/upload-face', {
             method: 'POST',
             body: formData,
             headers: { 'Accept': 'application/json' }
         });
 
-        if (!res.ok) {
-            let detail = "Đã xảy ra lỗi hệ thống.";
-            let rawTxt = "";
-            rawTxt = await res.text();
-            const errData = JSON.parse(rawTxt);
-            if (errData.message) detail = errData.message;
-            else if (errData.error) detail = `Lỗi: ${errData.error}`;
-            else if (errData.detail) detail = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
-            document.getElementById('kyc-status-text').textContent = `❌ ${detail}`;
-            setTimeout(() => runStep(), 3000);
+        if (!data.ok) {
+            handleUploadFailure(data.message || 'Đã xảy ra lỗi hệ thống.');
+            return;
+        }
+        if (data.angle !== step.id) {
+            console.error('KYC face upload returned an unexpected angle');
+            handleUploadFailure('Phản hồi lưu ảnh không hợp lệ.');
             return;
         }
 
-        const data = await res.json();
-        if (data.ok) {
-            document.getElementById('success-overlay').classList.remove('d-none');
-            document.getElementById('success-overlay').style.display = 'flex';
-            document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
-            document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
-            const badge = document.getElementById(`face-badge-${step.id}`);
-            if (badge) {
-                const circle = badge.querySelector('div');
-                circle.style.background = '#d1fae5';
-                circle.style.color = '#059669';
-                circle.style.border = '1px solid #6ee7b7';
-                circle.textContent = '✓';
-            }
-            setTimeout(() => { currentStep++; runStep(); }, 1000);
-        } else {
-            document.getElementById('kyc-status-text').textContent = '❌ Đang thử lại...';
-            setTimeout(() => runStep(), 2000);
+        uploadFailures = 0;
+        document.getElementById('success-overlay').classList.remove('d-none');
+        document.getElementById('success-overlay').style.display = 'flex';
+        document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+        document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
+        const badge = document.getElementById(`face-badge-${step.id}`);
+        if (badge) {
+            const circle = badge.querySelector('div');
+            circle.style.background = '#d1fae5';
+            circle.style.color = '#059669';
+            circle.style.border = '1px solid #6ee7b7';
+            circle.textContent = '✓';
         }
+        setTimeout(() => { currentStep++; runStep(); }, 1000);
     }, 'image/jpeg', 0.95);
 }
 
@@ -428,20 +625,22 @@ async function uploadIdDoc(docType, input) {
     const placeholder = document.getElementById('placeholder-' + docType);
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
         preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded mx-auto d-block" style="max-height:160px;"><p class="text-warning font-weight-bold mt-2 mb-0 animate-pulse" style="font-size:12px;">⏳ Đang tải lên...</p>`;
         preview.classList.remove('d-none');
         placeholder.classList.add('d-none');
+        const data = await apiRequest('/kyc/upload-id', { method: 'POST', body: formData });
+        const status = preview.querySelector('p');
+        if (data.ok) {
+            status.textContent = '✅ Đã tải lên';
+            status.className = 'text-success font-weight-bold mt-2 mb-0';
+            setTimeout(() => window.location.reload(), 500);
+            return;
+        }
+        status.textContent = `❌ ${data.message || 'Không thể tải giấy tờ lên.'}`;
+        status.className = 'text-danger font-weight-bold mt-2 mb-0';
     };
     reader.readAsDataURL(file);
-
-    const res = await fetch('/kyc/upload-id', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.ok) {
-        preview.querySelector('p').textContent = '✅ Đã tải lên';
-        preview.querySelector('p').className = 'text-success font-weight-bold mt-2 mb-0';
-        setTimeout(() => window.location.reload(), 500);
-    }
 }
 </script>
 {% endif %}

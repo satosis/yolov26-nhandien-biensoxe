@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from typing import Optional
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
@@ -58,8 +58,12 @@ async def upsert_door_provider_route(
     is_active: Optional[str] = Form("on"),
     user: dict = Depends(require_menu("door_providers")),
 ):
+    provider_key = provider_key.strip().lower()
+    name = name.strip()
+    if not provider_key or not name:
+        return HTMLResponse("Mã và tên nhà cung cấp cửa không được để trống.", status_code=422)
     active = is_active in ("on", "true", "1", "yes")
-    upsert_door_provider(
+    if not upsert_door_provider(
         provider_key=provider_key,
         name=name,
         connection_type=connection_type or None,
@@ -68,7 +72,8 @@ async def upsert_door_provider_route(
         notes=notes or None,
         logo_url=logo_url or None,
         is_active=active,
-    )
+    ):
+        return HTMLResponse("Không thể lưu nhà cung cấp cửa.", status_code=500)
     return RedirectResponse(url="/admin/door_providers", status_code=303)
 
 
@@ -78,8 +83,9 @@ async def delete_door_provider_route(
     request: Request,
     user: dict = Depends(require_menu("door_providers")),
 ):
-    delete_door_provider(provider_key)
-    return RedirectResponse(url="/admin/door_providers", status_code=303)
+    if not delete_door_provider(provider_key):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy nhà cung cấp cửa."}, status_code=404)
+    return {"ok": True}
 
 
 @router.post("/{provider_key}/toggle")
@@ -89,15 +95,17 @@ async def toggle_door_provider(
     user: dict = Depends(require_menu("door_providers")),
 ):
     provider = get_door_provider(provider_key)
-    if provider:
-        upsert_door_provider(
-            provider_key=provider["provider_key"],
-            name=provider["name"],
-            connection_type=provider.get("connection_type"),
-            api_doc_url=provider.get("api_doc_url"),
-            config_template=provider.get("config_template"),
-            notes=provider.get("notes"),
-            logo_url=provider.get("logo_url"),
-            is_active=not provider.get("is_active", True),
-        )
+    if not provider:
+        return HTMLResponse("Không tìm thấy nhà cung cấp cửa.", status_code=404)
+    if not upsert_door_provider(
+        provider_key=provider["provider_key"],
+        name=provider["name"],
+        connection_type=provider.get("connection_type"),
+        api_doc_url=provider.get("api_doc_url"),
+        config_template=provider.get("config_template"),
+        notes=provider.get("notes"),
+        logo_url=provider.get("logo_url"),
+        is_active=not provider.get("is_active", True),
+    ):
+        return HTMLResponse("Không thể cập nhật nhà cung cấp cửa.", status_code=500)
     return RedirectResponse(url="/admin/door_providers", status_code=303)

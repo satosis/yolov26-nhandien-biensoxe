@@ -25,6 +25,13 @@
   distanceSeq: 0,
   lastDistanceKey: '',
 
+  showRequestError(result, fallback, silent = false) {
+    if (silent) return;
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: result.message || fallback, type: 'error' }
+    }));
+  },
+
   async handleLocationChange(val, type) {
     this.distanceSeq++;
     if (!val) {
@@ -39,15 +46,15 @@
     this.scheduleDistanceCalculation();
   },
 
-  scheduleDistanceCalculation() {
+  scheduleDistanceCalculation(silent = false) {
     clearTimeout(this.distanceTimer);
     const origin = (this.origin || '').trim();
     const destination = (this.destination || '').trim();
     if (!origin || !destination) return;
-    this.distanceTimer = setTimeout(() => this.calculateKMFromAddresses(), 700);
+    this.distanceTimer = setTimeout(() => this.calculateKMFromAddresses(silent), 700);
   },
 
-  async calculateKMFromAddresses() {
+  async calculateKMFromAddresses(silent = false) {
     const origin = (this.origin || '').trim();
     const destination = (this.destination || '').trim();
     if (!origin || !destination) return;
@@ -56,20 +63,20 @@
 
     const seq = ++this.distanceSeq;
     this.calculatingKM = true;
-    try {
-      const url = '/admin/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
-      const res = await fetch(url);
-      const json = await res.json();
-      if (seq !== this.distanceSeq) return;
-      if (json.ok) {
-        this.distance_km = json.distance_km;
-        if (this.isMapsLink(origin) && json.origin && json.origin.label) this.origin = json.origin.label;
-        if (this.isMapsLink(destination) && json.destination && json.destination.label) this.destination = json.destination.label;
-        this.lastDistanceKey = key;
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + json.distance_km + ' km', type:'success'}}));
-      }
-    } catch(e) {}
-    if (seq === this.distanceSeq) this.calculatingKM = false;
+    const url = '/admin/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+    const json = await apiRequest(url);
+    if (seq !== this.distanceSeq) return;
+    const distance = Number(json.distance_km);
+    if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      this.distance_km = distance;
+      if (this.isMapsLink(origin) && typeof json.origin?.label === 'string') this.origin = json.origin.label;
+      if (this.isMapsLink(destination) && typeof json.destination?.label === 'string') this.destination = json.destination.label;
+      this.lastDistanceKey = key;
+      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+    } else {
+      this.showRequestError(json, 'Không tính được quãng đường.', silent);
+    }
+    this.calculatingKM = false;
   },
 
   isMapsLink(value) {
@@ -77,66 +84,73 @@
   },
 
   async resolveMaps(url, type) {
-    try {
-      const res = await fetch('/admin/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
-      const json = await res.json();
-      if (json.ok) {
-        if (type === 'origin') {
-          this.origin = json.label;
-          this.originCoords = {lat: json.lat, lon: json.lon};
-        } else {
-          this.destination = json.label;
-          this.destCoords = {lat: json.lat, lon: json.lon};
-        }
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
-      }
-    } catch(e) {}
+    const json = await apiRequest('/admin/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
+    if (!json.ok || typeof json.label !== 'string' || !json.label.trim()) {
+      this.showRequestError(json, 'Không đọc được địa điểm từ liên kết Maps.');
+      return;
+    }
+    const lat = Number(json.lat);
+    const lon = Number(json.lon);
+    const coords = json.lat != null && json.lon != null && Number.isFinite(lat) && Number.isFinite(lon)
+      ? {lat, lon} : null;
+    if (type === 'origin') {
+      this.origin = json.label;
+      this.originCoords = coords;
+    } else {
+      this.destination = json.label;
+      this.destCoords = coords;
+    }
+    window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
   },
 
   async geocodeOnly(q, type) {
-    try {
-      const res = await fetch('/admin/vehicles/api/geocode?q=' + encodeURIComponent(q));
-      const json = await res.json();
-      if (json.ok) {
-        if (type === 'origin') this.originCoords = {lat: json.lat, lon: json.lon};
-        if (type === 'dest') this.destCoords = {lat: json.lat, lon: json.lon};
-      }
-    } catch(e) {}
+    const json = await apiRequest('/admin/vehicles/api/geocode?q=' + encodeURIComponent(q));
+    const lat = Number(json.lat);
+    const lon = Number(json.lon);
+    if (!json.ok || json.lat == null || json.lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      this.showRequestError(json, 'Không tìm được tọa độ địa điểm.');
+      return;
+    }
+    if (type === 'origin') this.originCoords = {lat, lon};
+    if (type === 'dest') this.destCoords = {lat, lon};
   },
 
   async calculateKM() {
-    if (!this.originCoords || !this.destCoords) return;
+    if (!this.originCoords || !this.destCoords) {
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Cần tọa độ của cả hai địa điểm để tính quãng đường.', type:'warning'}}));
+      return;
+    }
     this.calculatingKM = true;
-    try {
-      const url = `/admin/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
-      const res = await fetch(url);
-      const json = await res.json();
-      if (json.ok) {
-        this.distance_km = json.distance_km;
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + json.distance_km + ' km', type:'success'}}));
-      }
-    } catch(e) {}
+    const url = `/admin/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
+    const json = await apiRequest(url);
+    const distance = Number(json.distance_km);
+    if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      this.distance_km = distance;
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+    } else {
+      this.showRequestError(json, 'Không tính được quãng đường.');
+    }
     this.calculatingKM = false;
   },
 
-  async fetchFuelPrice(dateVal) {
+  async fetchFuelPrice(dateVal, silent = false) {
     if (!dateVal) return;
     const d = dateVal.substring(0, 10);
     this.loadingPrice = true;
-    try {
-      const res = await fetch('/admin/vehicles/api/fuel-price?target_date=' + d);
-      const json = await res.json();
-      if (json.ok && json.price) {
-        this.fuelPrice = json.price;
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + json.price.toLocaleString('vi-VN') + ' ₫/lít', type:'info'}}));
-      }
-    } catch(e) {}
+    const json = await apiRequest('/admin/vehicles/api/fuel-price?target_date=' + d);
+    const price = Number(json.price);
+    if (json.ok && json.price != null && Number.isFinite(price) && price > 0) {
+      this.fuelPrice = price;
+      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + price.toLocaleString('vi-VN') + ' ₫/lít', type:'info'}}));
+    } else {
+      this.showRequestError(json, 'Không lấy được giá dầu.', silent);
+    }
     this.loadingPrice = false;
   }
 }" x-init="
   if (origin && !originCoords) handleLocationChange(origin, 'origin');
-  scheduleDistanceCalculation();
-  if (!(parseFloat(fuelPrice) > 0)) fetchFuelPrice('{{ now_iso[:10] }}');
+  scheduleDistanceCalculation(true);
+  if (!(parseFloat(fuelPrice) > 0)) fetchFuelPrice('{{ now_iso[:10] }}', true);
 ">
 
 

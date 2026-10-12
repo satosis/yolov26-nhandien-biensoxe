@@ -398,6 +398,7 @@
 
   let baselineYaw = null;
   let baselinePitch = null;
+  let uploadFailures = 0;
 
   const kycSteps = [
     { id: 'front', instruction: 'Nhìn thẳng vào camera' },
@@ -415,12 +416,60 @@
     circle.style.strokeDashoffset = offset;
   }
 
-  async function loadModels() {
-    if (modelsLoaded) return;
+  function loadModels() {
+    if (modelsLoaded) return Promise.resolve({ ok: true });
+    if (!window.faceapi) {
+      console.error('Face model library unavailable');
+      return Promise.resolve({ ok: false, message: 'Không tải được thư viện nhận diện khuôn mặt.' });
+    }
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL);
-    modelsLoaded = true;
+    return Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+    ]).then(
+      () => {
+        modelsLoaded = true;
+        return { ok: true };
+      },
+      (error) => {
+        console.error('Face model load failed:', error && error.name || 'UnknownError');
+        return { ok: false, message: 'Không tải được mô hình nhận diện khuôn mặt.' };
+      },
+    );
+  }
+
+  async function saveKycFace(file, angle) {
+    if (!file) {
+      console.error('KYC image encoding failed');
+      return { ok: false, message: 'Không tạo được ảnh khuôn mặt.' };
+    }
+    const formData = new FormData();
+    formData.append('file', file, angle + '.jpg');
+    formData.append('angle', angle);
+    formData.append('target_user_id', String(currentUserId));
+    const result = await apiRequest('/kyc/upload-face', { method: 'POST', body: formData });
+    if (result.ok) return result;
+    const messages = {
+      invalid_angle: 'Góc chụp không hợp lệ.',
+      invalid_image: 'Ảnh không hợp lệ.',
+      no_face_detected: 'Không phát hiện khuôn mặt trong ảnh.',
+      duplicate_face: 'Khuôn mặt đã được dùng cho tài khoản khác.',
+      forbidden: 'Bạn không có quyền lưu ảnh cho người dùng này.',
+      'Disk write failed': 'Không thể lưu ảnh. Vui lòng thử lại.',
+    };
+    return { ...result, message: messages[result.message] || result.message || 'Không thể lưu ảnh.' };
+  }
+
+  function showKycStartupError(result) {
+    document.getElementById('camera-loading').classList.remove('d-flex');
+    document.getElementById('camera-loading').classList.add('d-none');
+    document.getElementById('camera-start-overlay').classList.remove('d-none');
+    document.getElementById('camera-start-overlay').classList.add('d-flex');
+    document.getElementById('camera-retry-btn').classList.remove('d-none');
+    if (result.code === 'permission_denied') {
+      document.getElementById('camera-help-text').classList.remove('d-none');
+    }
+    document.getElementById('kyc-status-text').textContent = result.message;
   }
 
   async function startKYC() {
@@ -433,46 +482,53 @@
     document.getElementById('camera-help-text').classList.add('d-none');
     document.getElementById('kyc-status-text').textContent = '';
 
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('TRÌNH_DUYỆT_KHÔNG_HỖ_TRỢ_CAMERA');
-      }
-      await loadModels();
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
-      const video = document.getElementById('webcam-video');
-      video.srcObject = stream;
-      await new Promise(resolve => video.onloadedmetadata = resolve);
-
-      document.getElementById('camera-loading').classList.remove('d-flex');
-      document.getElementById('camera-loading').classList.add('d-none');
-      kycRunning = true;
-      currentStep = 0;
-      runStep();
-    } catch (err) {
-      console.error(err);
-      document.getElementById('camera-loading').classList.remove('d-flex');
-      document.getElementById('camera-loading').classList.add('d-none');
-      document.getElementById('camera-start-overlay').classList.remove('d-none');
-      document.getElementById('camera-start-overlay').classList.add('d-flex');
-      const isPermissionIssue = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError' ||
-        String(err?.message || '').toLowerCase().includes('permission') ||
-        String(err?.message || '').toLowerCase().includes('denied') ||
-        String(err?.message || '').includes('TRÌNH_DUYỆT_KHÔNG_HỖ_TRỢ_CAMERA');
-      if (isPermissionIssue) {
-        document.getElementById('camera-help-text').classList.remove('d-none');
-        document.getElementById('camera-retry-btn').classList.remove('d-none');
-        document.getElementById('kyc-status-text').textContent = 'Camera bị chặn. Bạn có thể bấm “Tải ảnh thay thế” để dùng ảnh có sẵn.';
-      } else {
-        document.getElementById('kyc-status-text').textContent = 'Lỗi truy cập Camera!';
-      }
+    const models = await loadModels();
+    if (!models.ok) {
+      showKycStartupError(models);
+      return;
     }
+    const camera = await cameraRequest({ video: { width: 640, height: 480, facingMode: 'user' } });
+    if (!camera.ok) {
+      showKycStartupError(camera);
+      return;
+    }
+    stream = camera.stream;
+    const video = document.getElementById('webcam-video');
+    video.srcObject = stream;
+    const cameraReady = await new Promise((resolve) => {
+      let settled = false;
+      const finish = (ready) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        resolve(ready);
+      };
+      const timeout = setTimeout(() => finish(false), 8000);
+      video.onloadedmetadata = () => finish(true);
+      video.onerror = () => finish(false);
+      if (video.readyState >= 1) finish(true);
+    });
+    if (!cameraReady) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+      showKycStartupError({ message: 'Camera không trả hình ảnh. Vui lòng thử lại.' });
+      return;
+    }
+
+    document.getElementById('camera-loading').classList.remove('d-flex');
+    document.getElementById('camera-loading').classList.add('d-none');
+    kycRunning = true;
+    uploadFailures = 0;
+    currentStep = findNextIncompleteStep(0);
+    runStep();
   }
 
   async function handleFallbackUpload(event) {
     const file = event?.target?.files?.[0];
     if (!file) return;
 
-    try {
       document.getElementById('camera-start-overlay').classList.remove('d-flex');
       document.getElementById('camera-start-overlay').classList.add('d-none');
       document.getElementById('camera-loading').classList.remove('d-none');
@@ -481,31 +537,18 @@
       document.getElementById('camera-retry-btn').classList.add('d-none');
       document.getElementById('kyc-status-text').textContent = 'Đang tải ảnh lên...';
 
-      const arrayBuffer = await file.arrayBuffer();
-      const blob = new Blob([arrayBuffer], { type: file.type || 'image/jpeg' });
       const step = kycSteps[currentStep || 0];
-
-      const formData = new FormData();
-      formData.append('face_image', blob, `${step.id}.jpg`);
-      formData.append('angle', step.id);
-
-      const res = await fetch(`/kyc/face/${step.id}?t=${Date.now()}&target_user_id=${currentUserId}`, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Không thể tải ảnh lên');
-      }
-
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Lỗi server');
+      const data = await saveKycFace(file, step.id);
+      event.target.value = '';
 
       document.getElementById('camera-loading').classList.remove('d-flex');
       document.getElementById('camera-loading').classList.add('d-none');
       document.getElementById('camera-start-overlay').classList.remove('d-none');
       document.getElementById('camera-start-overlay').classList.add('d-flex');
+      if (!data.ok) {
+        document.getElementById('kyc-status-text').textContent = '❌ ' + data.message;
+        return;
+      }
       document.getElementById('kyc-status-text').textContent = 'Đã lưu ảnh cho bước này.';
       document.getElementById('success-overlay').classList.remove('d-none');
       document.getElementById('success-overlay').classList.add('d-flex');
@@ -532,18 +575,15 @@
         document.getElementById('success-overlay').classList.remove('d-flex');
         document.getElementById('success-overlay').classList.add('d-none');
         currentStep = findNextIncompleteStep(currentStep + 1);
-        runStep();
+        if (currentStep >= kycSteps.length) {
+          kycComplete();
+        } else if (kycRunning) {
+          runStep();
+        } else {
+          document.getElementById('kyc-step-count').textContent = 'Bước ' + (currentStep + 1) + '/5';
+          document.getElementById('kyc-instruction').textContent = 'Tải ảnh cho góc tiếp theo';
+        }
       }, 800);
-    } catch (err) {
-      console.error(err);
-      document.getElementById('camera-loading').classList.remove('d-flex');
-      document.getElementById('camera-loading').classList.add('d-none');
-      document.getElementById('camera-start-overlay').classList.remove('d-none');
-      document.getElementById('camera-start-overlay').classList.add('d-flex');
-      document.getElementById('kyc-status-text').textContent = `❌ ${err.message}`;
-    } finally {
-      event.target.value = '';
-    }
   }
 
   function estimateHeadPose(landmarks) {
@@ -692,14 +732,14 @@
 
     if (!result.isConfirmed) return;
 
-    const res = await fetch(`/kyc/face/${angle}/delete?target_user_id=${currentUserId}`, { method: 'POST' });
-    if (res.ok) {
+    const response = await apiRequest(`/kyc/face/${angle}/delete?target_user_id=${currentUserId}`, { method: 'POST' });
+    if (response.ok) {
         openFaceModal(currentUserId, document.getElementById('face-modal-username').textContent);
     } else {
         Swal.fire({
             icon: 'error',
             title: 'Lỗi máy chủ',
-            text: 'Không thể xoá ảnh.',
+            text: response.message || 'Không thể xoá ảnh.',
         });
     }
   }
@@ -857,22 +897,26 @@
     document.getElementById('hold-bar').style.width = '100%';
 
     canvas.toBlob(async (blob) => {
-      const formData = new FormData();
-      formData.append('face_image', blob, `${step.id}.jpg`);
-      formData.append('angle', step.id);
-
-      try {
-        const res = await fetch(`/kyc/face/${step.id}?t=${Date.now()}&target_user_id=${currentUserId}`, {
-          method: 'POST', body: formData
-        });
-
-        if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.message || 'Lỗi hệ thống');
+      const data = await saveKycFace(blob, step.id);
+      if (!kycRunning) return;
+      if (!data.ok) {
+        if (loadingOverlay) loadingOverlay.classList.add('d-none');
+        uploadFailures += 1;
+        document.getElementById('kyc-status-text').textContent = '❌ ' + data.message;
+        if (uploadFailures < 3) {
+          setTimeout(() => { if (kycRunning) runStep(); }, 3000);
+        } else {
+          kycRunning = false;
+          if (stream) stream.getTracks().forEach(track => track.stop());
+          stream = null;
+          document.getElementById('camera-start-overlay').classList.remove('d-none');
+          document.getElementById('camera-start-overlay').classList.add('d-flex');
+          document.getElementById('camera-retry-btn').classList.remove('d-none');
+          document.getElementById('kyc-status-text').textContent += ' Hãy thử lại hoặc tải ảnh thay thế.';
         }
-
-        const data = await res.json();
-        if (!data.ok) throw new Error(data.error || 'Lỗi server');
+        return;
+      }
+      uploadFailures = 0;
 
         document.getElementById('success-overlay').classList.remove('d-none');
         document.getElementById('video-ring').style.borderColor = 'rgba(16,185,129,0.8)';
@@ -901,12 +945,6 @@
           runStep();
           document.getElementById('success-overlay').classList.add('d-none');
         }, 800);
-
-      } catch (err) {
-          if (loadingOverlay) loadingOverlay.classList.add('d-none');
-          document.getElementById('kyc-status-text').textContent = `❌ ${err.message}`;
-          setTimeout(() => runStep(), 3000);
-      }
     }, 'image/jpeg', 0.95);
   }
 
@@ -941,7 +979,7 @@
   Swal.fire({
     icon: 'error',
     title: 'Lỗi thao tác',
-    text: '{{ error_msg }}',
+    text: {{ error_msg | tojson }},
     confirmButtonColor: '#004b41'
   });
   {% endif %}
@@ -960,8 +998,7 @@
 
     if (!confirm) return;
 
-    const res = await fetch('/kyc/clean-cache', { method: 'POST' });
-    const data = await res.json();
+    const data = await apiRequest('/kyc/clean-cache', { method: 'POST' });
 
     if (data.ok) {
       Swal.fire({
@@ -970,7 +1007,11 @@
         text: data.message,
       });
     } else {
-      throw new Error(data.error || 'Lỗi không xác định');
+      Swal.fire({
+        icon: 'error',
+        title: 'Không thể làm sạch bộ nhớ AI',
+        text: data.message || 'Vui lòng thử lại.',
+      });
     }
   }
 

@@ -45,8 +45,8 @@ class RetentionManager:
                 if path:
                     Path(path).unlink(missing_ok=True)
 
-            db.delete("video_recordings", {"id": row["id"]})
-            deleted_count += 1
+            if db.delete("video_recordings", {"id": row["id"]}):
+                deleted_count += 1
 
         return deleted_count
 
@@ -60,8 +60,8 @@ class RetentionManager:
                 continue
             if path:
                 Path(path).unlink(missing_ok=True)
-            db.delete("stranger_logs", {"id": row["id"]})
-            deleted_count += 1
+            if db.delete("stranger_logs", {"id": row["id"]}):
+                deleted_count += 1
 
         return deleted_count
 
@@ -75,17 +75,10 @@ class RetentionManager:
     def run(self) -> dict:
         summary = {
             "days": self.days,
-            "recordings": self._safe(self.delete_old_recordings, self.days),
-            "stranger_logs": self._safe(self.delete_old_stranger_logs, self.days),
-            "status_logs": self._safe(self.delete_old_status_logs, self.days),
+            "recordings": self.delete_old_recordings(self.days),
+            "stranger_logs": self.delete_old_stranger_logs(self.days),
+            "status_logs": self.delete_old_status_logs(self.days),
         }
         total = sum(v for k, v in summary.items() if k != "days" and v > 0)
         logger.info("Retention run (>%dd): %s (total %d)", self.days, summary, total)
         return summary
-
-    def _safe(self, fn, *args) -> int:
-        try:
-            return fn(*args)
-        except Exception:
-            logger.exception("Retention step %s failed", fn.__name__)
-            return -1

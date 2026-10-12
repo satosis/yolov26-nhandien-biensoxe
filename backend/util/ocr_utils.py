@@ -2,25 +2,34 @@
 import cv2
 import numpy as np
 import logging
+import math
 import re
 
 logger = logging.getLogger(__name__)
+
+
+def _confidence(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.5
+    if isinstance(value, (int, np.integer)):
+        if abs(value) > 1:
+            return 0.5
+        confidence = float(value)
+    elif isinstance(value, (float, np.floating)):
+        confidence = float(value)
+    elif isinstance(value, str) and len(value) <= 32 and re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", value.strip()):
+        confidence = float(value)
+    else:
+        return 0.5
+    return confidence if math.isfinite(confidence) and 0 <= confidence <= 1 else 0.5
 
 
 class VNPlateOCR:
 
     def __init__(self):
         from rapidocr_onnxruntime import RapidOCR
-        try:
-            self._ocr = RapidOCR(det_db_unclip_ratio=2.0)
-            logger.info("RapidOCR initialised (det_db_unclip_ratio=2.0)")
-        except Exception as e:
-            logger.warning(
-                "RapidOCR(det_db_unclip_ratio=2.0) not supported by installed version "
-                "(%s); falling back to default RapidOCR()", e
-            )
-            self._ocr = RapidOCR()
-            logger.info("RapidOCR initialised (default config)")
+        self._ocr = RapidOCR(det_db_unclip_ratio=2.0)
+        logger.info("RapidOCR initialised (det_db_unclip_ratio=2.0)")
 
         self.vn_pattern = re.compile(
             r"^[0-9]{2}[A-Z]{1,2}[0-9]{3,5}(\.[0-9]{2})?$"
@@ -159,10 +168,7 @@ class VNPlateOCR:
     def _pick_best_rec_only(self, variants: list[np.ndarray]) -> tuple[str, float]:
         candidates = []
         for variant in variants:
-            try:
-                result, _ = self._ocr(variant, use_det=False)
-            except Exception:
-                continue
+            result, _ = self._ocr(variant, use_det=False)
             if not result:
                 continue
             texts = []
@@ -170,10 +176,7 @@ class VNPlateOCR:
             for item in result:
                 if len(item) >= 2:
                     texts.append(str(item[0]))
-                    try:
-                        confs.append(float(item[1]))
-                    except (ValueError, TypeError):
-                        confs.append(0.5)
+                    confs.append(_confidence(item[1]))
 
             combined = "".join(texts).upper().replace(" ", "").strip()
             if len(combined) < 3 or not confs:
@@ -191,10 +194,7 @@ class VNPlateOCR:
     def _pick_best_with_det(self, variants: list[np.ndarray]) -> tuple[str, float]:
         candidates = []
         for variant in variants:
-            try:
-                result, _ = self._ocr(variant, use_det=True)
-            except Exception:
-                continue
+            result, _ = self._ocr(variant, use_det=True)
             if not result:
                 continue
             h_v = variant.shape[0]
@@ -206,10 +206,7 @@ class VNPlateOCR:
             texts = [line[1] for line in sorted_result]
             confs = []
             for line in sorted_result:
-                try:
-                    confs.append(float(line[2]))
-                except (ValueError, TypeError):
-                    confs.append(0.5)
+                confs.append(_confidence(line[2]))
 
             combined = "".join(texts).upper().replace(" ", "").strip()
             if len(combined) < 3:

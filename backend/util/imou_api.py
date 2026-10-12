@@ -1,5 +1,4 @@
 import requests
-import json
 import logging
 import time
 import uuid
@@ -41,16 +40,41 @@ class ImouClient:
         url = f"{self.BASE_URL}/{endpoint}"
         logger.info(f"Calling Imou API: {endpoint}")
         
-        resp = requests.post(url, json=payload, timeout=timeout)
+        request_completed = False
+        try:
+            resp = requests.post(url, json=payload, timeout=timeout)
+            request_completed = True
+        finally:
+            if not request_completed:
+                logger.error("Imou API %s transport failed", endpoint)
+        if not resp.ok:
+            logger.error("Imou API %s returned HTTP %s", endpoint, resp.status_code)
         resp.raise_for_status()
-        result = resp.json()["result"]
-        code = str(result["code"])
+        json_decoded = False
+        try:
+            body = resp.json()
+            json_decoded = True
+        finally:
+            if not json_decoded:
+                logger.error("Imou API %s returned invalid JSON", endpoint)
+        if not isinstance(body, dict) or not isinstance(body.get("result"), dict):
+            logger.error("Imou API %s returned an invalid envelope", endpoint)
+            raise ValueError("Imou API response has an invalid envelope")
+        result = body["result"]
+        raw_code = result.get("code")
+        if isinstance(raw_code, bool) or not isinstance(raw_code, (str, int)):
+            logger.error("Imou API %s returned an invalid status code", endpoint)
+            raise ValueError("Imou API response has an invalid status code")
+        code = str(raw_code)
         if code != "0":
             if code == "TK1002":
                 self._token = None
-            raise RuntimeError(f"Imou API {endpoint} error [{code}]: {result.get('msg', 'Unknown error')}")
-        data = result["data"]
-        logger.debug("Imou API Response [%s]: %s...", endpoint, json.dumps(data)[:500])
+            logger.error("Imou API %s failed with code %r", endpoint, code[:32])
+            raise RuntimeError("Imou API request failed")
+        data = result.get("data")
+        if not isinstance(data, dict):
+            logger.error("Imou API %s returned non-object data", endpoint)
+            raise ValueError("Imou API response data must be an object")
         return data
 
     def get_access_token(self) -> str:
@@ -64,8 +88,21 @@ class ImouClient:
             "appSecret": self.app_secret
         })
         
-        self._token = data["accessToken"]
-        expires_in = int(data.get("expireTime", 3600))
+        token = data.get("accessToken")
+        if not isinstance(token, str) or not token.strip():
+            logger.error("Imou access-token response has no valid token")
+            raise ValueError("Imou API response is missing a valid access token")
+        raw_expiry = data.get("expireTime", 3600)
+        if isinstance(raw_expiry, bool) or not (
+            isinstance(raw_expiry, int) or isinstance(raw_expiry, str) and raw_expiry.isdecimal()
+        ):
+            logger.error("Imou access-token response has an invalid expiry")
+            raise ValueError("Imou API response has an invalid token expiry")
+        expires_in = int(raw_expiry)
+        if not 1 <= expires_in <= 365 * 24 * 3600:
+            logger.error("Imou access-token response has an out-of-range expiry")
+            raise ValueError("Imou API response has an invalid token expiry")
+        self._token = token.strip()
         self._token_expires = now + expires_in
         return self._token
 
@@ -75,38 +112,47 @@ class ImouClient:
             "token": token,
             "deviceList": [{"deviceId": device_id}]
         })
-        dev_list = data.get("deviceList", [])
-        return dev_list[0] if dev_list else {}
+        dev_list = data.get("deviceList")
+        if not isinstance(dev_list, list) or any(not isinstance(dev, dict) for dev in dev_list):
+            logger.error("Imou listDeviceDetailsByIds returned an invalid device list")
+            raise ValueError("Imou device detail list is invalid")
+        detail = dev_list[0] if dev_list else {}
+        for field in ("deviceName", "deviceModel", "lanIp", "deviceLocalIp", "deviceIp", "ipAddress"):
+            if detail.get(field) is not None and not isinstance(detail[field], str):
+                logger.error("Imou listDeviceDetailsByIds returned invalid field %s", field)
+                raise ValueError("Imou device detail has an invalid field")
+        for field in ("status", "deviceOnline", "online", "deviceStatus", "state"):
+            if detail.get(field) is not None and not isinstance(detail[field], (str, int, bool)):
+                logger.error("Imou listDeviceDetailsByIds returned invalid status field %s", field)
+                raise ValueError("Imou device detail has an invalid status")
+        return detail
 
     def get_device_network_info(self, device_id: str, channel_id: str = "0") -> dict | None:
         token = self.get_access_token()
-
-        try:
-            data = self._call("getDeviceCameraStatus", {
-                "token": token,
-                "deviceId": device_id,
-                "enableType": "closeCamera",
-                "channelId": channel_id
-            })
-            ip = data.get("localIp") or data.get("lanIp") or data.get("ip")
-            if ip and ip != "0.0.0.0":
-                logger.info(f"  [CameraStatus] Found IP {ip} for {device_id}")
-                return {"ip": ip, "source": "cameraStatus"}
-        except Exception as e:
-            logger.debug(f"  getDeviceCameraStatus fallback failed for {device_id}: {e}")
-
-        try:
-            data = self._call("getDeviceNetInfo", {
-                "token": token,
-                "deviceId": device_id
-            })
-            ip = data.get("lanIp") or data.get("localIp") or data.get("ip")
-            if ip and ip != "0.0.0.0":
-                logger.info(f"  [NetInfo] Found IP {ip} for {device_id}")
-                return {"ip": ip, "source": "netInfo"}
-        except Exception as e:
-            logger.debug(f"  getDeviceNetInfo fallback failed for {device_id}: {e}")
-
+        data = self._call("getDeviceCameraStatus", {
+            "token": token,
+            "deviceId": device_id,
+            "enableType": "closeCamera",
+            "channelId": channel_id
+        })
+        ip = data.get("localIp") or data.get("lanIp") or data.get("ip")
+        if ip is not None and not isinstance(ip, str):
+            logger.error("Imou getDeviceCameraStatus returned an invalid address")
+            raise ValueError("Imou camera status has an invalid address")
+        if ip and ip != "0.0.0.0":
+            logger.info(f"  [CameraStatus] Found IP {ip} for {device_id}")
+            return {"ip": ip, "source": "cameraStatus"}
+        data = self._call("getDeviceNetInfo", {
+            "token": token,
+            "deviceId": device_id,
+        })
+        ip = data.get("lanIp") or data.get("localIp") or data.get("ip")
+        if ip is not None and not isinstance(ip, str):
+            logger.error("Imou getDeviceNetInfo returned an invalid address")
+            raise ValueError("Imou network info has an invalid address")
+        if ip and ip != "0.0.0.0":
+            logger.info("  [NetInfo] Found IP %s for %s", ip, device_id)
+            return {"ip": ip, "source": "netInfo"}
         return None
 
     def list_devices(self, limit: int = 50) -> list:
@@ -119,39 +165,49 @@ class ImouClient:
             "type": "bindAndShare",
             "needApInfo": True
         })
-        base_list = data.get("deviceList", [])
+        base_list = data.get("deviceList")
+        if not isinstance(base_list, list) or any(not isinstance(dev, dict) for dev in base_list):
+            logger.error("Imou deviceBaseList returned an invalid device list")
+            raise ValueError("Imou device list is invalid")
         
         final_list = []
         for dev in base_list:
-            did_raw = dev.get('deviceId', '')
+            did_raw = dev.get('deviceId')
+            if isinstance(did_raw, bool) or not isinstance(did_raw, (str, int)) or not str(did_raw).strip():
+                logger.error("Imou deviceBaseList returned a device with an invalid ID")
+                raise ValueError("Imou device has an invalid ID")
+            for field in ("deviceName", "deviceModel", "lanIp", "deviceLocalIp", "ipAddress"):
+                if dev.get(field) is not None and not isinstance(dev[field], str):
+                    logger.error("Imou deviceBaseList returned invalid field %s", field)
+                    raise ValueError("Imou device has an invalid field")
+            for field in ("status", "deviceOnline", "online", "deviceStatus", "state"):
+                if dev.get(field) is not None and not isinstance(dev[field], (str, int, bool)):
+                    logger.error("Imou deviceBaseList returned invalid status field %s", field)
+                    raise ValueError("Imou device has an invalid status")
             did = str(did_raw).strip().lower()
+            dev['deviceId'] = str(did_raw).strip()
+            dev['deviceModel'] = dev.get('deviceModel') or 'Imou Camera'
             logger.info(f"Imou Discovery: Processing device {did}")
             
-            try:
-                fdev = self.get_device_detail(did_raw)
-                if fdev:
-                    possible_ips = [
-                        fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'),
-                        dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
-                    ]
-                    resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
-                    if resolved_ip:
-                        dev['deviceLocalIp'] = resolved_ip
-                        logger.info(f"  [DEEP-DIVE] Found IP {resolved_ip} for {did}")
+            fdev = self.get_device_detail(did_raw)
+            if fdev:
+                possible_ips = [
+                    fdev.get('lanIp'), fdev.get('deviceLocalIp'), fdev.get('deviceIp'),
+                    dev.get('lanIp'), dev.get('deviceLocalIp'), dev.get('ipAddress')
+                ]
+                resolved_ip = next((ip for ip in possible_ips if ip and ip != "0.0.0.0"), None)
+                if resolved_ip:
+                    dev['deviceLocalIp'] = resolved_ip
+                    logger.info(f"  [DEEP-DIVE] Found IP {resolved_ip} for {did}")
 
-                    dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
-            except Exception as e:
-                logger.warning(f"  [DEEP-DIVE] Failed detailed info for {did}: {e}")
+                dev.update({k: v for k, v in fdev.items() if v and not dev.get(k)})
 
             current_ip = dev.get('deviceLocalIp')
             if not current_ip or current_ip == "0.0.0.0":
-                try:
-                    net_info = self.get_device_network_info(did_raw)
-                    if net_info and net_info.get('ip'):
-                        dev['deviceLocalIp'] = net_info['ip']
-                        logger.info(f"  [NET-FALLBACK] Found IP {net_info['ip']} for {did} via {net_info['source']}")
-                except Exception as e:
-                    logger.debug(f"  [NET-FALLBACK] Failed for {did}: {e}")
+                net_info = self.get_device_network_info(did_raw)
+                if net_info and net_info.get('ip'):
+                    dev['deviceLocalIp'] = net_info['ip']
+                    logger.info(f"  [NET-FALLBACK] Found IP {net_info['ip']} for {did} via {net_info['source']}")
 
             final_list.append(dev)
 

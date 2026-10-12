@@ -7,6 +7,16 @@ from backend.services.settings_service import get_app_setting, set_many_app_sett
 _SITE_FILTER = "(%s::integer IS NULL OR %s::integer = ANY(site_ids))"
 
 
+def _provider_keys_mapping(value: dict | str | None) -> dict:
+    if value is None or value == "":
+        return {}
+    if isinstance(value, str):
+        value = json.loads(value)
+    if not isinstance(value, dict):
+        raise ValueError("Camera provider_keys must be a JSON object")
+    return value
+
+
 def get_all_cameras(site_id: int | None = None) -> list[dict]:
     return db.execute_query(f"SELECT * FROM cameras WHERE {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
 
@@ -28,7 +38,7 @@ def add_camera(name, cam_type, imou_device_id, rtsp_url, is_active=True,
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """
-    pk_json = json.dumps(provider_keys) if provider_keys else '{}'
+    pk_json = json.dumps(_provider_keys_mapping(provider_keys))
     dev_id = imou_device_id.strip() if imou_device_id else None
     params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
     return db._execute_query(query, params, commit=True, return_id=True)
@@ -44,7 +54,7 @@ def update_camera(camera_id, name, cam_type, imou_device_id, rtsp_url,
             camera_ip=%s, camera_port=%s, updated_at=NOW()
         WHERE id=%s
     """
-    pk_json = json.dumps(provider_keys) if provider_keys else '{}'
+    pk_json = json.dumps(_provider_keys_mapping(provider_keys))
     dev_id = imou_device_id.strip() if imou_device_id else None
     params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port, camera_id)
     return db._execute_query(query, params, commit=True)
@@ -120,9 +130,7 @@ def get_camera_rtsp_url(camera_id: int, subtype: int = 1) -> str | None:
     provider = get_provider(cam_type)
     template = (provider.get('rtsp_template') if provider else None) or 'rtsp://{user}:{password}@{ip}:{port}/stream'
 
-    provider_keys = cam.get('provider_keys') or {}
-    if isinstance(provider_keys, str):
-        provider_keys = json.loads(provider_keys)
+    provider_keys = _provider_keys_mapping(cam.get('provider_keys'))
 
     user = provider_keys.get('user', 'admin')
     mk = provider_keys.get('mk')

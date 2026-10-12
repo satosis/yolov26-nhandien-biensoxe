@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from typing import List
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.database import db
@@ -37,13 +37,17 @@ async def create_role(
     allowed_menus: List[str] = Form([]),
     user: dict = Depends(require_menu("rbac")),
 ):
-    menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
+    role_name = role_name.strip()
+    menus = [m.strip() for m in allowed_menus if m.strip()]
+    if not role_name or any(m not in ALL_MENUS for m in menus):
+        return HTMLResponse("Tên vai trò hoặc quyền không hợp lệ.", status_code=422)
+    menus_str = ",".join(menus) if menus else "none"
     existing = db.select("roles", conditions={"role_name": role_name}, fetchall=False)
     if existing:
-        logger.warning("Failed to create role '%s': Role đã tồn tại.", role_name)
-    else:
-        db.insert("roles", {"role_name": role_name, "allowed_menus": menus_str}, returning="id")
-        logger.info("Role '%s' created with menus: %s", role_name, menus_str)
+        return HTMLResponse("Vai trò đã tồn tại.", status_code=409)
+    if not db.insert("roles", {"role_name": role_name, "allowed_menus": menus_str}, returning="id"):
+        return HTMLResponse("Không thể lưu vai trò.", status_code=500)
+    logger.info("Role '%s' created with menus: %s", role_name, menus_str)
     return RedirectResponse(url="/admin/rbac", status_code=303)
 
 
@@ -54,8 +58,12 @@ async def update_role(
     allowed_menus: List[str] = Form([]),
     user: dict = Depends(require_menu("rbac")),
 ):
-    menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
-    db.update("roles", {"allowed_menus": menus_str}, {"id": role_id})
+    menus = [m.strip() for m in allowed_menus if m.strip()]
+    if any(m not in ALL_MENUS for m in menus):
+        return HTMLResponse("Quyền không hợp lệ.", status_code=422)
+    menus_str = ",".join(menus) if menus else "none"
+    if not db.update("roles", {"allowed_menus": menus_str}, {"id": role_id}):
+        return HTMLResponse("Vai trò không tồn tại.", status_code=404)
     logger.info("Role %d updated: %s", role_id, menus_str)
     return RedirectResponse(url="/admin/rbac", status_code=303)
 
@@ -69,19 +77,20 @@ async def delete_role(
     roles = db.select("roles", order_by="id ASC")
     target_role = next((r for r in roles if r["id"] == role_id), None)
     if not target_role:
-        return JSONResponse({"detail": "Vai trò không tồn tại."}, status_code=404)
+        return JSONResponse({"ok": False, "message": "Vai trò không tồn tại."}, status_code=404)
 
     if target_role["role_name"].lower() == "admin":
-        return JSONResponse({"detail": "Không thể xóa vai trò Admin."}, status_code=400)
+        return JSONResponse({"ok": False, "message": "Không thể xóa vai trò Admin."}, status_code=400)
 
     all_users = get_all_users()
     users_with_role = [u for u in all_users if u.get("role") == target_role["role_name"]]
     if users_with_role:
         return JSONResponse(
-            {"detail": f"Không thể xóa. Còn {len(users_with_role)} người dùng đang dùng vai trò này."},
+            {"ok": False, "message": f"Không thể xóa. Còn {len(users_with_role)} người dùng đang dùng vai trò này."},
             status_code=400,
         )
 
-    db.delete("roles", {"id": role_id})
+    if not db.delete("roles", {"id": role_id}):
+        return JSONResponse({"ok": False, "message": "Vai trò không tồn tại."}, status_code=404)
     logger.info("Role '%s' (id=%d) deleted", target_role["role_name"], role_id)
-    return RedirectResponse(url="/admin/rbac", status_code=303)
+    return JSONResponse({"ok": True})

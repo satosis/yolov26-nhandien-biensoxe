@@ -1,5 +1,7 @@
+import re
 from typing import Optional
 from fastapi import APIRouter, Request, Form, Depends
+from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.responses import RedirectResponse
 
 from frontend.deps import get_menu_context, require_menu, templates
@@ -39,7 +41,7 @@ async def edit_api_keys_page(
     ctx = get_menu_context(request, user)
     provider = cam_svc.get_provider(provider_key)
     if not provider:
-        return RedirectResponse("/admin/providers", status_code=303)
+        return HTMLResponse("Không tìm thấy nhà cung cấp camera.", status_code=404)
     
     keys = cam_svc.get_provider_api_keys(provider_key)
     ctx["provider"] = provider
@@ -57,14 +59,22 @@ async def save_api_keys(
     form = await request.form()
     names = form.getlist("api_key_names[]")
     values = form.getlist("api_key_values[]")
-    
+    if not cam_svc.get_provider(provider_key):
+        return HTMLResponse("Không tìm thấy nhà cung cấp camera.", status_code=404)
+    if len(names) != len(values) or len(names) > 32 or any(
+        not isinstance(name, str) or re.fullmatch(r"[a-zA-Z0-9_]{1,80}", name.strip()) is None
+        or not isinstance(value, str) or len(value) > 2048
+        for name, value in zip(names, values)
+    ):
+        return HTMLResponse("Danh sách khóa API không hợp lệ.", status_code=422)
     keys = {}
     for n, v in zip(names, values):
         n_stripped = n.strip().lower()
         if n_stripped:
             keys[n_stripped] = v.strip()
             
-    cam_svc.update_provider_api_keys(provider_key, keys)
+    if not cam_svc.update_provider_api_keys(provider_key, keys):
+        return HTMLResponse("Không thể lưu khóa API.", status_code=500)
     return RedirectResponse("/admin/providers", status_code=303)
 
 
@@ -84,9 +94,13 @@ async def upsert_provider(
     logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form(None),
 ):
-    cam_svc.upsert_provider(
-        provider_key=provider_key.strip().lower(),
-        name=name.strip(),
+    provider_key = provider_key.strip().lower()
+    name = name.strip()
+    if not provider_key or not name:
+        return HTMLResponse("Mã và tên nhà cung cấp camera không được để trống.", status_code=422)
+    if not cam_svc.upsert_provider(
+        provider_key=provider_key,
+        name=name,
         api_base_url=api_base_url or None,
         api_doc_url=api_doc_url or None,
         rtsp_template=rtsp_template or None,
@@ -96,7 +110,8 @@ async def upsert_provider(
         notes=notes or None,
         logo_url=logo_url or None,
         is_active=is_active == "on" or is_active == "1" or is_active == "true",
-    )
+    ):
+        return HTMLResponse("Không thể lưu nhà cung cấp camera.", status_code=500)
     return RedirectResponse("/admin/providers", status_code=303)
 
 
@@ -106,8 +121,9 @@ async def delete_provider(
     request: Request,
     user: dict = Depends(require_menu("providers")),
 ):
-    cam_svc.delete_provider(provider_key)
-    return RedirectResponse("/admin/providers", status_code=303)
+    if not cam_svc.delete_provider(provider_key):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy nhà cung cấp camera."}, status_code=404)
+    return {"ok": True}
 
 
 @router.post("/{provider_key}/toggle")
@@ -117,18 +133,20 @@ async def toggle_provider(
     user: dict = Depends(require_menu("providers")),
 ):
     provider = cam_svc.get_provider(provider_key)
-    if provider:
-        cam_svc.upsert_provider(
-            provider_key=provider["provider_key"],
-            name=provider["name"],
-            api_base_url=provider.get("api_base_url"),
-            api_doc_url=provider.get("api_doc_url"),
-            rtsp_template=provider.get("rtsp_template"),
-            onvif_port=provider.get("onvif_port", 80),
-            default_rtsp_port=provider.get("default_rtsp_port", 554),
-            default_http_port=provider.get("default_http_port", 80),
-            notes=provider.get("notes"),
-            logo_url=provider.get("logo_url"),
-            is_active=not provider.get("is_active", True),
-        )
+    if not provider:
+        return HTMLResponse("Không tìm thấy nhà cung cấp camera.", status_code=404)
+    if not cam_svc.upsert_provider(
+        provider_key=provider["provider_key"],
+        name=provider["name"],
+        api_base_url=provider.get("api_base_url"),
+        api_doc_url=provider.get("api_doc_url"),
+        rtsp_template=provider.get("rtsp_template"),
+        onvif_port=provider.get("onvif_port", 80),
+        default_rtsp_port=provider.get("default_rtsp_port", 554),
+        default_http_port=provider.get("default_http_port", 80),
+        notes=provider.get("notes"),
+        logo_url=provider.get("logo_url"),
+        is_active=not provider.get("is_active", True),
+    ):
+        return HTMLResponse("Không thể cập nhật nhà cung cấp camera.", status_code=500)
     return RedirectResponse("/admin/providers", status_code=303)

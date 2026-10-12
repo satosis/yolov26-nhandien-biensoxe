@@ -1,4 +1,5 @@
 import json
+from html import escape
 from fastapi import APIRouter, Request, Form, Depends
 from starlette.responses import HTMLResponse
 from frontend.deps import get_menu_context, require_menu, templates
@@ -11,15 +12,18 @@ def _sites_list_html(request: Request, user: dict) -> str:
     sites = db.select("sites", order_by="site_name")
     rows = []
     for s in sites:
+        name = escape(str(s.get("site_name") or ""), quote=True)
+        address = escape(str(s.get("address") or "—"), quote=True)
+        delete_message = escape(json.dumps(f"Xóa địa điểm {s.get('site_name') or ''}?", ensure_ascii=False), quote=True)
         active = "Bật" if s.get("is_active") else "Tắt"
         active_cls = "text-status-green" if s.get("is_active") else "text-txt-mut"
         dot_cls = "bg-status-green animate-pulse" if s.get("is_active") else "bg-txt-mut"
         rows.append(f'''<tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="site-{s['id']}">
       <td class="px-5 py-3.5">
-        <div class="text-[13px] font-semibold text-white">{s['site_name']}</div>
+        <div class="text-[13px] font-semibold text-white">{name}</div>
       </td>
       <td class="px-5 py-3.5 text-[12px] text-txt-sec">
-        {s.get('address') or '—'}
+        {address}
       </td>
       <td class="px-5 py-3.5 text-[12px] text-txt-ter">
         🅿️ {s.get('total_slots') or 0} chỗ
@@ -39,7 +43,7 @@ def _sites_list_html(request: Request, user: dict) -> str:
                   @click="window.dispatchEvent(new CustomEvent('show-confirm', {{
                     detail: {{
                       title: 'Xóa địa điểm',
-                      message: 'Xóa địa điểm {s['site_name']}?',
+                      message: {delete_message},
                       confirmText: 'Xác nhận xóa',
                       confirmUrl: '/admin/sites/{s['id']}',
                       confirmMethod: 'DELETE',
@@ -71,13 +75,15 @@ async def create_site(
     is_active: str = Form("on"),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    db.insert("sites", {
+    site_id = db.insert("sites", {
         "site_name": site_name,
         "address": address or "",
         "description": description or "",
         "total_slots": total_slots,
         "is_active": active
     }, returning="id")
+    if not site_id:
+        return HTMLResponse("Không thể thêm địa điểm.", status_code=500)
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã thêm {site_name}", "type": "success"}})
@@ -88,20 +94,22 @@ async def create_site(
 async def edit_site_form(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:
-        return HTMLResponse('<div class="px-5 py-4 text-status-red text-sm">Không tìm thấy địa điểm.</div>')
+        return HTMLResponse('<div class="px-5 py-4 text-status-red text-sm">Không tìm thấy địa điểm.</div>', status_code=404)
     checked = "checked" if site.get("is_active") else ""
+    site_name = escape(str(site.get("site_name") or ""), quote=True)
+    address = escape(str(site.get("address") or ""), quote=True)
     html = f'''<tr class="bg-white/5" id="site-{site_id}">
   <td colspan="5" class="p-5 border-b border-divider">
     <form hx-post="/admin/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML" class="flex flex-col gap-4">
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên địa điểm *</label>
-          <input name="site_name" value="{site['site_name']}" required
+          <input name="site_name" value="{site_name}" required
              class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
         </div>
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ</label>
-          <input name="address" value="{site.get('address') or ''}"
+          <input name="address" value="{address}"
              class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
         </div>
       </div>
@@ -141,13 +149,15 @@ async def update_site(
     is_active: str = Form(None),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    db.update("sites", {
+    updated = db.update("sites", {
         "site_name": site_name,
         "address": address or "",
         "description": description or "",
         "is_active": active,
         "total_slots": total_slots
     }, {"id": site_id})
+    if not updated:
+        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã cập nhật {site_name}", "type": "success"}})
@@ -156,7 +166,8 @@ async def update_site(
 
 @router.delete("/{site_id}")
 async def delete_site(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    db.delete("sites", {"id": site_id})
+    if not db.delete("sites", {"id": site_id}):
+        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
     resp = HTMLResponse("")
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": "Đã xóa địa điểm", "type": "success"}})
     return resp
@@ -165,12 +176,13 @@ async def delete_site(site_id: int, request: Request, user: dict = Depends(requi
 @router.post("/{site_id}/toggle")
 async def toggle_site_status(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
-    if site:
-        new_status = not site.get("is_active", False)
-        db.update("sites", {"is_active": new_status}, {"id": site_id})
-        msg = f"Đã {'bật' if new_status else 'tắt'} {site['site_name']}"
-        html = _sites_list_html(request, user)
-        resp = HTMLResponse(html)
-        resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": msg, "type": "success" if new_status else "info"}})
-        return resp
-    return HTMLResponse(_sites_list_html(request, user))
+    if not site:
+        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
+    new_status = not site.get("is_active", False)
+    if not db.update("sites", {"is_active": new_status}, {"id": site_id}):
+        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
+    msg = f"Đã {'bật' if new_status else 'tắt'} {site['site_name']}"
+    html = _sites_list_html(request, user)
+    resp = HTMLResponse(html)
+    resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": msg, "type": "success" if new_status else "info"}})
+    return resp

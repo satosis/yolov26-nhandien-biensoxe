@@ -37,7 +37,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
             "request": request,
             "error": f"Tài khoản bị khóa tạm. Thử lại sau {secs}s.",
             "last_username": username,
-        })
+        }, status_code=429)
 
     user = get_user_by_username(username)
     if user and verify_password(password, user["hashed_password"]):
@@ -52,7 +52,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
         "request": request,
         "error": "Sai tài khoản hoặc mật khẩu.",
         "last_username": username,
-    })
+    }, status_code=401)
 
 
 @router.api_route("/logout", methods=["GET", "POST"])
