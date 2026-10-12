@@ -1,53 +1,49 @@
-/* ==========================================================================
-   Design System & Variables
-   ========================================================================== */
+
    :root {
-    /* Colors */
-    --c-primary: #004b41; /* Stavian-like deep green/teal */
+
+    --c-primary: #004b41;
     --c-primary-light: #3a6e64;
     --c-primary-dark: #00332c;
-    --c-accent: #fd761a; /* Thép Sơn Lâm Orange */
+    --c-accent: #fd761a;
     --c-accent-hover: #e06310;
-    
+
     --c-text-main: #333333;
     --c-text-muted: #6b7280;
     --c-text-light: #9ca3af;
-    
+
     --c-bg-main: #ffffff;
     --c-bg-light: #f8f9ff;
     --c-bg-surface: #e5eeff;
     --c-bg-dark: #0b1c30;
-    
+
     --c-border: #e5e7eb;
-    
-    /* Typography */
+
+
     --font-heading: 'Outfit', sans-serif;
     --font-body: 'Inter', sans-serif;
-    
-    /* Spacing */
+
+
     --space-xs: 0.5rem;
     --space-sm: 1rem;
     --space-md: 2rem;
     --space-lg: 4rem;
     --space-xl: 6rem;
-    
-    /* Effects */
+
+
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --shadow-glow: 0 0 20px rgba(253, 118, 26, 0.4);
-    
+
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 16px;
     --radius-full: 9999px;
-    
+
     --transition: all 0.3s ease;
 }
 
-/* ==========================================================================
-   Reset & Base Styles
-   ========================================================================== */
+
 * {
     margin: 0;
     padding: 0;
@@ -90,9 +86,7 @@ ul {
     list-style: none;
 }
 
-/* ==========================================================================
-   Typography Utilities
-   ========================================================================== */
+
 .text-primary { color: var(--c-primary); }
 .text-accent { color: var(--c-accent); }
 .text-white { color: #ffffff; }
@@ -119,9 +113,7 @@ ul {
     display: inline-block;
 }
 
-/* ==========================================================================
-   Layout
-   ========================================================================== */
+
 .container {
     width: 100%;
     max-width: 1280px;
@@ -147,7 +139,7 @@ ul {
     justify-content: center;
 }
 
-/* Inner Page Header */
+
 .page-header {
     padding: 160px 0 80px;
     background-color: var(--c-bg-dark);
@@ -185,10 +177,8 @@ ul {
 }
 
 
-/* ==========================================================================
-   Components
-   ========================================================================== */
-/* Buttons */
+
+
 .btn {
     display: inline-flex;
     align-items: center;
@@ -238,7 +228,7 @@ ul {
     box-shadow: 0 0 25px rgba(253, 118, 26, 0.6);
 }
 
-/* Glassmorphism */
+
 .glass-panel {
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(10px);
@@ -251,7 +241,7 @@ ul {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Material Icons */
+
 .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
@@ -260,9 +250,7 @@ ul {
     font-variation-settings: 'FILL' 1;
 }
 
-/* ==========================================================================
-   Header
-   ========================================================================== */
+
 .site-header {
     position: fixed;
     top: 0;
@@ -565,9 +553,7 @@ ul {
     }
 }
 
-/* ==========================================================================
-   Hero Section
-   ========================================================================== */
+
 .hero {
     position: relative;
     min-height: max(600px, 100vh);
@@ -678,9 +664,7 @@ ul {
     font-weight: 500;
 }
 
-/* ==========================================================================
-   Projects Section (Featured Asset)
-   ========================================================================== */
+
 .section-header {
     margin-bottom: var(--space-lg);
 }
@@ -787,9 +771,7 @@ ul {
     gap: var(--space-sm);
 }
 
-/* ==========================================================================
-   Specs Tabs Section
-   ========================================================================== */
+
 .tabs-container {
     background: #ffffff;
     border-radius: var(--radius-lg);
@@ -810,10 +792,10 @@ ul {
     flex-direction: row;
     overflow-x: auto;
     background-color: var(--c-primary);
-    scrollbar-width: none; /* Firefox */
+    scrollbar-width: none;
 }
 .tabs-nav::-webkit-scrollbar {
-    display: none; /* Safari and Chrome */
+    display: none;
 }
 
 @media (min-width: 992px) {
@@ -936,9 +918,7 @@ ul {
     height: clamp(240px, 30vw, 360px);
 }
 
-/* ==========================================================================
-   About / Location Section
-   ========================================================================== */
+
 .about-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -1028,9 +1008,7 @@ ul {
     object-fit: cover;
 }
 
-/* ==========================================================================
-   News Grid & Cards
-   ========================================================================== */
+
 .news-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -1113,9 +1091,7 @@ ul {
     overflow: hidden;
 }
 
-/* ==========================================================================
-   Warehouse Gallery Slider
-   ========================================================================== */
+
 .warehouse-gallery {
     max-width: 880px;
     margin: 0 auto var(--space-xl);
@@ -1217,9 +1193,7 @@ ul {
     }
 }
 
-/* ==========================================================================
-   Contact Form & Info
-   ========================================================================== */
+
 .contact-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -1306,9 +1280,7 @@ textarea.form-control {
     min-height: 120px;
 }
 
-/* ==========================================================================
-   CTA Section
-   ========================================================================== */
+
 .cta-section {
     padding: var(--space-xl) 0;
     background-image: url('/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg');
@@ -1347,9 +1319,7 @@ textarea.form-control {
     margin-bottom: var(--space-lg);
 }
 
-/* ==========================================================================
-   Footer
-   ========================================================================== */
+
 .site-footer {
     background-color: var(--c-primary-dark);
     color: rgba(255, 255, 255, 0.7);
@@ -1448,9 +1418,7 @@ textarea.form-control {
     font-size: 0.875rem;
 }
 
-/* ==========================================================================
-   Lightbox
-   ========================================================================== */
+
 .lightbox {
     display: none;
     position: fixed;
@@ -1508,9 +1476,7 @@ textarea.form-control {
     cursor: pointer;
 }
 
-/* ==========================================================================
-   Premium Projects Slider
-   ========================================================================== */
+
 .premium-slider-section {
     padding: var(--space-lg) 0;
     overflow: hidden;
@@ -1755,12 +1721,10 @@ textarea.form-control {
     color: #ffffff;
 }
 
-/* ==========================================================================
-   Auth / header additions (dynamic landing — not in original static)
-   ========================================================================== */
+
 [x-cloak] { display: none !important; }
 
-/* Flag icons rendered as inline SVG (emoji flags don't render on Windows) */
+
 .flag {
     display: inline-block;
     width: 22px;
@@ -1811,7 +1775,7 @@ textarea.form-control {
     color: var(--c-accent);
 }
 
-/* Generic dynamic news image (DB-driven cards) */
+
 .news-card .news-image img {
     width: 100%;
     height: 100%;
@@ -1831,4 +1795,3 @@ textarea.form-control {
     font-size: 0.7rem;
     font-weight: 800;
 }
-

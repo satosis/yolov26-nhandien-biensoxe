@@ -1,15 +1,12 @@
-"""Strangers router."""
 from fastapi import APIRouter, Request, Depends, Form, Body
-from fastapi.templating import Jinja2Templates
 import logging
-from starlette.responses import RedirectResponse
 from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu
+from starlette.responses import RedirectResponse
+from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.ai.stranger_manager import get_stranger_manager
 
 router = APIRouter(prefix="/strangers")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
-import os
 from frontend.routers.users_router import get_all_users
 
 
@@ -33,7 +30,7 @@ def get_stranger_logs(db, status: str | None = None, limit: int = 50, site_id: i
         ORDER BY COALESCE(sl.last_seen, sl.event_time) DESC
         LIMIT %s
     """
-    return db._execute_query(query, tuple(params), fetchall=True, commit=False) or []
+    return db._execute_query(query, tuple(params), fetchall=True, commit=False)
 
 
 def get_stranger_log(db, stranger_id: int):
@@ -56,16 +53,13 @@ def update_stranger_status(db, stranger_id: int, status: str,
             note = COALESCE(%s, note)
         WHERE id = %s
     """
-    return db._execute_query(query, (status, converted_user_id, note, stranger_id), commit=True) is not False
+    return db._execute_query(query, (status, converted_user_id, note, stranger_id), commit=True)
 
 
 def delete_stranger_log(db, stranger_id: int) -> bool:
     row = db._execute_query("SELECT image_path FROM stranger_logs WHERE id = %s", (stranger_id,), fetch=True, commit=False)
-    if row and row.get("image_path") and os.path.exists(row["image_path"]):
-        try:
-            os.remove(row["image_path"])
-        except Exception as e:
-            logger.warning("Failed to delete snapshot file for stranger %s: %s", stranger_id, e)
+    if row and row.get("image_path"):
+        Path(row["image_path"]).unlink(missing_ok=True)
     return db.delete("stranger_logs", {"id": stranger_id})
 
 
@@ -89,11 +83,7 @@ async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("s
 @router.delete("/{stranger_id}")
 async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
     delete_stranger_log(get_db(), stranger_id)
-    try:
-        from backend.ai.stranger_manager import get_stranger_manager
-        get_stranger_manager().remove(stranger_id)
-    except Exception:
-        pass
+    get_stranger_manager().remove(stranger_id)
     return RedirectResponse("/admin/strangers", status_code=303)
 
 
@@ -103,18 +93,10 @@ async def register_stranger(
     user_id: int = Form(...),
     user_auth: dict = Depends(require_menu("strangers"))
 ):
-    try:
-        logging.info(f"Registering stranger {stranger_id} as user {user_id}")
-        update_stranger_status(get_db(), int(stranger_id), "registered", converted_user_id=int(user_id))
-        try:
-            from backend.ai.stranger_manager import get_stranger_manager
-            get_stranger_manager().remove(int(stranger_id))
-        except Exception:
-            pass
-        return RedirectResponse("/admin/strangers", status_code=303)
-    except Exception as e:
-        logging.exception("Failed to register stranger")
-        raise e
+    logging.info("Registering stranger %s as user %s", stranger_id, user_id)
+    update_stranger_status(get_db(), stranger_id, "registered", converted_user_id=user_id)
+    get_stranger_manager().remove(stranger_id)
+    return RedirectResponse("/admin/strangers", status_code=303)
 
 
 @router.post("/bulk-register")
@@ -127,11 +109,7 @@ async def bulk_register_strangers(
     db = get_db()
     for sid in ids:
         update_stranger_status(db, sid, "registered", converted_user_id=user_id)
-        try:
-            from backend.ai.stranger_manager import get_stranger_manager
-            get_stranger_manager().remove(sid)
-        except Exception:
-            pass
+        get_stranger_manager().remove(sid)
     logging.info(f"Bulk registered {len(ids)} strangers as user {user_id}")
     return {"ok": True, "count": len(ids)}
 
@@ -145,10 +123,6 @@ async def bulk_delete_strangers(
     db = get_db()
     for sid in ids:
         delete_stranger_log(db, sid)
-        try:
-            from backend.ai.stranger_manager import get_stranger_manager
-            get_stranger_manager().remove(sid)
-        except Exception:
-            pass
+        get_stranger_manager().remove(sid)
     logging.info(f"Bulk deleted {len(ids)} strangers")
     return {"ok": True, "count": len(ids)}

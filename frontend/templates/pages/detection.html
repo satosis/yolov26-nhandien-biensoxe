@@ -21,10 +21,10 @@ x-init="
 "
 x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
 
-  <!-- ================= TOP APP BAR ================= -->
+
   <div class="cam-app-bar">
     <div class="d-flex align-items-center flex-wrap" style="gap:12px;">
-      <!-- Segmented Pill Tabs -->
+
       <div class="cam-seg-control">
         <button type="button" class="cam-seg-btn" :class="tab==='rtsp' ? 'active' : ''" @click="tab='rtsp'" title="Camera IP">
           <i class="bx bx-cctv"></i>
@@ -40,7 +40,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         </button>
       </div>
 
-      <!-- Custom Camera Dropdown Capsule -->
+
       <div x-show="tab==='rtsp'" class="position-relative">
         <button type="button" @click="camMenuOpen = !camMenuOpen" class="cam-select-capsule" title="Chọn camera">
           <span class="cam-live-dot"></span>
@@ -48,7 +48,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           <i class="bx bx-chevron-down cam-select-arrow" :style="camMenuOpen ? 'transform:rotate(180deg)' : ''"></i>
         </button>
 
-        <!-- Custom Dropdown Menu (Sleek Glassmorphism, No OS Select Popup) -->
+
         <div x-show="camMenuOpen"
              @click.away="camMenuOpen = false"
              x-cloak
@@ -73,7 +73,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           {% endfor %}
         </div>
 
-        <!-- Hidden Native Select for script compatibility -->
+
         <select id="rtsp-camera" class="d-none">
           {% for cam in cameras %}
           <option value="{{ cam.id }}" {% if loop.first %}selected{% endif %}>{{ cam.camera_name }}</option>
@@ -84,7 +84,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
   </div>
 
-  <!-- RTSP Error banner -->
+
   <div id="rtsp-error-banner" class="cam-alert-box" style="display:none;">
     <div class="d-flex align-items-center">
       <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
@@ -95,23 +95,23 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     </button>
   </div>
 
-  <!-- ================= WORKSTATION GRID ================= -->
+
   <div class="row no-gutters cam-main-grid">
 
-    <!-- CAMERA MONITOR VIEWPORT -->
+
     <div class="col-12 col-xl-8 pr-xl-2 mb-3 mb-xl-0 d-flex flex-column">
       <div id="cam-monitor-viewport" class="cam-monitor-card">
 
-        <!-- STREAMS CONTAINER -->
+
         <div class="cam-screen-surface" id="cam-screen-surface">
 
-          <!-- 1. RTSP Stream -->
+
           <div x-show="tab==='rtsp'" class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
             <video id="rtsp-feed" autoplay playsinline muted class="cam-media-element d-none"></video>
             <img id="rtsp-feed-img" class="cam-media-element d-none" alt="Camera Feed">
             <canvas id="rtsp-overlay" class="cam-overlay-canvas d-none"></canvas>
 
-            <!-- RTSP Idle -->
+
             <div id="rtsp-placeholder" class="cam-hero-placeholder" onclick="window.toggleRtsp()">
               <div class="cam-hero-btn">
                 <i class="bx bx-play" style="font-size:36px; margin-left:3px;"></i>
@@ -120,12 +120,12 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             </div>
           </div>
 
-          <!-- 2. Webcam Stream -->
+
           <div x-show="tab==='webcam'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
             <video id="webcam-video" autoplay playsinline muted class="cam-media-element d-none"></video>
             <canvas id="webcam-overlay" class="cam-overlay-canvas d-none"></canvas>
 
-            <!-- Webcam Idle -->
+
             <div id="webcam-placeholder" class="cam-hero-placeholder" onclick="window.toggleWebcam()">
               <div class="cam-hero-btn">
                 <i class="bx bx-camera" style="font-size:32px;"></i>
@@ -134,112 +134,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             </div>
           </div>
 
-          <!-- 3. Upload Stream -->
+
           <div x-show="tab==='upload'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
-            <input type="file" id="upload-input" accept="image/*" class="d-none">
-            <canvas id="upload-canvas" class="cam-media-element d-none"></canvas>
-
-            <!-- Upload Idle -->
-            <div id="upload-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('upload-input').click()">
-              <div class="cam-hero-btn">
-                <i class="bx bx-cloud-upload" style="font-size:32px;"></i>
-              </div>
-              <div class="cam-hero-label">Chọn ảnh</div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- FLOATING BOTTOM CONTROLS DOCK (Icon-only, compact & sleek) -->
-        <div class="cam-floating-dock">
-          <!-- Power Toggle -->
-          <button type="button" class="dock-btn primary" id="dock-btn-power" title="Bật / Dừng" onclick="handleActiveStreamToggle()">
-            <i class="bx bx-power-off"></i>
-          </button>
-
-          <!-- Snapshot -->
-          <button type="button" class="dock-btn" id="dock-btn-snap" title="Chụp ảnh" onclick="captureSnapshot()">
-            <i class="bx bx-camera"></i>
-          </button>
-
-          <!-- Select Device (Webcam only) -->
-          <button type="button" class="dock-btn" id="btn-select-device" x-show="tab==='webcam'" title="Chọn camera">
-            <i class="bx bx-devices"></i>
-          </button>
-
-          <!-- Upload (Upload tab only) -->
-          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp">
-            <i class="bx bx-folder-open"></i>
-          </button>
-
-          <!-- Fullscreen -->
-          <button type="button" class="dock-btn" id="dock-btn-fullscreen" title="Toàn màn hình" onclick="toggleFullscreen()">
-            <i class="bx bx-fullscreen"></i>
-          </button>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- AI DETECTION SIDEBAR / EVENT FEED -->
-    <div class="col-12 col-xl-4 pl-xl-2 d-flex flex-column">
-      <div class="cam-sidebar-card">
-
-        <!-- Sidebar Header -->
-        <div class="cam-sidebar-header">
-          <div class="d-flex align-items-center" style="gap:8px;">
-            <span class="cam-sidebar-title">Phát hiện</span>
-            <div id="cam-status-indicator" class="cam-live-badge" style="display:none;">
-              <span class="pulse-point"></span>
-              <span>LIVE</span>
-            </div>
-          </div>
-
-          <div class="d-flex align-items-center" style="gap:6px;">
-            <div class="cam-counter-pills">
-              <span class="counter-item" title="Khuôn mặt">
-                <i class="bx bx-user"></i>
-                <b id="stat-face-count">0</b>
-              </span>
-              <span class="counter-item" title="Biển số">
-                <i class="bx bx-car"></i>
-                <b id="stat-plate-count">0</b>
-              </span>
-              <span class="counter-item danger" title="Cảnh báo">
-                <i class="bx bx-error"></i>
-                <b id="stat-alert-count">0</b>
-              </span>
-            </div>
-            <button id="btn-clear-results" class="cam-btn-icon" title="Xoá danh sách">
-              <i class="bx bx-trash"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Events List Container -->
-        <div class="cam-feed-container" id="detection-results">
-          <!-- Empty State -->
-          <div class="cam-empty-feed">
-            <div class="cam-empty-icon"><i class="bx bx-camera-off"></i></div>
-            <div class="cam-empty-title">Chưa có sự kiện</div>
-            <div class="cam-empty-hint">Bật camera để bắt đầu nhận diện</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ================= STYLES ================= -->
-<style>
-:root {
-  --cam-bg: #090d16;
-  --cam-hud-glass: rgba(9, 13, 22, 0.82);
-}
-
-/* Hide admin footer on camera page for full-screen focus */
+            <input type="file" id="upload-input" accept="image
 .footer { display: none !important; }
 .page-content { padding-bottom: 8px !important; }
 
@@ -249,7 +146,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   width: 100%;
 }
 
-/* Top Bar */
+
 .cam-app-bar {
   display: flex;
   flex-wrap: wrap;
@@ -259,7 +156,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   margin-bottom: 10px;
 }
 
-/* Segmented Pill Tabs */
+
 .cam-seg-control {
   display: inline-flex;
   align-items: center;
@@ -296,7 +193,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   font-size: 15px;
 }
 
-/* Camera Selector Capsule & Custom Menu */
+
 .cam-select-capsule {
   background: #ffffff;
   border: 1px solid #cbd5e1;
@@ -372,7 +269,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   background: #10b981;
 }
 
-/* Live Badge (inside sidebar header) */
+
 .cam-live-badge {
   display: inline-flex;
   align-items: center;
@@ -399,7 +296,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   50% { opacity: 0.5; transform: scale(0.8); }
 }
 
-/* Alert Banner */
+
 .cam-alert-box {
   background: #fef2f2;
   border: 1px solid #fecaca;
@@ -420,13 +317,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   cursor: pointer;
 }
 
-/* Main Grid & Responsive Height */
+
 .cam-main-grid {
   height: calc(100vh - 150px);
   min-height: 500px;
 }
 
-/* Monitor Card */
+
 .cam-monitor-card {
   position: relative;
   background: var(--cam-bg);
@@ -439,7 +336,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   height: 100%;
 }
 
-/* OSD Top HUD */
+
 .cam-osd-hud-top {
   position: absolute;
   top: 10px;
@@ -470,7 +367,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   font-size: 11px;
 }
 
-/* Screen Surface */
+
 .cam-screen-surface {
   position: relative;
   width: 100%;
@@ -499,7 +396,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   pointer-events: none;
 }
 
-/* Hero Placeholder (Spans 100% of viewport so clicking anywhere on the black area opens camera) */
+
 .cam-hero-placeholder {
   position: absolute;
   top: 0;
@@ -549,7 +446,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   color: #f1f5f9;
 }
 
-/* Floating Bottom Dock (Icon-only) */
+
 .cam-floating-dock {
   position: absolute;
   bottom: 12px;
@@ -599,7 +496,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   background: #ef4444;
 }
 
-/* Sidebar */
+
 .cam-sidebar-card {
   background: #ffffff;
   border-radius: 14px;
@@ -666,7 +563,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   border-color: #fca5a5;
 }
 
-/* Feed Container */
+
 .cam-feed-container {
   padding: 10px;
   flex-grow: 1;
@@ -676,7 +573,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   gap: 6px;
 }
 
-/* Empty State */
+
 .cam-empty-feed {
   display: flex;
   flex-direction: column;
@@ -709,7 +606,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   font-size: 11.5px;
 }
 
-/* Event Feed Card */
+
 .cam-event-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -900,9 +797,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       link.click();
     };
 
-    // -------------------------------------------------------------
-    // AI Canvas Bounding Box Renderer (Clean & Concise)
-    // -------------------------------------------------------------
     function drawBoxes(canvas, img, results, srcW, srcH) {
       const ctx = canvas.getContext('2d');
       const naturalW = (img instanceof HTMLImageElement) ? img.naturalWidth : (img.videoWidth || img.width);
@@ -962,16 +856,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           labelText = 'Người';
         }
 
-        // Tint
         ctx.fillStyle = color + '15';
         ctx.fillRect(x1, y1, w, h);
 
-        // Thin frame
         ctx.strokeStyle = color + '66';
         ctx.lineWidth = 1;
         ctx.strokeRect(x1, y1, w, h);
 
-        // Corner brackets
         const cLen = Math.min(18, w * 0.28, h * 0.28);
         ctx.strokeStyle = color;
         ctx.lineWidth = 2.5;
@@ -993,7 +884,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         ctx.moveTo(x2 - cLen, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cLen);
         ctx.stroke();
 
-        // Label pill
         const confText = (r.confidence && r.confidence > 0) ? ` ${Math.round(r.confidence)}%` : '';
         const pillText = `${labelIcon} ${labelText}${confText}`;
         ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
@@ -1019,9 +909,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       }
     }
 
-    // -------------------------------------------------------------
-    // Results Feed (Concise, no useless text)
-    // -------------------------------------------------------------
     function renderResults(data) {
       if (data.error) {
         resultsDiv.innerHTML = `<div class="cam-event-card text-danger" style="border-color:#fecaca;">
@@ -1137,9 +1024,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       }
     }
 
-    // -------------------------------------------------------------
-    // WEBCAM ENGINE
-    // -------------------------------------------------------------
     window.stopWebcam = function () {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
@@ -1227,9 +1111,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       };
     };
 
-    // -------------------------------------------------------------
-    // RTSP ENGINE
-    // -------------------------------------------------------------
     const getActiveRtspEl = () => {
       if (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) return rtspFeedImg;
       return rtspFeed;
@@ -1311,7 +1192,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       }
     };
 
-    // Clear Results
     window.clearResults = function () {
       if (statFaceCount) statFaceCount.textContent = '0';
       if (statPlateCount) statPlateCount.textContent = '0';
@@ -1336,7 +1216,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     };
     if (btnClear) btnClear.addEventListener('click', window.clearResults);
 
-    // Select Device
     if (btnDevice) {
       btnDevice.addEventListener('click', async () => {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -1354,7 +1233,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       });
     }
 
-    // Upload
     if (uploadInput) {
       uploadInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -1399,7 +1277,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       });
     }
 
-    // RAM Optimization
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && stream) {
         window.stopWebcam();

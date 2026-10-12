@@ -1,11 +1,23 @@
-"""Shared dependencies for webapp."""
+from decimal import Decimal
+from pathlib import Path
 from fastapi import Request, HTTPException
+from fastapi.templating import Jinja2Templates
+
+
+def _json_default(value):
+    if isinstance(value, Decimal):
+        return float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+templates.env.add_extension("jinja2.ext.do")
+templates.env.policies["json.dumps_kwargs"] = {"sort_keys": True, "default": _json_default}
 
 _db = None
 
 
 def get_db():
-    """Get or create DatabaseManager singleton."""
     global _db
     if _db is None:
         from backend.services.database import DatabaseManager
@@ -14,7 +26,6 @@ def get_db():
 
 
 def get_current_user(request: Request) -> dict:
-    """Extract authenticated user from session. Redirect to /login if missing."""
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=303, headers={"Location": "/login"})
@@ -22,12 +33,15 @@ def get_current_user(request: Request) -> dict:
 
 
 def get_optional_user(request: Request) -> dict | None:
-    """Extract user from session without requiring auth."""
     return request.session.get("user")
 
 
+def get_role_permissions(role: str) -> str:
+    row = get_db().select("roles", columns="allowed_menus", conditions={"role_name": role}, fetchall=False)
+    return row["allowed_menus"] if row else ""
+
+
 def require_menu(menu_key: str):
-    """Dependency factory: checks RBAC for a specific menu key."""
     def _check(request: Request) -> dict:
         user = get_current_user(request)
         allowed = user.get("allowed_menus", "")
@@ -38,15 +52,10 @@ def require_menu(menu_key: str):
 
 
 def get_menu_context(request: Request, user: dict) -> dict:
-    """Build sidebar menu context filtered by RBAC.
-    Also refreshes session allowed_menus from DB to handle role changes."""
     from frontend.menu_registry import MENU_GROUPS
 
-    roles = get_db().select("roles", order_by="id ASC") or []
-    role_info = next((r for r in roles if r["role_name"] == user.get("role")), None)
-    allowed_str = role_info.get("allowed_menus", "") if role_info else ""
+    allowed_str = get_role_permissions(user.get("role"))
 
-    # Refresh session if role permissions changed (fix stale session)
     session_allowed = user.get("allowed_menus", "")
     if allowed_str != session_allowed:
         user["allowed_menus"] = allowed_str
@@ -63,29 +72,22 @@ def get_menu_context(request: Request, user: dict) -> dict:
         if group_items:
             filtered[group_name] = group_items
 
-    # Camera pages set for prefixing logic
     camera_page_keys = {
         "detection", "cameras", "vehicles", "strangers", 
         "pending_plates", "parking_dashboard", "parking_logs", 
         "parking_analytics", "recordings"
     }
 
-    sites = get_db().select("sites", conditions={"is_active": True}, order_by="site_name") or []
+    sites = get_db().select("sites", conditions={"is_active": True}, order_by="site_name")
     active_site_id = request.session.get("active_site_id", 0)
     
-    # Resolve current_menu from the request path to match a menu key.
-    # Routers are mounted under /admin (e.g. /admin/cameras, /admin/parking_dashboard,
-    # /admin/cms). Strip the leading "admin/" so the remaining value equals the menu key
-    # ("cameras", "parking_dashboard", "cms").
     path = request.url.path.strip("/")
     if path.startswith("camera/"):
-        current_menu = path[7:]  # legacy /camera prefix
+        current_menu = path[7:]
     elif path.startswith("admin/"):
-        current_menu = path[6:]  # len("admin/") == 6
+        current_menu = path[6:]
     else:
         current_menu = path
-    # Only the first path segment maps to a menu key
-    # (e.g. /admin/cameras/123/edit -> "cameras") so nested pages keep nav state.
     current_menu = current_menu.split("/")[0]
 
     return {

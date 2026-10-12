@@ -1,12 +1,3 @@
-"""
-Handwriting OCR pipeline cho sổ ghi chuyến hàng xe tải.
-
-Pipeline:
-  1. OpenCV: phát hiện từng dòng text (horizontal projection)
-  2. VietOCR: ensemble 3 preprocessing variants, chọn best confidence
-  3. Post-correction: fuzzy-match địa danh + hàng hóa bằng từ điển
-  4. Rule-based parser: tách text → các trường cargo_trip
-"""
 import base64
 import io
 import os
@@ -24,7 +15,6 @@ from PIL import Image, ImageOps
 
 logger = logging.getLogger(__name__)
 
-# ── Vietnamese dictionary for post-correction ──────────────────────────────────
 
 _VN_PROVINCES = [
     "An Giang", "Bà Rịa Vũng Tàu", "Bắc Giang", "Bắc Kạn", "Bạc Liêu",
@@ -40,13 +30,11 @@ _VN_PROVINCES = [
     "Sơn La", "Tây Ninh", "Thái Bình", "Thái Nguyên", "Thanh Hóa",
     "Thừa Thiên Huế", "Huế", "Tiền Giang", "TP Hồ Chí Minh", "Sài Gòn",
     "Trà Vinh", "Tuyên Quang", "Vĩnh Long", "Vĩnh Phúc", "Yên Bái",
-    # Thêm tên thành phố / quận huyện thông dụng
     "Biên Hòa", "Nha Trang", "Đà Lạt", "Buôn Ma Thuột", "Vinh",
     "Huế", "Hội An", "Tam Kỳ", "Quy Nhơn", "Pleiku", "Bảo Lộc",
     "Phan Thiết", "Phan Rang", "Mỹ Tho", "Cần Thơ", "Long Xuyên",
     "Rạch Giá", "Cà Mau", "Bến Tre", "Tân An", "Vũng Tàu",
     "Thủ Dầu Một", "Tây Ninh", "Đồng Xoài", "Bảo Lộc", "Gia Nghĩa",
-    # Tuyến/địa danh nội bộ hay gặp trong sổ xe
     "Tề Lỗ", "Yên Lạc", "Vĩnh Phúc",
 ]
 
@@ -70,7 +58,6 @@ _CARGO_LIST_LOWER = [c.lower() for c in _CARGO_TYPES]
 
 
 def _correct_place(text: str) -> str:
-    """Fuzzy-correct địa danh bằng từ điển tỉnh thành (cutoff 0.72)."""
     if not text or len(text) < 3:
         return text
     folded_lookup = {_fold_text(place).lower(): place for place in _VN_PROVINCES}
@@ -90,7 +77,6 @@ def _correct_place(text: str) -> str:
 
 
 def _correct_cargo(text: str) -> str:
-    """Fuzzy-correct loại hàng bằng từ điển (cutoff 0.68)."""
     if not text or len(text) < 3:
         return text
     tl = text.lower()
@@ -103,7 +89,6 @@ def _correct_cargo(text: str) -> str:
     return text
 
 
-# ── VietOCR loader (lazy, singleton) ──────────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def _get_predictor():
@@ -125,7 +110,6 @@ def _get_predictor():
     return predictor
 
 
-# ── Image preprocessing variants ───────────────────────────────────────────────
 
 def _remove_ruling_lines(gray: np.ndarray) -> np.ndarray:
     binary = cv2.adaptiveThreshold(
@@ -156,7 +140,6 @@ def _deskew_line(gray: np.ndarray) -> np.ndarray:
 
 
 def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
-    """Trim, clean, deskew, and scale a line crop before VietOCR sees it."""
     rgb = np.array(pil_img.convert("RGB"))
     gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     gray = _remove_ruling_lines(gray)
@@ -190,34 +173,24 @@ def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
 
 
 def _make_variants(pil_img: Image.Image) -> list[Image.Image]:
-    """
-    Tạo 3 biến thể ảnh cho ensemble OCR:
-      1. Gốc
-      2. CLAHE contrast enhancement (tốt cho chữ nhạt/mờ)
-      3. Denoise + sharpen (tốt cho ảnh nhiễu/scan kém)
-    """
     pil_img = _normalize_line_crop(pil_img)
     variants = [pil_img]
 
-    # CLAHE trên kênh gray, convert lại RGB
     gray = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
     variants.append(Image.fromarray(cv2.cvtColor(eq, cv2.COLOR_GRAY2RGB)))
 
-    # Adaptive binary variant for faint pencil/low-contrast handwriting.
     binary = cv2.adaptiveThreshold(
         eq, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY, 31, 11,
     )
     variants.append(Image.fromarray(cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB)))
 
-    # Background normalization for uneven lighting.
     background = cv2.medianBlur(eq, 31)
     normalized = cv2.divide(eq, background, scale=255)
     variants.append(Image.fromarray(cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)))
 
-    # Denoise + unsharp mask
     bgr = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
     denoised = cv2.fastNlMeansDenoisingColored(bgr, None, 10, 10, 7, 21)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
@@ -228,10 +201,6 @@ def _make_variants(pil_img: Image.Image) -> list[Image.Image]:
 
 
 def _ocr_best_result(pil_img: Image.Image, predictor) -> dict:
-    """
-    Ensemble OCR: thử 3 preprocessing variants, chọn kết quả có confidence cao nhất.
-    VietOCR hỗ trợ predict(img, return_prob=True) → (text, prob).
-    """
     best_text = ""
     best_prob = -1.0
 
@@ -283,7 +252,6 @@ def _order_quad_points(points: np.ndarray) -> np.ndarray:
 
 
 def _auto_crop_document(img_bgr: np.ndarray) -> np.ndarray:
-    """Perspective-crop the page when the camera sees a clear document outline."""
     h, w = img_bgr.shape[:2]
     if h < 200 or w < 200:
         return img_bgr
@@ -343,7 +311,6 @@ def _deskew_page(img_bgr: np.ndarray) -> np.ndarray:
 
 
 def _prepare_page_bgr(img_bgr: np.ndarray) -> np.ndarray:
-    """Normalize page image before line detection: size, mild deskew, contrast."""
     img_bgr = _auto_crop_document(img_bgr)
     img_bgr = _resize_for_ocr(img_bgr)
     img_bgr = _deskew_page(img_bgr)
@@ -384,7 +351,6 @@ def _assess_image_quality(img_bgr: np.ndarray) -> dict:
 
 
 def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
-    """OpenCV BGR image -> OCR line dicts with confidence."""
     img_bgr = _prepare_page_bgr(img_bgr)
     crops = _detect_line_crops(img_bgr)
     if not crops:
@@ -413,14 +379,11 @@ def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
 
 
 def _ocr_lines_from_bgr(img_bgr: np.ndarray) -> list[str]:
-    """OpenCV BGR image -> list text lines."""
     return [line["text"] for line in _ocr_line_results_from_bgr(img_bgr)]
 
 
-# ── Line detection ─────────────────────────────────────────────────────────────
 
 def _detect_line_crops(img_bgr: np.ndarray, min_width_ratio: float = 0.05) -> list[Image.Image]:
-    """Horizontal projection → danh sách PIL crop từng dòng text."""
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
     binary = cv2.adaptiveThreshold(
@@ -428,8 +391,6 @@ def _detect_line_crops(img_bgr: np.ndarray, min_width_ratio: float = 0.05) -> li
         cv2.THRESH_BINARY_INV, 31, 15,
     )
 
-    # Notebook ruling lines can dominate the projection. Remove long horizontal
-    # strokes while preserving short handwriting strokes.
     h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(30, img_bgr.shape[1] // 18), 1))
     ruling = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel, iterations=1)
     binary = cv2.subtract(binary, ruling)
@@ -441,7 +402,7 @@ def _detect_line_crops(img_bgr: np.ndarray, min_width_ratio: float = 0.05) -> li
     in_text = False
     line_spans: list[tuple[int, int]] = []
     start = 0
-    row_threshold = binary.shape[1] * 0.006  # handwriting can be sparse
+    row_threshold = binary.shape[1] * 0.006
 
     for y, val in enumerate(h_proj):
         if not in_text and val > row_threshold:
@@ -489,7 +450,6 @@ def _detect_line_crops_by_contours(
     binary: np.ndarray,
     min_width_ratio: float = 0.05,
 ) -> list[Image.Image]:
-    """Fallback line grouping from connected components when projection fails."""
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 3))
     merged = cv2.dilate(binary, kernel, iterations=2)
     contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -537,16 +497,8 @@ def _detect_line_crops_by_contours(
     return crops
 
 
-# ── OCR từng dòng ──────────────────────────────────────────────────────────────
 
 def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
-    """
-    Decode uploaded still images.
-
-    iPhone photos often store orientation in EXIF; OpenCV ignores that flag and
-    can feed a sideways page to OCR. PIL applies the EXIF transform first, then
-    OpenCV receives a normal BGR array.
-    """
     try:
         import io
 
@@ -562,12 +514,10 @@ def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
 
 
 def _ocr_lines(image_bytes: bytes) -> list[str]:
-    """Ảnh bytes → list câu text từng dòng (dùng ensemble + voting)."""
     return _ocr_lines_from_bgr(_decode_image_bgr(image_bytes))
 
 
 def _ocr_line_results(image_bytes: bytes) -> list[dict]:
-    """Ảnh bytes -> OCR line dicts with confidence."""
     return _ocr_line_results_from_bgr(_decode_image_bgr(image_bytes))
 
 
@@ -576,12 +526,6 @@ def _is_pdf(filename: str = "", content_type: str = "") -> bool:
 
 
 def _ocr_pdf_lines(pdf_bytes: bytes, max_pages: int = 8, dpi: int = 300) -> list[str]:
-    """
-    Render iPhone/Files document scans to high-resolution page images for OCR.
-
-    PyMuPDF is imported lazily so normal image scanning still works even if PDF
-    support is not installed in a local dev environment.
-    """
     try:
         import fitz
     except Exception as exc:
@@ -659,7 +603,6 @@ def _pdf_quality_summary(pdf_bytes: bytes, max_pages: int = 3, dpi: int = 150) -
     return {"pages": page_qualities, "warnings": warnings}
 
 
-# ── Rule-based parser ──────────────────────────────────────────────────────────
 
 _DATE_RE = re.compile(
     r"\b(\d{1,2})\s*[/\-\.]\s*(\d{1,2})(?:\s*[/\-\.]\s*(\d{2,4}))?\b"
@@ -716,7 +659,6 @@ def _normalize_ocr_digits(text: str) -> str:
 
 
 def _parse_number(s: str) -> Optional[float]:
-    # Nếu chuỗi dùng dấu phẩy làm dấu thập phân (VN style: "1.500,5") → chuẩn hóa
     s = (s or "").strip()
     if re.search(r"\d\s*[lL]\s*$", s):
         s = re.sub(r"\s*[lL]\s*$", "", s)
@@ -725,16 +667,12 @@ def _parse_number(s: str) -> Optional[float]:
     if not s:
         return None
     if "." in s and "," in s:
-        # "1.500,5" → remove dots (thousand sep), replace comma with dot
         s = s.replace(".", "").replace(",", ".")
     elif "," in s:
-        # "1500,5" → "1500.5" (comma = decimal)
         s = s.replace(",", ".")
     elif "." in s and re.fullmatch(r"\d{1,4}\.\d{1,2}", s):
-        # "120.5" is usually decimal for km/liters; "1.500" remains thousand style below.
         pass
     else:
-        # "1.500" → could be 1500 (thousand sep) or 1.5; treat as integer when no other sep
         s = s.replace(".", "")
     try:
         return float(s)
@@ -789,7 +727,6 @@ def _strip_trailing_compact_metrics(text: str) -> str:
 
 
 def _clean_place(text: str) -> Optional[str]:
-    """Xóa artifact OCR ở đầu/cuối rồi fuzzy-correct tên địa danh."""
     if not text:
         return None
     text = _strip_trailing_compact_metrics(text)
@@ -803,7 +740,6 @@ def _clean_place(text: str) -> Optional[str]:
 
 
 def _parse_route(line: str) -> tuple[Optional[str], Optional[str]]:
-    """Tách điểm đi → điểm đến từ dòng có mũi tên/gạch."""
     line_clean = _route_text_before_metrics(line)
     parts = _ARROW_RE.split(line_clean)
     if len(parts) >= 2:
@@ -821,7 +757,6 @@ def _parse_route(line: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def _extract_unlabeled_trip_numbers(line: str) -> dict:
-    """Infer fuel/revenue/km from compact rows like: route 35l 1200000 84km."""
     text = _DATE_OCR_RE.sub(" ", line or "")
     text = _TIME_RE.sub(" ", text)
     token_re = re.compile(r"\b[\dOoIlLSsB]+(?:[\.,][\dOoIlLSsB]+)*(?:\s*(?:km|l|lit))?\b", re.IGNORECASE)
@@ -861,14 +796,12 @@ def _extract_unlabeled_trip_numbers(line: str) -> dict:
 
 
 def _extract_weight(line: str) -> Optional[float]:
-    """Tách trọng tải / khối lượng hàng (tấn/tạ/kg)."""
     m = _WEIGHT_RE.search(line)
     if not m:
         return None
     val = _parse_number(m.group(1))
     if val is None:
         return None
-    # Chuẩn hóa về tấn
     raw = m.group(0).lower()
     if "tạ" in raw:
         val = val / 10.0
@@ -878,13 +811,6 @@ def _extract_weight(line: str) -> Optional[float]:
 
 
 def _lines_to_trips(lines: list[str]) -> list[dict]:
-    """
-    Gom các dòng thành chuyến hàng.
-    Heuristic: dòng có ngày → bắt đầu chuyến mới.
-    Nhận diện: departure_time, return_time, origin, destination,
-               fuel_liters, freight_revenue,
-               weight_tons, trip_no.
-    """
     trips: list[dict] = []
     current: Optional[dict] = None
     year_hint = datetime.now().year
@@ -894,7 +820,6 @@ def _lines_to_trips(lines: list[str]) -> list[dict]:
             trips.append(dict(current))
 
     def _enrich(line: str, trip: dict, overwrite: bool = False):
-        """Trích xuất tất cả trường từ một dòng vào dict trip."""
         folded_line = _fold_text(line)
         origin, dest = _parse_route(line)
         if origin and (overwrite or not trip.get("origin")):
@@ -949,12 +874,11 @@ def _lines_to_trips(lines: list[str]) -> list[dict]:
             _enrich(line, current)
 
         elif current is not None:
-            # Kiểm tra dòng "ngày về / về ngày..."
             if _RETURN_KEYWORD_RE.search(line):
                 ret = _parse_date(line, year_hint)
                 if ret and not current.get("return_time"):
                     current["return_time"] = ret
-                    continue  # không parse trường khác từ dòng "về"
+                    continue
 
             _enrich(line, current)
 
@@ -1161,14 +1085,8 @@ def _lines_to_trip_candidates(lines: list[str] | list[dict]) -> list[dict]:
     return candidates
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
 
 def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
-    """
-    Nhận ảnh sổ ghi tay → list dict chuyến hàng.
-    Mỗi dict có thể chứa: departure_time, origin, destination,
-    fuel_liters, freight_revenue, note.
-    """
     lines = _ocr_lines(image_bytes)
     if not lines:
         return []
@@ -1178,12 +1096,6 @@ def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
 
 
 def extract_trips_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> list[dict]:
-    """
-    Nhận ảnh/PDF scan sổ ghi tay -> list dict chuyến hàng.
-
-    Use this for web uploads because iPhone can send a full-resolution camera
-    photo or a document-scanner PDF from Files.
-    """
     if _is_pdf(filename, content_type):
         lines = _ocr_pdf_lines(file_bytes)
         if not lines:
@@ -1195,9 +1107,6 @@ def extract_trips_from_document(file_bytes: bytes, filename: str = "", content_t
 
 
 def extract_trip_candidates_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> dict:
-    """
-    Return review-ready scan data: OCR lines, parsed candidates, confidence, warnings.
-    """
     if _is_pdf(filename, content_type):
         quality = _pdf_quality_summary(file_bytes)
         lines = _ocr_pdf_line_results(file_bytes)

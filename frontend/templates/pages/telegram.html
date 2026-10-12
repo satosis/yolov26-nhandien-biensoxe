@@ -18,7 +18,7 @@
       </button>
     </div>
 
-    <!-- Add Form -->
+
     <div x-show="showAdd" x-collapse class="border-bottom">
       <form class="card-body" method="POST" action="/admin/telegram">
         <div class="row">
@@ -44,9 +44,9 @@
       </form>
     </div>
 
-    <!-- Bots List -->
+
     <div class="card-body p-0">
-      <!-- Column headers -->
+
       <div class="d-flex align-items-center px-4 py-2 border-bottom" style="background:#f8f9fa;">
         <div style="width:200px;" class="text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Tên cấu hình</div>
         <div class="flex-grow-1 text-muted font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:1.5px;">Token</div>
@@ -57,7 +57,7 @@
       <div id="bots-list">
         {% for b in bots %}
         <div class="border-bottom">
-          <!-- Bot row -->
+
           <div class="d-flex align-items-center px-4 py-3" style="gap:12px;">
             <div style="width:200px;">
               <div class="d-flex align-items-center" style="gap:8px;">
@@ -108,7 +108,7 @@
             </div>
           </div>
 
-          <!-- Edit form -->
+
           <form id="edit-bot-form-{{ loop.index }}" method="POST" action="/admin/telegram"
                 class="px-4 pb-4 pt-2 border-top" style="display:none;background:#f8f9fa;">
             <input type="hidden" name="bot_name" value="{{ b.bot_name }}">

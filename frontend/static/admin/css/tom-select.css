@@ -1,17 +1,4 @@
-/**
- * tom-select.css (v2.4.1)
- * Copyright (c) contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
- * file except in compliance with the License. You may obtain a copy of the License at:
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software distributed under
- * the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
- * ANY KIND, either express or implied. See the License for the specific language
- * governing permissions and limitations under the License.
- *
- */
+
 .ts-control {
   border: 1px solid #d0d0d0;
   padding: 8px 8px;
@@ -208,7 +195,7 @@
   margin-left: 0.5rem;
 }
 
-/* stylelint-disable function-name-case */
+
 .plugin-clear_button {
   --ts-pr-clear-button: 1em;
 }
@@ -409,4 +396,3 @@
   width: 1px !important;
   white-space: nowrap !important;
 }
-/*# sourceMappingURL=tom-select.css.map */

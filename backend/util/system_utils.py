@@ -1,56 +1,25 @@
 import os
-import shutil
 import logging
-
-try:
-    import psutil
-    _HAS_PSUTIL = True
-except ImportError:
-    _HAS_PSUTIL = False
+import psutil
 
 logger = logging.getLogger(__name__)
 
-# Disk root differs by OS: '/' on POSIX, the system drive on Windows.
 _DISK_ROOT = "C:\\" if os.name == "nt" else "/"
 
 def get_system_stats():
-    """
-    Returns a dictionary of system resource usage.
-    """
-    stats = {
-        "cpu_percent": 0.0,
-        "memory_percent": 0.0,
-        "disk_percent": 0.0,
-        "load_avg": [0.0, 0.0, 0.0]
+    return {
+        "cpu_percent": psutil.cpu_percent(interval=None),
+        "memory_percent": psutil.virtual_memory().percent,
+        "disk_percent": psutil.disk_usage(_DISK_ROOT).percent,
+        "load_avg": list(os.getloadavg()),
     }
 
-    if _HAS_PSUTIL:
-        try:
-            stats["cpu_percent"] = psutil.cpu_percent(interval=None)
-            stats["memory_percent"] = psutil.virtual_memory().percent
-            usage = psutil.disk_usage(_DISK_ROOT)
-            stats["disk_percent"] = usage.percent
-            if hasattr(os, 'getloadavg'):
-                stats["load_avg"] = list(os.getloadavg())
-        except Exception as e:
-            logger.debug(f"Error getting psutil stats: {e}")
-    else:
-        # Fallback for basic disk usage
-        try:
-            total, used, free = shutil.disk_usage(_DISK_ROOT)
-            stats["disk_percent"] = (used / total) * 100
-            if hasattr(os, 'getloadavg'):
-                stats["load_avg"] = list(os.getloadavg())
-        except Exception:
-            pass
-            
-    return stats
-
 def log_system_health():
-    """
-    Logs current system health status.
-    """
-    stats = get_system_stats()
+    try:
+        stats = get_system_stats()
+    except (OSError, psutil.Error) as exc:
+        logger.warning("System health unavailable: %s", exc)
+        return
     logger.info(
         f"System Health: CPU {stats['cpu_percent']}% | "
         f"MEM {stats['memory_percent']}% | "
@@ -58,6 +27,5 @@ def log_system_health():
         f"LOAD {stats['load_avg']}"
     )
     
-    # Alert if disk is critically low
     if stats['disk_percent'] > 90:
         logger.warning(f"CRITICAL: Disk usage is over 90% ({stats['disk_percent']:.1f}%)")

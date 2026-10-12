@@ -1,9 +1,7 @@
 import os
 
-# Project root: three levels up from backend/core/config.py
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Model paths
 PLATE_MODEL_PATH = os.environ.get(
     "PLATE_MODEL_PATH",
     os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door_int8.onnx"),
@@ -21,7 +19,6 @@ for d in [KNOWN_FACES_DIR, DATA_DIR, LOG_DIR, SNAPSHOT_DIR, RECORDING_DIR]:
 
 
 def setup_logging(log_filename: str = "app.log", level: int = None):
-    """Configure root logger to output to both console and data/logs/<log_filename>."""
     import logging
     from logging.handlers import RotatingFileHandler
 
@@ -61,7 +58,6 @@ def setup_logging(log_filename: str = "app.log", level: int = None):
         stream_handler.setLevel(level)
         root_logger.addHandler(stream_handler)
 
-# Recognition settings
 FRAME_BUFFER_SIZE = 5
 VOTE_MIN_CONF = 0.70
 FACE_RECOG_EVERY_N = 10
@@ -76,12 +72,8 @@ SMART_RECORD_POST_SEC = 10
 SMART_RECORD_TAIL_SEC = 10
 SMART_RECORD_MAX_SEC = 300
 SMART_RECORD_RETENTION_DAYS = 15
-# Data retention window (days) for RetentionManager — recordings, stranger logs,
-# camera health logs older than this are purged (legal_hold rows are kept).
-# Overridable at runtime via app_settings key DATA_RETENTION_DAYS.
 DATA_RETENTION_DAYS = 30
 
-# Shared memory / streaming settings
 GRAB_WIDTH = 1280
 GRAB_HEIGHT = 720
 GRAB_FPS_CAP = 20
@@ -89,13 +81,11 @@ SHM_FRAME_BYTES = GRAB_WIDTH * GRAB_HEIGHT * 3
 RTSP_BUFFER_SIZE = 1
 RTSP_RECONNECT_DELAY = 5
 
-# Motion settings
 ROI_POLYGON_NORM = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 MOTION_THRESHOLD = 1500
 MOTION_BLUR_KSIZE = 5
 MOTION_DILATE_ITER = 2
 
-# Denoise settings
 DENOISE_TEMPORAL_ALPHA = 1.0
 DENOISE_SPATIAL_KSIZE = 0
 STREAM_JPEG_QUALITY_LIVE = 88
@@ -108,11 +98,7 @@ def normalize_plate(plate: str) -> str:
 
 
 def trigger_ai_reload():
-    """Touch the .reload signal file to force AI processes to refresh their caches."""
     import time
     rt = os.path.join(KNOWN_FACES_DIR, ".reload")
-    try:
-        with open(rt, "w") as f:
-            f.write(str(time.time()))
-    except Exception:
-        pass
+    with open(rt, "w") as f:
+        f.write(str(time.time()))

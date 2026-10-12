@@ -1,11 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Active Navigation Link ---
-    // NOTE: active state is rendered server-side (Jinja2) using clean URLs,
-    // so the legacy client-side .html path matching is disabled here.
 
-    // --- Sticky Header ---
+
+
+
+
     const header = document.getElementById('header');
-    
+
     window.addEventListener('scroll', () => {
         if (window.scrollY > 50) {
             header.classList.add('scrolled');
@@ -14,10 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Mobile Menu Toggle ---
+
     const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
     const mainNav = document.querySelector('.main-nav');
-    
+
     if (mobileMenuToggle && mainNav) {
         mobileMenuToggle.addEventListener('click', () => {
             const isOpen = mainNav.classList.toggle('is-open');
@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 mobileMenuToggle.setAttribute('aria-expanded', 'false');
             });
         });
-        
-        // Reset mobile menu on resize
+
+
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 992) {
                 mainNav.classList.remove('is-open');
@@ -40,28 +40,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Tabs Functionality (for Projects page) ---
+
     const tabBtns = document.querySelectorAll('.tab-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
 
     if (tabBtns.length > 0 && tabPanes.length > 0) {
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-                // Remove active class from all buttons and panes
+
                 tabBtns.forEach(b => b.classList.remove('active'));
                 tabPanes.forEach(p => p.classList.remove('active'));
 
-                // Add active class to clicked button
+
                 btn.classList.add('active');
 
-                // Add active class to corresponding pane
+
                 const targetTab = btn.getAttribute('data-tab');
                 document.getElementById(targetTab).classList.add('active');
             });
         });
     }
 
-    // --- Lightbox Functionality ---
+
     const lightbox = document.getElementById('lightbox');
     const lightboxImg = document.getElementById('lightbox-img');
     const lightboxClose = document.getElementById('lightbox-close');
@@ -72,29 +72,29 @@ document.addEventListener('DOMContentLoaded', () => {
             trigger.addEventListener('click', function() {
                 lightbox.classList.add('active');
                 lightboxImg.src = this.src;
-                document.body.style.overflow = 'hidden'; // Prevent background scrolling
+                document.body.style.overflow = 'hidden';
             });
         });
 
-        // Close lightbox
+
         const closeLightbox = () => {
             lightbox.classList.remove('active');
             setTimeout(() => {
-                lightboxImg.src = ''; // Clear image source after animation
-                document.body.style.overflow = ''; // Restore scrolling
-            }, 300); // Wait for transition
+                lightboxImg.src = '';
+                document.body.style.overflow = '';
+            }, 300);
         };
 
         lightboxClose.addEventListener('click', closeLightbox);
-        
-        // Close on background click
+
+
         lightbox.addEventListener('click', (e) => {
             if (e.target === lightbox) {
                 closeLightbox();
             }
         });
 
-        // Close on Escape key
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && lightbox.classList.contains('active')) {
                 closeLightbox();
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Warehouse Gallery Slider ---
+
     const warehouseGallery = document.getElementById('warehouse-gallery');
     const warehouseSlides = document.querySelectorAll('.warehouse-slide');
     const warehouseDots = document.querySelectorAll('.warehouse-dot');
@@ -164,13 +164,13 @@ document.addEventListener('DOMContentLoaded', () => {
         startGalleryTimer();
     }
 
-    // --- Premium Projects Slider ---
+
     const projectsSlider = document.getElementById('projects-slider');
     const sliderPrev = document.getElementById('slider-prev');
     const sliderNext = document.getElementById('slider-next');
 
     if (projectsSlider && sliderPrev && sliderNext) {
-        // Data injected server-side from DB via window.__projects__ (fallback to []).
+
         const projectsData = (Array.isArray(window.__projects__) && window.__projects__.length)
             ? window.__projects__
             : [];

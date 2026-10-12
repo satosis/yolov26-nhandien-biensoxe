@@ -18,34 +18,21 @@ logger = logging.getLogger("network_utils")
 WS_DISCOVERY_MCAST_ADDR = "239.255.255.250"
 WS_DISCOVERY_PORT = 3702
 
-# ─── MAC OUI → Camera Vendor (offline lookup, ~50 entries) ──────────────────
 _CAMERA_OUI_MAP = {
-    # Dahua / Imou
     'e0:50:8b': 'Dahua/Imou', 'bc:ad:28': 'Dahua/Imou', 'a4:02:b9': 'Dahua/Imou',
     '4c:11:bf': 'Dahua/Imou', 'c4:64:13': 'Dahua/Imou', '6c:21:a2': 'Dahua/Imou',
     '90:02:a9': 'Dahua/Imou', '3c:ef:8c': 'Dahua/Imou', '30:24:50': 'Dahua/Imou',
-    # Hikvision
     '44:19:b6': 'Hikvision', 'b4:a3:82': 'Hikvision', 'c0:56:e3': 'Hikvision',
     'bc:6e:76': 'Hikvision', '54:c4:15': 'Hikvision',
-    # Axis
     'ac:cc:8e': 'Axis', 'b8:a4:4f': 'Axis', '00:40:8c': 'Axis',
-    # TP-Link / Tapo / Vigi
     '50:c7:bf': 'TP-Link', '6c:5a:b0': 'TP-Link', 'b0:be:76': 'TP-Link',
-    # Uniview
     '9c:4e:36': 'Uniview',
-    # Reolink
     'ec:71:db': 'Reolink',
-    # Hanwha / Samsung
     '00:09:18': 'Hanwha',
-    # Bosch
     '00:07:5f': 'Bosch',
 }
 
-# ─── ONVIF Scope Parsers ─────────────────────────────────────────────
 def _parse_scopes(scope_text: str) -> dict:
-    """Parse ONVIF scope URIs into structured data.
-    Scopes look like: onvif://www.onvif.org/name/MyCamera onvif://www.onvif.org/hardware/IPC-xxx
-    """
     info = {}
     if not scope_text:
         return info
@@ -74,13 +61,10 @@ def _parse_scopes(scope_text: str) -> dict:
     return info
 
 
-# ─── Local Network Helpers ──────────────────────────────────
 def _get_local_broadcast_addresses() -> List[str]:
-    """Get broadcast addresses for all local network interfaces."""
     import subprocess
     addrs = []
     try:
-        # Works on Linux and macOS
         output = subprocess.check_output(['ip', '-4', 'addr'], timeout=3, stderr=subprocess.DEVNULL).decode()
         for line in output.split('\n'):
             if 'brd' in line and 'inet' in line:
@@ -90,7 +74,6 @@ def _get_local_broadcast_addresses() -> List[str]:
                         addrs.append(parts[i + 1])
     except Exception:
         try:
-            # macOS fallback
             output = subprocess.check_output(['ifconfig'], timeout=3, stderr=subprocess.DEVNULL).decode()
             for line in output.split('\n'):
                 if 'broadcast' in line:
@@ -103,18 +86,11 @@ def _get_local_broadcast_addresses() -> List[str]:
     return addrs
 
 
-# ─── Dahua / Imou Discovery ──────────────────────────────────
 def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
-    """
-    Discover Dahua/Imou devices using their proprietary UDP protocol (Port 37810).
-    This is extremely reliable for getting the Serial Number (deviceId).
-    Sends broadcasts on all local subnets for multi-network coverage.
-    """
     import json
     devices = []
     DAHUA_DISCOVERY_PORT = 37810
 
-    # Modern Dahua JSON-based discovery probe
     probe = {
         "method": "client.index",
         "params": {"index": 1},
@@ -123,10 +99,8 @@ def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
     }
     probe_str = json.dumps(probe)
 
-    # Get all local broadcast addresses for multi-subnet coverage
     broadcast_addrs = _get_local_broadcast_addresses()
     broadcast_addrs.extend(['255.255.255.255', '<broadcast>'])
-    # Deduplicate
     broadcast_addrs = list(dict.fromkeys(broadcast_addrs))
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -174,7 +148,6 @@ def discover_dahua_cameras(timeout=5.0) -> List[Dict]:
     return devices
 
 def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) -> bool:
-    """Check if any of the target ports are open on the given IP. Higher timeout for Wi-Fi."""
     for port in ports:
         try:
             with socket.create_connection((ip, port), timeout=timeout):
@@ -185,7 +158,6 @@ def probe_ip(ip: str, ports=[80, 554, 8000, 37810, 37777, 8080], timeout=1.5) ->
 
 
 def _get_local_ips() -> List[str]:
-    """Get local non-loopback IPv4 addresses for multi-interface multicast."""
     import subprocess
     ips = []
     try:
@@ -219,16 +191,9 @@ def _get_local_ips() -> List[str]:
 
 
 def discover_onvif_cameras(timeout=6):
-    """
-    Scan local network for ONVIF-compatible cameras using WS-Discovery.
-    Sends multicast probes on ALL local interfaces for multi-subnet coverage.
-    Returns a list of dicts with rich info:
-    [{'ip': '...', 'urn': '...', 'xaddrs': '...', 'scopes': {...}, 'types': '...'}]
-    """
     cameras = []
     seen_ips = set()
 
-    # Create a fresh probe with unique UUID each time
     probe_xml = (
         '<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope" '
         'xmlns:dn="http://www.onvif.org/ver10/network/wsdl">'
@@ -250,15 +215,12 @@ def discover_onvif_cameras(timeout=6):
     probe_data = probe_xml.encode()
     local_ips = _get_local_ips()
 
-    # Send probe 3 times on each interface for reliability
     for _ in range(3):
-        # Default send (OS picks interface)
         try:
             sock.sendto(probe_data, (WS_DISCOVERY_MCAST_ADDR, WS_DISCOVERY_PORT))
         except Exception as e:
             logger.debug(f"ONVIF Discovery: Default send failed: {e}")
 
-        # Send on each local interface via IP_MULTICAST_IF
         for local_ip in local_ips:
             try:
                 sock.setsockopt(
@@ -297,11 +259,6 @@ def discover_onvif_cameras(timeout=6):
 
 
 def probe_onvif_unicast(ip: str, port: int = 80) -> dict | None:
-    """
-    Send a WS-Discovery Probe directly to a specific IP via UDP unicast.
-    Useful for cameras that don't respond to multicast (firewall, VLAN, firmware bug).
-    Returns parsed ProbeMatch dict or None.
-    """
     probe_xml = (
         '<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope" '
         'xmlns:dn="http://www.onvif.org/ver10/network/wsdl">'
@@ -335,46 +292,36 @@ def probe_onvif_unicast(ip: str, port: int = 80) -> dict | None:
 
 
 def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
-    """Parse a WS-Discovery ProbeMatch XML response into structured data."""
     try:
-        # Remove BOM if present
         xml_str = xml_str.lstrip('\ufeff')
         root = ET.fromstring(xml_str)
         
-        # Namespace map for ONVIF WS-Discovery responses
         ns = {
             's': 'http://www.w3.org/2003/05/soap-envelope',
             'd': 'http://schemas.xmlsoap.org/ws/2005/04/discovery',
             'a': 'http://schemas.xmlsoap.org/ws/2004/08/addressing',
-            # Some devices use 2004 discovery ns
             'd04': 'http://schemas.xmlsoap.org/ws/2004/08/discovery',
         }
         
-        # Try both 2005 and 2004 discovery namespaces
         probe_match = root.find('.//d:ProbeMatch', ns) or root.find('.//d04:ProbeMatch', ns)
         if probe_match is None:
-            # Fallback: regex extraction
             return _parse_probe_match_regex(xml_str, fallback_ip)
         
-        # Extract EndpointReference (URN)
         urn = ""
         epr = probe_match.find('.//a:EndpointReference/a:Address', ns)
         if epr is not None and epr.text:
             urn = epr.text.strip()
         
-        # Extract URN from Address (uuid part)
         urn_id = ""
         urn_match = re.search(r'uuid:([a-zA-Z0-9\-]+)', urn)
         if urn_match:
             urn_id = urn_match.group(1)
         
-        # Extract XAddrs (ONVIF service URL)
         xaddrs_text = ""
         xaddrs_el = probe_match.find('d:XAddrs', ns) or probe_match.find('d04:XAddrs', ns)
         if xaddrs_el is not None and xaddrs_el.text:
             xaddrs_text = xaddrs_el.text.strip()
         
-        # Extract IP from XAddrs if possible
         ip = fallback_ip
         onvif_port = 80
         if xaddrs_text:
@@ -388,7 +335,6 @@ def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
                 except Exception:
                     pass
 
-        # Extract Scopes
         scopes_text = ""
         scopes_el = probe_match.find('d:Scopes', ns) or probe_match.find('d04:Scopes', ns)
         if scopes_el is not None and scopes_el.text:
@@ -396,16 +342,13 @@ def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
         
         scopes = _parse_scopes(scopes_text)
         
-        # Extract Types
         types_text = ""
         types_el = probe_match.find('d:Types', ns) or probe_match.find('d04:Types', ns)
         if types_el is not None and types_el.text:
             types_text = types_el.text.strip()
         
-        # Determine manufacturer from scopes or heuristics
         manufacturer = scopes.get('manufacturer', '')
         if not manufacturer:
-            # Try to guess from XAddrs or scope content
             combined = (xaddrs_text + scopes_text + urn).lower()
             if 'dahua' in combined or 'imou' in combined:
                 manufacturer = 'Dahua/Imou'
@@ -447,11 +390,9 @@ def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
 
 
 def _parse_probe_match_regex(xml_str: str, fallback_ip: str) -> dict | None:
-    """Fallback regex-based parser for malformed XML responses."""
     urn_match = re.search(r'uuid:([a-zA-Z0-9\-]+)', xml_str)
     urn = urn_match.group(1) if urn_match else ""
     
-    # Try to find XAddrs
     xaddrs_match = re.search(r'<[^>]*XAddrs[^>]*>(.*?)</[^>]*XAddrs>', xml_str, re.DOTALL)
     xaddrs = xaddrs_match.group(1).strip() if xaddrs_match else ""
     
@@ -466,7 +407,6 @@ def _parse_probe_match_regex(xml_str: str, fallback_ip: str) -> dict | None:
         except Exception:
             pass
     
-    # Extract scopes
     scopes_match = re.search(r'<[^>]*Scopes[^>]*>(.*?)</[^>]*Scopes>', xml_str, re.DOTALL)
     scopes_text = scopes_match.group(1).strip() if scopes_match else ""
     scopes = _parse_scopes(scopes_text)
@@ -491,16 +431,6 @@ def _parse_probe_match_regex(xml_str: str, fallback_ip: str) -> dict | None:
 
 def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
                         password: str = '', timeout: int = 6) -> dict | None:
-    """
-    Connect to an ONVIF camera and retrieve device info + media profiles + RTSP URLs.
-    Combines GetDeviceInformation, GetProfiles, and GetStreamUri in a single SOAP session
-    to minimize WSDL parsing overhead (important for ARM/Orange Pi).
-
-    Returns dict with:
-        manufacturer, model, firmware, serial, hardware,
-        rtsp_main (first profile), rtsp_sub (second profile if exists),
-        onvif_profiles (list of profile dicts), has_ptz (bool)
-    """
     try:
         from onvif import ONVIFCamera
         from zeep.transports import Transport
@@ -513,7 +443,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
         cam = ONVIFCamera(ip, port, username, password,
                           no_cache=True, transport=transport)
 
-        # --- Device Information ---
         device_service = cam.create_devicemgmt_service()
         info = device_service.GetDeviceInformation()
         result = {
@@ -528,7 +457,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
             'has_ptz': False,
         }
 
-        # --- Media Profiles + Stream URIs ---
         try:
             media_service = cam.create_media_service()
             profiles = media_service.GetProfiles()
@@ -537,7 +465,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
                 token = profile.token
                 name = getattr(profile, 'Name', token)
 
-                # Extract resolution from VideoEncoderConfiguration
                 width, height, encoding = 0, 0, ''
                 vec = getattr(profile, 'VideoEncoderConfiguration', None)
                 if vec:
@@ -547,7 +474,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
                         width = getattr(res, 'Width', 0)
                         height = getattr(res, 'Height', 0)
 
-                # Get RTSP stream URI
                 rtsp_url = ''
                 try:
                     stream_setup = media_service.create_type('GetStreamUri')
@@ -559,7 +485,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
                     uri_resp = media_service.GetStreamUri(stream_setup)
                     rtsp_url = getattr(uri_resp, 'Uri', '') or ''
 
-                    # Normalize: inject credentials if URL lacks auth
                     if rtsp_url and username:
                         parsed = urlparse(rtsp_url)
                         if not parsed.username:
@@ -592,7 +517,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
         except Exception as e:
             logger.debug(f"Media service probe failed for {ip}:{port}: {e}")
 
-        # --- PTZ Detection ---
         try:
             ptz_service = cam.create_ptz_service()
             ptz_service.GetConfigurations()
@@ -610,10 +534,6 @@ def get_onvif_full_info(ip: str, port: int = 80, username: str = 'admin',
 
 
 def check_rtsp_quick(rtsp_url: str, timeout: float = 2.0) -> tuple[bool, str]:
-    """
-    Fast pre-flight check of RTSP stream URL (under 1-2s).
-    Returns (True, "OK") or (False, error_message).
-    """
     import urllib.parse
     import hashlib
 
@@ -681,17 +601,6 @@ def check_rtsp_quick(rtsp_url: str, timeout: float = 2.0) -> tuple[bool, str]:
 
 def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
                         onvif_username: str = 'admin', onvif_password: str = '') -> list[dict]:
-    """
-    ONVIF-only discovery. Returns list of discovered cameras with:
-    - ip, onvif_port, manufacturer, model, firmware, serial
-    - is_online (verified by TCP port check)
-    - xaddrs, scopes, urn
-    - rtsp_url_onvif, rtsp_sub_onvif, onvif_profiles, has_ptz (when probe_details=True)
-
-    If probe_details=True, attempts to get full ONVIF info including RTSP stream URIs.
-    Uses ThreadPoolExecutor(max_workers=4) for concurrent probes on ARM.
-    """
-    # Step 1: WS-Discovery multicast scan
     raw_cameras = discover_onvif_cameras(timeout=timeout)
 
     results = []
@@ -701,7 +610,6 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
         ip = cam['ip']
         onvif_port = cam.get('onvif_port', 80)
 
-        # Step 2: Verify camera is reachable (TCP port check)
         is_online = probe_ip(ip, ports=[onvif_port, 554, 80, 8080], timeout=1.0)
 
         entry = {
@@ -718,7 +626,6 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
             'is_online': is_online,
             'source': 'onvif',
             'type': _guess_provider_type(cam.get('manufacturer', ''), cam.get('model', '')),
-            # ONVIF stream fields (populated by full probe)
             'rtsp_url_onvif': '',
             'rtsp_sub_onvif': '',
             'onvif_profiles': [],
@@ -729,7 +636,6 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
         if probe_details and is_online:
             online_entries.append(entry)
 
-    # Step 3: Concurrent ONVIF full-info probes (ThreadPoolExecutor, 4 workers for ARM)
     if online_entries and onvif_password:
         def _probe_full(entry):
             try:
@@ -759,14 +665,12 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             futures = {executor.submit(_probe_full, entry): entry for entry in online_entries}
-            # Overall timeout: 10s for all probes
             done, not_done = concurrent.futures.wait(futures, timeout=10)
             for f in not_done:
                 f.cancel()
                 ip = futures[f]['ip']
                 logger.warning(f"ONVIF full probe timed out for {ip}")
 
-    # Build display names for entries that still lack one
     for entry in results:
         if not entry['name']:
             parts = [entry['manufacturer'], entry['model']]
@@ -777,7 +681,6 @@ def discover_onvif_only(timeout: int = 5, probe_details: bool = True,
 
 
 def _guess_provider_type(manufacturer: str, model: str) -> str:
-    """Guess the provider_key from manufacturer/model strings."""
     combined = f"{manufacturer} {model}".lower()
     if any(k in combined for k in ['dahua', 'imou', 'lechange']):
         return 'imou'
@@ -796,9 +699,7 @@ def _guess_provider_type(manufacturer: str, model: str) -> str:
     return 'onvif'
 
 
-# ─── ARP-Based Zero-Cost Discovery ────────────────────────────────────────
 def lookup_mac_vendor(mac: str) -> str:
-    """Return vendor name for a MAC address using offline OUI table."""
     if not mac:
         return ''
     prefix = mac.lower().replace('-', ':')[:8]
@@ -806,13 +707,7 @@ def lookup_mac_vendor(mac: str) -> str:
 
 
 def read_arp_table() -> List[Dict]:
-    """
-    Read the kernel ARP cache from /proc/net/arp (Linux) or arp -a (macOS).
-    Zero cost: no network packets, no root required, works inside Docker.
-    Returns list of {'ip': str, 'mac': str, 'iface': str}.
-    """
     entries = []
-    # Try Linux /proc/net/arp first
     try:
         with open('/proc/net/arp', 'r') as f:
             lines = f.readlines()[1:]
@@ -825,14 +720,12 @@ def read_arp_table() -> List[Dict]:
         return entries
     except FileNotFoundError:
         pass
-    # Fallback: macOS `arp -a`
     try:
         import subprocess
         output = subprocess.check_output(['arp', '-a'], timeout=3, stderr=subprocess.DEVNULL).decode()
         for line in output.split('\n'):
             if '(incomplete)' in line:
                 continue
-            # Format: ? (ip) at mac on iface [ifscope] [ethernet]
             m = re.match(r'.*?\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([\da-fA-F:]+)\s+on\s+(\w+)', line)
             if m:
                 ip, mac, iface = m.group(1), m.group(2).lower(), m.group(3)
@@ -844,13 +737,6 @@ def read_arp_table() -> List[Dict]:
 
 
 def discover_from_arp(camera_ports: List[int] = None) -> List[Dict]:
-    """
-    ARP-based camera discovery pipeline:
-    1. Read kernel ARP table (free, instant)
-    2. Filter by MAC OUI for known camera vendors
-    3. TCP port check for unknown MACs
-    Returns camera candidates with ip, mac, vendor, is_online.
-    """
     if camera_ports is None:
         camera_ports = [80, 554, 8000, 37777, 37810]
 
@@ -867,7 +753,6 @@ def discover_from_arp(camera_ports: List[int] = None) -> List[Dict]:
                 'ip': ip, 'mac': mac, 'vendor': vendor,
                 'is_online': True, 'source': 'arp_oui',
             })
-    # Port-check unknown MACs in parallel (only if few candidates from OUI)
     unknown_entries = [e for e in arp_entries if not lookup_mac_vendor(e['mac'])]
     if unknown_entries:
         def _check(entry):
@@ -886,36 +771,22 @@ def discover_from_arp(camera_ports: List[int] = None) -> List[Dict]:
     return candidates
 
 
-# ─── Auto-Registration ────────────────────────────────────────────────────
 def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
-    """
-    Auto-register newly discovered cameras into the DB.
-    Only active when app_setting AUTO_REGISTER_NEW_CAMERAS = 'true'.
-    Also updates IP/RTSP for existing cameras that changed.
-    Returns {'registered': int, 'updated': int, 'skipped': int}.
-    """
     auto_enabled = (get_app_setting(db, 'AUTO_REGISTER_NEW_CAMERAS', 'false') or 'false').lower() == 'true'
     stats = {'registered': 0, 'updated': 0, 'skipped': 0}
 
     all_cams = db._execute_query(
         "SELECT id, camera_ip, imou_device_id, onvif_rtsp_detected FROM cameras",
         fetchall=True
-    ) or []
+    )
 
-    # O(1) lookup dicts instead of O(N) per device
     ip_to_cam = {c['camera_ip']: c for c in all_cams if c.get('camera_ip')}
     serial_to_cam = {c['imou_device_id'].strip().upper(): c for c in all_cams if c.get('imou_device_id')}
 
-    # Auto-assign site if only 1 active site exists
-    auto_site_ids = None
-    try:
-        sites = db._execute_query(
-            "SELECT id FROM sites WHERE is_active = TRUE", fetchall=True
-        ) or []
-        if len(sites) == 1:
-            auto_site_ids = [sites[0]['id']]
-    except Exception:
-        pass
+    sites = db._execute_query(
+        "SELECT id FROM sites WHERE is_active = TRUE", fetchall=True
+    )
+    auto_site_ids = [sites[0]['id']] if len(sites) == 1 else None
 
     for dev in discovered:
         ip = dev.get('ip')
@@ -925,11 +796,9 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
         vendor = dev.get('vendor') or dev.get('manufacturer', 'Unknown')
         model = dev.get('model', '')
 
-        # Match to existing camera by IP or serial — O(1)
         matched = ip_to_cam.get(ip) or (serial_to_cam.get(serial) if serial else None)
 
         if matched:
-            # Update IP and RTSP if changed
             needs_update = False
             if ip and matched.get('camera_ip') != ip:
                 db._execute_query(
@@ -943,7 +812,6 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
                 needs_update = True
             stats['updated' if needs_update else 'skipped'] += 1
         elif auto_enabled:
-            # New camera — auto-register
             mk = get_app_setting(db, 'IMOU_MK', '') or ''
             cam_type = _guess_provider_type(vendor, model)
             name = f"{vendor} {model}".strip() or f"Camera @ {ip}"
@@ -977,7 +845,6 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
         else:
             stats['skipped'] += 1
 
-        # Always cache in asset table
         if mac or serial:
             try:
                 cam_svc.upsert_camera_asset(
@@ -993,18 +860,12 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
     return stats
 
 def discover_and_update_all_cameras():
-    """
-    Combine ONVIF (local) scan and Imou Cloud (AppID/Secret) scan to find camera IPs.
-    ONVIF is the PRIMARY source for IP and status.
-    Returns a dict with summary results.
-    """
     from backend.services.database import DatabaseManager
     from backend.util.imou_api import ImouClient
     db = DatabaseManager()
     
     results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'error': None, 'new_devices': [], 'updated_cameras': []}
     
-    # 1. Get all cameras from DB
     all_cams = db._execute_query("SELECT id, camera_name, imou_device_id, camera_ip FROM cameras", fetchall=True)
     results['total'] = len(all_cams)
     
@@ -1014,23 +875,18 @@ def discover_and_update_all_cameras():
     
     seen_ids = set()
     seen_ips = set(existing_ips)
-    found_ips = {}  # device_id -> ip
+    found_ips = {}
     
-    # 1. LOCAL DISCOVERY (Dahua UDP + ONVIF)
     logger.info("Starting local discovery (Dahua UDP + ONVIF)...")
     
-    # METHOD A: Dahua Proprietary Discovery (Primary for Imou)
     dahua_found = discover_dahua_cameras(timeout=5.0)
     logger.info(f"Dahua UDP scan found {len(dahua_found)} device(s).")
     results['found_local'] += len(dahua_found)
     for dev in dahua_found:
         found_ips[dev['serial'].lower()] = dev['ip']
 
-    # Get global camera password (used for credential resolution)
     imou_mk = get_app_setting(db, "IMOU_MK", "")
 
-    # METHOD B: ONVIF Discovery (Standard) with full RTSP detection
-    # Resolve ONVIF credentials: ONVIF_USERNAME/PASSWORD → IMOU_MK → admin/""
     onvif_user = get_app_setting(db, "ONVIF_USERNAME", "") or "admin"
     onvif_pass = get_app_setting(db, "ONVIF_PASSWORD", "") or imou_mk or ""
     has_onvif_creds = bool(onvif_pass)
@@ -1045,7 +901,6 @@ def discover_and_update_all_cameras():
     logger.info(f"ONVIF scan found {len(local_found)} device(s).")
     results['found_local'] += len(local_found)
 
-    # Phase 2.1: Probe serial for Dahua/Imou cameras that weren't fully probed (CONCURRENT)
     if imou_mk:
         dahua_to_probe = [
             dev for dev in local_found
@@ -1083,14 +938,12 @@ def discover_and_update_all_cameras():
                 futures = {executor.submit(_probe_dahua_serial, dev): dev for dev in dahua_to_probe}
                 concurrent.futures.wait(futures, timeout=12)
 
-    # Phase 2.3: Unicast ONVIF probe for Dahua IPs not found by multicast
     onvif_ips = {dev['ip'] for dev in local_found}
     for dev in dahua_found:
         if dev['ip'] not in onvif_ips:
             unicast_result = probe_onvif_unicast(dev['ip'])
             if unicast_result:
                 unicast_result['source'] = 'onvif'
-                # Merge basic fields + add ONVIF stream fields
                 entry = {
                     'id': dev.get('serial', '').lower() or unicast_result.get('urn', ''),
                     'ip': dev['ip'],
@@ -1115,8 +968,7 @@ def discover_and_update_all_cameras():
                 onvif_ips.add(dev['ip'])
                 logger.info(f"  Unicast ONVIF probe: found {dev['ip']}")
 
-    # Merge ONVIF into found_ips if not already there
-    onvif_ip_map = {} # serial/id -> ip
+    onvif_ip_map = {}
     for dev in local_found:
         ip = dev['ip']
         dev_id = (dev.get('id') or dev.get('serial') or '').lower()
@@ -1125,7 +977,6 @@ def discover_and_update_all_cameras():
             if dev_id not in found_ips:
                 found_ips[dev_id] = ip
     
-    # --- METHOD B: IMOU CLOUD API SYNC (SECONDARY) ---
     imou_keys = cam_svc.get_imou_api_keys(db)
     cloud_new_devices = []
     if imou_keys.get('app_id') and imou_keys.get('app_secret'):
@@ -1135,8 +986,6 @@ def discover_and_update_all_cameras():
             cloud_devices = client.list_devices()
             logger.info(f"Cloud API found {len(cloud_devices)} device(s).")
 
-            # Build combined IP map from BOTH Dahua UDP and ONVIF (Phase 1.2 fix)
-            # Do NOT re-assign — use combined_ip_map built from all sources
             combined_ip_map = {}
             for dev in dahua_found:
                 if dev.get('serial'):
@@ -1153,7 +1002,6 @@ def discover_and_update_all_cameras():
                 if did_raw:
                     did = did_raw.strip().lower()
 
-                    # Phase 2.2: Normalized serial matching (exact uppercase compare)
                     if (not lip or lip == "0.0.0.0"):
                         for local_id, local_ip in combined_ip_map.items():
                             if did.upper() == local_id.upper():
@@ -1167,7 +1015,6 @@ def discover_and_update_all_cameras():
                         if lip and lip != "0.0.0.0" and did not in found_ips:
                             found_ips[did] = lip
                     else:
-                        # New device from cloud
                         status_keys = ['status', 'deviceOnline', 'online', 'deviceStatus', 'state']
                         raw_status = next((dev.get(k) for k in status_keys if dev.get(k) is not None), None)
                         
@@ -1194,26 +1041,20 @@ def discover_and_update_all_cameras():
     else:
         logger.warning("Imou Cloud API keys NOT configured. Skipping cloud sync.")
     
-    # --- ARP IP RESOLUTION for cloud devices without IP ---
-    # Cloud API often doesn't return local IP. Use ARP + Dahua UDP + port scan to find it.
     cloud_no_ip = [d for d in cloud_new_devices if not d.get('ip')]
     if cloud_no_ip:
         logger.info(f"Resolving IP for {len(cloud_no_ip)} cloud device(s) via ARP + port scan...")
         arp_candidates = discover_from_arp()
-        # Also include Dahua UDP results (already have serial→IP mapping)
         arp_ips_with_camera_ports = {c['ip'] for c in arp_candidates if c.get('is_online')}
 
-        # For each cloud device without IP, try to match via Dahua UDP serial
         for dev in cloud_no_ip:
             did = dev['id'].upper()
-            # 1. Check Dahua UDP found_ips (serial match)
             matched_ip = found_ips.get(dev['id'])
             if matched_ip:
                 dev['ip'] = matched_ip
                 logger.info(f"  [ARP→CLOUD] Resolved {did} → {matched_ip} via Dahua serial")
                 continue
 
-            # 2. Probe ARP candidates with ONVIF to find serial match
             if imou_mk:
                 for arp_ip in list(arp_ips_with_camera_ports):
                     if arp_ip in seen_ips or arp_ip in [d.get('ip') for d in cloud_new_devices if d.get('ip')]:
@@ -1222,7 +1063,6 @@ def discover_and_update_all_cameras():
                         full = get_onvif_full_info(arp_ip, 80, 'admin', imou_mk, timeout=4)
                         if full and full.get('serial', '').upper() == did:
                             dev['ip'] = arp_ip
-                            # Also capture RTSP URL
                             if full.get('rtsp_main'):
                                 dev['rtsp_url_onvif'] = full['rtsp_main']
                             if full.get('rtsp_sub'):
@@ -1236,13 +1076,11 @@ def discover_and_update_all_cameras():
         resolved = sum(1 for d in cloud_no_ip if d.get('ip'))
         logger.info(f"ARP IP resolution: {resolved}/{len(cloud_no_ip)} cloud device(s) resolved")
 
-    # --- METHOD C: MERGE — ONVIF first, then cloud new devices ---
     new_devices = []
-    existing_devices = []  # Devices already in DB (for update)
-    matched_cam_ids = set()  # Track DB camera IDs already matched
+    existing_devices = []
+    matched_cam_ids = set()
 
     def _find_matching_cam(dev_id, ip):
-        """Find matching camera in DB by device_id or IP. Returns cam dict or None."""
         for cam in all_cams:
             if cam['id'] in matched_cam_ids:
                 continue
@@ -1252,7 +1090,6 @@ def discover_and_update_all_cameras():
                 return cam
         return None
 
-    # Add ONVIF-found devices — both new and existing
     for dev in local_found:
         dev_id = (dev.get('id') or dev.get('serial') or dev.get('urn', '')).lower()
         ip = dev['ip']
@@ -1272,7 +1109,6 @@ def discover_and_update_all_cameras():
             'is_online': dev.get('is_online', True),
             'profiles': dev.get('profiles', []),
             'auto_found': False,
-            # ONVIF-detected RTSP URLs and profiles
             'rtsp_url_onvif': dev.get('rtsp_url_onvif', ''),
             'rtsp_sub_onvif': dev.get('rtsp_sub_onvif', ''),
             'onvif_profiles': dev.get('onvif_profiles', []),
@@ -1291,7 +1127,6 @@ def discover_and_update_all_cameras():
         seen_ids.add(dev_id)
         seen_ips.add(ip)
 
-    # Phase 1.3: Add Dahua UDP devices — both new and existing
     for dev in dahua_found:
         dev_id = dev.get('serial', '').lower()
         ip = dev['ip']
@@ -1325,7 +1160,6 @@ def discover_and_update_all_cameras():
         seen_ids.add(dev_id)
         seen_ips.add(ip)
 
-    # Add cloud devices — both new and existing
     for dev in cloud_new_devices:
         if dev['id'] in seen_ids:
             continue
@@ -1346,7 +1180,6 @@ def discover_and_update_all_cameras():
         if ip:
             seen_ips.add(ip)
 
-    # Gộp tất cả camera quét được thành 1 list, đánh dấu _exists để UI biết add/update
     all_discovered = []
     for dev in new_devices:
         dev['_exists'] = False
@@ -1356,10 +1189,9 @@ def discover_and_update_all_cameras():
         all_discovered.append(dev)
 
     results['devices'] = all_discovered
-    results['new_devices'] = new_devices        # giữ cho backward compat
+    results['new_devices'] = new_devices
     results['existing_devices'] = existing_devices
 
-    # --- APPLY UPDATES TO DB ---
     for cam in all_cams:
         did = cam.get('imou_device_id')
         if did:
@@ -1369,7 +1201,6 @@ def discover_and_update_all_cameras():
                 if cam['camera_ip'] != new_ip:
                     logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
                     db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']), commit=True)
-                    # Regenerate RTSP URL with new IP
                     cam_svc.regenerate_rtsp_url(db, cam['id'])
                     results['updated_cameras'].append({
                         'name': cam['camera_name'],
@@ -1378,7 +1209,6 @@ def discover_and_update_all_cameras():
                     })
                     results['updated'] += 1
 
-    # Phase 2.3: Cache all discovered devices into cameras_asset
     try:
         all_discovered = list(local_found) + list(dahua_found) + list(cloud_new_devices)
         for dev in all_discovered:
@@ -1400,10 +1230,8 @@ def discover_and_update_all_cameras():
     except Exception as e:
         logger.debug(f"Asset cache error: {e}")
 
-    # Save last discovery timestamp
     set_app_setting(db, "LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
 
-    # Auto-register new cameras if enabled
     if new_devices:
         try:
             reg_result = auto_register_discovered_cameras(new_devices, db)

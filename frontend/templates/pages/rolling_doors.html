@@ -25,7 +25,7 @@
 {% block content %}
 <div class="container-fluid">
 
-  <!-- Page Header -->
+
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div>
       <p class="text-muted mb-1" style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">CẤU HÌNH HỆ THỐNG</p>
@@ -48,7 +48,7 @@
     </div>
   </div>
 
-  <!-- Global Tuya Config Section -->
+
   <div class="card mb-4">
     <div class="card-body p-0">
       <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between" style="background:#f8f9fa;">
@@ -95,7 +95,7 @@
     </div>
   </div>
 
-  <!-- Discovery Modal (Progress & Results) -->
+
   <div id="discovery-modal" class="hidden"
        style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1060;display:none;align-items:center;justify-content:center;padding:24px;"
        onclick="if(event.target===this) closeModal('discovery-modal')">
@@ -121,7 +121,7 @@
           LƯU Ý: LOCAL KEY VẪN CẦN LẤY TỪ TUYA IOT PORTAL
         </div>
         <div id="discovery-list" class="card-body p-3" style="max-height:400px;overflow-y:auto;">
-          <!-- Dynamic items -->
+
         </div>
         <div class="card-footer d-flex justify-content-end">
           <button onclick="startDiscovery()" class="btn btn-link btn-sm text-primary font-weight-bold" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;">QUÉT LẠI</button>
@@ -130,7 +130,7 @@
     </div>
   </div>
 
-  <!-- Suppliers & Doors Section -->
+
   <div>
     {% if not grouped_doors %}
     <div class="card">
@@ -204,7 +204,7 @@
     {% endif %}
   </div>
 
-  <!-- Add/Edit Modal -->
+
   <div id="add-door-modal"
        style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.45);"
        onclick="if(event.target===this) closeModal('add-door-modal')">
@@ -257,7 +257,7 @@
           </div>
         </div>
 
-        <!-- Generic Config Fields -->
+
         <div id="config-standard" class="pt-3 mt-2 border-top">
           <p class="text-primary font-weight-bold text-uppercase mb-3" style="font-size:10px;letter-spacing:2px;">THÔNG SỐ KỸ THUẬT (JSON)</p>
           <div class="row">
@@ -276,7 +276,7 @@
           </div>
         </div>
 
-        <!-- Hunonic Specific Fields -->
+
         <div id="config-hunonic" class="hidden pt-3 mt-2 border-top" style="display:none;">
           <p class="text-primary font-weight-bold text-uppercase mb-3" style="font-size:10px;letter-spacing:2px;">TÀI KHOẢN HUNONIC CLOUD</p>
           <div class="row">
@@ -312,7 +312,7 @@
           <label for="door-active" class="form-check-label" style="font-size:14px;">Đang hoạt động</label>
         </div>
 
-        <!-- Auto-Close Section -->
+
         <div class="mt-3 pt-3 border-top">
           <div class="form-check mb-3">
             <input type="checkbox" id="door-auto-close" name="auto_close_enabled" class="form-check-input">
@@ -362,7 +362,6 @@
     .then(r => r.json())
     .then(data => {
       if (data.status === 'success') {
-        // Optional: show toast
         console.log(data.message);
       } else {
         alert('Lỗi: ' + data.message);
@@ -378,7 +377,6 @@
   function openModal(id) {
     const m = document.getElementById(id);
     m.style.display = 'flex';
-    // Reset form
     if (id === 'add-door-modal') {
       document.getElementById('modal-title').innerText = 'Thêm Cửa cuốn Mới';
       document.getElementById('door-id').value = '';
@@ -457,13 +455,11 @@
       document.getElementById('door-relay-id').value = door.relay_config.device_id || door.relay_config.pin || '';
       document.getElementById('door-relay-key').value = door.relay_config.local_key || '';
 
-      // Hunonic fields
       document.getElementById('hunonic-phone').value = door.relay_config.phone || '';
       document.getElementById('hunonic-password').value = door.relay_config.password || '';
       document.getElementById('hunonic-device-id').value = door.relay_config.device_id || '';
     }
 
-    // Auto-close fields
     document.getElementById('door-auto-close').checked = door.auto_close_enabled || false;
     document.getElementById('door-camera').value = door.camera_id || '';
     document.getElementById('door-delay').value = door.auto_close_delay_sec || 300;
@@ -562,9 +558,7 @@
     }
   }
 
-  // Add event listener for relay type change
   document.getElementById('door-relay-type').addEventListener('change', toggleRelayFields);
 
-  // Close modal on click outside — handled by onclick on backdrop div
 </script>
 {% endblock %}

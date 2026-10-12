@@ -1,17 +1,3 @@
-"""
-core/tripwire.py – Tripwire IN/OUT tracker
-
-Cách dùng:
-    tracker = TripwireTracker(line_y_fn=lambda: resolve_line_y(frame.shape[0]))
-    direction = tracker.update(obj_id, center_y)  # "IN", "OUT", hoặc None
-    tracker.cleanup_stale(active_obj_ids)          # gọi cuối mỗi frame
-
-Logic:
-    - Mỗi object (obj_id) có một buffer N frames tích lũy vị trí (trên/dưới vạch).
-    - Khi tất cả N frame cuối nhất nhất quán sang phía khác → fire event.
-    - Cooldown per-object tránh fire lặp khi object đứng trên vạch.
-    - Stale cleanup xóa tracking của object đã biến mất.
-"""
 
 from __future__ import annotations
 
@@ -21,15 +7,6 @@ from typing import Callable
 
 
 class TripwireTracker:
-    """
-    Theo dõi chiều di chuyển của object qua một vạch ngang.
-
-    Args:
-        line_y_fn:      Callable trả về tọa độ y của vạch (pixel) tại runtime.
-        buffer_frames:  Số frame liên tiếp cùng phía để xác nhận hướng (giảm noise).
-        cooldown_secs:  Thời gian (giây) chờ sau khi fire trước khi fire lại cùng object.
-        stale_secs:     Sau bao nhiêu giây không thấy object thì xóa trạng thái.
-    """
 
     def __init__(
         self,
@@ -43,89 +20,60 @@ class TripwireTracker:
         self._cooldown = cooldown_secs
         self._stale = stale_secs
 
-        # obj_id -> deque of bool: True = bên dưới vạch (inward side), False = bên trên
         self._positions: dict[int, deque[bool]] = {}
-        # obj_id -> thời điểm fire lần cuối
         self._last_fire: dict[int, float] = {}
-        # obj_id -> side đã confirmed lần cuối (để phát hiện thay đổi)
         self._confirmed_side: dict[int, bool | None] = {}
-        # obj_id -> last seen time
         self._last_seen: dict[int, float] = {}
 
         self._last_cleanup = 0.0
         self._current_frame_line_y = None
         self._current_frame_time = 0.0
 
-    # ------------------------------------------------------------------
     def update(self, obj_id: int, center_y: int) -> str | None:
-        """
-        Cập nhật vị trí object và trả về hướng nếu vừa vượt qua vạch.
-
-        Returns:
-            "IN"  – object đi từ trên (ngoài) xuống dưới (vào kho)
-            "OUT" – object đi từ dưới (trong) lên trên (ra ngoài)
-            None  – chưa xác định / đang ở giữa
-        """
         now = time.monotonic()
-        # Cache line_y for the current frame to avoid repeated function calls
         if now - self._current_frame_time > 0.01:
             self._current_frame_time = now
             self._current_frame_line_y = self._line_y_fn()
 
         line_y = self._current_frame_line_y
-        below = center_y >= line_y  # True = bên trong (phía dưới)
+        below = center_y >= line_y
 
-        # Khởi tạo buffer nếu là object mới, sử dụng setdefault để tối ưu
         buf = self._positions.setdefault(obj_id, deque(maxlen=self._buffer))
         if obj_id not in self._confirmed_side:
             self._confirmed_side[obj_id] = None
         buf.append(below)
         self._last_seen[obj_id] = now
 
-        # Chưa đủ frame thì chờ
         if len(buf) < self._buffer:
             return None
 
-        # Kiểm tra N frame cuối có nhất quán không
         all_below = all(buf)
         all_above = not any(buf)
         consistent = all_below or all_above
         if not consistent:
             return None
 
-        new_side = all_below  # True = dưới, False = trên
+        new_side = all_below
 
-        # Nếu phía không đổi so với lần confirmed trước → không fire
         prev_side = self._confirmed_side[obj_id]
         if prev_side is None:
-            # Lần đầu xác định phía, ghi nhận nhưng không fire
             self._confirmed_side[obj_id] = new_side
             return None
 
         if new_side == prev_side:
             return None
 
-        # Phía đã thay đổi → cập nhật confirmed_side ngay (không phụ thuộc cooldown)
-        # để round-trip IN→OUT→IN được track đúng
         self._confirmed_side[obj_id] = new_side
 
-        # Check cooldown trước khi fire event
         last = self._last_fire.get(obj_id, 0.0)
         if now - last < self._cooldown:
             return None
 
-        # Fire!
         self._last_fire[obj_id] = now
         return "IN" if new_side else "OUT"
 
-    # ------------------------------------------------------------------
     def cleanup_stale(self, active_ids: set[int] | None = None) -> None:
-        """
-        Xóa tracking của các object đã biến mất quá `stale_secs`.
-        Truyền None để chỉ dựa vào timeout (không cần biết active_ids).
-        """
         now = time.monotonic()
-        # Throttle stale cleanup to execute only once per second
         if now - self._last_cleanup < 1.0:
             return
         self._last_cleanup = now
@@ -141,7 +89,5 @@ class TripwireTracker:
             self._last_fire.pop(oid, None)
             self._last_seen.pop(oid, None)
 
-    # ------------------------------------------------------------------
     def active_count(self) -> int:
-        """Số lượng object đang được tracking."""
         return len(self._positions)

@@ -1,19 +1,14 @@
-"""Vehicles (whitelist) router."""
 import json
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
-from pathlib import Path
 from typing import Optional, List
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 from backend.services.config import normalize_plate, trigger_ai_reload
 
 router = APIRouter(prefix="/vehicles")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def _parse_fuel(value: Optional[str]) -> Optional[float]:
-    """Parse fuel-consumption input (L/100km) -> float, or None if empty/invalid."""
     if not value or not value.strip():
         return None
     try:
@@ -24,7 +19,6 @@ def _parse_fuel(value: Optional[str]) -> Optional[float]:
 
 
 def get_whitelist_vehicles(db, site_id=None, limit=None, offset=None) -> list[dict]:
-    """Lấy danh sách xe whitelist cùng tên cơ sở tương ứng."""
     query = """
         SELECT w.*,
                (SELECT array_agg(s.site_name)
@@ -42,11 +36,10 @@ def get_whitelist_vehicles(db, site_id=None, limit=None, offset=None) -> list[di
     if offset is not None:
         query += " OFFSET %s"
         params.append(offset)
-    return db.execute_query(query, tuple(params) if params else None, fetchall=True) or []
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
 def upsert_vehicle_whitelist(db, plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
-    """Thêm hoặc cập nhật xe vào whitelist."""
     query = """
         INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, fuel_consumption, is_active)
         VALUES (%s, 'white', %s, %s, %s, %s, %s, TRUE)
@@ -67,7 +60,6 @@ def upsert_vehicle_whitelist(db, plate_norm: str, label: Optional[str], added_by
 
 
 def update_vehicle_whitelist(db, vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
-    """Cập nhật thông tin xe whitelist theo ID."""
     query = """
         UPDATE plate_whitelist
         SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, fuel_consumption = %s, updated_at = NOW()
@@ -87,13 +79,13 @@ async def vehicles_page(request: Request, user: dict = Depends(require_menu("veh
     ctx["current_menu"] = "vehicles"
     site_id = request.session.get("active_site_id", 0) or None
     db = get_db()
-    owner_users = db.select("users", columns=["id", "username", "full_name"], order_by="full_name ASC") or []
+    owner_users = db.select("users", columns=["id", "username", "full_name"], order_by="full_name ASC")
     for owner in owner_users:
         owner["vehicle_owner_label"] = owner.get("full_name") or owner.get("username")
 
     ctx["vehicles"] = get_whitelist_vehicles(db, site_id=site_id)
     ctx["owner_users"] = owner_users
-    ctx["site_list"] = db.select("sites", conditions={"is_active": True}, order_by="site_name ASC") or []
+    ctx["site_list"] = db.select("sites", conditions={"is_active": True}, order_by="site_name ASC")
     ctx["sites"] = ctx["site_list"]
     return templates.TemplateResponse("pages/vehicles.html", {"request": request, **ctx})
 
@@ -122,15 +114,6 @@ async def add_vehicle(
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
 
-@router.delete("/{plate_id}")
-async def delete_vehicle(
-    plate_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("vehicles")),
-):
-    get_db().delete("plate_whitelist", {"id": plate_id})
-    trigger_ai_reload()
-    return RedirectResponse(url="/admin/vehicles", status_code=303)
 
 
 @router.post("/{plate_id}/delete")

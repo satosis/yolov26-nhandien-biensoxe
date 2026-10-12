@@ -1,27 +1,15 @@
-"""Camera and camera provider service — direct DB queries and RTSP resolution."""
-import logging
 import json
 import urllib.parse
 
-logger = logging.getLogger(__name__)
+_SITE_FILTER = "(%s::integer IS NULL OR %s::integer = ANY(site_ids))"
 
-
-# ── Camera Queries ──────────────────────────────────────────────────────────
 
 def get_all_cameras(db, site_id: int | None = None) -> list[dict]:
-    if site_id is not None:
-        query = "SELECT * FROM cameras WHERE %s = ANY(site_ids) ORDER BY id"
-        return db.execute_query(query, (site_id,), fetchall=True) or []
-    else:
-        return db.execute_query("SELECT * FROM cameras ORDER BY id", fetchall=True) or []
+    return db.execute_query(f"SELECT * FROM cameras WHERE {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
 
 
 def get_active_cameras(db, site_id: int | None = None) -> list[dict]:
-    if site_id is not None:
-        query = "SELECT * FROM cameras WHERE is_active = TRUE AND %s = ANY(site_ids) ORDER BY id"
-        return db.execute_query(query, (site_id,), fetchall=True) or []
-    else:
-        return db.execute_query("SELECT * FROM cameras WHERE is_active = TRUE ORDER BY id", fetchall=True) or []
+    return db.execute_query(f"SELECT * FROM cameras WHERE is_active AND {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
 
 
 def get_camera(db, camera_id: int) -> dict | None:
@@ -56,7 +44,7 @@ def update_camera(db, camera_id, name, cam_type, imou_device_id, rtsp_url,
     pk_json = json.dumps(provider_keys) if provider_keys else '{}'
     dev_id = imou_device_id.strip() if imou_device_id else None
     params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port, camera_id)
-    return db._execute_query(query, params, commit=True) is not False
+    return db._execute_query(query, params, commit=True)
 
 
 def set_camera_streaming(db, camera_id: int, is_streaming: bool) -> bool:
@@ -89,21 +77,21 @@ def upsert_camera_asset(db, cam_id: str, name: str, ip: str = None,
             updated_at = NOW()
     """
     return db._execute_query(query, (cam_id, name, ip, mac, serial, model, firmware,
-                                     rtsp_url, onvif_port, profiles_json), commit=True) is not False
+                                     rtsp_url, onvif_port, profiles_json), commit=True)
 
 
 def store_onvif_detected_rtsp(db, camera_id: int, rtsp_url: str) -> bool:
     return db._execute_query(
         "UPDATE cameras SET onvif_rtsp_detected = %s, updated_at = NOW() WHERE id = %s",
         (rtsp_url, camera_id), commit=True
-    ) is not False
+    )
 
 
 def regenerate_rtsp_url(db, camera_id: int) -> bool:
     return db._execute_query(
         "UPDATE cameras SET rtsp_url = NULL, onvif_rtsp_detected = NULL, updated_at = NOW() WHERE id = %s",
         (camera_id,), commit=True
-    ) is not False
+    )
 
 
 def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
@@ -111,22 +99,18 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
     if not cam:
         return None
 
-    # Priority 1: ONVIF-detected RTSP URL
     onvif_url = cam.get('onvif_rtsp_detected')
     if onvif_url and onvif_url.startswith("rtsp://"):
         return onvif_url
 
-    # Priority 2: Manual URL if already valid
     manual_url = cam.get('rtsp_url')
     is_placeholder = "admin:password@192.168.1.100" in (manual_url or "")
     is_broken = "@@" in (manual_url or "")
     if manual_url and manual_url.startswith("rtsp://") and not is_placeholder and not is_broken:
         return manual_url
 
-    # Priority 3: Generate from template
     ip = cam.get('camera_ip')
     if not ip:
-        logger.warning(f"Camera {camera_id} has no IP configured. Cannot generate RTSP URL.")
         return None
 
     cam_type = cam.get('camera_type', 'rtsp')
@@ -135,10 +119,7 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
 
     provider_keys = cam.get('provider_keys') or {}
     if isinstance(provider_keys, str):
-        try:
-            provider_keys = json.loads(provider_keys)
-        except Exception:
-            provider_keys = {}
+        provider_keys = json.loads(provider_keys)
 
     user = provider_keys.get('user', 'admin')
     mk = provider_keys.get('mk')
@@ -146,7 +127,6 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
         from backend.services.settings_service import get_app_setting
         mk = get_app_setting(db, f"{cam_type.upper()}_MK", "") or get_app_setting(db, "IMOU_MK", "")
     if not mk:
-        logger.warning(f"Camera {camera_id} has no password configured. Cannot generate RTSP URL.")
         return None
 
     encoded_mk = urllib.parse.quote(mk, safe='')
@@ -155,21 +135,16 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
     from backend.services.settings_service import get_app_setting
     global_subtype = get_app_setting(db, "IMOU_SUBTYPE", str(subtype))
 
-    try:
-        return template.format(
-            user=user,
-            password=encoded_mk,
-            ip=ip,
-            port=port,
-            channel=channel,
-            subtype=global_subtype
-        )
-    except KeyError as e:
-        logger.error(f"RTSP template format error for camera {camera_id}: {e}")
-        return f"rtsp://{user}:{encoded_mk}@{ip}:{port}/stream"
+    return template.format(
+        user=user,
+        password=encoded_mk,
+        ip=ip,
+        port=port,
+        channel=channel,
+        subtype=global_subtype
+    )
 
 
-# ── Camera Status & Health Queries ──────────────────────────────────────────
 
 def get_cameras_latest_status(db) -> dict:
     query = """
@@ -177,7 +152,7 @@ def get_cameras_latest_status(db) -> dict:
         FROM camera_status_log
         ORDER BY camera_id, logged_at DESC
     """
-    rows = db.execute_query(query, fetchall=True) or []
+    rows = db.execute_query(query, fetchall=True)
     return {str(r['camera_id']): r for r in rows}
 
 
@@ -188,13 +163,12 @@ def get_camera_health(db, cam_id: str = None, hours: int = 24) -> list[dict]:
     else:
         query = "SELECT * FROM camera_status_log WHERE logged_at >= NOW() - (%s * INTERVAL '1 hour') ORDER BY logged_at DESC"
         params = (hours,)
-    return db.execute_query(query, params, fetchall=True) or []
+    return db.execute_query(query, params, fetchall=True)
 
 
-# ── Provider Queries ────────────────────────────────────────────────────────
 
 def get_all_providers(db) -> list:
-    return db.select("camera_providers", order_by="name ASC") or []
+    return db.select("camera_providers", order_by="name ASC")
 
 
 def get_provider(db, provider_key: str) -> dict | None:
@@ -229,7 +203,7 @@ def upsert_provider(db, provider_key: str, name: str, api_base_url: str = None,
         (provider_key, name, api_base_url, api_doc_url, rtsp_template,
          onvif_port, default_rtsp_port, default_http_port, notes, logo_url, is_active),
         commit=True
-    ) is not False
+    )
 
 
 def delete_provider(db, provider_key: str) -> bool:
@@ -241,7 +215,7 @@ def get_provider_api_keys(db, provider: str) -> dict:
     rows = db.execute_query(
         "SELECT key, value FROM app_settings WHERE key LIKE %s",
         (f"{prefix}%",), fetchall=True
-    ) or []
+    )
     result = {}
     for r in rows:
         field_name = r['key'][len(prefix):].lower()
@@ -264,7 +238,7 @@ def get_imou_api_keys(db) -> dict:
         rows = db.execute_query(
             "SELECT key, value FROM app_settings WHERE key IN ('IMOU_APP_ID', 'IMOU_APP_SECRET')",
             fetchall=True
-        ) or []
+        )
         res = {k['key']: k['value'] for k in rows}
         if not app_id:
             app_id = res.get('IMOU_APP_ID', '')

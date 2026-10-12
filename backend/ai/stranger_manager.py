@@ -9,22 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class StrangerManager:
-    """Manages persistent stranger identification (Stranger Re-ID).
-    
-    Prevents duplicate stranger snapshots and replaces arbitrary cooldown timers
-    with persistent vector clustering and identity tracking.
-    """
     _instance = None
     _singleton_lock = threading.Lock()
 
     def __init__(self, db=None):
         self._lock = threading.Lock()
         self._db = db
-        # List of dicts: {'id': int, 'emb': np.ndarray, 'seen_count': int,
-        #                 'last_seen': float, 'last_db_sync': float,
-        #                 'image_path': str, 'direction': str}
         self._records = []
-        self._matrix = None  # np.ndarray shape (N, 512)
+        self._matrix = None
         self._initialized = False
 
     @classmethod
@@ -62,7 +54,7 @@ class StrangerManager:
                     LIMIT 300
                     """,
                     fetchall=True, commit=False
-                ) or []
+                )
                 records = []
                 embs = []
                 now = time.time()
@@ -108,18 +100,12 @@ class StrangerManager:
         site_id: int | None = None,
         db=None,
     ) -> tuple[int, float, bool]:
-        """Identify or register a stranger without duplicate photos or dumb cooldown.
-
-        Returns:
-            (stranger_id: int, similarity: float, is_new: bool)
-        """
         if emb is None:
             return -1, 0.0, False
 
         self._ensure_loaded(db)
         target_db = db or self._db
 
-        # Normalize incoming embedding
         norm = float(np.linalg.norm(emb))
         if norm <= 1e-6:
             return -1, 0.0, False
@@ -129,20 +115,17 @@ class StrangerManager:
         now = time.time()
 
         with self._lock:
-            # 1. Match against existing strangers
             if self._matrix is not None and len(self._matrix) > 0:
                 sims = np.dot(self._matrix, normed_emb)
                 best_idx = int(np.argmax(sims))
                 best_sim = float(sims[best_idx])
 
                 if best_sim >= threshold:
-                    # Match found! Existing stranger
                     rec = self._records[best_idx]
                     stranger_id = rec["id"]
                     rec["seen_count"] += 1
                     rec["last_seen"] = now
 
-                    # Smoothly update embedding with running average if match is strong
                     if best_sim >= 0.55:
                         updated_emb = 0.85 * rec["emb"] + 0.15 * normed_emb
                         u_norm = float(np.linalg.norm(updated_emb))
@@ -150,7 +133,6 @@ class StrangerManager:
                             rec["emb"] = (updated_emb / u_norm).astype(np.float32)
                             self._matrix[best_idx] = rec["emb"]
 
-                    # Throttle DB updates to once every 5 seconds per stranger
                     if now - rec["last_db_sync"] >= 5.0:
                         rec["last_db_sync"] = now
                         if target_db:
@@ -170,7 +152,6 @@ class StrangerManager:
 
                     return stranger_id, best_sim, False
 
-            # 2. No match found -> Truly NEW stranger!
             snap_path = save_face_snapshot(frame, cam_id, bbox=bbox)
             new_id = None
             if target_db:
@@ -210,7 +191,6 @@ class StrangerManager:
             return new_id, 0.0, True
 
     def remove(self, stranger_id: int):
-        """Remove a stranger from memory (e.g. when deleted or converted)."""
         with self._lock:
             if not self._records:
                 return
@@ -222,12 +202,10 @@ class StrangerManager:
                 logger.info("Stranger #%d removed from StrangerManager memory.", stranger_id)
 
     def reload(self, db=None):
-        """Reload all stranger profiles from DB."""
         with self._lock:
             self._initialized = False
         self._ensure_loaded(db)
 
 
 def get_stranger_manager(db=None) -> StrangerManager:
-    """Get global singleton StrangerManager instance."""
     return StrangerManager.get_instance(db=db)

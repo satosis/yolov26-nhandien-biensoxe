@@ -5,7 +5,7 @@
 {% block content %}
 <div>
 
-  <!-- Page header actions -->
+
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div class="d-flex align-items-center" style="gap:10px;">
       <span style="font-size:24px;">🔐</span>
@@ -17,7 +17,7 @@
     </button>
   </div>
 
-  <!-- Add Role Form -->
+
   <div class="card mb-4 d-none" id="add-role-form">
     <div class="card-body">
       <h6 class="card-title font-weight-bold mb-3">Tạo vai trò mới</h6>
@@ -52,12 +52,12 @@
     </div>
   </div>
 
-  <!-- Roles List -->
+
   <div>
     {% for r in roles %}
     <div class="card mb-3" id="role-card-{{ r.id }}">
       <div class="card-body">
-        <!-- Role header -->
+
         <div class="d-flex align-items-center justify-content-between mb-3">
           <div class="d-flex align-items-center" style="gap:10px;">
             <span class="font-weight-bold" style="font-size:15px;">{{ r.role_name }}</span>
@@ -80,7 +80,7 @@
           </div>
         </div>
 
-        <!-- Display permissions -->
+
         <div class="d-flex flex-wrap" style="gap:6px;">
           {% if r.allowed_menus == '*' %}
           <span class="badge badge-danger" style="font-size:11px;font-weight:normal;">Tất cả menu</span>
@@ -96,7 +96,7 @@
           {% endif %}
         </div>
 
-        <!-- Edit Form (hidden) -->
+
         {% if r.allowed_menus != '*' %}
         <form id="edit-form-{{ r.id }}" method="POST" action="/admin/rbac/{{ r.id }}/edit"
               class="d-none mt-4 pt-4 border-top">

@@ -30,7 +30,7 @@
 
 <div class="max-w-4xl mx-auto" x-data="newsEditor">
 
-  {# ── Header breadcrumb ── #}
+
   <div class="d-flex align-items-center mb-4" style="gap:8px;">
     <a href="/admin/cms" class="btn btn-light btn-sm">
       <i class="fas fa-arrow-left mr-1"></i> Quay lại
@@ -41,11 +41,11 @@
     </h5>
   </div>
 
-  {# ── Form ── #}
+
   <form action="/admin/cms/news/save" method="POST">
     <input type="hidden" name="news_id" value="{{ item.id if item else '' }}">
 
-    {# Title + Category #}
+
     <div class="card mb-4">
       <div class="card-body">
         <div class="row">
@@ -73,7 +73,7 @@
       </div>
     </div>
 
-    {# Image upload #}
+
     <div class="card mb-4">
       <div class="card-header">
         <h6 class="mb-0 font-weight-bold">Ảnh đại diện</h6>
@@ -102,7 +102,7 @@
       </div>
     </div>
 
-    {# Summary #}
+
     <div class="card mb-4">
       <div class="card-header">
         <h6 class="mb-0 font-weight-bold">Tóm tắt</h6>
@@ -114,7 +114,7 @@
       </div>
     </div>
 
-    {# Content — CKEditor #}
+
     <div class="card mb-4">
       <div class="card-header">
         <h6 class="mb-0 font-weight-bold">Nội dung bài viết</h6>
@@ -124,7 +124,7 @@
       </div>
     </div>
 
-    {# Publish toggle + actions #}
+
     <div class="card">
       <div class="card-body d-flex flex-wrap align-items-center justify-content-between" style="gap:12px;">
         <label class="d-flex align-items-center mb-0 cursor-pointer" style="gap:10px;">
@@ -157,7 +157,7 @@
 
 </div>
 
-{# ── CKEditor 5 CDN ── #}
+
 <script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
 <script>
   ClassicEditor.create(document.querySelector('#editor'), {
@@ -174,7 +174,7 @@
   });
 </script>
 
-{# CKEditor light theme — matches Opatix light UI #}
+
 <style>
   .ck-editor__editable {
     min-height: 320px;

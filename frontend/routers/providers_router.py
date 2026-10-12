@@ -1,15 +1,11 @@
-"""Providers router — Camera provider CRUD."""
 from typing import Optional
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
-from pathlib import Path
 
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 from backend.camera import camera_service as cam_svc
 
 router = APIRouter(prefix="/providers")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def _mask(val) -> str:
@@ -27,8 +23,8 @@ async def providers_page(request: Request, user: dict = Depends(require_menu("pr
     for p in providers:
         pk = p["provider_key"]
         keys = cam_svc.get_provider_api_keys(db, pk)
-        p["_api_keys"] = keys or {}
-        p["_masked"] = {k: _mask(v) for k, v in (keys or {}).items() if k != "email" and str(v or "").strip()}
+        p["_api_keys"] = keys
+        p["_masked"] = {k: _mask(v) for k, v in keys.items() if k != "email" and str(v or "").strip()}
     ctx["providers"] = providers
     ctx["current_menu"] = "providers"
     return templates.TemplateResponse("pages/providers.html", {"request": request, **ctx})
@@ -48,7 +44,7 @@ async def edit_api_keys_page(
     
     keys = cam_svc.get_provider_api_keys(db, provider_key)
     ctx["provider"] = provider
-    ctx["api_keys"] = keys or {}
+    ctx["api_keys"] = keys
     ctx["current_menu"] = "providers"
     return templates.TemplateResponse("pages/provider_api_keys.html", {"request": request, **ctx})
 
@@ -60,7 +56,6 @@ async def save_api_keys(
     user: dict = Depends(require_menu("providers")),
 ):
     form = await request.form()
-    # Handle dynamic lists of names and values
     names = form.getlist("api_key_names[]")
     values = form.getlist("api_key_values[]")
     

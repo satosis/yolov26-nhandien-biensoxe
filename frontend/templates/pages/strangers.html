@@ -41,7 +41,7 @@
     }
   }">
 
-  <!-- Page header -->
+
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div class="d-flex align-items-center" style="gap:10px;">
       <span style="font-size:1.6rem;">🕵️</span>
@@ -51,7 +51,7 @@
   </div>
 
   {% if strangers %}
-  <!-- Bulk action bar -->
+
   <div class="card mb-3">
     <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between" style="gap:10px;">
       <label class="d-flex align-items-center mb-0 text-muted" style="font-size:13px;cursor:pointer;gap:8px;">
@@ -81,7 +81,7 @@
   </div>
   {% endif %}
 
-  <!-- Stranger cards -->
+
   <div id="stranger-list">
     {% for s in strangers %}
     <div class="card mb-2"
@@ -92,7 +92,7 @@
           <input type="checkbox" value="{{ s.id }}" x-model="selected"
                  style="width:16px;height:16px;flex-shrink:0;">
 
-          <!-- Face thumbnail -->
+
           <div class="rounded overflow-hidden flex-shrink-0"
                style="width:80px;height:80px;background:#f8f9fa;border:1px solid #dee2e6;cursor:zoom-in;">
             {% if s.image_path %}
@@ -105,7 +105,7 @@
             {% endif %}
           </div>
 
-          <!-- Info -->
+
           <div>
             <div class="d-flex align-items-center flex-wrap mb-1" style="gap:6px;">
               <span class="font-weight-bold" style="font-size:14px;color:#1e293b;">
@@ -129,7 +129,7 @@
           </div>
         </div>
 
-        <!-- Actions -->
+
         <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
           <form action="/admin/strangers/register" method="POST" class="d-flex align-items-center" style="gap:6px;">
             <input type="hidden" name="stranger_id" value="{{ s.id }}">

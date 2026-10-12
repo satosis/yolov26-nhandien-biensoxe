@@ -1,19 +1,14 @@
-"""Sites router — CRUD with HTMX."""
 import json
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse
-from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 
 router = APIRouter(prefix="/sites")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def _sites_list_html(request: Request, user: dict) -> str:
-    """Render sites as table rows consistent with door_providers."""
     db = get_db()
-    sites = db.select("sites", order_by="site_name") or []
+    sites = db.select("sites", order_by="site_name")
     rows = []
     for s in sites:
         active = "Bật" if s.get("is_active") else "Tắt"
@@ -62,7 +57,7 @@ async def sites_page(request: Request, user: dict = Depends(require_menu("sites"
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "sites"
     db = get_db()
-    ctx["site_list"] = db.select("sites", order_by="site_name") or []
+    ctx["site_list"] = db.select("sites", order_by="site_name")
     return templates.TemplateResponse("pages/sites.html", {"request": request, **ctx})
 
 
@@ -93,7 +88,6 @@ async def create_site(
 
 @router.get("/{site_id}/edit")
 async def edit_site_form(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    """Return inline edit form block for HTMX swap."""
     db = get_db()
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:

@@ -3,7 +3,7 @@
 {% block page_title %}Quản lý Camera{% endblock %}
 {% block head %}
 <style>
-  /* TomSelect Light Theme for Cameras page */
+
   .ts-wrapper.form-control,
   .ts-wrapper.form-control-sm {
     padding: 0 !important;
@@ -56,7 +56,7 @@
   }
   .ts-wrapper.multi .ts-control > div .remove { color: #1565c0 !important; }
   .ts-wrapper .ts-control > .ts-input-fake { display: none; }
-  /* inline edit row background */
+
   tr.edit-row-bg td { background-color: #f8f9fa; }
 </style>
 {% endblock %}
@@ -75,7 +75,6 @@
     const cleanId = dev.id.startsWith('unidentified_') ? '' : dev.id.toUpperCase();
     document.getElementById('add-camera-device-id').value = cleanId;
     document.getElementById('add-camera-ip').value = dev.ip || '';
-    // Auto-select provider type from discovery
     const typeSelect = document.getElementById('add-camera-type');
     if (dev.type && typeSelect) {
         typeSelect.value = dev.type;
@@ -125,7 +124,7 @@
   }
 }" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
 
-  <!-- Header actions -->
+
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center" style="gap:10px;">
       <span class="text-primary" style="font-size:26px;">📹</span>
@@ -145,7 +144,7 @@
     </div>
   </div>
 
-  <!-- Add form (hidden) -->
+
   <form id="add-cam-form" class="hidden card mb-4">
     <div class="card-body">
       <div class="row">
@@ -213,7 +212,7 @@
     </div>
   </form>
 
-  <!-- Table card -->
+
   <div class="card">
     <div class="card-body p-0">
       <div class="cx-overflow-x-auto">
@@ -300,7 +299,7 @@
               </td>
             </tr>
 
-            <!-- Inline Edit Form Row -->
+
             <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
               <td colspan="9" class="p-4" style="background:#f8f9fa;border-bottom:1px solid #dee2e6;">
                 <form method="POST" action="/admin/cameras/{{ cam.id }}/edit">
@@ -403,11 +402,11 @@
     </div>
   </div>
 
-  <!-- Discovery Results Modal (Alpine) -->
+
   <template x-if="showDiscoveryModal">
     <div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;"
          @click.self="showDiscoveryModal = false">
-      <!-- Backdrop -->
+
       <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.55);" @click="showDiscoveryModal = false"></div>
 
       <div x-show="showDiscoveryModal"
@@ -419,7 +418,7 @@
            style="position:relative;z-index:1051;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;"
            :style="discoveredDevices.length > 0 ? 'max-width:860px;' : 'max-width:480px;'">
 
-        <!-- Modal Header + Summary -->
+
         <div class="card-header d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center" style="gap:12px;">
             <div class="d-flex align-items-center justify-content-center rounded" style="width:36px;height:36px;background:#e8f5e9;font-size:16px;">⚡</div>
@@ -446,10 +445,10 @@
           </button>
         </div>
 
-        <!-- Modal Body -->
+
         <div style="overflow-y:auto;flex:1;">
 
-          <!-- Updated cameras (IP changed) -->
+
           <template x-if="updatedCameras.length > 0">
             <div class="p-3">
               <div class="text-info font-weight-bold mb-2" style="font-size:10px;text-transform:uppercase;letter-spacing:.8px;">IP đã cập nhật</div>
@@ -468,7 +467,7 @@
             </div>
           </template>
 
-          <!-- Devices table — NEW (only when has results) -->
+
           <template x-if="discoveredDevices.length > 0">
             <div class="p-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
@@ -556,7 +555,7 @@
             </div>
           </template>
 
-          <!-- Existing devices in DB -->
+
           <template x-if="discoveredDevices.filter(d => d._exists).length > 0">
             <div class="p-3">
               <div class="cx-overflow-x-auto">
@@ -630,7 +629,7 @@
             </div>
           </template>
 
-          <!-- Empty state: compact -->
+
           <div x-show="discoveredDevices.length === 0 && updatedCameras.length === 0" class="text-center py-5">
             <div class="d-flex flex-column align-items-center" style="gap:8px;">
               <span style="font-size:32px;opacity:.2;">📡</span>
@@ -639,7 +638,7 @@
           </div>
         </div>
 
-        <!-- Modal Footer -->
+
         <div class="card-footer d-flex justify-content-end align-items-center" style="gap:8px;">
           <button @click="addAllDevices()" x-show="discoveredDevices.filter(d => !d._added && !d._updated).length > 1"
                   class="btn btn-primary btn-sm font-weight-bold">
@@ -657,7 +656,6 @@
 {% endblock %}
 {% block scripts %}
 <script>
-// Provider RTSP templates from DB
 const PROVIDER_TEMPLATES = {{ provider_templates | tojson }};
 const GLOBAL_MK = {{ (global_mk or '') | tojson }};
 
@@ -676,9 +674,7 @@ function togglePassword(btn) {
     }
 }
 
-/**
- * Auto-generates RTSP URL from form fields using provider-specific templates
- */
+
 function autoFillRtsp(form) {
     if (!form) return;
     const type = form.querySelector('[name="camera_type"]')?.value || 'imou';
@@ -688,7 +684,6 @@ function autoFillRtsp(form) {
     const rtspInput = form.querySelector('[name="rtsp_url"]');
     let mk = (form.querySelector('[name="imou_mk"]')?.value || '').trim();
 
-    // Fallback to global MK if form field is empty
     if (!mk) mk = GLOBAL_MK;
 
     if (!rtspInput) return;
@@ -713,9 +708,7 @@ function autoFillRtsp(form) {
         .replace('{subtype}', type === 'imou' ? '1' : '0');
 }
 
-/**
- * Full discovery: ARP + ONVIF + Dahua UDP + Imou Cloud
- */
+
 async function discoverCameras() {
     const btn = document.getElementById('discover-btn');
     const icon = document.getElementById('discover-icon');
@@ -726,7 +719,6 @@ async function discoverCameras() {
     icon.classList.add('animate-spin');
     text.innerText = "Quét Dahua...";
 
-    // Progress text updates while waiting
     const progressSteps = [
         { delay: 5000, text: "Quét ONVIF..." },
         { delay: 12000, text: "Đồng bộ kết quả..." },
@@ -744,13 +736,11 @@ async function discoverCameras() {
                 detail: { title: 'Lỗi dò tìm', message: data.error, confirmText: 'Đóng', isAlert: true }
             }));
         } else {
-            // Build summary
             const updated = data.updated || 0;
             const registered = data.auto_registered || 0;
             const newDevs = (data.new_devices || []).length;
             const onlineCount = (data.existing_devices || []).filter(d => d.is_online).length;
 
-            // Dispatch to modal
             window.dispatchEvent(new CustomEvent('show-discovery', {
                 detail: {
                     devices: data.devices || [],
@@ -759,7 +749,6 @@ async function discoverCameras() {
                 }
             }));
 
-            // Auto-reload if anything changed in DB
             if (updated > 0 || registered > 0) {
                 setTimeout(() => window.location.reload(), 1500);
             }
@@ -777,7 +766,6 @@ async function discoverCameras() {
     text.innerText = "Dò tìm Camera";
 }
 
-// Proactive filling: Update RTSP URL automatically when credentials change
 ['input', 'change', 'keyup', 'paste'].forEach(evt => {
     document.addEventListener(evt, (e) => {
         const form = e.target.closest('form');
@@ -793,7 +781,6 @@ async function discoverCameras() {
     });
 });
 
-// Fix for Add form submission (it didn't have an action/method)
 document.getElementById('add-cam-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = e.target.querySelector('button[type="submit"]');
@@ -801,7 +788,6 @@ document.getElementById('add-cam-form')?.addEventListener('submit', async (e) =>
     try {
         const fd = new FormData(e.target);
         const res = await fetch('/admin/cameras', { method: 'POST', body: fd, redirect: 'follow' });
-        // POST returns 303 redirect → fetch follows to GET /admin/cameras → res.ok = true
         if (res.ok || res.redirected) {
             window.location.reload();
         } else {
@@ -822,16 +808,13 @@ document.getElementById('add-cam-form')?.addEventListener('submit', async (e) =>
     }
 });
 
-// Trim device ID automatically
 document.addEventListener('change', (e) => {
     if (e.target.name === 'imou_device_id') {
         e.target.value = e.target.value.trim();
     }
 });
 
-// TomSelect for site multi-selects + auto-fill RTSP on load
 document.addEventListener('DOMContentLoaded', () => {
-    // TomSelect: Add form
     const addSites = document.getElementById('add-sites-select');
     if (addSites) {
         new TomSelect(addSites, {
@@ -840,7 +823,6 @@ document.addEventListener('DOMContentLoaded', () => {
             maxItems: null,
         });
     }
-    // TomSelect: Edit forms
     document.querySelectorAll('[id^="edit-sites-"]').forEach(el => {
         new TomSelect(el, {
             plugins: ['remove_button'],
@@ -849,11 +831,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Auto-fill RTSP URL on page load for add form (if IP + MK available)
     const addForm = document.getElementById('add-cam-form');
     if (addForm) autoFillRtsp(addForm);
 
-    // Auto-fill RTSP URL on page load for all edit forms
     document.querySelectorAll('[id^="edit-cam-form-"]').forEach(form => {
         const f = form.querySelector('form');
         if (f) autoFillRtsp(f);

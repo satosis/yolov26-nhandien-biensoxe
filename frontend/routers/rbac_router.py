@@ -1,17 +1,13 @@
-"""RBAC router."""
 import logging
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
-from pathlib import Path
 from typing import List
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 from frontend.menu_registry import ALL_MENUS, MENU_GROUPS
 from frontend.routers.users_router import get_all_users
 
 logger = logging.getLogger("rbac_router")
 router = APIRouter(prefix="/rbac")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 @router.get("")
@@ -19,8 +15,7 @@ async def rbac_page(request: Request, user: dict = Depends(require_menu("rbac"))
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rbac"
     db = get_db()
-    roles = db.select("roles", order_by="id ASC") or []
-    # Count users per role for display
+    roles = db.select("roles", order_by="id ASC")
     all_users = get_all_users(db)
     role_user_counts = {}
     for u in all_users:
@@ -74,7 +69,7 @@ async def delete_role(
     user: dict = Depends(require_menu("rbac")),
 ):
     db = get_db()
-    roles = db.select("roles", order_by="id ASC") or []
+    roles = db.select("roles", order_by="id ASC")
     target_role = next((r for r in roles if r["id"] == role_id), None)
     if not target_role:
         return JSONResponse({"detail": "Vai trò không tồn tại."}, status_code=404)

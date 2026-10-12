@@ -1,11 +1,8 @@
-/* ==========================================================================
-   Admin Custom Styles - Cinema Booking System (CINEPLEX)
-   Bootstrap 4 (Opatix theme) + Custom utility classes
-   ========================================================================== */
+
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ---------- Base (Ultra Compact Admin) ---------- */
+
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     font-size: 11.5px;
@@ -30,7 +27,7 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---------- KPI Cards (Compact) ---------- */
+
 .kpi-card {
     position: relative;
     border-radius: 8px;
@@ -75,7 +72,7 @@ body {
 .kpi-gradient-3 { background: linear-gradient(135deg, #f97316 0%, #fb923c 100%); }
 .kpi-gradient-4 { background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%); }
 
-/* ---------- Cards (Ultra Compact) ---------- */
+
 .card {
     border: 1px solid #e2e8f0;
     border-radius: 8px;
@@ -92,7 +89,7 @@ body {
     padding: 6px 12px;
 }
 
-/* ---------- Table Cinema (Compact) ---------- */
+
 .table-cinema {
     width: 100%;
     font-size: 12px;
@@ -121,7 +118,7 @@ body {
     border-bottom: none;
 }
 
-/* ---------- Status Tabs ---------- */
+
 .status-tab {
     display: inline-flex;
     align-items: center;
@@ -146,7 +143,7 @@ body {
 }
 .status-tab.active:hover { color: #fff; }
 
-/* ---------- Badge Pill ---------- */
+
 .badge-pill-custom {
     display: inline-flex;
     align-items: center;
@@ -167,7 +164,7 @@ body {
 .badge-movie-coming  { background: #dbeafe; color: #1e40af; }
 .badge-movie-ended   { background: #f1f5f9; color: #64748b; }
 
-/* ---------- Occupancy Bar ---------- */
+
 .occupancy-bar {
     height: 6px;
     background: #e2e8f0;
@@ -184,7 +181,7 @@ body {
 .occupancy-bar .fill.high { background: #f97316; }
 .occupancy-bar .fill.full { background: #ef4444; }
 
-/* ---------- Box Office Items ---------- */
+
 .box-office-item {
     display: flex;
     align-items: center;
@@ -217,7 +214,7 @@ body {
     flex-shrink: 0;
 }
 
-/* ---------- Quick Action Buttons ---------- */
+
 .quick-action-btn {
     display: flex;
     align-items: center;
@@ -239,17 +236,15 @@ body {
     color: #1e293b;
 }
 
-/* ---------- Scrollbar ---------- */
+
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #f1f5f9; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* ==========================================================================
-   CUSTOM UTILITY CLASSES (cx-) — Replaces Tailwind
-   ========================================================================== */
 
-/* --- Grid System --- */
+
+
 .cx-grid { display: grid; }
 .cx-grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
 .cx-grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
@@ -264,14 +259,14 @@ body {
     .lg-cx-grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* --- Gap --- */
+
 .cx-gap-1 { gap: 0.25rem; }
 .cx-gap-2 { gap: 0.5rem; }
 .cx-gap-3 { gap: 0.75rem; }
 .cx-gap-4 { gap: 1rem; }
 .cx-gap-6 { gap: 1.5rem; }
 
-/* --- Text Sizes --- */
+
 .cx-text-xs { font-size: 0.75rem; line-height: 1rem; }
 .cx-text-sm { font-size: 0.875rem; line-height: 1.25rem; }
 .cx-text-lg { font-size: 1.125rem; line-height: 1.75rem; }
@@ -281,14 +276,14 @@ body {
 .cx-text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
 .font-weight-medium { font-weight: 500 !important; }
 
-/* --- Text Colors --- */
+
 .cx-text-dark { color: #1e293b; }
 .cx-text-orange { color: #f97316; }
 .cx-text-pink { color: #ec4899; }
 .cx-text-purple { color: #7c3aed; }
 .cx-text-teal { color: #14b8a6; }
 
-/* --- Background Colors --- */
+
 .cx-bg-gray-50 { background-color: #f8fafc; }
 .cx-bg-gray-100 { background-color: #f1f5f9; }
 .cx-bg-gray-200 { background-color: #e2e8f0; }
@@ -299,11 +294,11 @@ body {
 .cx-bg-yellow-100 { background-color: #fef3c7; }
 .cx-bg-indigo-100 { background-color: #e0e7ff; }
 
-/* --- Border --- */
+
 .cx-border-light { border-color: #f1f5f9 !important; }
 .cx-rounded-xl { border-radius: 0.75rem !important; }
 
-/* --- Sizing --- */
+
 .cx-w-32 { width: 2rem; }
 .cx-w-40 { width: 2.5rem; }
 .cx-w-48 { width: 3rem; }
@@ -318,12 +313,9 @@ body {
 .cx-opacity-50 { opacity: 0.5; }
 .cx-opacity-75 { opacity: 0.75; }
 
-/* ==========================================================================
-   REMAINING tw- UTILITY CLASSES — Direct CSS definitions
-   Keep these until all blade files are fully refactored to pure Bootstrap
-   ========================================================================== */
 
-/* --- Text colors (remaining) --- */
+
+
 .tw-text-green-700 { color: #15803d; }
 .tw-text-blue-700 { color: #1d4ed8; }
 .tw-text-purple-600 { color: #9333ea; }
@@ -331,7 +323,7 @@ body {
 .tw-text-gray-200 { color: #e2e8f0; }
 .tw-text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
 
-/* --- Background colors (remaining) --- */
+
 .tw-bg-green-50 { background-color: #f0fdf4; }
 .tw-bg-green-500 { background-color: #22c55e; }
 .tw-bg-red-50 { background-color: #fef2f2; }
@@ -341,14 +333,14 @@ body {
 .tw-bg-gray-800 { background-color: #1e293b; }
 .tw-bg-gray-400 { background-color: #9ca3af; }
 
-/* --- Positioning --- */
+
 .tw-relative { position: relative; }
 .tw-absolute { position: absolute; }
 .tw-left-3 { left: 0.75rem; }
 .tw-top-1\/2 { top: 50%; }
 .tw--translate-y-1\/2 { transform: translateY(-50%); }
 
-/* --- Spacing --- */
+
 .tw-space-y-2 > * + * { margin-top: 0.5rem; }
 .tw-space-y-3 > * + * { margin-top: 0.75rem; }
 .tw-space-y-4 > * + * { margin-top: 1rem; }
@@ -361,7 +353,7 @@ body {
 .tw-pt-4 { padding-top: 1rem; }
 .tw-mt-0\.5 { margin-top: 0.125rem; }
 
-/* --- Sizing (remaining) --- */
+
 .tw-w-2 { width: 0.5rem; }
 .tw-h-2 { height: 0.5rem; }
 .tw-w-9 { width: 2.25rem; }
@@ -379,10 +371,10 @@ body {
 .tw-w-28 { width: 7rem; }
 .tw-min-w-\[200px\] { min-width: 200px; }
 
-/* --- Grid (remaining) --- */
+
 .tw-col-span-2 { grid-column: span 2 / span 2; }
 
-/* --- Other (remaining) --- */
+
 .tw-outline-none { outline: none; }
 .tw-shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
 .tw-ring-2 { box-shadow: 0 0 0 2px; }
@@ -391,27 +383,27 @@ body {
 .tw-bg-orange-100 { background-color: #ffedd5; }
 .tw-text-orange-700 { color: #c2410c; }
 
-/* --- Heights (remaining) --- */
+
 .tw-h-36 { height: 120px; }
 .tw-h-full { height: 100%; }
 
-/* --- Position offsets (remaining) --- */
+
 .tw-top-3 { top: 0.75rem; }
 .tw-right-3 { right: 0.75rem; }
 
-/* --- Opacity (remaining) --- */
+
 .tw-opacity-30 { opacity: 0.3; }
 
-/* --- Grid (remaining 2) --- */
+
 .tw-col-span-full { grid-column: 1 / -1; }
 .tw-text-5xl { font-size: 3rem; }
 
-/* --- Background gradient fallbacks --- */
+
 .tw-bg-gradient-to-br { background: linear-gradient(135deg, var(--tw-gradient-from, #6366f1), var(--tw-gradient-to, #7c3aed)); }
 .tw-from-indigo-500 { --tw-gradient-from: #6366f1; }
 .tw-to-purple-600 { --tw-gradient-to: #7c3aed; }
 
-/* --- Text indent (remaining) --- */
+
 .tw-text-indigo-400 { color: #818cf8; }
 .tw-pt-3 { padding-top: 0.75rem; }
 .py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
@@ -421,12 +413,12 @@ body {
 .cx-hover-bg-red-100:hover { background-color: #fee2e2; }
 .cx-hover-shadow-lg-shadow:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
 
-/* --- Hover utilities --- */
+
 .cx-hover-underline:hover { text-decoration: underline; }
 .cx-hover-bg-gray-50:hover { background-color: #f8fafc; }
 .cx-hover-bg-gray-700:hover { background-color: #334155; }
 
-/* --- Table image sizing (compact) --- */
+
 .table-cinema td img {
     max-height: 40px;
     width: auto;
@@ -434,26 +426,26 @@ body {
     border-radius: 4px;
 }
 
-/* --- Flex utilities missing --- */
+
 .d-flex-1 { flex: 1; }
 .d-flex-wrap { flex-wrap: wrap; }
 .rounded-full { border-radius: 9999px; }
 
-/* --- Cinema card images (compact) --- */
+
 .card img.card-img-top,
 .card img[style*="height"] {
     max-height: 150px !important;
     object-fit: cover;
 }
 
-/* --- Compact Alert --- */
+
 .alert {
     padding: 6px 12px;
     font-size: 12px;
     margin-bottom: 8px;
 }
 
-/* --- Compact sidebar --- */
+
 .vertical-menu {
     width: 220px;
 }
@@ -477,7 +469,7 @@ body {
     padding: 8px 12px;
 }
 
-/* --- Compact topbar (must match .main-content margin-top: 40px) --- */
+
 #page-topbar .navbar-header {
     height: 40px;
 }
@@ -486,13 +478,13 @@ body {
     height: 28px;
 }
 
-/* --- Compact footer --- */
+
 .footer {
     padding: 8px 0;
     font-size: 11px;
 }
 
-/* --- Pagination (Compact) --- */
+
 nav[role="navigation"] {
     display: flex;
     align-items: center;
@@ -545,7 +537,7 @@ nav[role="navigation"] p {
     color: #64748b;
 }
 
-/* ---------- Responsive ---------- */
+
 @media (max-width: 768px) {
     .kpi-card .kpi-value { font-size: 1.4rem; }
     .table-cinema thead th,
@@ -559,11 +551,9 @@ nav[role="navigation"] p {
     .cx-grid-cols-2 { grid-template-columns: repeat(1, 1fr); }
 }
 
-/* =========================================================================
-   Ultra-Compact Overrides (Added for Extreme Data Density)
-========================================================================= */
 
-/* --- Topbar --- */
+
+
 #page-topbar {
     height: 40px !important;
     min-height: 40px !important;
@@ -609,7 +599,7 @@ body[data-sidebar-size="sm"] #page-topbar {
     width: 26px !important;
 }
 
-/* --- Sidebar --- */
+
 .vertical-menu {
     width: 220px !important;
     top: 40px !important;
@@ -643,7 +633,7 @@ body[data-sidebar-size="sm"] .vertical-menu {
     margin-top: 4px !important;
 }
 
-/* --- Forms & Buttons --- */
+
 .form-control, .form-select {
     height: 28px !important;
     min-height: 28px !important;
@@ -664,7 +654,7 @@ body[data-sidebar-size="sm"] .vertical-menu {
     font-size: 10px !important;
 }
 
-/* --- Cinema Card Specific Adjustments --- */
+
 .card-img-top {
     max-height: 100px !important;
 }
@@ -679,12 +669,12 @@ body[data-sidebar-size="sm"] .vertical-menu {
     font-size: 11px !important;
 }
 
-/* --- Level-2 (sub-menu) items: indent a bit more for clearer hierarchy --- */
+
 #sidebar-menu ul li ul.sub-menu li a {
     padding-left: 28px !important;
 }
 
-/* --- Added Grid Classes for 5-column layouts --- */
+
 @media (min-width: 1024px) {
     .lg-cx-grid-cols-5 {
         grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -696,7 +686,7 @@ body[data-sidebar-size="sm"] .vertical-menu {
     }
 }
 
-/* --- TomSelect Bootstrap form-control wrapper reset --- */
+
 .ts-wrapper.form-control,
 .ts-wrapper.form-control-sm,
 .ts-wrapper.form-control-lg {
@@ -707,5 +697,3 @@ body[data-sidebar-size="sm"] .vertical-menu {
     background: transparent !important;
     box-shadow: none !important;
 }
-
-

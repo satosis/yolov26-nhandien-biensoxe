@@ -5,7 +5,7 @@
 {% block content %}
 <div>
 
-  <!-- Page header actions -->
+
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div class="d-flex align-items-center" style="gap:10px;">
       <span style="font-size:24px;">🔑</span>
@@ -22,7 +22,7 @@
     </div>
   </div>
 
-  <!-- Table Card -->
+
   <div class="card shadow-sm">
     <div class="card-body p-0">
       <form id="api-keys-form" method="POST" action="/admin/providers/{{ provider.provider_key }}/api-keys">
@@ -87,7 +87,7 @@
           </table>
         </div>
 
-        <!-- Action Footer -->
+
         <div class="card-footer d-flex align-items-center justify-content-between bg-light">
           <span class="text-muted text-uppercase" style="font-size:11px;letter-spacing:.08em;">
             {{ provider.provider_key }} / configurations

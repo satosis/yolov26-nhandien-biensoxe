@@ -1,16 +1,3 @@
-"""
-parking_hpc/grabber.py
-Process 1 — Frame Grabber
-
-Responsibilities:
-  - Open RTSP stream(s) with hardware-accelerated decode (FFmpeg/V4L2 backend)
-  - Detect motion inside the ROI polygon
-  - Write latest frame into SharedMemory (zero-copy IPC)
-  - Push (cam_id, shm_offset, timestamp) tokens into infer_queue when motion fires
-  - Reconnect automatically on stream loss
-
-Runs as a standalone multiprocessing.Process — no imports from inference.py or ui_server.py.
-"""
 import os
 import time
 import logging
@@ -24,18 +11,8 @@ from backend.services import config as cfg
 
 logger = logging.getLogger("grabber")
 
-# ── Circuit Breaker Configuration ────────────────────────────────────────────
-# Circuit breaker configuration (hardcoded — override via app_settings in DB)
-_CB_MAX_FAILS = 5
-_CB_OPEN_SECONDS = 120
-_CB_BACKOFF_BASE = 5      # seconds, doubles each failure
-_CB_BACKOFF_MAX = 300      # cap at 5 minutes
-
-
-# ── ROI helpers ───────────────────────────────────────────────────────────────
 
 def _build_roi_mask(h: int, w: int, scale: float = 1.0) -> np.ndarray:
-    """Return a uint8 mask (255 inside ROI, 0 outside) for the given frame size."""
     scaled_h, scaled_w = int(h * scale), int(w * scale)
     pts = np.array(
         [(int(x * scaled_w), int(y * scaled_h)) for x, y in cfg.ROI_POLYGON_NORM],
@@ -47,7 +24,6 @@ def _build_roi_mask(h: int, w: int, scale: float = 1.0) -> np.ndarray:
 
 
 def _motion_in_roi(prev_gray: np.ndarray, curr_gray: np.ndarray, mask: np.ndarray) -> bool:
-    """Return True if significant motion is detected inside the ROI."""
     diff = cv2.absdiff(prev_gray, curr_gray)
     blurred = cv2.GaussianBlur(diff, (cfg.MOTION_BLUR_KSIZE, cfg.MOTION_BLUR_KSIZE), 0)
     _, thresh = cv2.threshold(blurred, 25, 255, cv2.THRESH_BINARY)
@@ -58,18 +34,10 @@ def _motion_in_roi(prev_gray: np.ndarray, curr_gray: np.ndarray, mask: np.ndarra
     return any(cv2.contourArea(c) > cfg.MOTION_THRESHOLD for c in contours)
 
 
-# ── Camera reader ─────────────────────────────────────────────────────────────
 
 class CameraReader:
-    """
-    Reads one RTSP stream, writes frames to SharedMemory, signals motion.
 
-    SharedMemory layout (SHM_FRAME_BYTES bytes):
-        [0..3]   : uint32 frame counter (little-endian) — reader checks for new frame
-        [4..]    : BGR uint8 flat array (GRAB_HEIGHT × GRAB_WIDTH × 3)
-    """
-
-    HEADER_BYTES = 4  # frame counter prefix
+    HEADER_BYTES = 4
 
     def __init__(
         self,
@@ -91,13 +59,7 @@ class CameraReader:
         self.site_id = site_id
         self._camera_db_id = camera_db_id
 
-        # Circuit breaker state
-        self._fail_count = 0
-        self._cb_state = 'CLOSED'    # CLOSED | OPEN | HALF_OPEN
-        self._cb_opened_at = 0.0
-
         total = self.HEADER_BYTES + cfg.SHM_FRAME_BYTES
-        # Clean up stale SHM from previous crash before creating fresh one
         try:
             stale = shared_memory.SharedMemory(name=shm_name, create=False)
             stale.close()
@@ -120,23 +82,10 @@ class CameraReader:
         roi_mask: Optional[np.ndarray] = None
         prev_gray: Optional[np.ndarray] = None
         frame_idx = 0
+        cap = None
 
         try:
             while not self.stop_event.is_set():
-                # ── Circuit Breaker Check ────────────────────────────
-                if self._cb_state == 'OPEN':
-                    elapsed = time.monotonic() - self._cb_opened_at
-                    if elapsed < _CB_OPEN_SECONDS:
-                        wait_remaining = _CB_OPEN_SECONDS - elapsed
-                        logger.warning("[%s] Circuit OPEN — waiting %.0fs",
-                                       self.cam_id, wait_remaining)
-                        self.stop_event.wait(min(wait_remaining, 30))
-                        continue
-                    else:
-                        self._cb_state = 'HALF_OPEN'
-                        logger.info("[%s] Circuit HALF_OPEN — testing", self.cam_id)
-                # ─────────────────────────────────────────────────────
-
                 cap = self._open_capture()
                 if cap is None:
                     logger.error("[%s] Connection failed. Aborting grabber immediately without retry.", self.cam_id)
@@ -149,13 +98,6 @@ class CameraReader:
                         except Exception as e:
                             logger.debug("[%s] Failed to reset is_streaming: %s", self.cam_id, e)
                     break
-
-                # ── Connection succeeded ─────────────────────────────
-                if self._fail_count > 0 or self._cb_state == 'HALF_OPEN':
-                    self._write_health_event('stream_up')
-                self._fail_count = 0
-                self._cb_state = 'CLOSED'
-                # ─────────────────────────────────────────────────────
 
                 logger.info("[%s] Stream opened", self.cam_id)
                 t_last = time.monotonic()
@@ -176,7 +118,7 @@ class CameraReader:
                             frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
                         )
 
-                    alpha = getattr(cfg, 'DENOISE_TEMPORAL_ALPHA', 1.0)
+                    alpha = cfg.DENOISE_TEMPORAL_ALPHA
                     if alpha < 1.0:
                         if hasattr(self, '_prev_f32'):
                             cv2.accumulateWeighted(frame, self._prev_f32, alpha)
@@ -191,7 +133,6 @@ class CameraReader:
                         self.recorder_queue.put_nowait({
                             "cam_id": self.cam_id,
                             "frame": frame.copy(),
-                            "ts": time.time()
                         })
 
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -204,7 +145,6 @@ class CameraReader:
                             token = {
                                 "cam_id": self.cam_id,
                                 "shm_name": self.shm_name,
-                                "frame_idx": frame_idx,
                                 "ts": time.time(),
                                 "site_id": self.site_id,
                             }
@@ -216,6 +156,7 @@ class CameraReader:
                     frame_idx += 1
 
                 cap.release()
+                cap = None
                 if not self.stop_event.is_set():
                     logger.info("[%s] Reconnecting in %ds…", self.cam_id, cfg.RTSP_RECONNECT_DELAY)
                     self.stop_event.wait(cfg.RTSP_RECONNECT_DELAY)
@@ -224,19 +165,20 @@ class CameraReader:
             self._write_health_event('crashed')
             raise
 
-        self._shm.close()
-        self._shm.unlink()
-        logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
+        finally:
+            if cap is not None:
+                cap.release()
+            self._shm.close()
+            self._shm.unlink()
+            logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
     def _get_db(self):
-        """Lazy DatabaseManager — shared pool, created once."""
         if not hasattr(self, '_db_instance'):
             from backend.services.database import DatabaseManager
             self._db_instance = DatabaseManager(max_pool_size=2)
         return self._db_instance
 
     def _write_health_event(self, event_type: str):
-        """Write a health event to camera_status_log + Telegram alert on stream_down."""
         try:
             db = self._get_db()
             db.insert("camera_status_log", {
@@ -248,21 +190,17 @@ class CameraReader:
         except Exception as e:
             logger.debug("[%s] Health event write failed: %s", self.cam_id, e)
 
-        # Telegram alert khi camera offline (stream_down hoặc crashed)
         if event_type in ('stream_down', 'crashed'):
             try:
                 from backend.services.telegram_service import notify_telegram
                 notify_telegram(
-                    f"Camera {self.cam_id} OFFLINE — {event_type} sau {self._fail_count} failures",
+                    f"Camera {self.cam_id} OFFLINE — {event_type}",
                     important=True,
                 )
             except Exception:
-                pass
+                logger.exception("[%s] Telegram alert failed", self.cam_id)
 
     def _open_capture(self) -> Optional[cv2.VideoCapture]:
-        """Open RTSP with FFmpeg backend + forced TCP transport for stability.
-        Re-reads RTSP URL from DB on each attempt to pick up IP changes."""
-        # Refresh URL from DB if we have the DB id
         if self._camera_db_id:
             try:
                 from backend.camera.camera_service import get_camera_rtsp_url
@@ -274,7 +212,6 @@ class CameraReader:
             except Exception as e:
                 logger.debug("[%s] URL refresh failed: %s", self.cam_id, e)
 
-        # Force TCP transport globally for this process
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
         
         masked_url = self.rtsp_url
@@ -290,16 +227,14 @@ class CameraReader:
         if not cap.isOpened() and not self.rtsp_url.startswith("rtsp://"):
             cap = cv2.VideoCapture(self.rtsp_url)
         if not cap.isOpened():
-            logger.error("[%s] Connection FAILED to: %s", self.cam_id, masked_url)
+            cap.release()
             return None
 
-        # Force CPU-only decoding for stability and to avoid GPU context polling
         cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_NONE)
         cap.set(cv2.CAP_PROP_BUFFERSIZE, cfg.RTSP_BUFFER_SIZE)
         return cap
 
 
-# ── Process entry point ───────────────────────────────────────────────────────
 
 def grabber_process(
     cam_id: str,
@@ -311,8 +246,6 @@ def grabber_process(
     site_id: int = None,
     camera_db_id: int = None,
 ):
-    """Entry point for multiprocessing.Process(target=grabber_process, ...)."""
-    # Ignore SIGINT in child — parent handles shutdown via stop_event
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     cfg.setup_logging("grabber.log")
 

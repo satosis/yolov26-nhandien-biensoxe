@@ -4,7 +4,7 @@
 {% block content %}
 <div x-data="{ section: 'projects' }">
 
-  {# ── Tabs ── #}
+
   <div class="card mb-4">
     <div class="card-body p-0">
       <ul class="nav nav-tabs" style="border-bottom:0;">
@@ -24,7 +24,7 @@
     </div>
   </div>
 
-  {# ── PROJECTS SECTION ── #}
+
   <div x-show="section==='projects'">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0 font-weight-bold">Danh sách Dự án</h5>
@@ -76,7 +76,7 @@
     </div>
   </div>
 
-  {# ── NEWS SECTION ── #}
+
   <div x-show="section==='news'">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0 font-weight-bold">Tin tức mới nhất</h5>
@@ -125,7 +125,7 @@
 
 </div>
 
-{# ── MODALS ── #}
+
 <div x-data="{ show: false, modalId: '', editData: {} }"
      @open-modal.window="show = true; if (typeof $event.detail === 'string') { modalId = $event.detail; editData = {}; } else { modalId = $event.detail.id; editData = $event.detail.payload; }"
      x-show="show"
@@ -133,7 +133,7 @@
      :style="show ? 'display:flex;' : 'display:none;'">
   <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.45);" @click="show = false"></div>
 
-  {# Add Project Modal #}
+
   <div x-show="modalId === 'add-project-modal'" class="card rounded w-100 shadow-lg" style="max-width:540px;position:relative;z-index:1;">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0 font-weight-bold">Thêm dự án mới</h5>
@@ -179,7 +179,7 @@
     </form>
   </div>
 
-  {# Edit Project Modal #}
+
   <div x-show="modalId === 'edit-project-modal'" class="card rounded w-100 shadow-lg" style="max-width:540px;position:relative;z-index:1;">
     <div class="card-header d-flex justify-content-between align-items-center">
       <h5 class="mb-0 font-weight-bold">Sửa dự án</h5>

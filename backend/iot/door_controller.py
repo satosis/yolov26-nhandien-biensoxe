@@ -3,14 +3,7 @@ import logging
 import threading
 import requests
 import tinytuya
-
-# OPi.GPIO is only available/functional on Linux/Orange Pi systems
-GPIO = None
-try:
-    import OPi.GPIO as GPIO
-except (ImportError, RuntimeError, AttributeError):
-    # This will fail on macOS because of 'select.EPOLLIN' absence
-    pass
+from urllib.parse import urlparse
 
 from backend.iot.hunonic_handler import HunonicHandler
 
@@ -18,35 +11,21 @@ logger = logging.getLogger("door_controller")
 
 
 def _safe_relay_url(url: str) -> bool:
-    """Reject cloud-metadata / link-local targets and non-HTTP schemes for the
-    admin-configured relay URL (basic SSRF guard). LAN/private IPs are allowed —
-    relays legitimately live on the local network."""
-    try:
-        from urllib.parse import urlparse
-        u = url if "://" in url else "http://" + url
-        p = urlparse(u)
-        host = (p.hostname or "").lower()
-        if p.scheme not in ("http", "https"):
-            return False
-        if host.startswith("169.254.") or host == "metadata" or host.endswith(".internal"):
-            return False
-        return True
-    except Exception:
-        return False
+    p = urlparse(url if "://" in url else f"http://{url}")
+    host = (p.hostname or "").lower()
+    return p.scheme in ("http", "https") and bool(host) and not (
+        host.startswith("169.254.") or host == "metadata" or host.endswith(".internal")
+    )
 
 
 class DoorController:
     def __init__(self):
-        # Relay control for garage door
-        self.RELAY_TYPE = "tuya_local"  # Options: gpio, tasmota, http, tuya_local
+        self.RELAY_TYPE = "tuya_local"
         
-        # GPIO Config
-        self.RELAY_GPIO_PIN = 11  # Orange Pi 4 Pro (Physical Pin 11)
+        self.RELAY_GPIO_PIN = 11
         
-        # Tasmota/HTTP Config
         self.RELAY_HTTP_URL = ""
 
-        # Optional global Tuya defaults configured from the webapp.
         from backend.services.database import DatabaseManager
         from backend.services.settings_service import get_app_setting
         db = DatabaseManager()
@@ -55,10 +34,9 @@ class DoorController:
         self.TUYA_IP = get_app_setting(db, "TUYA_IP", "")
         
         self.door_state_lock = threading.Lock()
-        self.door_state = "closed" # open, closed, opening, closing
+        self.door_state = "closed"
 
     def control_door(self, action: str, relay_type: str = None, relay_config: dict = None) -> bool:
-        """Control garage door relay: OPEN, CLOSE, STOP"""
         rtype = relay_type or self.RELAY_TYPE
         rconfig = relay_config or {}
         
@@ -66,18 +44,14 @@ class DoorController:
 
         try:
             if rtype == "gpio":
-                if GPIO is None:
-                    logger.error("OPi.GPIO not installed — cannot control door via gpio")
-                    return False
-                
-                # Setup GPIO
+                import OPi.GPIO as GPIO
+
                 pin = rconfig.get("pin") or self.RELAY_GPIO_PIN
                 GPIO.setmode(GPIO.BOARD) 
                 GPIO.setup(pin, GPIO.OUT)
                 
-                # Pulse logic for garage door (Toggle)
                 GPIO.output(pin, GPIO.HIGH)
-                time.sleep(0.5)  # 0.5s pulse
+                time.sleep(0.5)
                 GPIO.output(pin, GPIO.LOW)
                 
                 GPIO.cleanup()
@@ -86,7 +60,6 @@ class DoorController:
             elif rtype == "tasmota":
                 url = rconfig.get("ip") or self.RELAY_HTTP_URL
                 if url and _safe_relay_url(url):
-                    # Assumes simple toggle for garage door
                     requests.get(f"{url}/cm?cmnd=Power%20TOGGLE", timeout=5)
                     return True
                 elif url:
@@ -95,7 +68,6 @@ class DoorController:
             elif rtype == "http":
                 url = rconfig.get("ip") or self.RELAY_HTTP_URL
                 if url and _safe_relay_url(url):
-                    # Generic HTTP GET request
                     requests.get(url, timeout=5)
                     logger.info(f"Sent HTTP request to {url}")
                     return True
@@ -103,7 +75,6 @@ class DoorController:
                     logger.warning("Refused unsafe http relay URL: %s", url)
 
             elif rtype == "tuya_local":
-                # Use provided config or fallback to defaults
                 dev_id = rconfig.get("device_id") or self.TUYA_DEVICE_ID
                 loc_key = rconfig.get("local_key") or self.TUYA_LOCAL_KEY
                 ip = rconfig.get("ip") or self.TUYA_IP or "Auto"
@@ -130,14 +101,12 @@ class DoorController:
                     return False
                 
                 handler = HunonicHandler(phone, password)
-                # HunonicHandler takes lower case commands like 'open', 'close', 'stop'
                 return handler.send_command(device_id, action.lower())
 
         except Exception as e:
             logger.error(f"Error controlling door ({rtype}): {str(e)}", exc_info=True)
             return False
 
-        # Simulating state change for UI feedback (legacy logic for main garage door)
         if not relay_type:
             with self.door_state_lock:
                 if action == "OPEN":
@@ -145,8 +114,6 @@ class DoorController:
                 elif action == "CLOSE":
                     self.door_state = "closed"
         else:
-            # Reached here means a relay_type was given but no branch executed the
-            # action (e.g. tasmota/http with empty url, or an unknown relay_type).
             logger.warning("Door control '%s' for relay_type '%s' did not execute — check config", action, relay_type)
 
         return False

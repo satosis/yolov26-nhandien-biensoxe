@@ -1,5 +1,3 @@
-# Single source of truth for all menu definitions.
-# Both main.py and rbac_management_view.py import from here.
 
 MENU_GROUPS = {
     "📊 Theo dõi & AI": {
@@ -30,7 +28,6 @@ MENU_GROUPS = {
     },
 }
 
-# Flat dict of all menus for RBAC and lookups
 ALL_MENUS = {}
 for items in MENU_GROUPS.values():
     ALL_MENUS.update(items)

@@ -41,18 +41,9 @@ services:
     volumes:
       - ./data:/app/data
 
-    # Camera discovery networking:
-    # - Bridge network: ARP scan and unicast ONVIF work.
-    # - Host network: multicast/broadcast discovery also works, but is less isolated.
-    #
-    # Default: bridge network. The ai_core service is a worker, not a web server,
-    # so it does not publish HTTP ports.
     networks:
       - shared-services
 
-    # Optional full discovery mode. Uncomment this and remove networks above
-    # when deploying on Linux with host networking support.
-    # network_mode: host
 
 networks:
   shared-services:
@@ -63,4 +54,3 @@ volumes:
   postgres_data:
     name: yolov26-nhandien-biensoxe_postgres_data
     external: true
-

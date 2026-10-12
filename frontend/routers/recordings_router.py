@@ -1,15 +1,13 @@
 from fastapi import APIRouter, Request, Depends, Query
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
 from urllib.parse import urlencode
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 import os
 import psutil
 import math
 from backend.services.config import RECORDING_DIR
 
 def format_size(size_bytes):
-    if not size_bytes or size_bytes == 0: return "0 B"
+    if not size_bytes: return "0 B"
     units = ("B", "KB", "MB", "GB", "TB")
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
@@ -19,7 +17,6 @@ def format_size(size_bytes):
 PER_PAGE = 20
 
 router = APIRouter(prefix="/recordings")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def get_recordings(db, site_id=None, limit=50, offset=0):
@@ -30,7 +27,7 @@ def get_recordings(db, site_id=None, limit=50, offset=0):
         params.append(site_id)
     query += " ORDER BY start_time DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
-    return db._execute_query(query, tuple(params), fetchall=True, commit=False) or []
+    return db._execute_query(query, tuple(params), fetchall=True, commit=False)
 
 
 def count_recordings(db, site_id=None):
@@ -40,7 +37,7 @@ def count_recordings(db, site_id=None):
         query += " WHERE site_id = %s"
         params.append(site_id)
     row = db._execute_query(query, tuple(params) if params else None, fetch=True, commit=False)
-    return row["count"] if row else 0
+    return row["count"]
 
 
 @router.get("")
@@ -57,7 +54,6 @@ async def recordings_page(
     active_site = site_id or request.session.get("active_site_id", 0)
     if active_site == 0: active_site = None
 
-    # Pagination
     total = count_recordings(db, site_id=active_site)
     total_pages = max(1, math.ceil(total / PER_PAGE))
     page = min(page, total_pages)
@@ -74,7 +70,6 @@ async def recordings_page(
             rec["thumb_url"] = "/static/images/video-placeholder.png"
         rec["formatted_size"] = format_size(rec.get("file_size_bytes", 0))
 
-    # Disk Usage
     try:
         disk = psutil.disk_usage(RECORDING_DIR)
         ctx["storage"] = {
@@ -83,7 +78,7 @@ async def recordings_page(
             "percent": disk.percent,
             "free": format_size(disk.free)
         }
-    except:
+    except OSError:
         ctx["storage"] = {"used": "N/A", "total": "N/A", "percent": 0, "free": "N/A"}
 
     ctx["recordings"] = recordings
@@ -91,7 +86,6 @@ async def recordings_page(
     ctx["total_pages"] = total_pages
     ctx["total"] = total
 
-    # Build base URL for pagination links (clean query string)
     base_params = {}
     if active_site:
         base_params["site_id"] = active_site
@@ -107,13 +101,10 @@ async def delete_recording(recording_id: int, user: dict = Depends(require_menu(
     if not rec:
         return {"success": False, "message": "Record not found"}
 
-    try:
-        if rec["file_path"] and os.path.exists(rec["file_path"]):
-            os.remove(rec["file_path"])
-        if rec["thumbnail_path"] and os.path.exists(rec["thumbnail_path"]):
-            os.remove(rec["thumbnail_path"])
-    except Exception as e:
-        print(f"Error deleting files for recording {recording_id}: {e}")
+    for key in ("file_path", "thumbnail_path"):
+        path = rec[key]
+        if path and os.path.exists(path):
+            os.remove(path)
 
     db.delete("video_recordings", {"id": recording_id})
     return {"success": True}

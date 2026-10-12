@@ -1,64 +1,41 @@
-"""Landing page router — public routes, no auth required."""
 import logging
 import re
 from datetime import datetime
 from fastapi import APIRouter, Request, Form
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, Response
-from pathlib import Path
 
-from frontend.deps import get_db, get_optional_user
+from frontend.deps import get_db, get_optional_user, templates
 from frontend.notifications import manager
 from .cms_router import get_projects, get_news, get_news_by_slug, get_news_by_id, get_landing_settings
 from .inquiries_router import save_inquiry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
+
+
+def _landing_settings(db, warehouse=False):
+    raw = get_landing_settings(db)
+    suffix = "_WAREHOUSE" if warehouse else ""
+    return {
+        "phone": raw.get(f"LANDING_PHONE{suffix}", ""),
+        "zalo": raw.get(f"LANDING_ZALO{suffix}", ""),
+        "gtm_id": raw.get("GTM_ID", ""),
+        "fb_pixel_id": raw.get("FB_PIXEL_ID", ""),
+    }
 
 
 @router.get("/", response_class=HTMLResponse)
 async def landing_home(request: Request):
-    """Home page - professional company landing page."""
     db = get_db()
-    raw_settings = get_landing_settings(db)
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(db, warehouse=True)
     
-    try:
-        projects = get_projects(db)
-    except Exception as e:
-        logger.error(f"Database error getting projects: {e}")
-        projects = []
-    if not projects:
-        logger.warning("No projects found in DB, using fallback data.")
-        projects = [
-            {"id": 1, "name": "Vĩnh Phúc Core Logistics Park", "location": "Vĩnh Phúc", "image": "/static/brain/wh_real1.jpg", "area": "15,000 m²", "load_capacity": "5 Tons/m²"},
-            {"id": 2, "name": "Hải Phòng Industrial Center", "location": "Hải Phòng", "image": "/static/brain/wh_real2.jpg", "area": "22,000 m²", "load_capacity": "8 Tons/m²"}
-        ]
-    
-    print(f"DEBUG: Fetched {len(projects) if projects else 0} projects from DB")
-    # Normalize for template and fix JSON serialization issues (datetime)
+    projects = get_projects(db)
     for p in projects:
         p['load'] = p.get('load_capacity')
         if p.get('created_at'):
             p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
         
-    try:
-        news_items = get_news(db, limit=3)
-    except Exception as e:
-        logger.error(f"Database error getting news: {e}")
-        news_items = []
-    if not news_items:
-        news_items = [
-            {"id": 1, "title": "Xu hướng nhà xưởng 2026", "category": "Thị trường", "publish_date_str": "29/04/2026", "image": "/static/brain/news1.jpg"}
-        ]
-    
-    print(f"DEBUG: Fetched {len(news_items) if news_items else 0} news items from DB")
+    news_items = get_news(db, limit=3)
     for n in news_items:
         if n.get('publish_date'):
             n['publish_date_str'] = n['publish_date'].strftime('%d/%m/%Y') if hasattr(n['publish_date'], 'strftime') else str(n['publish_date'])
@@ -80,7 +57,6 @@ async def landing_home(request: Request):
 
 @router.get("/gioi-thieu", response_class=HTMLResponse)
 async def landing_about(request: Request):
-    """About us page."""
     db = get_db()
     raw_settings = get_landing_settings(db)
     settings = {
@@ -95,21 +71,10 @@ async def landing_about(request: Request):
 
 @router.get("/nhaxuong", response_class=HTMLResponse)
 async def landing_warehouse(request: Request):
-    """Spoke 1 — Nha xuong cho thue."""
     db = get_db()
-    raw_settings = get_landing_settings(db)
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(db)
     
-    try:
-        projects = get_projects(db)
-    except Exception as e:
-        logger.error(f"Database error getting projects: {e}")
-        projects = []
+    projects = get_projects(db)
     for p in projects:
         p['load'] = p.get('load_capacity')
         if p.get('created_at'):
@@ -129,15 +94,8 @@ async def landing_warehouse(request: Request):
 
 @router.get("/nha-xuong-co-tiet", response_class=HTMLResponse)
 async def landing_co_tiet(request: Request):
-    """Spoke 1b — CCN Co Tiet nha xuong cho thue."""
     db = get_db()
-    raw_settings = get_landing_settings(db)
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(db)
     return templates.TemplateResponse(
         "pages/landing_co_tiet.html",
         {
@@ -151,14 +109,7 @@ async def landing_co_tiet(request: Request):
 
 @router.get("/dich-vu", response_class=HTMLResponse)
 async def landing_services(request: Request):
-    """Dịch vụ & giải pháp — build-to-suit, vận hành, pháp lý FDI, hạ tầng."""
-    raw_settings = get_landing_settings(get_db())
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(get_db(), warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_services.html",
         {"request": request, "settings": settings, "source_page": "services", "user": get_optional_user(request)},
@@ -167,14 +118,7 @@ async def landing_services(request: Request):
 
 @router.get("/du-an", response_class=HTMLResponse)
 async def landing_projects(request: Request):
-    """Tổng quan nhà xưởng — hub liệt kê KCN Trung Hà & Cổ Tiết."""
-    raw_settings = get_landing_settings(get_db())
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(get_db(), warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_projects.html",
         {"request": request, "settings": settings, "source_page": "warehouse", "user": get_optional_user(request)},
@@ -183,14 +127,7 @@ async def landing_projects(request: Request):
 
 @router.get("/xecau", response_class=HTMLResponse)
 async def landing_crane(request: Request):
-    """Spoke (legacy) — Dịch vụ xe cẩu. Giao diện gốc (landing.css), tách khỏi Tailwind."""
-    raw_settings = get_landing_settings(get_db())
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(get_db(), warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_crane.html",
         {"request": request, "settings": settings, "source_page": "crane", "user": get_optional_user(request)},
@@ -199,14 +136,7 @@ async def landing_crane(request: Request):
 
 @router.get("/kiem-dinh-can", response_class=HTMLResponse)
 async def landing_scale(request: Request):
-    """Spoke (legacy) — Kiểm định cân & cho thuê quả cân. Giao diện gốc (landing.css)."""
-    raw_settings = get_landing_settings(get_db())
-    settings = {
-        "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
-        "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
-        "gtm_id": raw_settings.get("GTM_ID", ""),
-        "fb_pixel_id": raw_settings.get("FB_PIXEL_ID", ""),
-    }
+    settings = _landing_settings(get_db(), warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_scale.html",
         {"request": request, "settings": settings, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
@@ -215,7 +145,6 @@ async def landing_scale(request: Request):
 
 @router.get("/lien-he", response_class=HTMLResponse)
 async def landing_contact(request: Request):
-    """Trang Liên hệ độc lập (GET). Form submit dùng POST /lien-he bên dưới."""
     db = get_db()
     raw_settings = get_landing_settings(db)
     settings = {"phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", "")}
@@ -227,14 +156,12 @@ async def landing_contact(request: Request):
 
 @router.get("/tin-tuc/{slug}", response_class=HTMLResponse)
 async def landing_news_detail(request: Request, slug: str):
-    """Chi tiet bai viet tin tuc — slug hoac legacy numeric ID."""
     from fastapi.responses import RedirectResponse
     db = get_db()
     raw_settings = get_landing_settings(db)
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
     }
-    # Legacy: numeric ID → redirect to slug URL
     if slug.isdigit():
         item = get_news_by_id(db, int(slug))
         if item and item.get("slug"):
@@ -254,7 +181,6 @@ async def landing_news_detail(request: Request, slug: str):
 
 @router.get("/tin-tuc", response_class=HTMLResponse)
 async def landing_news(request: Request):
-    """Tin tức & Cập nhật — danh sách tin tức từ DB."""
     db = get_db()
     raw_settings = get_landing_settings(db)
     settings = {
@@ -278,9 +204,6 @@ async def landing_news(request: Request):
     })
 
 
-# ---------------------------------------------------------------------------
-# SEO — sitemap.xml + robots.txt
-# ---------------------------------------------------------------------------
 
 @router.get("/sitemap.xml")
 async def sitemap(request: Request):
@@ -343,9 +266,6 @@ Sitemap: {base}/sitemap.xml
     return Response(content=content, media_type="text/plain")
 
 
-# ---------------------------------------------------------------------------
-# Form handlers
-# ---------------------------------------------------------------------------
 
 _PHONE_RE = re.compile(r"^[0-9\s\+\-\.]{7,20}$")
 
@@ -383,7 +303,6 @@ async def contact_inquiry(
     demand: str = Form(""),
     source_page: str = Form("home"),
 ):
-    """HTMX contact form — validate + save to inquiries table."""
     full_name = full_name.strip()
     phone = phone.strip()
     company_name = company_name.strip()
@@ -398,54 +317,19 @@ async def contact_inquiry(
     if errors:
         return HTMLResponse(_error_html(errors), status_code=400)
 
-    try:
-        db = get_db()
-        inquiry_id = save_inquiry(db, full_name, phone, company_name, demand, source_page)
-        logger.info("New inquiry saved: %s | %s | source=%s", full_name, phone, source_page)
-        
-        # Broadcast via WebSocket
-        import asyncio
-        asyncio.create_task(manager.broadcast({
-            "type": "NEW_INQUIRY",
-            "data": {
-                "id": inquiry_id,
-                "full_name": full_name,
-                "phone": phone,
-                "demand": demand,
-                "source_page": source_page
-            }
-        }))
-    except Exception as exc:
-        logger.warning("Could not save inquiry: %s", exc)
+    inquiry_id = save_inquiry(get_db(), full_name, phone, company_name, demand, source_page)
+    logger.info("New inquiry saved: %s | %s | source=%s", full_name, phone, source_page)
 
-    return HTMLResponse(_SUCCESS_HTML, status_code=200)
-
-
-# Legacy warehouse form redirect — keep old URL working
-@router.post("/nha-xuong/lien-he", response_class=HTMLResponse)
-async def warehouse_contact_legacy(
-    name: str = Form(""),
-    phone: str = Form(""),
-    area: str = Form(""),
-):
-    """Legacy form endpoint — proxies to new save_inquiry."""
-    name = name.strip()
-    phone = phone.strip()
-
-    errors: list[str] = []
-    if not name or len(name) < 2:
-        errors.append("Họ tên không hợp lệ (tối thiểu 2 ký tự).")
-    if not phone or not _PHONE_RE.match(phone):
-        errors.append("Số điện thoại không hợp lệ.")
-
-    if errors:
-        return HTMLResponse(_error_html(errors), status_code=400)
-
-    try:
-        db = get_db()
-        save_inquiry(db, name, phone, "", area, "warehouse_legacy")
-        logger.info("Legacy warehouse contact saved: %s | %s", name, phone)
-    except Exception as exc:
-        logger.warning("Could not save legacy contact: %s", exc)
+    import asyncio
+    asyncio.create_task(manager.broadcast({
+        "type": "NEW_INQUIRY",
+        "data": {
+            "id": inquiry_id,
+            "full_name": full_name,
+            "phone": phone,
+            "demand": demand,
+            "source_page": source_page
+        }
+    }))
 
     return HTMLResponse(_SUCCESS_HTML, status_code=200)

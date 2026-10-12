@@ -1,17 +1,17 @@
-{# THÉP SƠN LÂM Header — Tailwind + Alpine, clean URLs + auth + i18n #}
+
 {% set path = request.url.path %}
 <header x-data="{ open: false, scrolled: false }" @scroll.window="scrolled = window.scrollY > 50"
   :class="scrolled ? 'shadow-sm' : ''"
   class="fixed top-0 left-0 w-full h-[80px] z-[1000] bg-white/95 backdrop-blur-[8px] border-b border-tsl-border transition-all">
   <div class="mx-auto w-full max-w-[1280px] px-4 h-full flex items-center justify-between">
 
-    <!-- Logo -->
+
     <a href="/" class="flex flex-col leading-none pt-1">
       <span class="font-display font-extrabold text-[1.25rem] text-tsl-primary tracking-[-0.5px]">THÉP SƠN LÂM</span>
       <span class="text-[0.75rem] font-semibold uppercase tracking-[1px] text-tsl-accent mt-1">Industrial Core</span>
     </a>
 
-    <!-- Desktop nav -->
+
     <nav class="hidden lg:block" translate="no">
       <ul class="flex items-center gap-[clamp(1rem,2vw,2rem)] font-display font-medium">
         <li>
@@ -79,9 +79,9 @@
       </ul>
     </nav>
 
-    <!-- Right actions -->
+
     <div class="hidden lg:flex items-center gap-1.5" translate="no">
-      <!-- Language selector -->
+
       <div class="relative" x-data="{ lo: false }" @click.away="lo = false">
         <button type="button" @click="lo = !lo"
           class="inline-flex items-center justify-center w-10 h-10 rounded-full hover:bg-tsl-light text-tsl-text transition-colors"
@@ -132,7 +132,7 @@
       <a href="/#lien-he" class="tsl-btn tsl-btn-primary !px-5 !py-2.5 !text-[14px]">Liên hệ ngay</a>
     </div>
 
-    <!-- Mobile toggle -->
+
     <button type="button" @click="open = !open" :aria-expanded="open ? 'true' : 'false'"
       class="lg:hidden w-11 h-11 inline-flex items-center justify-center rounded-lg text-tsl-primary hover:bg-tsl-light"
       aria-label="Mở menu">
@@ -140,7 +140,7 @@
     </button>
   </div>
 
-  <!-- Mobile nav panel -->
+
   <nav x-show="open" x-cloak x-transition
     class="lg:hidden absolute top-[calc(100%+1px)] left-4 right-4 p-3 bg-white border border-tsl-border rounded-xl shadow-xl max-h-[calc(100vh-96px)] overflow-y-auto"
     translate="no" @click="open = false">

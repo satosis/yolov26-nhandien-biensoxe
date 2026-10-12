@@ -4,7 +4,7 @@
 {% block content %}
 <div class="container-fluid">
 
-  <!-- Page Header -->
+
   <div class="d-flex align-items-center justify-content-between mb-4">
     <div class="d-flex align-items-center" style="gap:10px;">
       <span style="font-size:28px;">🚪</span>
@@ -16,7 +16,7 @@
     </button>
   </div>
 
-  <!-- Add Form -->
+
   <div id="add-door-form" class="card mb-4" style="display:none;">
     <div class="card-body">
       <form method="POST" action="/admin/door_providers">
@@ -62,7 +62,7 @@
     </div>
   </div>
 
-  <!-- Providers Table -->
+
   <div class="card">
     <div class="card-body p-0">
       <div class="cx-overflow-x-auto">
@@ -129,7 +129,7 @@
               </td>
             </tr>
 
-            <!-- Edit Form Row -->
+
             <tr id="edit-door-form-{{ p.provider_key }}" style="display:none;">
               <td colspan="6" class="p-4" style="background:#f8f9fa;">
                 <form method="POST" action="/admin/door_providers" class="d-flex flex-column" style="gap:12px;">

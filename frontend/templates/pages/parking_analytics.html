@@ -3,7 +3,7 @@
 {% block page_title %}Thống kê bãi xe{% endblock %}
 {% block content %}
 
-<!-- Summary KPI cards -->
+
 <div class="row mb-4">
   {% for icon, label, val, grad in [('fas fa-car','Xe hôm nay', stats.today_count|default(0), 'kpi-gradient-2'),('fas fa-chart-line','Xe tuần này', stats.week_count|default(0), 'kpi-gradient-1'),('fas fa-calendar-alt','Xe tháng này', stats.month_count|default(0), 'kpi-gradient-3'),('fas fa-stopwatch','TB thời gian đỗ', stats.avg_duration|default('—'), 'kpi-gradient-4')] %}
   <div class="col-12 col-sm-6 col-xl-3 mb-3">
@@ -16,7 +16,7 @@
   {% endfor %}
 </div>
 
-<!-- Peak hours bar chart -->
+
 <div class="card mb-4">
   <div class="card-body">
     <h6 class="card-title font-weight-bold mb-3">
@@ -38,7 +38,7 @@
   </div>
 </div>
 
-<!-- Recent activity -->
+
 <div class="card">
   <div class="card-body">
     <h6 class="card-title font-weight-bold mb-3">

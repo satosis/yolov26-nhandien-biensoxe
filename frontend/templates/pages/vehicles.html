@@ -35,7 +35,7 @@
     </button>
   </div>
 
-  <!-- Add form -->
+
   <div id="add-vehicle-form" style="display:none;" class="mb-4">
     <div class="card">
       <div class="card-header font-weight-bold">
@@ -83,7 +83,7 @@
     </div>
   </div>
 
-  <!-- Edit form (hidden, filled by JS) -->
+
   <div id="edit-vehicle-form" style="display:none;" class="mb-4">
     <div class="card">
       <div class="card-header font-weight-bold">
@@ -132,7 +132,7 @@
     </div>
   </div>
 
-  <!-- Table -->
+
   <div class="card" id="vehicles-list">
     <div class="card-body p-0">
       <div class="cx-overflow-x-auto">
@@ -250,7 +250,6 @@ function openEdit(id, plate, owner, siteIds, note, fuel) {
   document.getElementById('edit-note').value = note;
   document.getElementById('edit-fuel').value = fuel || '';
 
-  // Sync Tom Select
   var ids = Array.isArray(siteIds) ? siteIds.map(String) : [];
   tsEdit.setValue(ids);
   tsEditOwner.setValue(owner || "");

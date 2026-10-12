@@ -1,12 +1,8 @@
-"""FastAPI application — Parking Camera webapp."""
-import decimal
-import json
 import logging
 import os
 import ssl
 import sys
 import traceback
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 import certifi
@@ -14,24 +10,19 @@ import jinja2
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.requests import Request as StarletteRequest
 from starlette.responses import RedirectResponse, Response
 
-# Fix SSL certificate verification on macOS
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
-# Ensure project root is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# Load environment variables
 load_dotenv()
 
 from backend.services import config as cfg
-from frontend.deps import get_menu_context, get_optional_user
+from frontend.deps import get_menu_context, get_optional_user, templates
 from frontend.notifications import manager
 from frontend.routers.auth_router import router as auth_router
 from frontend.routers.cameras_router import router as cameras_router
@@ -55,7 +46,6 @@ from frontend.routers.telegram_router import router as telegram_router
 from frontend.routers.users_router import router as users_router
 from frontend.routers.vehicles_router import router as vehicles_router
 
-# Configure logging (console + data/logs/frontend.log)
 cfg.setup_logging("frontend.log")
 logger = logging.getLogger("frontend.app")
 
@@ -77,25 +67,8 @@ self.addEventListener('activate', (event) => {
 """.strip()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    port = "8000"
-    if "--port" in sys.argv:
-        try:
-            port = sys.argv[sys.argv.index("--port") + 1]
-        except IndexError:
-            pass
+app = FastAPI(title="Parking Camera")
 
-    print("====================================================")
-    print("   [P]  PARKING AI - FRONTEND WEB UI                ")
-    print(f"   Starting server on: http://localhost:{port}".ljust(52))
-    print("====================================================")
-    yield
-
-
-app = FastAPI(title="Parking Camera", lifespan=lifespan)
-
-# Session middleware
 _SESSION_SECRET = os.environ.get("SESSION_SECRET")
 app.add_middleware(
     SessionMiddleware,
@@ -107,7 +80,7 @@ app.add_middleware(
 
 
 class StaticCacheMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: StarletteRequest, call_next):
+    async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         path = request.url.path
         if path.startswith("/static/"):
@@ -120,7 +93,6 @@ class StaticCacheMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(StaticCacheMiddleware)
 
-# Static & media mount points
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 for d in (cfg.KNOWN_FACES_DIR, cfg.DATA_DIR, cfg.SNAPSHOT_DIR, cfg.RECORDING_DIR):
@@ -130,23 +102,6 @@ app.mount("/known_faces", StaticFiles(directory=cfg.KNOWN_FACES_DIR), name="know
 app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots")
 app.mount("/data/recordings", StaticFiles(directory=cfg.RECORDING_DIR), name="recordings")
 
-# Template engine configuration
-templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
-templates.env.add_extension("jinja2.ext.do")
-
-
-def custom_tojson(obj):
-    def default(o):
-        if isinstance(o, decimal.Decimal):
-            return float(o)
-        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
-
-    return json.dumps(obj, default=default)
-
-
-templates.env.filters["tojson"] = custom_tojson
-
-# Admin routers under /admin prefix
 ADMIN_ROUTERS = [
     detection_router,
     cameras_router,
@@ -171,22 +126,18 @@ ADMIN_ROUTERS = [
 for router in ADMIN_ROUTERS:
     app.include_router(router, prefix="/admin")
 
-# Root routers
 app.include_router(auth_router)
 app.include_router(landing_router)
 app.include_router(kyc_router)
 
 
-# Utility & system endpoints
 @app.get("/admin")
 async def admin_root():
-    """Bare /admin → default admin landing page."""
     return RedirectResponse("/admin/detection", status_code=303)
 
 
 @app.get("/sw.js")
 async def kill_service_worker():
-    """Kill-switch service worker to unregister stale SWs from browsers."""
     return Response(
         content=_KILL_SW_JS,
         media_type="application/javascript",
@@ -206,7 +157,6 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.post("/api/internal/notify-inquiry")
 async def notify_inquiry(data: dict):
-    """Internal endpoint to trigger WebSocket broadcast."""
     await manager.broadcast({"type": "NEW_INQUIRY", "data": data})
     return {"status": "ok"}
 
@@ -227,7 +177,6 @@ def _build_error_context(request: Request) -> dict:
     }
 
 
-# Exception handlers
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code in (301, 302, 303, 307, 308):
@@ -237,7 +186,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     ctx = _build_error_context(request)
     if exc.status_code == 404:
         return templates.TemplateResponse("pages/404.html", {"request": request, **ctx}, status_code=404)
-    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=500)
+    return templates.TemplateResponse("pages/500.html", {"request": request, "exc": exc, **ctx}, status_code=exc.status_code, headers=exc.headers)
 
 
 @app.exception_handler(jinja2.exceptions.TemplateNotFound)

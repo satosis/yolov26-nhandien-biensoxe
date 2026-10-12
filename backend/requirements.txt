@@ -1,6 +1,4 @@
-# Runtime dependencies for local development and Docker.
 
-# Core
 numpy<2.0.0
 python-dotenv>=1.0.0
 requests>=2.32.3
@@ -11,24 +9,20 @@ bcrypt
 psutil
 certifi
 
-# Web
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 jinja2>=3.1.0
 python-multipart>=0.0.9
 itsdangerous>=2.1.0
 
-# Camera and device integrations
 onvif-zeep==0.2.12
 tinytuya
 
-# AI runtime
 opencv-python-headless==4.10.0.84
 insightface>=0.7.3
 onnxruntime>=1.18.0
 rapidocr-onnxruntime
 
-# Cargo handwriting OCR
 PyMuPDF>=1.24.0
 vietocr
 huggingface_hub

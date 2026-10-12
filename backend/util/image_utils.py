@@ -4,7 +4,6 @@ import cv2
 from backend.services import config as cfg
 
 def save_snapshot(frame, cam_id: str, plate_text: str) -> str:
-    """Save a plate snapshot and return the relative path."""
     os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     safe_plate = plate_text.replace("/", "_").replace("\\", "_") or "unknown"
@@ -13,7 +12,6 @@ def save_snapshot(frame, cam_id: str, plate_text: str) -> str:
     return path
 
 def save_face_snapshot(frame, cam_id: str, bbox: tuple = None) -> str:
-    """Save a face snapshot. If bbox is provided, crops and pads the face."""
     os.makedirs(cfg.SNAPSHOT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     filename = f"face_{cam_id}_{ts}.jpg"
@@ -23,7 +21,6 @@ def save_face_snapshot(frame, cam_id: str, bbox: tuple = None) -> str:
     if bbox:
         x, y, w, h = [int(v) for v in bbox]
         fh, fw = frame.shape[:2]
-        # Add 50% padding around the face for better context
         pad_x = int(w * 0.5)
         pad_y = int(h * 0.5)
         x1 = max(0, x - pad_x)

@@ -4,7 +4,7 @@
 {% block content %}
 <div class="mx-auto" style="max-width:720px;">
 
-  <!-- KYC Status Banner -->
+
   {% set level = kyc.kyc_level or 0 %}
   {% if level == 4 %}
   <div class="alert alert-success d-flex align-items-center mb-4" style="gap:12px;">
@@ -37,7 +37,7 @@
   </div>
   {% endif %}
 
-  <!-- Progress Steps -->
+
   <div class="card mb-4">
     <div class="card-body">
       {% set steps = [
@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <!-- ═══════════ STEP 1: Basic Info ═══════════ -->
+
   {% if level < 1 %}
   <div class="card mb-4">
     <div class="card-header">
@@ -110,7 +110,7 @@
   </div>
   {% endif %}
 
-  <!-- ═══════════ STEP 2: ID Document Upload ═══════════ -->
+
   {% if level >= 1 and level < 2 %}
   <div class="card mb-4">
     <div class="card-header">
@@ -118,7 +118,7 @@
       <small class="text-muted">Chụp ảnh CMND/CCCD rõ ràng, đặt trên nền trắng</small>
     </div>
     <div class="card-body">
-      <!-- ID Front -->
+
       <div class="mb-4">
         <label class="font-weight-bold" style="font-size:13px;">Mặt trước CMND/CCCD *</label>
         <div id="drop-id-front" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
@@ -137,7 +137,7 @@
         </div>
       </div>
 
-      <!-- ID Back -->
+
       <div class="mb-3">
         <label class="font-weight-bold" style="font-size:13px;">Mặt sau CMND/CCCD *</label>
         <div id="drop-id-back" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
@@ -159,7 +159,7 @@
   </div>
   {% endif %}
 
-  <!-- ═══════════ STEP 3: Face Verification ═══════════ -->
+
   {% if level >= 2 and level < 3 %}
   <div class="card mb-4">
     <div class="card-header">
@@ -168,7 +168,7 @@
     </div>
     <div class="card-body d-flex flex-column align-items-center" style="gap:20px;">
 
-      <!-- Face progress indicators -->
+
       <div class="d-flex" style="gap:12px;">
         {% set face_angles = ['front','left','right','up','down'] %}
         {% set face_labels = {'front':'Thẳng','left':'Trái','right':'Phải','up':'Lên','down':'Xuống'} %}
@@ -184,7 +184,7 @@
         {% endfor %}
       </div>
 
-      <!-- Video ring -->
+
       <div class="d-flex flex-column align-items-center" style="gap:16px;">
         <div id="video-ring" class="rounded-circle overflow-hidden border" style="width:224px;height:224px;border-width:4px!important;border-color:#e2e8f0!important;position:relative;box-shadow:0 0 30px rgba(0,0,0,.1);transition:all .3s;">
           <video id="webcam-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
@@ -201,7 +201,7 @@
           </div>
         </div>
 
-        <!-- Hold progress bar -->
+
         <div class="rounded" style="width:224px;height:6px;background:#e2e8f0;overflow:hidden;">
           <div id="hold-bar" class="h-100 rounded bg-success" style="width:0%;transition:width .1s;"></div>
         </div>
@@ -219,7 +219,7 @@
 
 </div>
 
-<!-- Face verification JS (only loaded when needed) -->
+
 {% if level >= 2 and level < 3 %}
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
@@ -233,7 +233,6 @@ let modelsLoaded = false;
 let dirHistory = [];
 const HISTORY_SIZE = 5;
 
-// Check which angles are already done
 const doneFaces = new Set([
   {% for angle in face_angles %}{% if docs.get('face_' + angle) %}'{{ angle }}',{% endif %}{% endfor %}
 ]);
@@ -388,7 +387,6 @@ async function autoCaptureAndUpload() {
             document.getElementById('success-overlay').style.display = 'flex';
             document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
             document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
-            // Update badge
             const badge = document.getElementById(`face-badge-${step.id}`);
             if (badge) {
                 const circle = badge.querySelector('div');
@@ -416,7 +414,7 @@ function kycComplete() {
 </script>
 {% endif %}
 
-<!-- ID Upload JS (only loaded when needed) -->
+
 {% if level >= 1 and level < 2 %}
 <script>
 async function uploadIdDoc(docType, input) {
@@ -429,7 +427,6 @@ async function uploadIdDoc(docType, input) {
     const preview = document.getElementById('preview-' + docType);
     const placeholder = document.getElementById('placeholder-' + docType);
 
-    // Show preview immediately
     const reader = new FileReader();
     reader.onload = (e) => {
         preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded mx-auto d-block" style="max-height:160px;"><p class="text-warning font-weight-bold mt-2 mb-0 animate-pulse" style="font-size:12px;">⏳ Đang tải lên...</p>`;
@@ -443,7 +440,6 @@ async function uploadIdDoc(docType, input) {
     if (data.ok) {
         preview.querySelector('p').textContent = '✅ Đã tải lên';
         preview.querySelector('p').className = 'text-success font-weight-bold mt-2 mb-0';
-        // Check if both done -> reload
         setTimeout(() => window.location.reload(), 500);
     }
 }

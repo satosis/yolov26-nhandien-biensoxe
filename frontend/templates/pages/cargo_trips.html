@@ -10,7 +10,7 @@
   if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'❌ Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
 ">
 
-  <!-- Header -->
+
   <div class="d-flex align-items-center justify-content-between flex-wrap mb-4" style="gap:12px;">
     <div class="d-flex align-items-center" style="gap:10px;">
       <a href="/admin/vehicles" class="text-muted" style="font-size:13px;">← Quay lại</a>
@@ -20,7 +20,7 @@
       <span class="text-muted" style="font-size:13px;">— Lịch sử chuyến hàng</span>
     </div>
     <div class="d-flex align-items-center flex-wrap" style="gap:8px;" x-data="{ scanning: false }">
-      <!-- iPhone/Safari keeps the full camera photo when using file capture. -->
+
       <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
             enctype="multipart/form-data" class="d-inline"
             @submit="scanning = true">
@@ -50,7 +50,7 @@
     </div>
   </div>
 
-  <!-- Table -->
+
   <div class="card">
     <div class="card-body p-0">
       <div class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
@@ -136,7 +136,7 @@
     </div>
   </div>
 
-  <!-- Pagination -->
+
   {% if total_pages > 1 %}
   <div class="d-flex justify-content-center mt-3" style="gap:4px;">
     {% for p in range(1, total_pages + 1) %}

@@ -1,17 +1,13 @@
-"""Auth router: login, logout, set-site."""
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse, HTMLResponse
-from pathlib import Path
 
-from frontend.deps import get_db, get_current_user
+from frontend.deps import get_db, get_current_user, templates
 from frontend.auth import (
     verify_password, check_rate_limit, record_failed,
     clear_attempts, remaining_lockout, login_user, logout_user,
 )
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 @router.get("/login")
@@ -22,7 +18,6 @@ async def login_page(request: Request):
 
 
 def get_user_by_username(db, username: str) -> dict | None:
-    """Lấy thông tin người dùng kèm vai trò từ CSDL."""
     query = """
         SELECT u.*, r.role_name as role 
         FROM users u 

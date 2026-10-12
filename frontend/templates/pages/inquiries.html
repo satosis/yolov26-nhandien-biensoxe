@@ -5,7 +5,7 @@
 {% block content %}
 <div x-data="{ tab: 'all' }">
 
-  {# ── Header ── #}
+
   <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:10px;">
     <div class="d-flex align-items-center" style="gap:10px;">
       <h4 class="mb-0 font-weight-bold">Tin tư vấn</h4>
@@ -23,7 +23,7 @@
     {% endif %}
   </div>
 
-  {# ── Tabs ── #}
+
   {% if inquiries %}
   <ul class="nav nav-tabs mb-3">
     <li class="nav-item">
@@ -44,7 +44,7 @@
   </ul>
   {% endif %}
 
-  {# ── Empty ── #}
+
   {% if not inquiries %}
   <div class="card">
     <div class="card-body py-5 text-center text-muted">
@@ -53,7 +53,7 @@
   </div>
 
   {% else %}
-  {# ── List ── #}
+
   <div id="inquiry-list">
     {% for inq in inquiries %}
     {% set is_unread = not inq.is_read %}
@@ -62,34 +62,34 @@
          x-show="tab==='all' || (tab==='unread' && {{ 'true' if is_unread else 'false' }}) || (tab==='read' && {{ 'false' if is_unread else 'true' }})"
          class="card mb-2 {{ 'border-warning' if is_unread else '' }}">
 
-      {# ── Row summary (always visible) ── #}
+
       <div class="card-body py-2 px-3 d-flex align-items-center" style="gap:10px;cursor:pointer;" @click="open=!open">
 
-        {# Unread dot #}
+
         <span class="rounded-circle flex-shrink-0"
               style="width:8px;height:8px;background:{{ '#fd7e14' if is_unread else 'transparent' }};display:inline-block;"></span>
 
-        {# Date #}
+
         <span class="text-muted flex-shrink-0" style="font-size:11px;width:72px;white-space:nowrap;">
           {{ inq.created_at.strftime('%d/%m %H:%M') if inq.created_at else '—' }}
         </span>
 
-        {# Name #}
+
         <span class="font-weight-bold flex-shrink-0" style="width:144px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ inq.full_name }}</span>
 
-        {# Phone (tap-to-call) #}
+
         <a href="tel:{{ inq.phone }}" @click.stop
            class="text-primary flex-shrink-0" style="width:112px;font-size:14px;">{{ inq.phone }}</a>
 
-        {# Demand preview #}
+
         <span class="text-muted flex-grow-1 d-none d-sm-block" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ inq.demand or '—' }}</span>
 
-        {# Note tag #}
+
         {% if inq.note %}
         <span class="badge badge-light border d-none d-md-inline flex-shrink-0" style="font-size:10px;">ghi chú</span>
         {% endif %}
 
-        {# Status #}
+
         <div id="badge-{{ inq.id }}" class="flex-shrink-0" @click.stop>
           {% if inq.is_read %}
           <i class="fas fa-check-circle text-success" style="font-size:1.1rem;"></i>
@@ -107,12 +107,12 @@
           {% endif %}
         </div>
 
-        {# Chevron #}
+
         <i class="fas fa-chevron-down text-muted flex-shrink-0 transition"
            :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
       </div>
 
-      {# ── Expanded detail ── #}
+
       <div x-show="open" x-collapse class="border-top">
         <div class="card-body pt-3 pb-3">
           <div class="row">

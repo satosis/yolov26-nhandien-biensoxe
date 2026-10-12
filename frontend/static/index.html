@@ -6,14 +6,14 @@
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
   <title>THÉP SƠN LÂM Industrial Core — Vietnam's Leading Industrial Solution</title>
 
-  <!-- Preconnect to cut DNS + TLS time for external resources -->
+
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Tailwind local -->
+
   <script src="/static/vendor/tailwind.min.js"></script>
 
-  <!-- Fonts: Inter (latin only) + Material Symbols — async so they don't block render -->
+
   <link rel="preload" as="style"
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
     onload="this.onload=null;this.rel='stylesheet'">
@@ -30,7 +30,7 @@
       rel="stylesheet" />
   </noscript>
 
-  <!-- Alpine.js local — defer so it doesn't block HTML parse -->
+
   <script defer src="/static/vendor/alpine.min.js"></script>
 
   <link rel="shortcut icon" href="/static/favicon.png" type="image/x-icon">
@@ -286,12 +286,12 @@
       scrollbar-width: none;
     }
 
-    /* Protect UI chrome from Google Translate */
+
     .notranslate {
       unicode-bidi: embed;
     }
 
-    /* Preloader Styles */
+
     #preloader {
       position: fixed;
       top: 0;
@@ -403,24 +403,24 @@
 </head>
 
 <body class="bg-background text-on-background font-body-md overflow-x-hidden antialiased">
-  <!-- Preloader Overlay -->
+
   <div id="preloader">
     <svg class="factory-loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80"
       fill="#fd761a">
-      <!-- factory building -->
+
       <rect x="4" y="32" width="56" height="28" rx="2" />
       <rect x="8" y="24" width="14" height="8" />
       <rect x="26" y="20" width="14" height="12" />
       <rect x="44" y="16" width="10" height="16" />
-      <!-- chimney -->
+
       <rect x="10" y="10" width="6" height="14" />
       <rect x="28" y="6" width="6" height="14" />
-      <!-- windows / doors -->
+
       <rect x="8" y="40" width="8" height="8" rx="1" fill="#0b1c30" />
       <rect x="22" y="40" width="8" height="8" rx="1" fill="#0b1c30" />
       <rect x="36" y="40" width="8" height="8" rx="1" fill="#0b1c30" />
       <rect x="50" y="40" width="6" height="8" rx="1" fill="#0b1c30" />
-      <!-- door -->
+
       <rect x="27" y="50" width="10" height="10" rx="1" fill="#0b1c30" />
     </svg>
   </div>
@@ -430,17 +430,17 @@
       const loader = document.getElementById('preloader');
       setTimeout(() => {
         loader.classList.add('hidden');
-      }, 800); // Small delay for smoothness
+      }, 800);
     });
   </script>
 
-  <!-- THÉP SƠN LÂM Portal Header Component -->
+
   <header
     class="fixed top-0 left-0 w-full z-50 bg-[#0b1c30]/95 backdrop-blur-lg border-b border-white/10 px-6 h-16 flex items-center justify-between transition-all duration-300 shadow-2xl notranslate"
     translate="no" x-data="{ scrolled: false }" @scroll.window="scrolled = (window.pageYOffset > 20)"
     :class="scrolled ? 'h-14 bg-[#0b1c30]' : 'h-16'">
 
-    <!-- Brand Section -->
+
     <div class="flex items-center gap-4">
       <button class="lg:hidden text-white/70 hover:text-white transition-colors">
         <span class="material-symbols-outlined notranslate">menu</span>
@@ -459,7 +459,7 @@
       </a>
     </div>
 
-    <!-- Navigation Section -->
+
     <nav class="hidden lg:flex items-center gap-10">
       <a href="/"
         class="text-[11px] font-bold uppercase tracking-widest transition-all hover:scale-105 text-slate-100 hover:text-orange-400"
@@ -473,7 +473,7 @@
         <span x-text="$store.i18n.t('about')">Giới thiệu</span>
       </a>
 
-      <!-- Services Dropdown -->
+
       <div class="relative group" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
         <button
           class="flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest transition-all text-slate-100 hover:text-orange-400"
@@ -501,9 +501,9 @@
       </a>
     </nav>
 
-    <!-- Utils & Action Section -->
+
     <div class="flex items-center gap-6" translate="no">
-      <!-- Language Selector -->
+
       <div class="relative hidden sm:block" x-data="{ open: false }" @click.away="open = false">
         <button @click="open = !open"
           class="flex items-center gap-1.5 bg-white/5 border border-white/10 px-3 py-2 rounded-full hover:bg-white/10 transition-all text-white group notranslate">
@@ -513,7 +513,7 @@
             :class="open ? 'rotate-180' : ''" aria-hidden="true">expand_more</span>
         </button>
 
-        <!-- Minimalist Dropdown -->
+
         <div x-show="open" x-transition:enter="transition ease-out duration-200"
           x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
           class="absolute right-0 mt-2 w-16 bg-[#1a2b3c] border border-white/10 rounded-2xl shadow-2xl z-[60] py-2 flex flex-col items-center gap-1 notranslate">
@@ -532,7 +532,7 @@
         </div>
       </div>
 
-      <!-- Contact Info -->
+
 
       <a href="tel:+84 986 565 666" class="hidden xl:flex items-center gap-2.5 group notranslate" translate="no">
         <div
@@ -547,7 +547,7 @@
 
       <div class="h-6 w-px bg-white/10 hidden md:block"></div>
 
-      <!-- CTA Button -->
+
 
       <a href="/login"
         class="bg-orange-600 text-white px-6 py-2.5 rounded-lg font-black uppercase text-[11px] tracking-widest shadow-xl shadow-orange-600/20 hover:bg-orange-500 hover:-translate-y-0.5 active:translate-y-0 transition-all notranslate"
@@ -558,7 +558,7 @@
     </div>
   </header>
 
-  <!-- Google Translate (hidden widget, controlled by lang selector) -->
+
   <div id="google_translate_element" style="display:none"></div>
   <script type="text/javascript">
     function googleTranslateElementInit() {
@@ -581,7 +581,6 @@
       document.cookie = c;
     }
 
-    // Called by lang selector — switches Google Translate + saves preference 1 week
     function setGoogleLang(langCode) {
       if (langCode === 'vi') {
         _delCookie('googtrans');
@@ -598,7 +597,6 @@
       location.reload();
     }
 
-    // On load: reflect saved lang_pref cookie in Alpine store
     document.addEventListener('alpine:init', () => {
       const m = document.cookie.match(/lang_pref=([^;]+)/);
       if (m && m[1] && m[1] !== 'vi') {
@@ -609,7 +607,7 @@
   <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit">
   </script>
   <style>
-    /* Hide Google Translate toolbar banner */
+
     .goog-te-banner-frame,
     .skiptranslate {
       display: none !important;
@@ -626,7 +624,7 @@
 
   <main class="pt-16 pb-24">
 
-    <!-- NEW PREMIUM HERO SECTION -->
+
     <section class="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-[#0b1c30]" x-data="{
            slides: [
              '/static/brain/factory_hero.jpg',
@@ -638,7 +636,7 @@
            init() { setInterval(() => this.current = (this.current + 1) % this.slides.length, 5000) }
          }">
 
-      <!-- Slideshow Background -->
+
       <div class="absolute inset-0 z-0">
         <template x-for="(slide, i) in slides" :key="i">
           <div class="absolute inset-0 transition-opacity duration-1000"
@@ -650,7 +648,7 @@
         <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/40 to-[#0b1c30]/60"></div>
       </div>
 
-      <!-- Slide dots -->
+
       <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20">
         <template x-for="(_, i) in slides" :key="i">
           <button @click="current = i" :class="current === i ? 'bg-orange-500 w-6' : 'bg-white/30 w-2'"
@@ -685,7 +683,7 @@
         </div>
       </div>
 
-      <!-- Hero Stats Overlay -->
+
       <div class="absolute bottom-12 left-1/2 -translate-x-1/2 w-full max-w-4xl px-gutter hidden md:block">
         <div class="grid grid-cols-3 gap-8 py-8 border-t border-white/10">
           <div class="text-center">
@@ -704,7 +702,7 @@
       </div>
     </section>
 
-    <!-- PARTNER LOGO CAROUSEL -->
+
     <section class="py-12 bg-white border-b border-slate-100">
       <div class="max-w-6xl mx-auto px-gutter">
         <div class="marquee">
@@ -732,7 +730,7 @@
       </div>
     </section>
 
-    <!-- INDUSTRIAL ECOSYSTEM SECTION -->
+
     <section class="py-24 bg-slate-50 relative overflow-hidden">
       <div class="max-w-6xl mx-auto px-gutter">
         <div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
@@ -750,7 +748,7 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <!-- Card 1 -->
+
           <div
             class="group bg-white p-10 rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all border border-slate-100 relative overflow-hidden">
             <div
@@ -776,7 +774,7 @@
             </ul>
           </div>
 
-          <!-- Card 2 -->
+
           <div class="group bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl transition-all relative overflow-hidden">
             <div
               class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full group-hover:scale-150 transition-transform duration-700">
@@ -801,7 +799,7 @@
             </ul>
           </div>
 
-          <!-- Card 3 -->
+
           <div
             class="group bg-white p-10 rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all border border-slate-100 relative overflow-hidden">
             <div
@@ -857,7 +855,7 @@
           </div>
         </div>
 
-        <!-- Premium Slider Content -->
+
         <div class="relative overflow-hidden rounded-[3rem] bg-[#0b1c30] shadow-2xl border border-slate-800"
           id="projects-slider">
           <template x-for="(project, index) in projects" :key="index">
@@ -865,7 +863,7 @@
               x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
               class="flex flex-col lg:flex-row min-h-[550px]">
 
-              <!-- Project Image -->
+
               <div class="lg:w-3/5 relative overflow-hidden group">
                 <img :src="project.image"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[3s]"
@@ -882,7 +880,7 @@
                 </div>
               </div>
 
-              <!-- Project Info -->
+
               <div class="lg:w-2/5 p-12 flex flex-col justify-between">
                 <div>
                   <h3 class="text-3xl font-black mb-4 text-white leading-tight" x-text="project.name"></h3>
@@ -925,12 +923,12 @@
       </div>
     </section>
 
-    <!-- GLOBAL CONNECTIVITY / STRATEGIC LOCATIONS -->
+
     <section class="py-24 bg-slate-900 relative overflow-hidden">
       <div class="absolute top-0 right-0 w-1/2 h-full opacity-20 hidden lg:block">
         <svg class="w-full h-full opacity-15 hidden lg:block" viewBox="0 0 200 400" fill="none"
           xmlns="http://www.w3.org/2000/svg">
-          <!-- Simplified Vietnam map shape -->
+
           <path
             d="M120,10 L140,30 L155,60 L160,90 L150,120 L165,150 L170,180 L160,210 L155,240 L165,260 L170,290 L160,320 L140,350 L120,370 L100,380 L85,370 L75,350 L80,320 L90,290 L85,260 L75,240 L70,210 L80,180 L85,150 L75,120 L70,90 L80,60 L95,30 Z"
             fill="white" opacity="0.6" />
@@ -971,7 +969,7 @@
       </div>
     </section>
 
-    <!-- LATEST NEWS / INSIGHTS -->
+
     <section class="py-24 bg-white">
       <div class="max-w-6xl mx-auto px-gutter">
         <div class="flex justify-between items-end mb-16">
@@ -1105,7 +1103,7 @@
       </div>
     </section>
 
-    <!-- Toast notification -->
+
 
     <script>
       (function () {
@@ -1175,10 +1173,10 @@
     <footer class="bg-[#0b1c30] text-white pt-16 pb-8 px-6" translate="no">
       <div class="max-w-6xl mx-auto">
 
-        <!-- Top row: brand + nav columns -->
+
         <div class="grid grid-cols-2 md:grid-cols-4 gap-10 pb-12 border-b border-white/10">
 
-          <!-- Brand column -->
+
           <div class="col-span-2 md:col-span-1">
             <a href="/" class="flex items-center gap-3 mb-4 group">
               <div
@@ -1209,7 +1207,7 @@
             </div>
           </div>
 
-          <!-- Dịch vụ column -->
+
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Dịch vụ</p>
             <ul class="space-y-3">
@@ -1225,7 +1223,7 @@
             </ul>
           </div>
 
-          <!-- Công ty column -->
+
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Công ty</p>
             <ul class="space-y-3">
@@ -1242,7 +1240,7 @@
             </ul>
           </div>
 
-          <!-- Liên hệ column -->
+
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.25em] text-orange-500 mb-4 notranslate">Liên hệ</p>
             <ul class="space-y-3">
@@ -1266,7 +1264,7 @@
           </div>
         </div>
 
-        <!-- Bottom row: copyright + badge -->
+
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
           <p class="text-slate-500 text-xs notranslate">
             © <span x-text="new Date().getFullYear()"></span> THÉP SƠN LÂM Industrial Core. Bảo lưu mọi quyền.
@@ -1284,7 +1282,7 @@
     </footer>
   </main>
 
-  <!-- BottomNavBar -->
+
   <nav
     class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-white border-t border-slate-200 shadow-[0_-1px_3px_0_rgba(0,0,0,0.05)]">
     <a class="flex flex-col items-center justify-center text-orange-600 bg-slate-50 rounded-lg p-1 transition-all"
@@ -1306,7 +1304,7 @@
 
   </nav>
 
-  <!-- FAB -->
+
   <a href="tel:+84 986 565 666"
     class="fixed bottom-20 right-6 w-14 h-14 bg-secondary-container text-white rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all z-40"
     translate="no">

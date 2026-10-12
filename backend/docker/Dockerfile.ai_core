@@ -9,7 +9,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_DEFAULT_TIMEOUT=100
 
-# Build tools for packages that do not publish a wheel for every platform.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -17,15 +16,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libopenblas-dev liblapack-dev \
     && rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Layer: Dependencies (cached)
-# Note: Context is project root (via docker-compose.yml)
 COPY backend/requirements.txt .
 RUN python -m pip install --upgrade pip setuptools wheel
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip wheel --prefer-binary --wheel-dir /usr/src/app/wheels -r requirements.txt
 
 
-# ---- Final runtime image ----
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -37,22 +33,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Runtime C-libraries only
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libgomp1 libopenblas0 libpq5 tzdata libgl1 \
     && rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Install wheels
 COPY --from=builder /usr/src/app/wheels /wheels
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt --compile \
     && rm -rf /wheels requirements.txt
 
-# Copy application source
-# Keep the ai_core image focused on backend runtime files.
 COPY backend ./backend
 
-# Run from the root so that 'from backend.services...' and domain imports work correctly
 CMD ["python", "-u", "backend/main.py"]

@@ -1,4 +1,3 @@
-"""Cargo trips router — lịch sử chở hàng theo xe."""
 import base64
 import json
 import math
@@ -11,16 +10,14 @@ from datetime import datetime, date
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, Query, File, UploadFile
 from fastapi.responses import JSONResponse
-from fastapi.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 from backend.ai.handwriting_ocr import extract_trip_candidates_from_document
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/vehicles")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 PER_PAGE = 20
 SCAN_REVIEW_TTL = 30 * 60
@@ -47,11 +44,7 @@ def _load_scan_review(token: str) -> dict | None:
     path = _scan_review_path(token)
     if not path.exists():
         return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        path.unlink(missing_ok=True)
-        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
     if time.time() - data.get("created_at", 0) > SCAN_REVIEW_TTL:
         path.unlink(missing_ok=True)
         return None
@@ -71,7 +64,7 @@ def get_cargo_trips(db, vehicle_id: int, limit: int = 50, offset: int = 0) -> li
         ORDER BY departure_time DESC
         LIMIT %s OFFSET %s
     """
-    return db._execute_query(query, (vehicle_id, limit, offset), fetchall=True, commit=False) or []
+    return db._execute_query(query, (vehicle_id, limit, offset), fetchall=True, commit=False)
 
 
 def count_cargo_trips(db, vehicle_id: int) -> int:
@@ -128,7 +121,7 @@ def update_cargo_trip(db, trip_id: int, departure_time=None, return_time=None,
     return db._execute_query(
         f"UPDATE cargo_trips SET {', '.join(fields)} WHERE id = %s",
         tuple(params), commit=True
-    ) is not False
+    )
 
 
 def get_cargo_trip(db, trip_id: int) -> dict | None:
@@ -145,10 +138,7 @@ def _data_uri_to_png(data_uri: str) -> bytes | None:
     header, payload = data_uri.split(",", 1)
     if "base64" not in header:
         return None
-    try:
-        return base64.b64decode(payload)
-    except Exception:
-        return None
+    return base64.b64decode(payload)
 
 
 def _persist_ocr_sample(
@@ -215,11 +205,7 @@ def _cleanup_scan_reviews():
         _delete_scan_review(token)
     if SCAN_REVIEW_DIR.exists():
         for path in SCAN_REVIEW_DIR.glob("*.json"):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:
-                path.unlink(missing_ok=True)
-                continue
+            data = json.loads(path.read_text(encoding="utf-8"))
             if now - data.get("created_at", 0) > SCAN_REVIEW_TTL:
                 path.unlink(missing_ok=True)
 
@@ -227,26 +213,15 @@ def _cleanup_scan_reviews():
 def _fmt_currency(value) -> str:
     if value is None:
         return "—"
-    try:
-        return f"{int(value):,}".replace(",", ".") + " ₫"
-    except Exception:
-        return str(value)
+    return f"{int(value):,}".replace(",", ".") + " ₫"
 
 
 def _num(v):
-    try:
-        return float(v.replace(",", ".")) if v and str(v).strip() else None
-    except Exception:
-        return None
+    return float(v.replace(",", ".")) if v and v.strip() else None
 
 
 def _dt(v):
-    if not v or not str(v).strip():
-        return None
-    try:
-        return datetime.fromisoformat(v)
-    except Exception:
-        return None
+    return datetime.fromisoformat(v) if v and v.strip() else None
 
 
 def _geocode_query_variants(q: str) -> list[str]:
@@ -371,7 +346,6 @@ async def cargo_trips_page(
             t["fuel_price_fmt"] = _fmt_currency(t["fuel_price_per_liter"])
         else:
             t["fuel_price_fmt"] = "—"
-        # Convert datetime → ISO string để tojson trong template không lỗi
         for k, v in t.items():
             if k in ("departure_time", "return_time", "created_at", "updated_at") and v and hasattr(v, "isoformat"):
                 t[k] = v.isoformat()
@@ -390,7 +364,6 @@ async def cargo_trips_page(
 
 @router.get("/api/resolve-maps")
 async def resolve_maps_url(url: str = Query(...)):
-    """Parse Google Maps URL → trả về tên địa điểm."""
     import re, urllib.parse
     try:
         if "goo.gl" in url or "maps.app.goo.gl" in url or "maps.app" in url:
@@ -398,13 +371,11 @@ async def resolve_maps_url(url: str = Query(...)):
                 resp = await client.head(url, follow_redirects=True)
                 url = str(resp.url)
 
-        # Pattern 1: /place/TÊN/ — cắt trước dấu @ hoặc /data
         m = re.search(r'/place/([^/]+)', url)
         if m:
             raw = m.group(1).split("@")[0].split("?")[0]
             name = urllib.parse.unquote_plus(raw).strip().strip(",").strip()
             if name:
-                # Try to geocode the name to get coords
                 try:
                     async with httpx.AsyncClient(timeout=6) as client:
                         resp = await client.get(
@@ -414,11 +385,10 @@ async def resolve_maps_url(url: str = Query(...)):
                         gdata = resp.json()
                         if gdata:
                             return JSONResponse({"ok": True, "label": name, "lat": gdata[0]["lat"], "lon": gdata[0]["lon"]})
-                except:
-                    pass
+                except httpx.RequestError:
+                    logger.debug("Geocode lookup unavailable for %s", name, exc_info=True)
                 return JSONResponse({"ok": True, "label": name})
 
-        # Pattern 2: tọa độ @lat,lon
         coord = re.search(r'@(-?\d+\.\d+),(-?\d+\.\d+)', url)
         if not coord:
             coord = re.search(r'[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)', url)
@@ -447,7 +417,6 @@ async def resolve_maps_url(url: str = Query(...)):
 
 @router.get("/api/geocode")
 async def geocode_address(q: str = Query(...)):
-    """Search địa chỉ → trả về lat/lon."""
     try:
         async with httpx.AsyncClient(timeout=6) as client:
             resp = await client.get(
@@ -469,15 +438,10 @@ async def geocode_address(q: str = Query(...)):
 
 @router.get("/api/calculate-distance")
 async def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float):
-    """Tính quãng đường lái xe qua OSRM (trả về km)."""
     try:
-        url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url)
-            data = resp.json()
-        if data.get("code") == "Ok":
-            dist_m = data["routes"][0]["distance"]
-            return JSONResponse({"ok": True, "distance_km": round(dist_m / 1000, 1)})
+        distance = await _driving_distance_km(lat1, lon1, lat2, lon2)
+        if distance is not None:
+            return JSONResponse({"ok": True, "distance_km": distance})
         return JSONResponse({"ok": False, "msg": "Không tìm được đường đi."})
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)})
@@ -485,7 +449,6 @@ async def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float)
 
 @router.get("/api/calculate-distance-by-address")
 async def calculate_distance_by_address(origin: str = Query(...), destination: str = Query(...)):
-    """Geocode origin/destination and return driving distance without page reload."""
     try:
         origin_location = await _resolve_location(origin)
         destination_location = await _resolve_location(destination)
@@ -515,7 +478,6 @@ async def calculate_distance_by_address(origin: str = Query(...), destination: s
 
 @router.get("/api/fuel-price")
 async def get_fuel_price_api(target_date: str = Query(None)):
-    """Lấy giá dầu diesel từ giaxanghomnay.com theo ngày."""
     try:
         d = target_date or date.today().isoformat()
         url = f"https://giaxanghomnay.com/api/pvdate/{d}"
@@ -523,9 +485,7 @@ async def get_fuel_price_api(target_date: str = Query(None)):
             resp = await client.get(url)
             resp.raise_for_status()
             data = resp.json()
-        # Lấy danh sách item từ response (có thể là list hoặc list of lists)
         items = data[0] if data and isinstance(data[0], list) else data
-        # Ưu tiên DO 0,05S-II (dầu diesel phổ thông)
         diesel = next(
             (r for r in items if "DO" in r.get("title", "") and "0,05" in r.get("title", "")),
             next((r for r in items if "DO" in r.get("title", "")), None)
@@ -551,14 +511,13 @@ async def add_cargo_trip_page(
         return RedirectResponse(url="/admin/vehicles", status_code=303)
     
     ctx["vehicle"] = vehicle
-    # Provide a default now ISO for the form
     now = datetime.now()
     ctx["now_iso"] = now.strftime("%Y-%m-%dT%H:%M")
     return templates.TemplateResponse("pages/cargo_trip_add.html", {"request": request, **ctx})
 
 
 @router.post("/{vehicle_id}/cargo/add")
-async def add_cargo_trip(
+async def create_cargo_trip(
     vehicle_id: int,
     departure_time: str = Form(...),
     return_time: Optional[str] = Form(None),
@@ -607,12 +566,10 @@ async def edit_cargo_trip_page(
     if not vehicle or not trip:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
-    # Normalize dates for HTML datetime-local input
     for dt_col in ("departure_time", "return_time"):
         if trip.get(dt_col) and hasattr(trip[dt_col], "isoformat"):
             trip[dt_col] = trip[dt_col].isoformat()
         elif trip.get(dt_col) and isinstance(trip[dt_col], str):
-            # Already normalized or string from DB
             pass
 
     ctx["vehicle"] = vehicle

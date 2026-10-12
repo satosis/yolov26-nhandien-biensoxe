@@ -1,15 +1,10 @@
-"""Parking router — dashboard, logs, analytics."""
 from fastapi import APIRouter, Request, Depends
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 
 router = APIRouter(prefix="/parking")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def get_occupancy_stats(db, site_id=None) -> list[dict]:
-    """Lấy thống kê chỗ đỗ theo cơ sở."""
     query = """
         SELECT
             s.id,
@@ -24,11 +19,10 @@ def get_occupancy_stats(db, site_id=None) -> list[dict]:
         query += " WHERE s.id = %s"
         params.append(site_id)
     query += " GROUP BY s.id, s.site_name, s.total_slots ORDER BY s.site_name"
-    return db.execute_query(query, tuple(params) if params else None, fetchall=True) or []
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
 def get_parking_history(db, limit=50, date_filter=None) -> list[dict]:
-    """Lấy lịch sử xe ra vào bãi đỗ."""
     where = ""
     params = []
     if date_filter:
@@ -45,18 +39,16 @@ def get_parking_history(db, limit=50, date_filter=None) -> list[dict]:
         ORDER BY vs.entry_time DESC
         LIMIT %s
     """
-    return db.execute_query(query, tuple(params), fetchall=True) or []
+    return db.execute_query(query, tuple(params), fetchall=True)
 
 
 def _aggregate_stats(rows: list) -> dict:
-    """Collapse per-site occupancy rows into a single summary dict."""
     total_slots = sum(r.get("total_slots") or 0 for r in rows)
     occupied = sum(r.get("occupied_slots") or 0 for r in rows)
     return {"total_slots": total_slots, "occupied": occupied}
 
 
 def _build_peak_hours(history: list) -> dict:
-    """Build hour→count dict from parking history entry_time."""
     counts: dict[int, int] = {}
     from datetime import date
     today = date.today()

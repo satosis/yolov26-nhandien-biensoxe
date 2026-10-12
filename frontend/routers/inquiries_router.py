@@ -1,14 +1,10 @@
-"""Inquiries router — admin management of landing page contact submissions."""
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 import logging
-from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inquiries")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def get_inquiries(db, limit: int = 100, offset: int = 0, unread_only: bool = False) -> list:
@@ -16,7 +12,7 @@ def get_inquiries(db, limit: int = 100, offset: int = 0, unread_only: bool = Fal
     return db._execute_query(
         f"SELECT * FROM inquiries {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
         (limit, offset), fetchall=True, commit=False
-    ) or []
+    )
 
 
 def count_unread_inquiries(db) -> int:
@@ -73,8 +69,6 @@ async def mark_read(inquiry_id: int, _user: dict = Depends(require_menu("inquiri
 @router.post("/{inquiry_id}/note", response_class=HTMLResponse)
 async def save_note(inquiry_id: int, note: str = Form(""), _user: dict = Depends(require_menu("inquiries"))):
     update_inquiry_note(get_db(), inquiry_id, note.strip())
-    # HTMX form uses hx-swap="none" — return an empty body instead of a wasteful
-    # full-page redirect that HTMX would fetch and discard.
     return HTMLResponse("")
 
 

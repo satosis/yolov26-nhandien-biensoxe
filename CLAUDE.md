@@ -262,7 +262,7 @@ IMOU_OPEN_DEVICE_ID=
 
 ## Tính năng đã release
 
-- **Modular Domain Architecture (Backend)**: Tổ chức lại cấu trúc backend theo 4 domain packages riêng biệt (`backend/ai/`, `backend/camera/`, `backend/iot/`, `backend/services/`), trang bị `__init__.py` clean exports cho từng domain. Đã loại bỏ hoàn toàn thư mục legacy `backend/core/`.
+- **Modular Domain Architecture (Backend)**: Tổ chức backend theo 4 domain packages (`backend/ai/`, `backend/camera/`, `backend/iot/`, `backend/services/`); import trực tiếp module cần dùng để tránh nạp thừa và import vòng. Đã loại bỏ thư mục legacy `backend/core/`.
 - **Camera Provider Management**: DB-driven, API keys + email lưu trong app_settings
 - **Door Provider Management**: 7 nhà cung cấp cửa cuốn (Tuya, Tasmota, Shelly, Sonoff, BroadLink, GPIO, MQTT)
 - **Tuya Door Control**: tinytuya local SDK, toggle relay DPS "1"

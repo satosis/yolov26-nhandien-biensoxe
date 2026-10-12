@@ -1,28 +1,21 @@
-"""Door providers router."""
 from fastapi import APIRouter, Request, Depends, Form
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
-from pathlib import Path
 from typing import Optional
-from frontend.deps import get_db, get_menu_context, require_menu
+from frontend.deps import get_db, get_menu_context, require_menu, templates
 
 router = APIRouter(prefix="/door_providers")
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def get_all_door_providers(db) -> list:
-    """Lấy danh sách tất cả nhà cung cấp cửa cuốn."""
-    return db.select("door_providers", order_by="name ASC") or []
+    return db.select("door_providers", order_by="name ASC")
 
 
 def get_door_provider(db, provider_key: str) -> dict | None:
-    """Lấy chi tiết nhà cung cấp theo provider_key."""
     return db.select("door_providers", conditions={"provider_key": provider_key}, fetchall=False)
 
 
 def upsert_door_provider(db, provider_key, name, connection_type=None, api_doc_url=None,
                          config_template=None, notes=None, logo_url=None, is_active=True) -> bool:
-    """Thêm hoặc cập nhật nhà cung cấp cửa cuốn."""
     query = """
         INSERT INTO door_providers
             (provider_key, name, connection_type, api_doc_url, config_template, notes, logo_url, is_active, updated_at)
@@ -36,11 +29,10 @@ def upsert_door_provider(db, provider_key, name, connection_type=None, api_doc_u
         query,
         (provider_key, name, connection_type, api_doc_url, config_template, notes, logo_url, is_active),
         commit=True
-    ) is not None
+    )
 
 
 def delete_door_provider(db, provider_key: str) -> bool:
-    """Xóa nhà cung cấp cửa cuốn."""
     return db.delete("door_providers", {"provider_key": provider_key})
 
 

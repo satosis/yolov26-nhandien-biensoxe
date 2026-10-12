@@ -17,7 +17,7 @@
   </div>
 </div>
 
-<!-- Add User Form -->
+
 <div id="add-user-form" class="card mb-4 d-none">
   <div class="card-body">
     <h5 class="card-title font-weight-bold text-dark border-bottom pb-2 mb-3">
@@ -74,7 +74,7 @@
   </div>
 </div>
 
-<!-- Users Table -->
+
 <div class="card">
   <div class="card-body">
     <div class="cx-overflow-x-auto">
@@ -160,7 +160,7 @@
             </td>
           </tr>
 
-          <!-- Edit Form Row -->
+
           <tr id="edit-user-form-{{ u.id }}" class="d-none">
             <td colspan="5" class="p-0">
               <div class="card m-3 border">
@@ -224,7 +224,7 @@
   </div>
 </div>
 
-<!-- Face Registration Modal (KYC with Face Direction Detection) -->
+
 <div id="face-modal" onclick="closeFaceModal()"
   style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:none;align-items:center;justify-content:center;padding:16px;"
   class="d-flex">
@@ -246,10 +246,10 @@
 
     <div class="px-4 py-4 d-flex flex-column align-items-center" style="max-height:75vh;overflow-y:auto;background:#f8f9fa;">
 
-      <!-- Video / Progress Container -->
+
       <div class="position-relative mb-4 mt-2"
         style="width:256px;height:256px;min-height:256px;min-width:256px;flex-shrink:0;">
-        <!-- SVG Progress Ring -->
+
         <svg class="position-absolute" style="top:0;left:0;width:100%;height:100%;transform:rotate(-90deg) scale(1.08);pointer-events:none;">
           <circle cx="128" cy="128" r="124" fill="none" stroke="#e2e8f0" stroke-width="4"></circle>
           <circle id="kyc-progress-circle" cx="128" cy="128" r="124" fill="none" stroke="#6366f1" stroke-width="5"
@@ -266,7 +266,7 @@
           <div id="capture-flash"
             class="position-absolute bg-white" style="top:0;left:0;right:0;bottom:0;z-index:40;opacity:0;pointer-events:none;transition:opacity .15s;"></div>
 
-          <!-- Start Overlay -->
+
           <div id="camera-start-overlay" onclick="startKYC()"
             class="position-absolute d-flex flex-column align-items-center justify-content-center"
             style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);backdrop-filter:blur(4px);z-index:30;cursor:pointer;">
@@ -291,7 +291,7 @@
             <input id="camera-file-input" type="file" accept="image/*" class="d-none" onchange="handleFallbackUpload(event)">
           </div>
 
-          <!-- Loading -->
+
           <div id="camera-loading"
             class="position-absolute d-none flex-column align-items-center justify-content-center"
             style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.92);backdrop-filter:blur(4px);z-index:30;">
@@ -299,7 +299,7 @@
             <p class="small font-weight-bold text-uppercase text-primary mb-0" style="letter-spacing:.1em;">Đang tải AI...</p>
           </div>
 
-          <!-- Success Icon -->
+
           <div id="success-overlay"
             class="position-absolute d-none align-items-center justify-content-center"
             style="top:0;left:0;right:0;bottom:0;background:rgba(16,185,129,.9);backdrop-filter:blur(4px);z-index:30;">
@@ -308,20 +308,20 @@
         </div>
       </div>
 
-      <!-- Instructions -->
+
       <div class="w-100 text-center d-flex flex-column align-items-center mb-4" style="gap:8px;min-height:60px;">
         <span id="kyc-step-count"
           class="badge badge-pill badge-primary px-3 py-2 text-uppercase font-weight-bold" style="letter-spacing:.1em;">Bước 0/5</span>
         <span id="kyc-instruction" class="text-dark font-weight-bold mt-1" style="font-size:1.1rem;">Sẵn sàng để xác minh</span>
       </div>
 
-      <!-- Hold Progress Bar -->
+
       <div class="w-100 rounded overflow-hidden mb-2" style="max-width:240px;height:12px;background:#e2e8f0;box-shadow:inset 0 1px 3px rgba(0,0,0,.1);">
         <div id="hold-bar" class="h-100 rounded" style="width:0%;background:linear-gradient(to right,#6366f1,#207a6d);transition:width .1s linear;"></div>
       </div>
       <p id="kyc-status-text" class="text-muted small text-center mb-0" style="min-height:20px;"></p>
 
-      <!-- Face Gallery -->
+
       <div id="kyc-preview-section" class="w-100 mt-4 mb-2 d-none card border">
         <div class="card-body p-3">
           <div class="d-flex align-items-center justify-content-center border-bottom pb-2 mb-3" style="gap:8px;">
@@ -341,22 +341,22 @@
                 id="slot-{{ id }}"
                 style="width:76px;height:76px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;transition:all .3s cubic-bezier(0.4, 0, 0.2, 1); cursor:default;">
 
-                <!-- Image -->
+
                 <img id="preview-img-{{ id }}" class="position-absolute w-100 h-100 d-none" style="object-fit:cover;top:0;left:0;opacity:0;transition:opacity .5s;z-index:5;" onload="this.classList.remove('opacity-0');this.style.opacity='1';">
 
-                <!-- Fallback Icon -->
+
                 <div id="preview-fb-{{ id }}" class="d-flex flex-column align-items-center justify-content-center text-muted" style="z-index:1; opacity:0.5;">
                   <svg xmlns="http://www.w3.org/2000/svg" style="width:28px;height:28px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
 
-                <!-- Overlay for active/loading states -->
+
                 <div id="loading-overlay-{{ id }}" class="position-absolute d-none align-items-center justify-content-center" style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.6);backdrop-filter:blur(2px);z-index:10;">
                   <div class="spinner-border text-primary" role="status" style="width:1.2rem;height:1.2rem;border-width:0.15em;"></div>
                 </div>
 
-                <!-- Delete Button -->
+
                 <button id="preview-del-{{ id }}" onclick="deleteKycFace('{{ id }}')"
                   class="btn d-none position-absolute p-0 d-flex align-items-center justify-content-center"
                   style="top:4px;right:4px;width:22px;height:22px;z-index:20;background:rgba(239,68,68,0.9);color:white;border-radius:6px;border:none;box-shadow:0 2px 5px rgba(239,68,68,0.3);backdrop-filter:blur(2px);transition:all 0.2s;"
@@ -364,7 +364,7 @@
                   <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
 
-                <!-- Success Checkmark Badge -->
+
                 <div id="success-badge-{{ id }}" class="d-none position-absolute d-flex align-items-center justify-content-center text-white"
                   style="bottom:4px;left:4px;width:22px;height:22px;background:#10b981;border-radius:6px;box-shadow:0 2px 5px rgba(16,185,129,0.3);transform:scale(0);transition:transform .4s cubic-bezier(0.34, 1.56, 0.64, 1);z-index:15;">
                   <svg xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
@@ -391,9 +391,9 @@
   let kycRunning = false;
   let detectInterval = null;
   let holdStart = 0;
-  const HOLD_TIME = 1500; // ms to hold correct direction
+  const HOLD_TIME = 1500;
   let modelsLoaded = false;
-  let dirHistory = []; // Rolling average buffer
+  let dirHistory = [];
   const HISTORY_SIZE = 5;
 
   let baselineYaw = null;
@@ -415,7 +415,6 @@
     circle.style.strokeDashoffset = offset;
   }
 
-  // Load face-api models
   async function loadModels() {
     if (modelsLoaded) return;
     const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
@@ -559,7 +558,6 @@
     const boxW = maxX - minX;
     const boxH = maxY - minY;
 
-    // YAW and PITCH are 0.0 -> 1.0 bounded inside the 2D bounding box
     const noseTip = landmarks.getNose()[6];
     const yaw = (noseTip.x - minX) / boxW;
     const pitch = (noseTip.y - minY) / boxH;
@@ -570,7 +568,6 @@
     const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
     const avgPitch = dirHistory.reduce((s, d) => s + d.pitch, 0) / dirHistory.length;
 
-    // Attach for UI debugging
     window.debugPitch = avgPitch;
     window.debugYaw = avgYaw;
 
@@ -612,7 +609,6 @@
       return kycSteps.length;
     };
 
-    // Load existing faces
     const angles = ['front', 'left', 'right', 'up', 'down'];
     document.getElementById('kyc-preview-section').classList.add('d-none');
 
@@ -626,7 +622,6 @@
         const badge = document.getElementById(`success-badge-${angle}`);
         const label = document.getElementById(`label-${angle}`);
 
-        // Reset states
         img.classList.add('d-none');
         img.style.opacity = '0';
         fallback.classList.remove('d-none');
@@ -661,12 +656,11 @@
             if (i === angles.length - 1) nextStep = 5;
         }
         currentStep = nextStep;
-        
+
         if (currentStep < kycSteps.length) {
             document.getElementById('kyc-step-count').textContent = `Bước ${currentStep + 1}/5`;
             document.getElementById('kyc-instruction').textContent = 'Nhấn bắt đầu hoặc tải ảnh';
-            
-            // Highlight next slot
+
             angles.forEach((a, i) => {
                 const s = document.getElementById(`slot-${a}`);
                 const l = document.getElementById(`label-${a}`);
@@ -700,7 +694,6 @@
 
     const res = await fetch(`/kyc/face/${angle}/delete?target_user_id=${currentUserId}`, { method: 'POST' });
     if (res.ok) {
-        // Refresh preview grid automatically
         openFaceModal(currentUserId, document.getElementById('face-modal-username').textContent);
     } else {
         Swal.fire({
@@ -719,7 +712,6 @@
     document.getElementById('kyc-step-count').textContent = `Bước ${currentStep + 1}/${kycSteps.length}`;
     setCircleProgress((currentStep / kycSteps.length) * 100);
 
-    // Highlight current slot
     const angles = ['front', 'left', 'right', 'up', 'down'];
     angles.forEach(a => {
         const s = document.getElementById(`slot-${a}`);
@@ -811,7 +803,6 @@
             if (expectedDir === 'left' && dYaw < -0.06) isCorrect = true;
             if (expectedDir === 'right' && dYaw > 0.06) isCorrect = true;
         } else {
-            // Fallback absolute thresholds if user skipped step 1
             if (expectedDir === 'down' && pose.pitch >= 0.53) isCorrect = true;
             if (expectedDir === 'up' && pose.pitch <= 0.47) isCorrect = true;
             if (expectedDir === 'left' && pose.yaw <= 0.44) isCorrect = true;
@@ -887,7 +878,6 @@
         document.getElementById('video-ring').style.borderColor = 'rgba(16,185,129,0.8)';
         setCircleProgress(((currentStep + 1) / kycSteps.length) * 100);
 
-        // Update preview thumbnail instantly
         const img = document.getElementById(`preview-img-${step.id}`);
         const fallback = document.getElementById(`preview-fb-${step.id}`);
         const delBtn = document.getElementById(`preview-del-${step.id}`);

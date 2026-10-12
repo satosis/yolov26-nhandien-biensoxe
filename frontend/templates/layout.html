@@ -1,20 +1,20 @@
 {% extends "base.html" %}
 {% block body %}
-<!-- Begin page -->
+
 <div id="layout-wrapper">
 
-  <!-- Left Sidebar -->
+
   {% include "partials/sidebar.html" %}
 
-  <!-- Top Bar -->
+
   {% include "partials/header.html" %}
 
-  <!-- Main Content -->
+
   <div class="main-content">
     <div class="page-content">
       <div class="container-fluid">
 
-        {# Optional page title — only rendered when a page sets the block #}
+
         {% set _pt %}{% block page_title %}{% endblock %}{% endset %}
         {% if _pt|trim %}
         <div class="row">
@@ -46,11 +46,11 @@
     </footer>
   </div>
 </div>
-<!-- END layout-wrapper -->
+
 
 <div class="menu-overlay"></div>
 
-{# ── Real-time Notifications (Toasts) via WebSocket ── #}
+
 <script>
   (function() {
     const ws_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

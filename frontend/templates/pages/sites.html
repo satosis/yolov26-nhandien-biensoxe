@@ -4,7 +4,7 @@
 {% block content %}
 <div x-data="{}">
 
-  <!-- Toolbar -->
+
   <div class="d-flex align-items-center justify-content-between mb-3">
     <div class="d-flex align-items-center" style="gap:8px;">
       <span style="font-size:24px;">🏢</span>
@@ -14,7 +14,7 @@
             onclick="document.getElementById('add-form').classList.toggle('d-none')">+ Thêm</button>
   </div>
 
-  <!-- Add Form -->
+
   <div id="add-form" class="card d-none mb-3">
     <div class="card-body">
       <form hx-post="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML"
@@ -41,7 +41,7 @@
     </div>
   </div>
 
-  <!-- Sites Table -->
+
   <div class="card">
     <div class="card-body p-0">
       <div class="cx-overflow-x-auto">
