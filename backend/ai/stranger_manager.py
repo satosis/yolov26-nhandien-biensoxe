@@ -3,6 +3,7 @@ import threading
 import time
 import numpy as np
 from backend.services import config as cfg
+from backend.services.database import db
 from backend.util.image_utils import save_face_snapshot
 
 logger = logging.getLogger(__name__)
@@ -12,40 +13,37 @@ class StrangerManager:
     _instance = None
     _singleton_lock = threading.Lock()
 
-    def __init__(self, db=None):
+    def __init__(self, *args, **kwargs):
         self._lock = threading.Lock()
-        self._db = db
         self._records = []
         self._matrix = None
         self._initialized = False
+        self._executor = None
+
+    def _get_executor(self):
+        if self._executor is None:
+            import concurrent.futures
+            self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="StrangerDB")
+        return self._executor
 
     @classmethod
-    def get_instance(cls, db=None) -> "StrangerManager":
+    def get_instance(cls, *args, **kwargs) -> "StrangerManager":
         if cls._instance is None:
             with cls._singleton_lock:
                 if cls._instance is None:
-                    cls._instance = cls(db=db)
-                    cls._instance._ensure_loaded(db)
-        elif db is not None:
-            if cls._instance._db is None:
-                cls._instance._db = db
-            cls._instance._ensure_loaded(db)
+                    cls._instance = cls()
+                    cls._instance._ensure_loaded()
         return cls._instance
 
-    def _ensure_loaded(self, db):
+    def _ensure_loaded(self):
         if self._initialized:
             return
         with self._lock:
             if self._initialized:
                 return
-            target_db = db or self._db
-            if target_db is None:
-                from backend.services.database import DatabaseManager
-                target_db = DatabaseManager()
-                self._db = target_db
 
             try:
-                rows = target_db._execute_query(
+                rows = db._execute_query(
                     """
                     SELECT id, camera_id, image_path, direction, face_embedding, seen_count, last_seen, event_time
                     FROM stranger_logs
@@ -90,6 +88,21 @@ class StrangerManager:
             except Exception as e:
                 logger.error("Failed to load stranger profiles into StrangerManager: %s", e)
 
+    def _async_db_update(self, cam_id, stranger_id):
+        try:
+            db._execute_query(
+                """
+                UPDATE stranger_logs
+                SET last_seen = NOW(),
+                    seen_count = COALESCE(seen_count, 1) + 1,
+                    camera_id = COALESCE(%s, camera_id)
+                WHERE id = %s
+                """,
+                (cam_id, stranger_id), commit=True
+            )
+        except Exception as ex:
+            logger.warning("Error updating stranger %s in DB: %s", stranger_id, ex)
+
     def process_stranger(
         self,
         emb: np.ndarray,
@@ -98,13 +111,13 @@ class StrangerManager:
         bbox: tuple | list,
         direction: str = "frontal",
         site_id: int | None = None,
-        db=None,
+        *args,
+        **kwargs,
     ) -> tuple[int, float, bool]:
         if emb is None:
             return -1, 0.0, False
 
-        self._ensure_loaded(db)
-        target_db = db or self._db
+        self._ensure_loaded()
 
         norm = float(np.linalg.norm(emb))
         if norm <= 1e-6:
@@ -114,6 +127,12 @@ class StrangerManager:
         threshold = getattr(cfg, "STRANGER_MATCH_THRESHOLD", 0.48)
         now = time.time()
 
+        match_found = False
+        stranger_id = -1
+        best_sim = 0.0
+        need_db_sync = False
+
+        # Phase 1: Fast in-memory matching with lock (No I/O inside lock)
         with self._lock:
             if self._matrix is not None and len(self._matrix) > 0:
                 sims = np.dot(self._matrix, normed_emb)
@@ -121,6 +140,7 @@ class StrangerManager:
                 best_sim = float(sims[best_idx])
 
                 if best_sim >= threshold:
+                    match_found = True
                     rec = self._records[best_idx]
                     stranger_id = rec["id"]
                     rec["seen_count"] += 1
@@ -135,60 +155,52 @@ class StrangerManager:
 
                     if now - rec["last_db_sync"] >= 5.0:
                         rec["last_db_sync"] = now
-                        if target_db:
-                            try:
-                                target_db._execute_query(
-                                    """
-                                    UPDATE stranger_logs
-                                    SET last_seen = NOW(),
-                                        seen_count = COALESCE(seen_count, 1) + 1,
-                                        camera_id = COALESCE(%s, camera_id)
-                                    WHERE id = %s
-                                    """,
-                                    (cam_id, stranger_id), commit=True
-                                )
-                            except Exception as ex:
-                                logger.warning("Error updating stranger %s in DB: %s", stranger_id, ex)
+                        need_db_sync = True
 
-                    return stranger_id, best_sim, False
+        if match_found:
+            if need_db_sync:
+                self._get_executor().submit(self._async_db_update, cam_id, stranger_id)
+            return stranger_id, best_sim, False
 
-            snap_path = save_face_snapshot(frame, cam_id, bbox=bbox)
-            new_id = None
-            if target_db:
-                try:
-                    new_id = target_db._execute_query(
-                        """
-                        INSERT INTO stranger_logs
-                            (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
-                        VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), 1, NOW())
-                        RETURNING id
-                        """,
-                        (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
-                        commit=True, return_id=True
-                    )
-                except Exception as ex:
-                    logger.error("Failed to log new stranger into DB: %s", ex)
+        # Phase 2: New stranger detected. Perform disk snapshot and DB insert OUTSIDE lock!
+        snap_path = save_face_snapshot(frame, cam_id, bbox=bbox)
+        new_id = None
+        try:
+            new_id = db._execute_query(
+                """
+                INSERT INTO stranger_logs
+                    (camera_id, similarity, image_path, site_id, face_embedding, status, direction, event_time, seen_count, last_seen)
+                VALUES (%s, %s, %s, %s, %s, 'new', %s, NOW(), 1, NOW())
+                RETURNING id
+                """,
+                (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
+                commit=True, return_id=True
+            )
+        except Exception as ex:
+            logger.error("Failed to log new stranger into DB: %s", ex)
 
-            if new_id is None:
-                new_id = int(now) % 100000
+        if new_id is None:
+            new_id = int(now) % 100000
 
-            new_rec = {
-                "id": new_id,
-                "emb": normed_emb,
-                "seen_count": 1,
-                "last_seen": now,
-                "last_db_sync": now,
-                "image_path": snap_path,
-                "direction": direction,
-            }
+        # Phase 3: Fast memory update for the new stranger with lock
+        new_rec = {
+            "id": new_id,
+            "emb": normed_emb,
+            "seen_count": 1,
+            "last_seen": now,
+            "last_db_sync": now,
+            "image_path": snap_path,
+            "direction": direction,
+        }
+        with self._lock:
             self._records.append(new_rec)
             if self._matrix is None or len(self._matrix) == 0:
                 self._matrix = np.array([normed_emb], dtype=np.float32)
             else:
                 self._matrix = np.vstack([self._matrix, normed_emb])
 
-            logger.info("New stranger registered: ID #%d from %s (snapshot: %s)", new_id, cam_id, snap_path)
-            return new_id, 0.0, True
+        logger.info("New stranger registered: ID #%d from %s (snapshot: %s)", new_id, cam_id, snap_path)
+        return new_id, 0.0, True
 
     def remove(self, stranger_id: int):
         with self._lock:
@@ -201,11 +213,13 @@ class StrangerManager:
                 self._matrix = np.array(embs, dtype=np.float32) if embs else None
                 logger.info("Stranger #%d removed from StrangerManager memory.", stranger_id)
 
-    def reload(self, db=None):
+    def reload(self):
         with self._lock:
             self._initialized = False
-        self._ensure_loaded(db)
+        self._ensure_loaded()
 
 
-def get_stranger_manager(db=None) -> StrangerManager:
-    return StrangerManager.get_instance(db=db)
+def get_stranger_manager(*args, **kwargs) -> StrangerManager:
+    return StrangerManager.get_instance(*args, **kwargs)
+
+

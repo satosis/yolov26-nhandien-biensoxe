@@ -2,7 +2,8 @@ import logging
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Optional
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
+from backend.services.database import db
 from backend.camera import camera_service as cam_svc
 from backend.services.settings_service import get_app_setting, set_app_setting
 
@@ -15,22 +16,21 @@ router = APIRouter(prefix="/cameras")
 async def cameras_page(request: Request, user: dict = Depends(require_menu("cameras"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "cameras"
-    db = get_db()
     
     active_site_id = ctx.get("active_site_id")
     site_id_filter = int(active_site_id) if active_site_id else None
-    cameras = cam_svc.get_all_cameras(db, site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
+    cameras = cam_svc.get_all_cameras(site_id=site_id_filter if site_id_filter and site_id_filter > 0 else None)
     for cam in cameras:
         if not cam.get("rtsp_url"):
-            cam["rtsp_url"] = cam_svc.get_camera_rtsp_url(db, cam["id"])
+            cam["rtsp_url"] = cam_svc.get_camera_rtsp_url(cam["id"])
 
     ctx["cameras"] = cameras
-    ctx["providers"] = cam_svc.get_all_providers(db)
+    ctx["providers"] = cam_svc.get_all_providers()
     ctx["provider_templates"] = {p['provider_key']: p.get('rtsp_template', '') for p in ctx["providers"]}
-    ctx["global_mk"] = get_app_setting(db, "IMOU_MK", "")
-    ctx["last_discovery"] = get_app_setting(db, "LAST_DISCOVERY_AT", "")
-    ctx["auto_register"] = (get_app_setting(db, "AUTO_REGISTER_NEW_CAMERAS", "false") or "false").lower() == "true"
-    ctx["camera_status"] = cam_svc.get_cameras_latest_status(db)
+    ctx["global_mk"] = get_app_setting("IMOU_MK", "")
+    ctx["last_discovery"] = get_app_setting("LAST_DISCOVERY_AT", "")
+    ctx["auto_register"] = (get_app_setting("AUTO_REGISTER_NEW_CAMERAS", "false") or "false").lower() == "true"
+    ctx["camera_status"] = cam_svc.get_cameras_latest_status()
     return templates.TemplateResponse("pages/cameras.html", {"request": request, **ctx})
 
 
@@ -52,10 +52,8 @@ async def create_camera(
     if site_ids:
         parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
-    db = get_db()
     provider_keys = {"mk": imou_mk} if imou_mk else None
     cam_svc.add_camera(
-        db,
         name=camera_name,
         cam_type=camera_type,
         imou_device_id=imou_device_id,
@@ -75,8 +73,7 @@ async def delete_camera(
     request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
-    db = get_db()
-    cam_svc.delete_camera(db, camera_id)
+    cam_svc.delete_camera(camera_id)
     return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
@@ -86,13 +83,11 @@ async def toggle_camera(
     request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
-    db = get_db()
-    cam = cam_svc.get_camera(db, camera_id)
+    cam = cam_svc.get_camera(camera_id)
     if not cam:
         return RedirectResponse(url="/admin/cameras", status_code=303)
 
     cam_svc.update_camera(
-        db,
         camera_id=camera_id,
         name=cam["camera_name"],
         cam_type=cam["camera_type"],
@@ -126,15 +121,13 @@ async def edit_camera(
     if site_ids:
         parsed_site_ids = [int(s.strip()) for s in site_ids.split(",") if s.strip()]
 
-    db = get_db()
-    cam = cam_svc.get_camera(db, camera_id)
+    cam = cam_svc.get_camera(camera_id)
     if not cam:
         return RedirectResponse(url="/admin/cameras", status_code=303)
 
     final_rtsp_url = rtsp_url.strip() if rtsp_url and rtsp_url.strip() else None
 
     cam_svc.update_camera(
-        db,
         camera_id=camera_id,
         name=camera_name,
         cam_type=camera_type,
@@ -156,19 +149,18 @@ async def start_stream(
     request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
-    db = get_db()
-    cam = cam_svc.get_camera(db, camera_id)
+    cam = cam_svc.get_camera(camera_id)
     if not cam:
         return JSONResponse({"ok": False, "error": "Camera không tồn tại"}, status_code=404)
 
-    rtsp_url = cam_svc.get_camera_rtsp_url(db, camera_id)
+    rtsp_url = cam_svc.get_camera_rtsp_url(camera_id)
     if not rtsp_url:
         return JSONResponse({
             "ok": False,
             "error": f"Camera '{cam.get('camera_name')}' chưa có địa chỉ IP hoặc mật khẩu để kết nối."
         }, status_code=400)
 
-    ok = cam_svc.set_camera_streaming(db, camera_id, True)
+    ok = cam_svc.set_camera_streaming(camera_id, True)
     return {"ok": ok}
 
 
@@ -178,8 +170,7 @@ async def stop_stream(
     request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
-    db = get_db()
-    ok = cam_svc.set_camera_streaming(db, camera_id, False)
+    ok = cam_svc.set_camera_streaming(camera_id, False)
     return {"ok": ok}
 
 
@@ -189,8 +180,7 @@ async def get_stream_status(
     request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
-    db = get_db()
-    cam = cam_svc.get_camera(db, camera_id)
+    cam = cam_svc.get_camera(camera_id)
     if not cam:
         return {"ok": False, "streaming": False}
     return {"ok": True, "streaming": cam.get("is_streaming", False)}
@@ -222,7 +212,6 @@ async def auto_add_camera(
     user: dict = Depends(require_menu("cameras")),
 ):
     data = await request.json()
-    db = get_db()
 
     device_id = (data.get("id") or "").strip()
     ip = data.get("ip") or ""
@@ -237,14 +226,13 @@ async def auto_add_camera(
     if device_id.startswith("unidentified_"):
         device_id = ""
 
-    mk = get_app_setting(db, "IMOU_MK", "")
+    mk = get_app_setting("IMOU_MK", "")
 
     if camera_id:
-        cam = cam_svc.get_camera(db, camera_id)
+        cam = cam_svc.get_camera(camera_id)
         if not cam:
             return {"ok": False, "name": name, "error": "Camera not found"}
         ok = cam_svc.update_camera(
-            db,
             camera_id=camera_id,
             name=name,
             cam_type=cam_type,
@@ -258,9 +246,9 @@ async def auto_add_camera(
             camera_port=onvif_port or cam.get("camera_port", 554),
         )
         if ok and rtsp_url_onvif:
-            cam_svc.store_onvif_detected_rtsp(db, camera_id, rtsp_url_onvif)
+            cam_svc.store_onvif_detected_rtsp(camera_id, rtsp_url_onvif)
         elif ok:
-            url = cam_svc.get_camera_rtsp_url(db, camera_id)
+            url = cam_svc.get_camera_rtsp_url(camera_id)
             if url:
                 db._execute_query("UPDATE cameras SET rtsp_url = %s WHERE id = %s",
                                  (url, camera_id), commit=True)
@@ -293,7 +281,6 @@ async def auto_add_camera(
             rtsp_url_onvif = f"rtsp://admin:{mk_encoded}@{ip}:554/cam/realmonitor?channel=1&subtype=1"
 
         new_cam_id = cam_svc.add_camera(
-            db,
             name=name,
             cam_type=cam_type,
             imou_device_id=device_id.upper() if device_id else None,
@@ -306,9 +293,9 @@ async def auto_add_camera(
         )
         if new_cam_id and ip:
             if rtsp_url_onvif:
-                cam_svc.store_onvif_detected_rtsp(db, new_cam_id, rtsp_url_onvif)
+                cam_svc.store_onvif_detected_rtsp(new_cam_id, rtsp_url_onvif)
             else:
-                url = cam_svc.get_camera_rtsp_url(db, new_cam_id)
+                url = cam_svc.get_camera_rtsp_url(new_cam_id)
                 if url:
                     db._execute_query("UPDATE cameras SET rtsp_url = %s WHERE id = %s",
                                      (url, new_cam_id), commit=True)
@@ -329,9 +316,8 @@ async def probe_onvif(
     if not ip:
         return JSONResponse({"error": "IP is required"}, status_code=400)
 
-    db = get_db()
-    username = data.get("username") or get_app_setting(db, "ONVIF_USERNAME", "") or "admin"
-    password = data.get("password") or get_app_setting(db, "ONVIF_PASSWORD", "") or get_app_setting(db, "IMOU_MK", "")
+    username = data.get("username") or get_app_setting("ONVIF_USERNAME", "") or "admin"
+    password = data.get("password") or get_app_setting("ONVIF_PASSWORD", "") or get_app_setting("IMOU_MK", "")
 
     result = get_onvif_full_info(ip, port, username, password, timeout=6)
     if not result:
@@ -362,8 +348,7 @@ async def discover_arp(
 
     def _run():
         candidates = discover_from_arp()
-        db = get_db()
-        reg_result = auto_register_discovered_cameras(candidates, db)
+        reg_result = auto_register_discovered_cameras(candidates)
         return candidates, reg_result
 
     candidates, reg_result = await asyncio.to_thread(_run)
@@ -379,10 +364,9 @@ async def toggle_auto_register(
     request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
-    db = get_db()
-    current = get_app_setting(db, "AUTO_REGISTER_NEW_CAMERAS", "false") or "false"
+    current = get_app_setting("AUTO_REGISTER_NEW_CAMERAS", "false") or "false"
     new_val = "false" if current.lower() == "true" else "true"
-    set_app_setting(db, "AUTO_REGISTER_NEW_CAMERAS", new_val)
+    set_app_setting("AUTO_REGISTER_NEW_CAMERAS", new_val)
     return {"auto_register": new_val == "true"}
 
 
@@ -392,6 +376,5 @@ async def camera_health(
     user: dict = Depends(require_menu("cameras")),
     hours: int = 24,
 ):
-    db = get_db()
-    events = cam_svc.get_camera_health(db, hours=hours)
+    events = cam_svc.get_camera_health(hours=hours)
     return {"events": events, "count": len(events)}

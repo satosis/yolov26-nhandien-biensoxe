@@ -14,15 +14,11 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.add_extension("jinja2.ext.do")
 templates.env.policies["json.dumps_kwargs"] = {"sort_keys": True, "default": _json_default}
 
-_db = None
+from backend.services.database import db
 
 
 def get_db():
-    global _db
-    if _db is None:
-        from backend.services.database import DatabaseManager
-        _db = DatabaseManager()
-    return _db
+    return db
 
 
 def get_current_user(request: Request) -> dict:
@@ -37,7 +33,7 @@ def get_optional_user(request: Request) -> dict | None:
 
 
 def get_role_permissions(role: str) -> str:
-    row = get_db().select("roles", columns="allowed_menus", conditions={"role_name": role}, fetchall=False)
+    row = db.select("roles", columns="allowed_menus", conditions={"role_name": role}, fetchall=False)
     return row["allowed_menus"] if row else ""
 
 
@@ -78,7 +74,7 @@ def get_menu_context(request: Request, user: dict) -> dict:
         "parking_analytics", "recordings"
     }
 
-    sites = get_db().select("sites", conditions={"is_active": True}, order_by="site_name")
+    sites = db.select("sites", conditions={"is_active": True}, order_by="site_name")
     active_site_id = request.session.get("active_site_id", 0)
     
     path = request.url.path.strip("/")

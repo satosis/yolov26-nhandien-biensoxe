@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, Response
 
-from frontend.deps import get_db, get_optional_user, templates
+from frontend.deps import get_optional_user, templates
 from frontend.notifications import manager
 from .cms_router import get_projects, get_news, get_news_by_slug, get_news_by_id, get_landing_settings
 from .inquiries_router import save_inquiry
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _landing_settings(db, warehouse=False):
-    raw = get_landing_settings(db)
+def _landing_settings(warehouse=False):
+    raw = get_landing_settings()
     suffix = "_WAREHOUSE" if warehouse else ""
     return {
         "phone": raw.get(f"LANDING_PHONE{suffix}", ""),
@@ -26,16 +26,15 @@ def _landing_settings(db, warehouse=False):
 
 @router.get("/", response_class=HTMLResponse)
 async def landing_home(request: Request):
-    db = get_db()
-    settings = _landing_settings(db, warehouse=True)
+    settings = _landing_settings(warehouse=True)
     
-    projects = get_projects(db)
+    projects = get_projects()
     for p in projects:
         p['load'] = p.get('load_capacity')
         if p.get('created_at'):
             p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
         
-    news_items = get_news(db, limit=3)
+    news_items = get_news(limit=3)
     for n in news_items:
         if n.get('publish_date'):
             n['publish_date_str'] = n['publish_date'].strftime('%d/%m/%Y') if hasattr(n['publish_date'], 'strftime') else str(n['publish_date'])
@@ -57,8 +56,7 @@ async def landing_home(request: Request):
 
 @router.get("/gioi-thieu", response_class=HTMLResponse)
 async def landing_about(request: Request):
-    db = get_db()
-    raw_settings = get_landing_settings(db)
+    raw_settings = get_landing_settings()
     settings = {
         "phone": raw_settings.get("LANDING_PHONE", ""),
         "zalo": raw_settings.get("LANDING_ZALO", ""),
@@ -71,10 +69,9 @@ async def landing_about(request: Request):
 
 @router.get("/nhaxuong", response_class=HTMLResponse)
 async def landing_warehouse(request: Request):
-    db = get_db()
-    settings = _landing_settings(db)
+    settings = _landing_settings()
     
-    projects = get_projects(db)
+    projects = get_projects()
     for p in projects:
         p['load'] = p.get('load_capacity')
         if p.get('created_at'):
@@ -94,14 +91,13 @@ async def landing_warehouse(request: Request):
 
 @router.get("/nha-xuong-co-tiet", response_class=HTMLResponse)
 async def landing_co_tiet(request: Request):
-    db = get_db()
-    settings = _landing_settings(db)
+    settings = _landing_settings()
     return templates.TemplateResponse(
         "pages/landing_co_tiet.html",
         {
-            "request": request,
-            "settings": settings,
-            "source_page": "co_tiet",
+            "request": request, 
+            "settings": settings, 
+            "source_page": "co_tiet", 
             "user": get_optional_user(request),
         },
     )
@@ -109,7 +105,7 @@ async def landing_co_tiet(request: Request):
 
 @router.get("/dich-vu", response_class=HTMLResponse)
 async def landing_services(request: Request):
-    settings = _landing_settings(get_db(), warehouse=True)
+    settings = _landing_settings(warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_services.html",
         {"request": request, "settings": settings, "source_page": "services", "user": get_optional_user(request)},
@@ -118,7 +114,7 @@ async def landing_services(request: Request):
 
 @router.get("/du-an", response_class=HTMLResponse)
 async def landing_projects(request: Request):
-    settings = _landing_settings(get_db(), warehouse=True)
+    settings = _landing_settings(warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_projects.html",
         {"request": request, "settings": settings, "source_page": "warehouse", "user": get_optional_user(request)},
@@ -127,7 +123,7 @@ async def landing_projects(request: Request):
 
 @router.get("/xecau", response_class=HTMLResponse)
 async def landing_crane(request: Request):
-    settings = _landing_settings(get_db(), warehouse=True)
+    settings = _landing_settings(warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_crane.html",
         {"request": request, "settings": settings, "source_page": "crane", "user": get_optional_user(request)},
@@ -136,7 +132,7 @@ async def landing_crane(request: Request):
 
 @router.get("/kiem-dinh-can", response_class=HTMLResponse)
 async def landing_scale(request: Request):
-    settings = _landing_settings(get_db(), warehouse=True)
+    settings = _landing_settings(warehouse=True)
     return templates.TemplateResponse(
         "pages/landing_scale.html",
         {"request": request, "settings": settings, "source_page": "kiem-dinh-can", "user": get_optional_user(request)},
@@ -145,8 +141,7 @@ async def landing_scale(request: Request):
 
 @router.get("/lien-he", response_class=HTMLResponse)
 async def landing_contact(request: Request):
-    db = get_db()
-    raw_settings = get_landing_settings(db)
+    raw_settings = get_landing_settings()
     settings = {"phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", "")}
     return templates.TemplateResponse(
         "pages/landing_contact.html",
@@ -157,17 +152,16 @@ async def landing_contact(request: Request):
 @router.get("/tin-tuc/{slug}", response_class=HTMLResponse)
 async def landing_news_detail(request: Request, slug: str):
     from fastapi.responses import RedirectResponse
-    db = get_db()
-    raw_settings = get_landing_settings(db)
+    raw_settings = get_landing_settings()
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
     }
     if slug.isdigit():
-        item = get_news_by_id(db, int(slug))
+        item = get_news_by_id(int(slug))
         if item and item.get("slug"):
             return RedirectResponse(f"/tin-tuc/{item['slug']}", status_code=301)
         return RedirectResponse("/tin-tuc")
-    item = get_news_by_slug(db, slug)
+    item = get_news_by_slug(slug)
     if not item:
         return RedirectResponse("/tin-tuc")
     user = get_optional_user(request)
@@ -181,13 +175,12 @@ async def landing_news_detail(request: Request, slug: str):
 
 @router.get("/tin-tuc", response_class=HTMLResponse)
 async def landing_news(request: Request):
-    db = get_db()
-    raw_settings = get_landing_settings(db)
+    raw_settings = get_landing_settings()
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
     }
-    news_items = get_news(db, limit=50)
+    news_items = get_news(limit=50)
     for item in news_items:
         if item.get("publish_date"):
             d = item["publish_date"]
@@ -207,7 +200,6 @@ async def landing_news(request: Request):
 
 @router.get("/sitemap.xml")
 async def sitemap(request: Request):
-    db = get_db()
     base = str(request.base_url).rstrip("/")
     now = datetime.utcnow().strftime("%Y-%m-%d")
 
@@ -232,7 +224,7 @@ async def sitemap(request: Request):
     <priority>{priority}</priority>
   </url>\n"""
 
-    news_items = get_news(db, limit=200)
+    news_items = get_news(limit=200)
     for item in news_items:
         if not item.get("is_published", True):
             continue
@@ -317,7 +309,7 @@ async def contact_inquiry(
     if errors:
         return HTMLResponse(_error_html(errors), status_code=400)
 
-    inquiry_id = save_inquiry(get_db(), full_name, phone, company_name, demand, source_page)
+    inquiry_id = save_inquiry(full_name, phone, company_name, demand, source_page)
     logger.info("New inquiry saved: %s | %s | source=%s", full_name, phone, source_page)
 
     import asyncio

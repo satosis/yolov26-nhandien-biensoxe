@@ -12,7 +12,8 @@ from fastapi import APIRouter, Request, Depends, Form, Query, File, UploadFile
 from fastapi.responses import JSONResponse
 from starlette.responses import RedirectResponse
 from pathlib import Path
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
+from backend.services.database import db
 from backend.ai.handwriting_ocr import extract_trip_candidates_from_document
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ def _delete_scan_review(token: str):
     _scan_review_path(token).unlink(missing_ok=True)
 
 
-def get_cargo_trips(db, vehicle_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
+def get_cargo_trips(vehicle_id: int, limit: int = 50, offset: int = 0) -> list[dict]:
     query = """
         SELECT * FROM cargo_trips
         WHERE vehicle_id = %s
@@ -67,7 +68,7 @@ def get_cargo_trips(db, vehicle_id: int, limit: int = 50, offset: int = 0) -> li
     return db._execute_query(query, (vehicle_id, limit, offset), fetchall=True, commit=False)
 
 
-def count_cargo_trips(db, vehicle_id: int) -> int:
+def count_cargo_trips(vehicle_id: int) -> int:
     row = db._execute_query(
         "SELECT COUNT(*) FROM cargo_trips WHERE vehicle_id = %s",
         (vehicle_id,), fetch=True, commit=False
@@ -75,7 +76,7 @@ def count_cargo_trips(db, vehicle_id: int) -> int:
     return row["count"] if row else 0
 
 
-def add_cargo_trip(db, vehicle_id: int, plate_number: str, departure_time,
+def add_cargo_trip(vehicle_id: int, plate_number: str, departure_time,
                    return_time=None, origin=None, destination=None,
                    fuel_liters=None, fuel_price_per_liter=None,
                    freight_revenue=None, distance_km=None) -> int | None:
@@ -98,7 +99,7 @@ def add_cargo_trip(db, vehicle_id: int, plate_number: str, departure_time,
     )
 
 
-def update_cargo_trip(db, trip_id: int, departure_time=None, return_time=None,
+def update_cargo_trip(trip_id: int, departure_time=None, return_time=None,
                       origin=None, destination=None,
                       fuel_liters=None, fuel_price_per_liter=None,
                       freight_revenue=None, distance_km=None) -> bool:
@@ -124,11 +125,11 @@ def update_cargo_trip(db, trip_id: int, departure_time=None, return_time=None,
     )
 
 
-def get_cargo_trip(db, trip_id: int) -> dict | None:
+def get_cargo_trip(trip_id: int) -> dict | None:
     return db._execute_query("SELECT * FROM cargo_trips WHERE id = %s", (trip_id,), fetch=True, commit=False)
 
 
-def delete_cargo_trip(db, trip_id: int) -> bool:
+def delete_cargo_trip(trip_id: int) -> bool:
     return db.delete("cargo_trips", {"id": trip_id})
 
 
@@ -325,7 +326,6 @@ async def cargo_trips_page(
     page: int = Query(1, ge=1),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    db = get_db()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
 
@@ -333,12 +333,12 @@ async def cargo_trips_page(
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
-    total = count_cargo_trips(db, vehicle_id)
+    total = count_cargo_trips(vehicle_id)
     total_pages = max(1, math.ceil(total / PER_PAGE))
     page = min(page, total_pages)
     offset = (page - 1) * PER_PAGE
 
-    trips = get_cargo_trips(db, vehicle_id, limit=PER_PAGE, offset=offset)
+    trips = get_cargo_trips(vehicle_id, limit=PER_PAGE, offset=offset)
     for t in trips:
         t["fuel_cost_total_fmt"] = _fmt_currency(t.get("fuel_cost_total"))
         t["freight_revenue_fmt"] = _fmt_currency(t.get("freight_revenue"))
@@ -503,7 +503,6 @@ async def add_cargo_trip_page(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    db = get_db()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
@@ -529,13 +528,11 @@ async def create_cargo_trip(
     distance_km: Optional[str] = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
     add_cargo_trip(
-        db,
         vehicle_id=vehicle_id,
         plate_number=vehicle["plate_number"],
         departure_time=datetime.fromisoformat(departure_time),
@@ -557,12 +554,11 @@ async def edit_cargo_trip_page(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    db = get_db()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
 
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
-    trip = get_cargo_trip(db, trip_id)
+    trip = get_cargo_trip(trip_id)
     if not vehicle or not trip:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
 
@@ -592,7 +588,6 @@ async def edit_cargo_trip(
     user: dict = Depends(require_menu("vehicles")),
 ):
     update_cargo_trip(
-        get_db(),
         trip_id=trip_id,
         departure_time=datetime.fromisoformat(departure_time),
         return_time=_dt(return_time),
@@ -612,7 +607,7 @@ async def delete_cargo_trip_endpoint(
     trip_id: int,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    delete_cargo_trip(get_db(), trip_id)
+    delete_cargo_trip(trip_id)
     return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo", status_code=303)
 
 
@@ -623,7 +618,6 @@ async def scan_handwriting(
     user: dict = Depends(require_menu("vehicles")),
 ):
     _cleanup_scan_reviews()
-    db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle:
         return RedirectResponse(url="/admin/vehicles", status_code=303)
@@ -660,7 +654,6 @@ async def review_cargo_scan(
     user: dict = Depends(require_menu("vehicles")),
 ):
     _cleanup_scan_reviews()
-    db = get_db()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
 
@@ -693,7 +686,6 @@ async def confirm_cargo_scan(
     token = str(form.get("token") or "")
     review = _load_scan_review(token)
 
-    db = get_db()
     vehicle = db.select("plate_whitelist", conditions={"id": vehicle_id}, fetchall=False)
     if not vehicle or not review or review.get("vehicle_id") != vehicle_id or review.get("user_id") != user.get("id"):
         return RedirectResponse(url=f"/admin/vehicles/{vehicle_id}/cargo?scan_error=1", status_code=303)
@@ -732,7 +724,6 @@ async def confirm_cargo_scan(
         }
         try:
             add_cargo_trip(
-                db,
                 vehicle_id=vehicle_id,
                 plate_number=vehicle["plate_number"],
                 departure_time=datetime.fromisoformat(departure_time),

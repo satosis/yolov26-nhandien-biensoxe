@@ -1,10 +1,10 @@
 import requests
 
-from backend.services.database import DatabaseManager
+from backend.services.database import db
 
 
 def _telegram_bots() -> list[dict]:
-    return DatabaseManager().select("telegram_bots")
+    return db.select("telegram_bots")
 
 
 def notify_telegram(message, important=False):

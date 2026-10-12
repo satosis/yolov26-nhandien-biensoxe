@@ -1,14 +1,15 @@
 import logging
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.services.database import db
+from frontend.deps import get_menu_context, require_menu, templates
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telegram")
 
 
-def upsert_telegram_bot(db, bot_name: str, token: str, chat_id: str) -> bool:
+def upsert_telegram_bot(bot_name: str, token: str, chat_id: str) -> bool:
     query = """
         INSERT INTO telegram_bots (bot_name, token, chat_id, updated_at)
         VALUES (%s, %s, %s, NOW())
@@ -24,7 +25,6 @@ def upsert_telegram_bot(db, bot_name: str, token: str, chat_id: str) -> bool:
 async def telegram_page(request: Request, user: dict = Depends(require_menu("telegram"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "telegram"
-    db = get_db()
     ctx["bots"] = db.select("telegram_bots", order_by="id ASC")
     return templates.TemplateResponse("pages/telegram.html", {"request": request, **ctx})
 
@@ -43,8 +43,7 @@ async def add_bot(
         logger.error("Missing token for bot_name=%s", bot_name)
         return RedirectResponse(url="/admin/telegram", status_code=303)
         
-    db = get_db()
-    upsert_telegram_bot(db, bot_name.strip(), final_token.strip(), chat_id.strip())
+    upsert_telegram_bot(bot_name.strip(), final_token.strip(), chat_id.strip())
     return RedirectResponse(url="/admin/telegram", status_code=303)
 
 
@@ -55,7 +54,6 @@ async def test_bot(
     user: dict = Depends(require_menu("telegram")),
 ):
     import httpx
-    db = get_db()
     bot = db.select("telegram_bots", conditions={"bot_name": bot_name}, fetchall=False)
     if not bot:
         return {"ok": False, "message": "Bot not found"}
@@ -80,6 +78,5 @@ async def delete_bot(
     request: Request,
     user: dict = Depends(require_menu("telegram")),
 ):
-    db = get_db()
     db.delete("telegram_bots", {"bot_name": bot_name})
     return RedirectResponse(url="/admin/telegram", status_code=303)

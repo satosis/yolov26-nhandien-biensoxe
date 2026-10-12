@@ -6,7 +6,7 @@ import cv2
 from collections import deque
 from multiprocessing import Queue, Event
 from backend.services import config as cfg
-from backend.services.database import DatabaseManager
+from backend.services.database import db
 from backend.services.telegram_service import notify_telegram_video
 
 logger = logging.getLogger("recorder")
@@ -20,7 +20,6 @@ class RecorderProcess:
         self.record_queue = record_queue
         self.control_queue = control_queue
         self.stop_event = stop_event
-        self.db = DatabaseManager(max_pool_size=5)
 
         self.buffers = {}
         self.max_buffer_len = int(cfg.GRAB_FPS_CAP * cfg.SMART_RECORD_PRE_SEC)
@@ -95,7 +94,7 @@ class RecorderProcess:
 
         event_type = rec['event_type'] if len(rec['event_types']) == 1 else '+'.join(sorted(rec['event_types']))
 
-        self.db.insert("video_recordings", {
+        db.insert("video_recordings", {
             "cam_id": str(cam_id),
             "site_id": rec['site_id'],
             "event_type": event_type,

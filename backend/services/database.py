@@ -13,33 +13,16 @@ load_dotenv(_env_file if os.path.exists(_env_file) else None)
 
 
 class DatabaseManager:
-    _pool = None
-    _pool_lock = threading.Lock()
-
-    @staticmethod
-    def _get_db_url() -> str:
-        return os.environ.get("DATABASE_URL", "")
-
-    def __init__(self, max_pool_size=None):
-        self.max_pool_size = int(max_pool_size) if max_pool_size else 15
-        if DatabaseManager._pool is None:
-            self._init_pool(self.max_pool_size)
-
-    @classmethod
-    def _init_pool(cls, maxconn: int = 15):
-        with cls._pool_lock:
-            if cls._pool is None:
-                cls._pool = pool.ThreadedConnectionPool(1, maxconn, cls._get_db_url())
-                logger.info("Database connection pool initialized (maxconn=%d)", maxconn)
-            return cls._pool
+    def __init__(self, max_pool_size=15):
+        self._pool = pool.ThreadedConnectionPool(1, max_pool_size, os.environ.get("DATABASE_URL", ""))
 
     @contextmanager
     def _get_connection(self):
-        conn = DatabaseManager._pool.getconn()
+        conn = self._pool.getconn()
         try:
             yield conn
         finally:
-            DatabaseManager._pool.putconn(conn)
+            self._pool.putconn(conn)
 
     def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
         with self._get_connection() as conn:
@@ -102,3 +85,13 @@ class DatabaseManager:
         where_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
         query = f"DELETE FROM {table_name} WHERE {where_clause}"
         return self._execute_query(query, tuple(conditions.values()), commit=True)
+
+
+# Global database manager instance
+db = DatabaseManager()
+
+
+def get_db() -> DatabaseManager:
+    return db
+
+

@@ -1,20 +1,21 @@
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from typing import Optional
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.services.database import db
+from frontend.deps import get_menu_context, require_menu, templates
 
 router = APIRouter(prefix="/door_providers")
 
 
-def get_all_door_providers(db) -> list:
+def get_all_door_providers() -> list:
     return db.select("door_providers", order_by="name ASC")
 
 
-def get_door_provider(db, provider_key: str) -> dict | None:
+def get_door_provider(provider_key: str) -> dict | None:
     return db.select("door_providers", conditions={"provider_key": provider_key}, fetchall=False)
 
 
-def upsert_door_provider(db, provider_key, name, connection_type=None, api_doc_url=None,
+def upsert_door_provider(provider_key, name, connection_type=None, api_doc_url=None,
                          config_template=None, notes=None, logo_url=None, is_active=True) -> bool:
     query = """
         INSERT INTO door_providers
@@ -32,7 +33,7 @@ def upsert_door_provider(db, provider_key, name, connection_type=None, api_doc_u
     )
 
 
-def delete_door_provider(db, provider_key: str) -> bool:
+def delete_door_provider(provider_key: str) -> bool:
     return db.delete("door_providers", {"provider_key": provider_key})
 
 
@@ -40,8 +41,7 @@ def delete_door_provider(db, provider_key: str) -> bool:
 async def door_providers_page(request: Request, user: dict = Depends(require_menu("door_providers"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "door_providers"
-    db = get_db()
-    ctx["providers"] = get_all_door_providers(db)
+    ctx["providers"] = get_all_door_providers()
     return templates.TemplateResponse("pages/door_providers.html", {"request": request, **ctx})
 
 
@@ -60,7 +60,6 @@ async def upsert_door_provider_route(
 ):
     active = is_active in ("on", "true", "1", "yes")
     upsert_door_provider(
-        db=get_db(),
         provider_key=provider_key,
         name=name,
         connection_type=connection_type or None,
@@ -79,7 +78,7 @@ async def delete_door_provider_route(
     request: Request,
     user: dict = Depends(require_menu("door_providers")),
 ):
-    delete_door_provider(get_db(), provider_key)
+    delete_door_provider(provider_key)
     return RedirectResponse(url="/admin/door_providers", status_code=303)
 
 
@@ -89,11 +88,9 @@ async def toggle_door_provider(
     request: Request,
     user: dict = Depends(require_menu("door_providers")),
 ):
-    db = get_db()
-    provider = get_door_provider(db, provider_key)
+    provider = get_door_provider(provider_key)
     if provider:
         upsert_door_provider(
-            db=db,
             provider_key=provider["provider_key"],
             name=provider["name"],
             connection_type=provider.get("connection_type"),

@@ -2,7 +2,8 @@ import json
 from fastapi import APIRouter, Request, Depends, Form
 from starlette.responses import RedirectResponse
 from typing import Optional, List
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
+from backend.services.database import db
 from backend.services.config import normalize_plate, trigger_ai_reload
 
 router = APIRouter(prefix="/vehicles")
@@ -18,7 +19,7 @@ def _parse_fuel(value: Optional[str]) -> Optional[float]:
     return fc if fc >= 0 else None
 
 
-def get_whitelist_vehicles(db, site_id=None, limit=None, offset=None) -> list[dict]:
+def get_whitelist_vehicles(site_id=None, limit=None, offset=None) -> list[dict]:
     query = """
         SELECT w.*,
                (SELECT array_agg(s.site_name)
@@ -39,7 +40,7 @@ def get_whitelist_vehicles(db, site_id=None, limit=None, offset=None) -> list[di
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
-def upsert_vehicle_whitelist(db, plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+def upsert_vehicle_whitelist(plate_norm: str, label: Optional[str], added_by: str, site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
     query = """
         INSERT INTO plate_whitelist (plate_number, list_type, owner_name, added_by, site_ids, note, fuel_consumption, is_active)
         VALUES (%s, 'white', %s, %s, %s, %s, %s, TRUE)
@@ -59,7 +60,7 @@ def upsert_vehicle_whitelist(db, plate_norm: str, label: Optional[str], added_by
     trigger_ai_reload()
 
 
-def update_vehicle_whitelist(db, vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
+def update_vehicle_whitelist(vehicle_id: int, plate_norm: str, label: Optional[str], site_ids: Optional[list] = None, note: Optional[str] = None, fuel_consumption: Optional[float] = None):
     query = """
         UPDATE plate_whitelist
         SET plate_number = %s, owner_name = %s, site_ids = %s, note = %s, fuel_consumption = %s, updated_at = NOW()
@@ -78,12 +79,11 @@ async def vehicles_page(request: Request, user: dict = Depends(require_menu("veh
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
     site_id = request.session.get("active_site_id", 0) or None
-    db = get_db()
     owner_users = db.select("users", columns=["id", "username", "full_name"], order_by="full_name ASC")
     for owner in owner_users:
         owner["vehicle_owner_label"] = owner.get("full_name") or owner.get("username")
 
-    ctx["vehicles"] = get_whitelist_vehicles(db, site_id=site_id)
+    ctx["vehicles"] = get_whitelist_vehicles(site_id=site_id)
     ctx["owner_users"] = owner_users
     ctx["site_list"] = db.select("sites", conditions={"is_active": True}, order_by="site_name ASC")
     ctx["sites"] = ctx["site_list"]
@@ -103,7 +103,6 @@ async def add_vehicle(
     added_by = user.get("username", "admin")
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
     upsert_vehicle_whitelist(
-        db=get_db(),
         plate_norm=normalize_plate(plate_number),
         label=owner_name or None,
         added_by=added_by,
@@ -122,7 +121,7 @@ async def delete_vehicle_post(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    get_db().delete("plate_whitelist", {"id": plate_id})
+    db.delete("plate_whitelist", {"id": plate_id})
     trigger_ai_reload()
     return RedirectResponse(url="/admin/vehicles", status_code=303)
 
@@ -140,7 +139,6 @@ async def edit_vehicle(
 ):
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
     update_vehicle_whitelist(
-        db=get_db(),
         vehicle_id=vehicle_id,
         plate_norm=normalize_plate(plate_number),
         label=owner_name or None,

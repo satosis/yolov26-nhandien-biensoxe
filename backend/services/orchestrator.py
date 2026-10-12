@@ -5,11 +5,9 @@ import multiprocessing as mp
 from backend.camera.grabber import grabber_process
 from backend.ai.inference import inference_process
 from backend.camera.recorder import recorder_worker
-from backend.services.database import DatabaseManager
+from backend.services.database import db
 from backend.util.system_utils import log_system_health
-
 logger = logging.getLogger("orchestrator")
-
 
 def _reap(p, timeout):
     try:
@@ -27,10 +25,9 @@ def _reap(p, timeout):
 class CameraOrchestrator:
     def __init__(self):
         self.stop_event = mp.Event()
-        self.infer_queue = mp.Queue(maxsize=100)
-        self.recorder_queue = mp.Queue(maxsize=500)
+        self.infer_queue = mp.Queue(maxsize=10)
+        self.recorder_queue = mp.Queue(maxsize=60)
         self.recorder_control_queue = mp.Queue(maxsize=50)
-        self.db = DatabaseManager(max_pool_size=5)
         self.processes = []
         self.core_processes = []
         self.grabbers = {}
@@ -62,11 +59,11 @@ class CameraOrchestrator:
     def spawn_grabber(self, cam):
         cam_id = str(cam['id'])
         from backend.camera import camera_service as cam_svc
-        rtsp_url = cam_svc.get_camera_rtsp_url(self.db, cam['id'])
+        rtsp_url = cam_svc.get_camera_rtsp_url(cam['id'])
 
         if not rtsp_url:
             logger.warning(f"Camera {cam_id} has no valid RTSP URL. Setting is_streaming=False...")
-            cam_svc.set_camera_streaming(self.db, cam['id'], False)
+            cam_svc.set_camera_streaming(cam['id'], False)
             return
 
         site_id = cam['site_ids'][0] if cam.get('site_ids') else None
@@ -96,7 +93,7 @@ class CameraOrchestrator:
 
     def run(self):
         try:
-            self.db._execute_query(
+            db._execute_query(
                 "UPDATE cameras SET is_streaming = TRUE WHERE is_active = TRUE"
             )
             logger.info("Auto-started all active cameras for instant stream.")
@@ -117,7 +114,7 @@ class CameraOrchestrator:
                     self._last_health_ts = now
                     log_system_health()
 
-                streaming_cams = self.db._execute_query(
+                streaming_cams = db._execute_query(
                     "SELECT * FROM cameras WHERE is_active = TRUE", fetchall=True
                 )
                 streaming_ids = {str(c['id']) for c in streaming_cams}
@@ -144,7 +141,7 @@ class CameraOrchestrator:
                     self._last_cleanup_ts = now
                     try:
                         from backend.services.retention_manager import RetentionManager
-                        RetentionManager(self.db).run()
+                        RetentionManager().run()
                     except Exception as e:
                         logger.error("Retention task failed: %s", e)
 

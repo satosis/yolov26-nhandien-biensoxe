@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple, Optional
 
 from backend.ai.tripwire import TripwireTracker
 from backend.services import config as cfg
+from backend.services.database import db
 from backend.services.settings_service import get_app_setting
 
 logger = logging.getLogger("door_auto_close")
@@ -105,7 +106,7 @@ class DoorAutoCloseManager:
         self._last_reload = 0.0
         self._reload_interval = 60.0
 
-    def reload_config(self, db):
+    def reload_config(self):
         try:
             doors = db.execute_query("""
                 SELECT rd.id, rd.name, rd.camera_id, rd.auto_close_delay_sec,
@@ -149,7 +150,7 @@ class DoorAutoCloseManager:
                 for stale_id in [k for k in d if k not in active]:
                     d.pop(stale_id, None)
 
-            line_ratio = float(get_app_setting(db, 'DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
+            line_ratio = float(get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
 
             for cam_id in self._camera_to_doors:
                 if cam_id not in self._tripwires:
@@ -172,11 +173,10 @@ class DoorAutoCloseManager:
         except Exception as e:
             logger.error(f"Failed to reload auto-close config: {e}")
 
-    def on_frame(self, camera_id, detections: list, frame_height: int, db=None):
+    def on_frame(self, camera_id, detections: list, frame_height: int):
         now = time.monotonic()
         if now - self._last_reload > self._reload_interval:
-            if db is not None:
-                self.reload_config(db)
+            self.reload_config()
 
         cam_id = int(camera_id) if isinstance(camera_id, str) and camera_id.isdigit() else camera_id
         door_ids = self._camera_to_doors.get(cam_id, [])
@@ -254,8 +254,6 @@ class DoorAutoCloseManager:
                     logger.debug(f"Telegram notify failed: {e}")
 
                 try:
-                    from backend.services.database import DatabaseManager
-                    db = DatabaseManager()
                     db.execute_query("""
                         INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
                         VALUES (%s, %s, %s, %s, NOW())

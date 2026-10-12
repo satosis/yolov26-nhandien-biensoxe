@@ -4,11 +4,9 @@ import threading
 import requests
 import tinytuya
 from urllib.parse import urlparse
-
 from backend.iot.hunonic_handler import HunonicHandler
 
 logger = logging.getLogger("door_controller")
-
 
 def _safe_relay_url(url: str) -> bool:
     p = urlparse(url if "://" in url else f"http://{url}")
@@ -16,7 +14,6 @@ def _safe_relay_url(url: str) -> bool:
     return p.scheme in ("http", "https") and bool(host) and not (
         host.startswith("169.254.") or host == "metadata" or host.endswith(".internal")
     )
-
 
 class DoorController:
     def __init__(self):
@@ -26,12 +23,9 @@ class DoorController:
         
         self.RELAY_HTTP_URL = ""
 
-        from backend.services.database import DatabaseManager
-        from backend.services.settings_service import get_app_setting
-        db = DatabaseManager()
-        self.TUYA_DEVICE_ID = get_app_setting(db, "TUYA_DEVICE_ID", "")
-        self.TUYA_LOCAL_KEY = get_app_setting(db, "TUYA_LOCAL_KEY", "")
-        self.TUYA_IP = get_app_setting(db, "TUYA_IP", "")
+        self.TUYA_DEVICE_ID = get_app_setting("TUYA_DEVICE_ID", "")
+        self.TUYA_LOCAL_KEY = get_app_setting("TUYA_LOCAL_KEY", "")
+        self.TUYA_IP = get_app_setting("TUYA_IP", "")
         
         self.door_state_lock = threading.Lock()
         self.door_state = "closed"

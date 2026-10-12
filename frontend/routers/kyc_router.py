@@ -8,7 +8,8 @@ from insightface.app import FaceAnalysis
 from fastapi import APIRouter, Request, Depends, Form, UploadFile, File
 from fastapi.responses import RedirectResponse, JSONResponse
 from typing import Optional
-from frontend.deps import get_db, get_menu_context, require_menu, get_current_user, templates
+from frontend.deps import get_menu_context, require_menu, get_current_user, templates
+from backend.services.database import db
 from backend.services import config as cfg
 from backend.ai.kyc_manager import KYCManager
 from frontend.routers.users_router import get_all_users, get_user_by_id
@@ -114,8 +115,7 @@ os.makedirs(KYC_UPLOAD_DIR, exist_ok=True)
 async def kyc_page(request: Request, user: dict = Depends(get_current_user)):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc"
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc_detail = kyc.get_user_detail(user["id"])
     kyc_docs = kyc.get_documents(user["id"])
     docs_map = {d["doc_type"]: d for d in kyc_docs}
@@ -134,8 +134,7 @@ async def submit_basic_info(
     date_of_birth: str = Form(...),
     id_number: str = Form(...),
 ):
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.update_basic_info(user["id"], full_name, phone, email, date_of_birth, id_number)
     logger.info("KYC Level 1 submitted for user %s", user["id"])
     return RedirectResponse(url="/kyc", status_code=303)
@@ -158,8 +157,7 @@ async def upload_id_doc(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.insert_document(user["id"], doc_type, file_path)
 
     docs = kyc.get_documents(user["id"])
@@ -173,30 +171,46 @@ async def upload_id_doc(
     return JSONResponse({"ok": True, "doc_type": doc_type})
 
 
-@router.post("/face/{angle}")
-async def upload_face(
-    angle: str,
+@router.post("/delete-id")
+async def delete_id_doc(
     request: Request,
     user: dict = Depends(get_current_user),
-    face_image: UploadFile = File(...),
-    target_user_id: Optional[int] = None,
+    doc_type: str = Form(...),
+):
+    if doc_type not in ("id_front", "id_back", "selfie_with_id"):
+        return JSONResponse({"ok": False, "error": "invalid_doc_type"}, status_code=400)
+
+    user_dir = os.path.join(KYC_UPLOAD_DIR, str(user["id"]))
+    file_path = os.path.join(user_dir, f"{doc_type}.jpg")
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    kyc = KYCManager()
+    kyc.delete_document(user["id"], doc_type)
+    logger.info("KYC doc '%s' deleted for user %s", doc_type, user["id"])
+    return JSONResponse({"ok": True, "doc_type": doc_type})
+
+
+@router.post("/upload-face")
+async def upload_face(
+    request: Request,
+    user: dict = Depends(get_current_user),
+    angle: str = Form(...),
+    file: UploadFile = File(...),
+    target_user_id: Optional[int] = Form(None),
 ):
     valid_angles = ("front", "left", "right", "up", "down")
     if angle not in valid_angles:
-        logger.warning(f"KYC rejection: invalid_angle '{angle}'")
         return JSONResponse({"ok": False, "error": "invalid_angle"}, status_code=400)
 
     target_id = target_user_id if target_user_id else user["id"]
     if target_id != user["id"] and user.get("role", "").lower() not in ("admin", "manager"):
-        logger.warning(f"KYC rejection: forbidden target_id={target_id} for user={user['id']}")
         return JSONResponse({"ok": False, "error": "forbidden"}, status_code=403)
 
-    img_bytes = await face_image.read()
-    nparr = np.frombuffer(img_bytes, np.uint8)
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
     img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
     if img_cv is None:
-        logger.warning(f"KYC rejection: invalid_image for user={target_id}")
         return JSONResponse({"ok": False, "error": "invalid_image"}, status_code=400)
 
     app = get_face_app()
@@ -220,8 +234,7 @@ async def upload_face(
             
             if max_val > 0.45:
                 if str(dup_target) != str(target_id):
-                    db = get_db()
-                    dup_user = get_user_by_id(db, int(dup_target)) if dup_target.isdigit() else None
+                    dup_user = get_user_by_id(int(dup_target)) if dup_target.isdigit() else None
                     dup_username = dup_user["username"] if dup_user else dup_target
                     
                     logger.warning(f"KYC rejection: duplicate_face for user={target_id}. Matched {dup_target} ({dup_username}) at {max_val:.4f}")
@@ -243,8 +256,7 @@ async def upload_face(
     
     invalidate_face_cache()
 
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.insert_document(target_id, f"face_{angle}", face_path)
 
     docs = kyc.get_documents(target_id)
@@ -296,8 +308,7 @@ async def delete_face(
     with open(reload_trigger, "w") as f:
         f.write(str(time.time()))
 
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.delete_document(target_id, f"face_{angle}")
     
     docs = kyc.get_documents(target_id)
@@ -313,8 +324,7 @@ async def delete_face(
 
 @router.post("/reset")
 async def reset_kyc(request: Request, user: dict = Depends(get_current_user)):
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc_detail = kyc.get_user_detail(user["id"])
     if kyc_detail and kyc_detail["kyc_level"] == -1:
         kyc.reset(user["id"])
@@ -327,10 +337,9 @@ async def reset_kyc(request: Request, user: dict = Depends(get_current_user)):
 async def kyc_admin_page(request: Request, user: dict = Depends(require_menu("users"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc_admin"
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     ctx["pending_users"] = kyc.get_pending_users()
-    all_users = get_all_users(db)
+    all_users = get_all_users()
     ctx["all_kyc_users"] = [u for u in all_users if u.get("kyc_level", 0) != 0] if all_users else []
     return templates.TemplateResponse("pages/kyc_admin.html", {"request": request, **ctx})
 
@@ -339,8 +348,7 @@ async def kyc_admin_page(request: Request, user: dict = Depends(require_menu("us
 async def kyc_admin_detail(user_id: int, request: Request, user: dict = Depends(require_menu("users"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc_admin"
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     ctx["target"] = kyc.get_user_detail(user_id)
     ctx["docs"] = kyc.get_documents(user_id)
     return templates.TemplateResponse("pages/kyc_admin_detail.html", {"request": request, **ctx})
@@ -348,8 +356,7 @@ async def kyc_admin_detail(user_id: int, request: Request, user: dict = Depends(
 
 @router.post("/admin/{user_id}/approve")
 async def approve_kyc(user_id: int, request: Request, user: dict = Depends(require_menu("users"))):
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.approve(user_id, user["username"])
     logger.info("KYC approved for user %s by %s", user_id, user["username"])
     return RedirectResponse(url="/kyc/admin", status_code=303)
@@ -362,8 +369,7 @@ async def reject_kyc(
     user: dict = Depends(require_menu("users")),
     reason: str = Form("Không đạt yêu cầu"),
 ):
-    db = get_db()
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.reject(user_id, user["username"], reason)
     logger.info("KYC rejected for user %s by %s: %s", user_id, user["username"], reason)
     return RedirectResponse(url="/kyc/admin", status_code=303)
@@ -392,12 +398,11 @@ async def register_stranger(
     stranger_id: int = Form(...),
     user_id: int = Form(...),
 ):
-    db = get_db()
-    stranger = get_stranger_log(db, stranger_id)
+    stranger = get_stranger_log(stranger_id)
     if not stranger:
         return JSONResponse({"ok": False, "error": "stranger_not_found"}, status_code=404)
         
-    target_user = get_user_by_id(db, user_id)
+    target_user = get_user_by_id(user_id)
     if not target_user:
         return JSONResponse({"ok": False, "error": "user_not_found"}, status_code=404)
         
@@ -416,12 +421,12 @@ async def register_stranger(
     shutil.copy2(source_path, target_path)
     logger.info("Copied stranger snapshot %s (%s) to user %s face directory.", stranger_id, direction, user_id)
     
-    update_stranger_status(db, stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
+    update_stranger_status(stranger_id, "converted", converted_user_id=user_id, note="Registered from webcam/RTSP")
     
     from backend.ai.stranger_manager import get_stranger_manager
     get_stranger_manager().remove(stranger_id)
     
-    kyc = KYCManager(db)
+    kyc = KYCManager()
     kyc.insert_document(user_id, "face_front", target_path)
     
     kyc_detail = kyc.get_user_detail(user_id)

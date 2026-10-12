@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Request, Form, Depends
 from starlette.responses import RedirectResponse, HTMLResponse
 
-from frontend.deps import get_db, get_current_user, templates
+from backend.services.database import db
+from frontend.deps import get_current_user, templates
 from frontend.auth import (
     verify_password, check_rate_limit, record_failed,
     clear_attempts, remaining_lockout, login_user, logout_user,
@@ -17,7 +18,7 @@ async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
 
-def get_user_by_username(db, username: str) -> dict | None:
+def get_user_by_username(username: str) -> dict | None:
     query = """
         SELECT u.*, r.role_name as role 
         FROM users u 
@@ -38,8 +39,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
             "last_username": username,
         })
 
-    db = get_db()
-    user = get_user_by_username(db, username)
+    user = get_user_by_username(username)
     if user and verify_password(password, user["hashed_password"]):
         clear_attempts(key)
 

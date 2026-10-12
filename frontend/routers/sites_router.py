@@ -1,13 +1,13 @@
 import json
 from fastapi import APIRouter, Request, Form, Depends
 from starlette.responses import HTMLResponse
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
+from backend.services.database import db
 
 router = APIRouter(prefix="/sites")
 
 
 def _sites_list_html(request: Request, user: dict) -> str:
-    db = get_db()
     sites = db.select("sites", order_by="site_name")
     rows = []
     for s in sites:
@@ -56,7 +56,6 @@ def _sites_list_html(request: Request, user: dict) -> str:
 async def sites_page(request: Request, user: dict = Depends(require_menu("sites"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "sites"
-    db = get_db()
     ctx["site_list"] = db.select("sites", order_by="site_name")
     return templates.TemplateResponse("pages/sites.html", {"request": request, **ctx})
 
@@ -72,7 +71,6 @@ async def create_site(
     is_active: str = Form("on"),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    db = get_db()
     db.insert("sites", {
         "site_name": site_name,
         "address": address or "",
@@ -88,7 +86,6 @@ async def create_site(
 
 @router.get("/{site_id}/edit")
 async def edit_site_form(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    db = get_db()
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:
         return HTMLResponse('<div class="px-5 py-4 text-status-red text-sm">Không tìm thấy địa điểm.</div>')
@@ -100,19 +97,19 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên địa điểm *</label>
           <input name="site_name" value="{site['site_name']}" required
-                 class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
         </div>
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ</label>
           <input name="address" value="{site.get('address') or ''}"
-                 class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
         </div>
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Sức chứa</label>
           <input name="total_slots" type="number" min="0" value="{site.get('total_slots') or 0}"
-                 class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
         </div>
         <div>
           <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Trạng thái</label>
@@ -144,7 +141,6 @@ async def update_site(
     is_active: str = Form(None),
 ):
     active = is_active in ("on", "true", "1", "yes")
-    db = get_db()
     db.update("sites", {
         "site_name": site_name,
         "address": address or "",
@@ -160,7 +156,6 @@ async def update_site(
 
 @router.delete("/{site_id}")
 async def delete_site(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    db = get_db()
     db.delete("sites", {"id": site_id})
     resp = HTMLResponse("")
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": "Đã xóa địa điểm", "type": "success"}})
@@ -169,7 +164,6 @@ async def delete_site(site_id: int, request: Request, user: dict = Depends(requi
 
 @router.post("/{site_id}/toggle")
 async def toggle_site_status(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
-    db = get_db()
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if site:
         new_status = not site.get("is_active", False)

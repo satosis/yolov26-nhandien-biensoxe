@@ -28,7 +28,7 @@ except ImportError:
 from insightface.app import FaceAnalysis
 
 from backend.services import config as cfg
-from backend.services.database import DatabaseManager
+from backend.services.database import db
 from backend.util.ocr_utils import VNPlateOCR
 from backend.util.image_utils import save_snapshot
 from backend.util.texture_utils import check_plate_authenticity
@@ -93,18 +93,12 @@ def enhance_plate(crop):
 
     if h < 40:
         scale = max(3, min(4, MIN_OCR_HEIGHT // max(h, 1)))
-        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
-        upscaled = cv2.resize(denoised, (w * scale, h * scale),
-                              interpolation=cv2.INTER_LANCZOS4)
+        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
     elif h < MIN_OCR_HEIGHT:
         scale = max(2, min(3, MIN_OCR_HEIGHT // max(h, 1)))
-        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
-        upscaled = cv2.resize(denoised, (w * scale, h * scale),
-                              interpolation=cv2.INTER_LANCZOS4)
+        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
     elif h < 200:
-        denoised = cv2.bilateralFilter(crop, d=3, sigmaColor=15, sigmaSpace=15)
-        upscaled = cv2.resize(denoised, (w * 2, h * 2),
-                              interpolation=cv2.INTER_LANCZOS4)
+        upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
     else:
         upscaled = crop
 
@@ -398,8 +392,32 @@ class FaceRecognizer:
         percent = 0.70 + (sim - 0.35) / (0.65 - 0.35) * 0.28
         return float(np.clip(percent, 0.0, 0.99))
 
-    def identify(self, frame) -> tuple[str, float, list[int], Optional[np.ndarray], str]:
-        raw_faces = self._app.get(frame)
+    def identify(self, frame, person_bbox=None) -> tuple[str, float, list[int], Optional[np.ndarray], str]:
+        offset_x, offset_y = 0, 0
+        input_img = frame
+
+        # Crop person ROI when available to optimize InsightFace inference on ARM
+        if person_bbox is not None and len(person_bbox) >= 4:
+            x1, y1, x2, y2 = map(int, person_bbox[:4])
+            h_f, w_f = frame.shape[:2]
+            pad_w = int((x2 - x1) * 0.15)
+            pad_h = int((y2 - y1) * 0.15)
+            px1 = max(0, x1 - pad_w)
+            py1 = max(0, y1 - pad_h)
+            px2 = min(w_f, x2 + pad_w)
+            py2 = min(h_f, y2 + pad_h)
+
+            crop = frame[py1:py2, px1:px2]
+            if crop.shape[0] >= 32 and crop.shape[1] >= 32:
+                input_img = crop
+                offset_x, offset_y = px1, py1
+
+        raw_faces = self._app.get(input_img)
+        if not raw_faces and input_img is not frame:
+            # Fallback to full frame only if crop had no faces detected
+            raw_faces = self._app.get(frame)
+            offset_x, offset_y = 0, 0
+
         if not raw_faces:
             return "", 0.0, [], None, "frontal"
 
@@ -412,7 +430,12 @@ class FaceRecognizer:
 
         w, h = face.bbox[2]-face.bbox[0], face.bbox[3]-face.bbox[1]
         emb = face.normed_embedding
-        bbox = list(map(int, face.bbox))
+        bbox = [
+            int(face.bbox[0] + offset_x),
+            int(face.bbox[1] + offset_y),
+            int(face.bbox[2] + offset_x),
+            int(face.bbox[3] + offset_y),
+        ]
 
         pose = getattr(face, 'pose', None)
         direction = self._map_pose_to_direction(pose)
@@ -522,7 +545,6 @@ class InferenceWorker:
         self._plate_detector = None
         self._ocr = None
         self._face_recog = None
-        self._db = DatabaseManager(max_pool_size=5)
 
         self._voters: dict[str, PlateVoter] = {}
         self._shm_clients: dict[str, shared_memory.SharedMemory] = {}
@@ -532,7 +554,7 @@ class InferenceWorker:
         try:
             from backend.iot.door_auto_close import DoorAutoCloseManager
             self._door_manager = DoorAutoCloseManager()
-            self._door_manager.reload_config(self._db)
+            self._door_manager.reload_config()
             logger.info("DoorAutoCloseManager initialized")
         except Exception as e:
             logger.debug(f"DoorAutoCloseManager not available: {e}")
@@ -547,24 +569,24 @@ class InferenceWorker:
     def _is_plate_whitelisted(self, plate_norm: str, site_id: Optional[int] = None) -> bool:
         if site_id:
             query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND site_ids @> %s::jsonb AND is_active = TRUE LIMIT 1"
-            return self._db.execute_query(query, (plate_norm, json.dumps([site_id])), fetch=True) is not None
+            return db.execute_query(query, (plate_norm, json.dumps([site_id])), fetch=True) is not None
         query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND is_active = TRUE LIMIT 1"
-        return self._db.execute_query(query, (plate_norm,), fetch=True) is not None
+        return db.execute_query(query, (plate_norm,), fetch=True) is not None
 
     def _record_vehicle_entry(self, plate_norm: str, vehicle_type: str, camera_id: str, image_path: str, site_id: Optional[int] = None) -> bool:
-        active = self._db.execute_query(
+        active = db.execute_query(
             "SELECT id FROM vehicle_sessions WHERE plate_norm = %s AND status = 'parking' LIMIT 1",
             (plate_norm,),
             fetch=True
         )
         if active:
-            self._db.execute_query("""
+            db.execute_query("""
                 UPDATE vehicle_sessions
                 SET entry_time = NOW(), camera_id_in = %s, entry_image = %s, site_id = %s
                 WHERE id = %s
             """, (camera_id, image_path, site_id, active["id"]), commit=True)
         else:
-            self._db.execute_query("""
+            db.execute_query("""
                 INSERT INTO vehicle_sessions (plate_norm, vehicle_type, camera_id_in, entry_image, site_id, status)
                 VALUES (%s, %s, %s, %s, %s, 'parking')
             """, (plate_norm, vehicle_type, camera_id, image_path, site_id), commit=True)
@@ -572,7 +594,7 @@ class InferenceWorker:
 
     def _add_pending_plate(self, plate_norm: str, plate_raw: str, camera_id: Optional[str] = None, site_id: Optional[int] = None, image_path: Optional[str] = None, plate_type: str = "white"):
         clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
-        existing = self._db.execute_query("""
+        existing = db.execute_query("""
             SELECT pending_id FROM pending_plates
             WHERE regexp_replace(plate_norm, '[^a-zA-Z0-9]', '', 'g') = %s
             AND (LOWER(TRIM(status)) = 'pending'
@@ -585,7 +607,7 @@ class InferenceWorker:
 
         pid = str(uuid.uuid4())[:8]
         logger.info(f"Inserting new unknown plate: {plate_norm} (site: {site_id}, cam: {camera_id})")
-        self._db.execute_query("""
+        db.execute_query("""
             INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
             VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
             ON CONFLICT (pending_id) DO NOTHING
@@ -678,6 +700,12 @@ class InferenceWorker:
                         logger.info("InferenceWorker: AI index synchronized via mtime: %s", mtime)
                 try:
                     token = self.infer_queue.get(timeout=0.5)
+                    # Real-time catchup: drop stale tokens if queue has accumulated backlog
+                    while not self.infer_queue.empty():
+                        try:
+                            token = self.infer_queue.get_nowait()
+                        except queue.Empty:
+                            break
                 except queue.Empty:
                     continue
 
@@ -742,7 +770,6 @@ class InferenceWorker:
                         camera_id=cam_id,
                         detections=detections,
                         frame_height=frame.shape[0],
-                        db=self._db,
                     )
 
                 if voter.is_ready():
@@ -787,7 +814,8 @@ class InferenceWorker:
     def _async_face_identify(self, frame, cam_id: str, site_id: int, result: InferenceResult, track: PersonTrack = None):
         if self._face_recog is None:
             return
-        name, sim, f_bbox, emb, direction = self._face_recog.identify(frame)
+        person_bbox = track.last_bbox if track else None
+        name, sim, f_bbox, emb, direction = self._face_recog.identify(frame, person_bbox=person_bbox)
         result.face_name, result.face_conf = name, sim
         if name:
             if name == "STRANGER" and emb is not None:
@@ -795,10 +823,10 @@ class InferenceWorker:
                     return
                 
                 from backend.ai.stranger_manager import get_stranger_manager
-                mgr = get_stranger_manager(self._db)
+                mgr = get_stranger_manager()
                 stranger_id, match_sim, is_new = mgr.process_stranger(
                     emb=emb, frame=frame, cam_id=cam_id,
-                    bbox=f_bbox, direction=direction, site_id=site_id, db=self._db
+                    bbox=f_bbox, direction=direction, site_id=site_id
                 )
                 if stranger_id > 0:
                     result.face_name = f"Người lạ #{stranger_id}"

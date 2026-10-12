@@ -1,22 +1,25 @@
 import json
 import urllib.parse
 
+from backend.services.database import db
+from backend.services.settings_service import get_app_setting, set_many_app_settings
+
 _SITE_FILTER = "(%s::integer IS NULL OR %s::integer = ANY(site_ids))"
 
 
-def get_all_cameras(db, site_id: int | None = None) -> list[dict]:
+def get_all_cameras(site_id: int | None = None) -> list[dict]:
     return db.execute_query(f"SELECT * FROM cameras WHERE {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
 
 
-def get_active_cameras(db, site_id: int | None = None) -> list[dict]:
+def get_active_cameras(site_id: int | None = None) -> list[dict]:
     return db.execute_query(f"SELECT * FROM cameras WHERE is_active AND {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
 
 
-def get_camera(db, camera_id: int) -> dict | None:
+def get_camera(camera_id: int) -> dict | None:
     return db.select("cameras", conditions={"id": camera_id}, fetchall=False)
 
 
-def add_camera(db, name, cam_type, imou_device_id, rtsp_url, is_active=True,
+def add_camera(name, cam_type, imou_device_id, rtsp_url, is_active=True,
                imou_channel_id="0", site_ids=None, provider_keys=None,
                camera_ip=None, camera_port=554) -> int | None:
     query = """
@@ -31,7 +34,7 @@ def add_camera(db, name, cam_type, imou_device_id, rtsp_url, is_active=True,
     return db._execute_query(query, params, commit=True, return_id=True)
 
 
-def update_camera(db, camera_id, name, cam_type, imou_device_id, rtsp_url,
+def update_camera(camera_id, name, cam_type, imou_device_id, rtsp_url,
                   is_active, imou_channel_id="0", site_ids=None, provider_keys=None,
                   camera_ip=None, camera_port=None) -> bool:
     query = """
@@ -47,15 +50,15 @@ def update_camera(db, camera_id, name, cam_type, imou_device_id, rtsp_url,
     return db._execute_query(query, params, commit=True)
 
 
-def set_camera_streaming(db, camera_id: int, is_streaming: bool) -> bool:
+def set_camera_streaming(camera_id: int, is_streaming: bool) -> bool:
     return db.update("cameras", {"is_streaming": is_streaming}, {"id": camera_id})
 
 
-def delete_camera(db, camera_id: int) -> bool:
+def delete_camera(camera_id: int) -> bool:
     return db.delete("cameras", {"id": camera_id})
 
 
-def upsert_camera_asset(db, cam_id: str, name: str, ip: str = None,
+def upsert_camera_asset(cam_id: str, name: str, ip: str = None,
                         serial: str = None, model: str = None,
                         firmware: str = None, rtsp_url: str = None,
                         onvif_port: int = None, onvif_profiles: list = None,
@@ -80,22 +83,22 @@ def upsert_camera_asset(db, cam_id: str, name: str, ip: str = None,
                                      rtsp_url, onvif_port, profiles_json), commit=True)
 
 
-def store_onvif_detected_rtsp(db, camera_id: int, rtsp_url: str) -> bool:
+def store_onvif_detected_rtsp(camera_id: int, rtsp_url: str) -> bool:
     return db._execute_query(
         "UPDATE cameras SET onvif_rtsp_detected = %s, updated_at = NOW() WHERE id = %s",
         (rtsp_url, camera_id), commit=True
     )
 
 
-def regenerate_rtsp_url(db, camera_id: int) -> bool:
+def regenerate_rtsp_url(camera_id: int) -> bool:
     return db._execute_query(
         "UPDATE cameras SET rtsp_url = NULL, onvif_rtsp_detected = NULL, updated_at = NOW() WHERE id = %s",
         (camera_id,), commit=True
     )
 
 
-def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
-    cam = get_camera(db, camera_id)
+def get_camera_rtsp_url(camera_id: int, subtype: int = 1) -> str | None:
+    cam = get_camera(camera_id)
     if not cam:
         return None
 
@@ -114,7 +117,7 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
         return None
 
     cam_type = cam.get('camera_type', 'rtsp')
-    provider = get_provider(db, cam_type)
+    provider = get_provider(cam_type)
     template = (provider.get('rtsp_template') if provider else None) or 'rtsp://{user}:{password}@{ip}:{port}/stream'
 
     provider_keys = cam.get('provider_keys') or {}
@@ -124,16 +127,14 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
     user = provider_keys.get('user', 'admin')
     mk = provider_keys.get('mk')
     if not mk:
-        from backend.services.settings_service import get_app_setting
-        mk = get_app_setting(db, f"{cam_type.upper()}_MK", "") or get_app_setting(db, "IMOU_MK", "")
+        mk = get_app_setting(f"{cam_type.upper()}_MK", "") or get_app_setting("IMOU_MK", "")
     if not mk:
         return None
 
     encoded_mk = urllib.parse.quote(mk, safe='')
     port = cam.get('camera_port') or 554
     channel = cam.get('imou_channel_id') or '1'
-    from backend.services.settings_service import get_app_setting
-    global_subtype = get_app_setting(db, "IMOU_SUBTYPE", str(subtype))
+    global_subtype = get_app_setting("IMOU_SUBTYPE", str(subtype))
 
     return template.format(
         user=user,
@@ -145,8 +146,7 @@ def get_camera_rtsp_url(db, camera_id: int, subtype: int = 1) -> str | None:
     )
 
 
-
-def get_cameras_latest_status(db) -> dict:
+def get_cameras_latest_status() -> dict:
     query = """
         SELECT DISTINCT ON (camera_id) camera_id, status, logged_at
         FROM camera_status_log
@@ -156,7 +156,7 @@ def get_cameras_latest_status(db) -> dict:
     return {str(r['camera_id']): r for r in rows}
 
 
-def get_camera_health(db, cam_id: str = None, hours: int = 24) -> list[dict]:
+def get_camera_health(cam_id: str = None, hours: int = 24) -> list[dict]:
     if cam_id:
         query = "SELECT * FROM camera_status_log WHERE camera_id = %s AND logged_at >= NOW() - (%s * INTERVAL '1 hour') ORDER BY logged_at DESC"
         params = (cam_id, hours)
@@ -166,16 +166,15 @@ def get_camera_health(db, cam_id: str = None, hours: int = 24) -> list[dict]:
     return db.execute_query(query, params, fetchall=True)
 
 
-
-def get_all_providers(db) -> list:
+def get_all_providers() -> list:
     return db.select("camera_providers", order_by="name ASC")
 
 
-def get_provider(db, provider_key: str) -> dict | None:
+def get_provider(provider_key: str) -> dict | None:
     return db.select("camera_providers", conditions={"provider_key": provider_key}, fetchall=False)
 
 
-def upsert_provider(db, provider_key: str, name: str, api_base_url: str = None,
+def upsert_provider(provider_key: str, name: str, api_base_url: str = None,
                     api_doc_url: str = None, rtsp_template: str = None,
                     onvif_port: int = 80, default_rtsp_port: int = 554,
                     default_http_port: int = 80, notes: str = None,
@@ -206,11 +205,11 @@ def upsert_provider(db, provider_key: str, name: str, api_base_url: str = None,
     )
 
 
-def delete_provider(db, provider_key: str) -> bool:
+def delete_provider(provider_key: str) -> bool:
     return db.delete("camera_providers", {"provider_key": provider_key})
 
 
-def get_provider_api_keys(db, provider: str) -> dict:
+def get_provider_api_keys(provider: str) -> dict:
     prefix = f"{provider.upper()}_"
     rows = db.execute_query(
         "SELECT key, value FROM app_settings WHERE key LIKE %s",
@@ -223,15 +222,14 @@ def get_provider_api_keys(db, provider: str) -> dict:
     return result
 
 
-def update_provider_api_keys(db, provider: str, data: dict) -> bool:
+def update_provider_api_keys(provider: str, data: dict) -> bool:
     prefix = f"{provider.upper()}_"
     new_keys = {f"{prefix}{k.upper()}": v for k, v in data.items() if v is not None}
-    from backend.services.settings_service import set_many_app_settings
-    return set_many_app_settings(db, new_keys)
+    return set_many_app_settings(new_keys)
 
 
-def get_imou_api_keys(db) -> dict:
-    provider_keys = get_provider_api_keys(db, "imou")
+def get_imou_api_keys() -> dict:
+    provider_keys = get_provider_api_keys("imou")
     app_id = provider_keys.get('open_app_id', '')
     app_secret = provider_keys.get('open_app_secret', '')
     if not app_id or not app_secret:
@@ -247,6 +245,5 @@ def get_imou_api_keys(db) -> dict:
     return {'app_id': app_id, 'app_secret': app_secret}
 
 
-def update_imou_api_keys(db, app_id: str, app_secret: str) -> bool:
-    from backend.services.settings_service import set_many_app_settings
-    return set_many_app_settings(db, {'IMOU_APP_ID': app_id, 'IMOU_APP_SECRET': app_secret})
+def update_imou_api_keys(app_id: str, app_secret: str) -> bool:
+    return set_many_app_settings({'IMOU_APP_ID': app_id, 'IMOU_APP_SECRET': app_secret})

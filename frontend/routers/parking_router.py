@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Request, Depends
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.services.database import db
+from frontend.deps import get_menu_context, require_menu, templates
 
 router = APIRouter(prefix="/parking")
 
 
-def get_occupancy_stats(db, site_id=None) -> list[dict]:
+def get_occupancy_stats(site_id=None) -> list[dict]:
     query = """
         SELECT
             s.id,
@@ -22,7 +23,7 @@ def get_occupancy_stats(db, site_id=None) -> list[dict]:
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
-def get_parking_history(db, limit=50, date_filter=None) -> list[dict]:
+def get_parking_history(limit=50, date_filter=None) -> list[dict]:
     where = ""
     params = []
     if date_filter:
@@ -65,8 +66,7 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_dashboard"
     site_id = request.session.get("active_site_id") or None
-    db = get_db()
-    rows = get_occupancy_stats(db, site_id=site_id)
+    rows = get_occupancy_stats(site_id=site_id)
     ctx["stats"] = _aggregate_stats(rows)
     return templates.TemplateResponse("pages/parking_dashboard.html", {"request": request, **ctx})
 
@@ -75,8 +75,7 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
 async def logs(request: Request, date: str = None, user: dict = Depends(require_menu("parking_logs"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_logs"
-    db = get_db()
-    ctx["logs"] = get_parking_history(db, limit=100, date_filter=date or None)
+    ctx["logs"] = get_parking_history(limit=100, date_filter=date or None)
     ctx["filter_date"] = date or ""
     return templates.TemplateResponse("pages/parking_logs.html", {"request": request, **ctx})
 
@@ -85,11 +84,10 @@ async def logs(request: Request, date: str = None, user: dict = Depends(require_
 async def analytics(request: Request, user: dict = Depends(require_menu("parking_analytics"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_analytics"
-    db = get_db()
     site_id = request.session.get("active_site_id") or None
-    rows = get_occupancy_stats(db, site_id=site_id)
-    history = get_parking_history(db, limit=200)
+    rows = get_occupancy_stats(site_id=site_id)
+    history = get_parking_history(limit=200)
     ctx["stats"] = _aggregate_stats(rows)
     ctx["peak_hours"] = _build_peak_hours(history)
-    ctx["recent_events"] = get_parking_history(db, limit=10)
+    ctx["recent_events"] = get_parking_history(limit=10)
     return templates.TemplateResponse("pages/parking_analytics.html", {"request": request, **ctx})

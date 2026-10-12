@@ -1,7 +1,8 @@
 import time
 import bcrypt
 from fastapi import Request, Response
-from frontend.deps import get_db, get_role_permissions
+from frontend.deps import get_role_permissions
+from backend.services.database import db
 
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_SECONDS = 900
@@ -56,7 +57,7 @@ def logout_user(request: Request, response: Response):
     user = request.session.get("user")
     if user:
         if "id" in user:
-            get_db().update("users", {"remember_token": None, "remember_token_expires": None}, {"id": user["id"]})
+            db.update("users", {"remember_token": None, "remember_token_expires": None}, {"id": user["id"]})
         if user.get("username"):
             response.set_cookie("last_username", user["username"], max_age=60*60*24*30, httponly=False, samesite="lax")
     request.session.clear()

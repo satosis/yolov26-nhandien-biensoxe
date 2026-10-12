@@ -26,21 +26,13 @@ class HunonicHandler:
             "password": self.password
         }
         
-        try:
-            response = requests.post(url, json=payload, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get("access_token") or data.get("token")
-                self.user_id = str(data.get("user_id") or data.get("id"))
-                self.last_login = time.time()
-                logger.info("Hunonic login successful for user: %s", self.phone)
-                return True
-            else:
-                logger.error("Hunonic login failed: %s - %s", response.status_code, response.text)
-                return False
-        except Exception as e:
-            logger.error("Hunonic login exception: %s", str(e), exc_info=True)
-            return False
+        response = requests.post(url, json=payload, timeout=10)
+        data = response.json()
+        self.token = data.get("access_token") or data.get("token")
+        self.user_id = str(data.get("user_id") or data.get("id"))
+        self.last_login = time.time()
+        logger.info("Hunonic login successful for user: %s", self.phone)
+        return True
 
     def get_devices(self) -> List[Dict]:
         url = f"{self.API_BASE}/devices"

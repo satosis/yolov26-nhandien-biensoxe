@@ -2,12 +2,13 @@ from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pathlib import Path
 
-from frontend.deps import get_db, get_current_user, get_menu_context, templates
+from backend.services.database import db
+from frontend.deps import get_current_user, get_menu_context, templates
 
 router = APIRouter(prefix="/cms", tags=["cms"])
 
 
-def get_projects(db, limit: int = 10) -> list:
+def get_projects(limit: int = 10) -> list:
     query = """
         SELECT id, name, location, area, height, bays, load_capacity, image, description
         FROM projects
@@ -17,7 +18,7 @@ def get_projects(db, limit: int = 10) -> list:
     return db._execute_query(query, (limit,), fetchall=True, commit=False)
 
 
-def get_news(db, limit: int = 5) -> list:
+def get_news(limit: int = 5) -> list:
     query = """
         SELECT id, slug, title, category, summary, image, publish_date
         FROM news
@@ -31,7 +32,7 @@ def get_news(db, limit: int = 5) -> list:
     return rows
 
 
-def get_news_by_slug(db, slug: str) -> dict | None:
+def get_news_by_slug(slug: str) -> dict | None:
     item = db._execute_query(
         "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE slug = %s AND is_published IS DISTINCT FROM false",
         (slug,), fetch=True, commit=False
@@ -42,7 +43,7 @@ def get_news_by_slug(db, slug: str) -> dict | None:
     return item
 
 
-def get_news_by_id(db, news_id: int) -> dict | None:
+def get_news_by_id(news_id: int) -> dict | None:
     item = db._execute_query(
         "SELECT id, slug, title, category, summary, content, image, publish_date FROM news WHERE id = %s AND is_published IS DISTINCT FROM false",
         (news_id,), fetch=True, commit=False
@@ -53,7 +54,7 @@ def get_news_by_id(db, news_id: int) -> dict | None:
     return item
 
 
-def get_landing_settings(db) -> dict:
+def get_landing_settings() -> dict:
     rows = db._execute_query(
         "SELECT key, value FROM app_settings WHERE key LIKE 'LANDING_%'",
         fetchall=True,
@@ -64,9 +65,8 @@ def get_landing_settings(db) -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def cms_dashboard(request: Request, user=Depends(get_current_user)):
-    db = get_db()
-    projects = get_projects(db)
-    news = get_news(db, limit=100)
+    projects = get_projects()
+    news = get_news(limit=100)
 
     ctx = get_menu_context(request, user)
     return templates.TemplateResponse(
@@ -93,7 +93,6 @@ async def add_project(
     image: str = Form("/static/brain/wh_real1.jpg"),
     user=Depends(get_current_user)
 ):
-    db = get_db()
     db._execute_query(
         "INSERT INTO projects (name, location, area, height, bays, load_capacity, image) VALUES (%s, %s, %s, %s, %s, %s, %s)",
         (name, location, area, height, bays, load_capacity, image), commit=True
@@ -111,7 +110,6 @@ async def news_new_page(request: Request, user=Depends(get_current_user)):
 
 @router.get("/news/{news_id}/edit", response_class=HTMLResponse)
 async def news_edit_page(news_id: int, request: Request, user=Depends(get_current_user)):
-    db = get_db()
     item = db._execute_query("SELECT * FROM news WHERE id=%s", (news_id,), fetch=True)
     if not item:
         return RedirectResponse("/admin/cms")
@@ -132,7 +130,6 @@ async def news_save(
     is_published: str = Form("false"),
     user=Depends(get_current_user)
 ):
-    db = get_db()
     published = is_published == "true"
     if news_id:
         db._execute_query(
@@ -148,13 +145,11 @@ async def news_save(
 
 @router.delete("/projects/{project_id}", response_class=HTMLResponse)
 async def delete_project(project_id: int, user=Depends(get_current_user)):
-    db = get_db()
     db.delete("projects", {"id": project_id})
     return HTMLResponse(content="")
 
 @router.delete("/news/{news_id}", response_class=HTMLResponse)
 async def delete_news(news_id: int, user=Depends(get_current_user)):
-    db = get_db()
     db.delete("news", {"id": news_id})
     return HTMLResponse(content="")
 
@@ -171,14 +166,12 @@ async def update_project(
     image: str = Form("/static/brain/wh_real1.jpg"),
     user=Depends(get_current_user)
 ):
-    db = get_db()
     db._execute_query(
         "UPDATE projects SET name=%s, location=%s, area=%s, height=%s, bays=%s, load_capacity=%s, image=%s WHERE id=%s",
         (name, location, area, height, bays, load_capacity, image, project_id), commit=True
     )
 
     return RedirectResponse(url="/admin/cms", status_code=303)
-
 
 
 @router.post("/upload-image")

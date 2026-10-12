@@ -12,7 +12,7 @@ import cv2
 import multiprocessing.shared_memory as sm
 from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
 from backend.util.image_utils import save_snapshot
 from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
 from backend.services import config as cfg
@@ -118,10 +118,9 @@ def _get_models():
 async def go2rtc_webrtc_proxy(camera_id: int, request: Request, user: dict = Depends(require_menu("detection"))):
     import requests as http_req
     sdp_offer = (await request.body()).decode()
-    db = get_db()
     stream_name = f"cam_{camera_id}"
 
-    cam = cam_svc.get_camera(db, camera_id)
+    cam = cam_svc.get_camera(camera_id)
     if cam and cam.get("rtsp_url"):
         try:
             http_req.put("http://localhost:1984/api/streams", json={stream_name: cam["rtsp_url"]}, timeout=3)
@@ -130,9 +129,9 @@ async def go2rtc_webrtc_proxy(camera_id: int, request: Request, user: dict = Dep
 
     codec_params = "video=h264/baseline&audio=opus"
 
-    turn_url = get_app_setting(db, "WEBRTC_TURN_URL", "")
-    turn_user = get_app_setting(db, "WEBRTC_TURN_USERNAME", "")
-    turn_pass = get_app_setting(db, "WEBRTC_TURN_PASSWORD", "")
+    turn_url = get_app_setting("WEBRTC_TURN_URL", "")
+    turn_user = get_app_setting("WEBRTC_TURN_USERNAME", "")
+    turn_pass = get_app_setting("WEBRTC_TURN_PASSWORD", "")
     if turn_url:
         ice_param = f"ice={turn_url}"
         if turn_user and turn_pass:
@@ -159,12 +158,11 @@ async def detection_page(request: Request, user: dict = Depends(require_menu("de
     _start_cleanup_loop()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "detection"
-    db = get_db()
-    ctx["cameras"] = cam_svc.get_active_cameras(db)
+    ctx["cameras"] = cam_svc.get_active_cameras()
     return templates.TemplateResponse("pages/detection.html", {"request": request, **ctx})
 
 
-def _check_whitelist(db, plate_text: str) -> dict | None:
+def _check_whitelist(plate_text: str) -> dict | None:
     if not plate_text:
         return None
     clean_input = re.sub(r'[^A-Z0-9]', '', plate_text.upper())
@@ -177,7 +175,7 @@ def _check_whitelist(db, plate_text: str) -> dict | None:
     return db.execute_query(query, (clean_input,), fetch=True)
 
 
-def _add_pending_plate_simple(db, plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None, plate_type: str = "white"):
+def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = None, site_id: int = None, image_path: str = None, plate_type: str = "white"):
     clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
     existing = db.execute_query("""
         SELECT pending_id FROM pending_plates
@@ -199,7 +197,7 @@ def _add_pending_plate_simple(db, plate_norm: str, plate_raw: str, camera_id: st
     """, (pid, plate_raw, plate_norm, site_id, image_path, plate_type), commit=True)
 
 
-def _get_person_by_identity(db, identity):
+def _get_person_by_identity(identity):
     if not identity or identity == "STRANGER":
         return None
     if isinstance(identity, int) or (isinstance(identity, str) and identity.isdigit()):
@@ -266,7 +264,6 @@ async def detect_image(request: Request, file: UploadFile = File(...),
 
         logger.info(f"DEBUG: Found {len(detections)} detections (after merge)")
 
-        db = get_db()
         for x1, y1, x2, y2, conf, cls_id in detections:
             if cls_id == 0:
                 h_img, w_img = frame_bgr.shape[:2]
@@ -297,7 +294,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 owner_name = "unknown"
                 if text:
                     normalized = cfg.normalize_plate(text)
-                    wl = _check_whitelist(db, normalized)
+                    wl = _check_whitelist(normalized)
                     if wl:
                         status = "whitelist"
                         owner_name = wl.get("owner_name", "Whitelist")
@@ -314,7 +311,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                             s_id = s_int
 
                     logger.info(f"Adding unknown plate to pending list: {text} (normalized: {normalized}, site: {s_id})")
-                    _add_pending_plate_simple(db, normalized, text, "webcam", site_id=s_id, image_path=snap_path, plate_type=p_type)
+                    _add_pending_plate_simple(normalized, text, "webcam", site_id=s_id, image_path=snap_path, plate_type=p_type)
                     logger.info(f"Stranger plate '{text}' logged from manual detection at site {s_id}")
 
                 res.append({
@@ -344,7 +341,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
             status = "stranger"
 
             if name != "STRANGER":
-                user_info = _get_person_by_identity(db, name)
+                user_info = _get_person_by_identity(name)
                 if user_info:
                     display_name = user_info.get('full_name') or user_info.get('username') or "Không xác định"
                     display_text = f"Tên: {display_name} + id: {user_info['identity']}"
@@ -352,10 +349,10 @@ async def detect_image(request: Request, file: UploadFile = File(...),
             else:
                 if emb is not None:
                     from backend.ai.stranger_manager import get_stranger_manager
-                    mgr = get_stranger_manager(db)
+                    mgr = get_stranger_manager()
                     stranger_id, match_sim, _ = mgr.process_stranger(
                         emb=emb, frame=frame_bgr, cam_id="webcam",
-                        bbox=f_bbox, direction=direction, site_id=None, db=db
+                        bbox=f_bbox, direction=direction, site_id=None
                     )
                     if stranger_id > 0:
                         display_text = f"Người lạ #{stranger_id}"
@@ -427,8 +424,7 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                 shm.close()
             return
 
-        db = get_db()
-        cam = cam_svc.get_camera(db, camera_id)
+        cam = cam_svc.get_camera(camera_id)
         rtsp_url = cam.get("rtsp_url", "") if cam else ""
         if not rtsp_url:
             logger.error(f"Camera {camera_id}: no RTSP URL configured")

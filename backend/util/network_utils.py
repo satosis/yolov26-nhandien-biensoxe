@@ -11,6 +11,7 @@ from typing import List, Dict
 from urllib.parse import urlparse
 
 from backend.camera import camera_service as cam_svc
+from backend.services.database import db
 from backend.services.settings_service import get_app_setting, set_app_setting
 
 logger = logging.getLogger("network_utils")
@@ -771,8 +772,8 @@ def discover_from_arp(camera_ports: List[int] = None) -> List[Dict]:
     return candidates
 
 
-def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
-    auto_enabled = (get_app_setting(db, 'AUTO_REGISTER_NEW_CAMERAS', 'false') or 'false').lower() == 'true'
+def auto_register_discovered_cameras(discovered: List[Dict]) -> dict:
+    auto_enabled = (get_app_setting('AUTO_REGISTER_NEW_CAMERAS', 'false') or 'false').lower() == 'true'
     stats = {'registered': 0, 'updated': 0, 'skipped': 0}
 
     all_cams = db._execute_query(
@@ -807,17 +808,16 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
                 )
                 needs_update = True
             if rtsp_url and matched.get('onvif_rtsp_detected') != rtsp_url:
-                cam_svc.regenerate_rtsp_url(db, matched['id'])
-                cam_svc.store_onvif_detected_rtsp(db, matched['id'], rtsp_url)
+                cam_svc.regenerate_rtsp_url(matched['id'])
+                cam_svc.store_onvif_detected_rtsp(matched['id'], rtsp_url)
                 needs_update = True
             stats['updated' if needs_update else 'skipped'] += 1
         elif auto_enabled:
-            mk = get_app_setting(db, 'IMOU_MK', '') or ''
+            mk = get_app_setting('IMOU_MK', '') or ''
             cam_type = _guess_provider_type(vendor, model)
             name = f"{vendor} {model}".strip() or f"Camera @ {ip}"
 
             new_id = cam_svc.add_camera(
-                db,
                 name=name,
                 cam_type=cam_type,
                 imou_device_id=serial if serial else None,
@@ -830,9 +830,8 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
             )
             if new_id:
                 if rtsp_url:
-                    cam_svc.store_onvif_detected_rtsp(db, new_id, rtsp_url)
+                    cam_svc.store_onvif_detected_rtsp(new_id, rtsp_url)
                 cam_svc.upsert_camera_asset(
-                    db,
                     cam_id=serial or ip, name=name, ip=ip, serial=serial,
                     model=model, rtsp_url=rtsp_url, mac=mac,
                     onvif_port=dev.get('onvif_port'),
@@ -848,7 +847,6 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
         if mac or serial:
             try:
                 cam_svc.upsert_camera_asset(
-                    db,
                     cam_id=serial or mac or ip, name=f"{vendor} {model}".strip() or ip,
                     ip=ip, serial=serial, model=model, rtsp_url=rtsp_url, mac=mac,
                     onvif_port=dev.get('onvif_port'),
@@ -860,9 +858,7 @@ def auto_register_discovered_cameras(discovered: List[Dict], db) -> dict:
     return stats
 
 def discover_and_update_all_cameras():
-    from backend.services.database import DatabaseManager
     from backend.util.imou_api import ImouClient
-    db = DatabaseManager()
     
     results = {'found_local': 0, 'found_cloud': 0, 'updated': 0, 'total': 0, 'error': None, 'new_devices': [], 'updated_cameras': []}
     
@@ -885,10 +881,10 @@ def discover_and_update_all_cameras():
     for dev in dahua_found:
         found_ips[dev['serial'].lower()] = dev['ip']
 
-    imou_mk = get_app_setting(db, "IMOU_MK", "")
+    imou_mk = get_app_setting("IMOU_MK", "")
 
-    onvif_user = get_app_setting(db, "ONVIF_USERNAME", "") or "admin"
-    onvif_pass = get_app_setting(db, "ONVIF_PASSWORD", "") or imou_mk or ""
+    onvif_user = get_app_setting("ONVIF_USERNAME", "") or "admin"
+    onvif_pass = get_app_setting("ONVIF_PASSWORD", "") or imou_mk or ""
     has_onvif_creds = bool(onvif_pass)
 
     logger.info(f"Starting ONVIF WS-Discovery scan (full_probe={'yes' if has_onvif_creds else 'no'})...")
@@ -977,7 +973,7 @@ def discover_and_update_all_cameras():
             if dev_id not in found_ips:
                 found_ips[dev_id] = ip
     
-    imou_keys = cam_svc.get_imou_api_keys(db)
+    imou_keys = cam_svc.get_imou_api_keys()
     cloud_new_devices = []
     if imou_keys.get('app_id') and imou_keys.get('app_secret'):
         logger.info("Starting Imou Cloud API sync...")
@@ -1201,7 +1197,7 @@ def discover_and_update_all_cameras():
                 if cam['camera_ip'] != new_ip:
                     logger.info(f"UPDATING IP: '{cam['camera_name']}' {cam['camera_ip']} → {new_ip}")
                     db._execute_query("UPDATE cameras SET camera_ip = %s WHERE id = %s", (new_ip, cam['id']), commit=True)
-                    cam_svc.regenerate_rtsp_url(db, cam['id'])
+                    cam_svc.regenerate_rtsp_url(cam['id'])
                     results['updated_cameras'].append({
                         'name': cam['camera_name'],
                         'old_ip': cam['camera_ip'] or '',
@@ -1215,7 +1211,6 @@ def discover_and_update_all_cameras():
             cam_id = (dev.get('serial') or dev.get('id') or dev.get('ip', '')).strip()
             if cam_id and not cam_id.startswith('unidentified_'):
                 cam_svc.upsert_camera_asset(
-                    db,
                     cam_id=cam_id,
                     name=dev.get('name', dev.get('manufacturer', '')),
                     ip=dev.get('ip'),
@@ -1230,11 +1225,11 @@ def discover_and_update_all_cameras():
     except Exception as e:
         logger.debug(f"Asset cache error: {e}")
 
-    set_app_setting(db, "LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
+    set_app_setting("LAST_DISCOVERY_AT", time.strftime("%Y-%m-%d %H:%M:%S"))
 
     if new_devices:
         try:
-            reg_result = auto_register_discovered_cameras(new_devices, db)
+            reg_result = auto_register_discovered_cameras(new_devices)
             results['auto_registered'] = reg_result.get('registered', 0)
             if reg_result['registered'] > 0:
                 logger.info(f"Auto-registration: {reg_result}")

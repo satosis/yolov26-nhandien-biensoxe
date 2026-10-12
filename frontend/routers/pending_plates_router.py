@@ -3,7 +3,8 @@ import re
 from fastapi import APIRouter, Request, Depends, Form, Response, Body
 from starlette.responses import RedirectResponse
 from typing import List, Optional
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.services.database import db
+from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.config import normalize_plate
 from frontend.routers.vehicles_router import upsert_vehicle_whitelist
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pending_plates")
 
 
-def get_pending_plates(db, site_id=None) -> list[dict]:
+def get_pending_plates(site_id=None) -> list[dict]:
     query = "SELECT p.*, p.first_seen_utc AS first_seen, s.site_name FROM pending_plates p LEFT JOIN sites s ON p.site_id = s.id WHERE LOWER(TRIM(p.status)) = 'pending'"
     params = []
     if site_id:
@@ -22,7 +23,7 @@ def get_pending_plates(db, site_id=None) -> list[dict]:
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
-def get_pending_plate_by_id(db, pending_id: str) -> dict | None:
+def get_pending_plate_by_id(pending_id: str) -> dict | None:
     return db.execute_query(
         "SELECT pending_id, plate_raw, plate_norm, image_path, plate_type, site_id, first_seen_utc FROM pending_plates WHERE pending_id = %s",
         (pending_id,),
@@ -30,7 +31,7 @@ def get_pending_plate_by_id(db, pending_id: str) -> dict | None:
     )
 
 
-def delete_pending_plate_by_id(db, pending_id: str) -> bool:
+def delete_pending_plate_by_id(pending_id: str) -> bool:
     row = db.execute_query(
         "SELECT plate_norm, image_path FROM pending_plates WHERE pending_id = %s",
         (pending_id,),
@@ -54,8 +55,7 @@ def delete_pending_plate_by_id(db, pending_id: str) -> bool:
 
 @router.get("/{pending_id}/register")
 async def register_page(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
-    db = get_db()
-    plate = get_pending_plate_by_id(db, pending_id)
+    plate = get_pending_plate_by_id(pending_id)
     if not plate:
         return RedirectResponse("/admin/pending_plates", status_code=303)
 
@@ -76,12 +76,9 @@ async def register_plate(
     note: Optional[str] = Form(None),
     user: dict = Depends(require_menu("pending_plates")),
 ):
-    db = get_db()
     username = user.get("username", "admin")
-    
     site_ids_int = [int(s) for s in site_ids if s and s.strip()]
     upsert_vehicle_whitelist(
-        db=db,
         plate_norm=normalize_plate(plate_number),
         label=owner_name,
         added_by=username,
@@ -89,8 +86,7 @@ async def register_plate(
         note=note,
     )
     
-    delete_pending_plate_by_id(db, pending_id)
-    
+    delete_pending_plate_by_id(pending_id)
     return RedirectResponse("/admin/pending_plates", status_code=303)
 
 
@@ -100,18 +96,15 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
     ctx["current_menu"] = "pending_plates"
     active_site_id = ctx.get("active_site_id", 0)
     active_site_id = int(active_site_id)
-    db = get_db()
-    
-    ctx["plates"] = get_pending_plates(db, site_id=active_site_id if active_site_id > 0 else None)
+    ctx["plates"] = get_pending_plates(site_id=active_site_id if active_site_id > 0 else None)
     return templates.TemplateResponse("pages/pending_plates.html", {"request": request, **ctx})
 
 
 @router.post("/bulk-reject")
 async def bulk_reject_plates(payload: dict = Body(...), user: dict = Depends(require_menu("pending_plates"))):
     ids = [str(i) for i in payload.get("ids", [])]
-    db = get_db()
     for pid in ids:
-        delete_pending_plate_by_id(db, pid)
+        delete_pending_plate_by_id(pid)
     logger.info(f"Bulk rejected {len(ids)} pending plates")
     return {"ok": True, "count": len(ids)}
 
@@ -120,7 +113,7 @@ async def bulk_reject_plates(payload: dict = Body(...), user: dict = Depends(req
 @router.post("/{pending_id}/reject")
 async def resolve_plate(pending_id: str, request: Request, user: dict = Depends(require_menu("pending_plates"))):
     logger.info("Resolving pending plate %s by %s", pending_id, user.get("username", "admin"))
-    delete_pending_plate_by_id(get_db(), pending_id)
+    delete_pending_plate_by_id(pending_id)
     
     if request.headers.get("X-HTMX-Action") == "true" or request.headers.get("HX-Request") or request.query_params.get("hx"):
         return Response("", status_code=200)

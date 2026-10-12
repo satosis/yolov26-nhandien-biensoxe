@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Query
 from urllib.parse import urlencode
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from backend.services.database import db
+from frontend.deps import get_menu_context, require_menu, templates
 import os
 import psutil
 import math
@@ -19,7 +20,7 @@ PER_PAGE = 20
 router = APIRouter(prefix="/recordings")
 
 
-def get_recordings(db, site_id=None, limit=50, offset=0):
+def get_recordings(site_id=None, limit=50, offset=0):
     query = "SELECT * FROM video_recordings"
     params = []
     if site_id:
@@ -30,7 +31,7 @@ def get_recordings(db, site_id=None, limit=50, offset=0):
     return db._execute_query(query, tuple(params), fetchall=True, commit=False)
 
 
-def count_recordings(db, site_id=None):
+def count_recordings(site_id=None):
     query = "SELECT COUNT(*) FROM video_recordings"
     params = []
     if site_id:
@@ -47,19 +48,18 @@ async def recordings_page(
     site_id: int = Query(None),
     page: int = Query(1, ge=1)
 ):
-    db = get_db()
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "recordings"
 
     active_site = site_id or request.session.get("active_site_id", 0)
     if active_site == 0: active_site = None
 
-    total = count_recordings(db, site_id=active_site)
+    total = count_recordings(site_id=active_site)
     total_pages = max(1, math.ceil(total / PER_PAGE))
     page = min(page, total_pages)
     offset = (page - 1) * PER_PAGE
 
-    recordings = get_recordings(db, site_id=active_site, limit=PER_PAGE, offset=offset)
+    recordings = get_recordings(site_id=active_site, limit=PER_PAGE, offset=offset)
 
     for rec in recordings:
         if rec["file_path"]:
@@ -96,7 +96,6 @@ async def recordings_page(
 
 @router.delete("/{recording_id}")
 async def delete_recording(recording_id: int, user: dict = Depends(require_menu("recordings"))):
-    db = get_db()
     rec = db.select("video_recordings", conditions={"id": recording_id}, fetchall=False)
     if not rec:
         return {"success": False, "message": "Record not found"}

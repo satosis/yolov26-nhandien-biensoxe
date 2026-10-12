@@ -2,7 +2,8 @@ import logging
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, JSONResponse
 from typing import List
-from frontend.deps import get_db, get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates
+from backend.services.database import db
 from frontend.menu_registry import ALL_MENUS, MENU_GROUPS
 from frontend.routers.users_router import get_all_users
 
@@ -14,9 +15,8 @@ router = APIRouter(prefix="/rbac")
 async def rbac_page(request: Request, user: dict = Depends(require_menu("rbac"))):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rbac"
-    db = get_db()
     roles = db.select("roles", order_by="id ASC")
-    all_users = get_all_users(db)
+    all_users = get_all_users()
     role_user_counts = {}
     for u in all_users:
         rname = u.get("role", "")
@@ -38,7 +38,6 @@ async def create_role(
     user: dict = Depends(require_menu("rbac")),
 ):
     menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
-    db = get_db()
     existing = db.select("roles", conditions={"role_name": role_name}, fetchall=False)
     if existing:
         logger.warning("Failed to create role '%s': Role đã tồn tại.", role_name)
@@ -56,7 +55,6 @@ async def update_role(
     user: dict = Depends(require_menu("rbac")),
 ):
     menus_str = ",".join(m.strip() for m in allowed_menus if m.strip()) if allowed_menus else "none"
-    db = get_db()
     db.update("roles", {"allowed_menus": menus_str}, {"id": role_id})
     logger.info("Role %d updated: %s", role_id, menus_str)
     return RedirectResponse(url="/admin/rbac", status_code=303)
@@ -68,7 +66,6 @@ async def delete_role(
     request: Request,
     user: dict = Depends(require_menu("rbac")),
 ):
-    db = get_db()
     roles = db.select("roles", order_by="id ASC")
     target_role = next((r for r in roles if r["id"] == role_id), None)
     if not target_role:
@@ -77,7 +74,7 @@ async def delete_role(
     if target_role["role_name"].lower() == "admin":
         return JSONResponse({"detail": "Không thể xóa vai trò Admin."}, status_code=400)
 
-    all_users = get_all_users(db)
+    all_users = get_all_users()
     users_with_role = [u for u in all_users if u.get("role") == target_role["role_name"]]
     if users_with_role:
         return JSONResponse(

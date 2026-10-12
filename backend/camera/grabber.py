@@ -4,10 +4,12 @@ import logging
 import signal
 import numpy as np
 import cv2
+import queue
 from multiprocessing import Queue, Event, shared_memory
 from typing import Optional
 
 from backend.services import config as cfg
+from backend.services.database import db
 
 logger = logging.getLogger("grabber")
 
@@ -93,8 +95,7 @@ class CameraReader:
                     if self._camera_db_id:
                         try:
                             from backend.camera.camera_service import set_camera_streaming
-                            db = self._get_db()
-                            set_camera_streaming(db, self._camera_db_id, False)
+                            set_camera_streaming(self._camera_db_id, False)
                         except Exception as e:
                             logger.debug("[%s] Failed to reset is_streaming: %s", self.cam_id, e)
                     break
@@ -148,8 +149,15 @@ class CameraReader:
                                 "ts": time.time(),
                                 "site_id": self.site_id,
                             }
-                            if not self.infer_queue.full():
+                            try:
                                 self.infer_queue.put_nowait(token)
+                            except queue.Full:
+                                try:
+                                    self.infer_queue.get_nowait()
+                                    self.infer_queue.put_nowait(token)
+                                except Exception:
+                                    pass
+
                         prev_gray = small_gray
                     elif prev_gray is None:
                         prev_gray = cv2.resize(gray, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_NEAREST)
@@ -172,15 +180,8 @@ class CameraReader:
             self._shm.unlink()
             logger.info("[%s] Grabber stopped and SharedMemory unlinked", self.cam_id)
 
-    def _get_db(self):
-        if not hasattr(self, '_db_instance'):
-            from backend.services.database import DatabaseManager
-            self._db_instance = DatabaseManager(max_pool_size=2)
-        return self._db_instance
-
     def _write_health_event(self, event_type: str):
         try:
-            db = self._get_db()
             db.insert("camera_status_log", {
                 "camera_id": str(self.cam_id),
                 "status": event_type,
@@ -204,8 +205,7 @@ class CameraReader:
         if self._camera_db_id:
             try:
                 from backend.camera.camera_service import get_camera_rtsp_url
-                db = self._get_db()
-                fresh_url = get_camera_rtsp_url(db, self._camera_db_id)
+                fresh_url = get_camera_rtsp_url(self._camera_db_id)
                 if fresh_url and fresh_url != self.rtsp_url:
                     logger.info("[%s] RTSP URL refreshed from DB", self.cam_id)
                     self.rtsp_url = fresh_url
