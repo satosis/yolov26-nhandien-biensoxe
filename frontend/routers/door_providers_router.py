@@ -47,7 +47,6 @@ async def door_providers_page(request: Request, user: dict = Depends(require_men
 
 @router.post("")
 async def upsert_door_provider_route(
-    request: Request,
     provider_key: str = Form(...),
     name: str = Form(...),
     connection_type: Optional[str] = Form(None),
@@ -56,7 +55,7 @@ async def upsert_door_provider_route(
     notes: Optional[str] = Form(None),
     logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form("on"),
-    user: dict = Depends(require_menu("door_providers")),
+    _: dict = Depends(require_menu("door_providers")),
 ):
     provider_key = provider_key.strip().lower()
     name = name.strip()
@@ -80,8 +79,7 @@ async def upsert_door_provider_route(
 @router.delete("/{provider_key}")
 async def delete_door_provider_route(
     provider_key: str,
-    request: Request,
-    user: dict = Depends(require_menu("door_providers")),
+    _: dict = Depends(require_menu("door_providers")),
 ):
     if not delete_door_provider(provider_key):
         return JSONResponse({"ok": False, "message": "Không tìm thấy nhà cung cấp cửa."}, status_code=404)
@@ -91,8 +89,7 @@ async def delete_door_provider_route(
 @router.post("/{provider_key}/toggle")
 async def toggle_door_provider(
     provider_key: str,
-    request: Request,
-    user: dict = Depends(require_menu("door_providers")),
+    _: dict = Depends(require_menu("door_providers")),
 ):
     provider = get_door_provider(provider_key)
     if not provider:

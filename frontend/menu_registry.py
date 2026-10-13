@@ -12,12 +12,12 @@ MENU_GROUPS = {
     "🛠 Quản lý": {
         "sites": "🏢 Địa điểm",
         "cameras": "📹 Camera",
-        "providers": "🏭 Quản lý Key",
+        "providers": "🏭 NCC Camera",
         "door_providers": "🚪 NCC Cửa cuốn",
-        "rolling_doors": "🚗 Quản lý Cửa cuốn",
+        "rolling_doors": "🚪 Cửa cuốn",
         "vehicles": "🚗 Phương tiện",
         "strangers": "👤 Người lạ",
-        "pending_plates": "🚘 Xe lạ",
+        "pending_plates": "🚘 Biển số chờ duyệt",
     },
     "⚙️ Hệ thống": {
         "inquiries": "📬 Tin tư vấn",

@@ -32,10 +32,9 @@ async def rbac_page(request: Request, user: dict = Depends(require_menu("rbac"))
 
 @router.post("")
 async def create_role(
-    request: Request,
     role_name: str = Form(...),
     allowed_menus: List[str] = Form([]),
-    user: dict = Depends(require_menu("rbac")),
+    _: dict = Depends(require_menu("rbac")),
 ):
     role_name = role_name.strip()
     menus = [m.strip() for m in allowed_menus if m.strip()]
@@ -54,9 +53,8 @@ async def create_role(
 @router.post("/{role_id}/edit")
 async def update_role(
     role_id: int,
-    request: Request,
     allowed_menus: List[str] = Form([]),
-    user: dict = Depends(require_menu("rbac")),
+    _: dict = Depends(require_menu("rbac")),
 ):
     menus = [m.strip() for m in allowed_menus if m.strip()]
     if any(m not in ALL_MENUS for m in menus):
@@ -71,8 +69,7 @@ async def update_role(
 @router.delete("/{role_id}")
 async def delete_role(
     role_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("rbac")),
+    _: dict = Depends(require_menu("rbac")),
 ):
     roles = db.select("roles", order_by="id ASC")
     target_role = next((r for r in roles if r["id"] == role_id), None)
@@ -90,7 +87,6 @@ async def delete_role(
             status_code=400,
         )
 
-    if not db.delete("roles", {"id": role_id}):
-        return JSONResponse({"ok": False, "message": "Vai trò không tồn tại."}, status_code=404)
+    db.delete("roles", {"id": role_id})
     logger.info("Role '%s' (id=%d) deleted", target_role["role_name"], role_id)
     return JSONResponse({"ok": True})

@@ -1,6 +1,18 @@
 {% extends "layout.html" %}
 {% block title %}Quản lý Cửa cuốn{% endblock %}
 {% block page_title %}Quản lý Cửa cuốn{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <button onclick="startDiscovery()"
+          class="btn btn-light btn-sm font-weight-bold">
+    <i class="bx bx-radar mr-1"></i> Quét thiết bị
+  </button>
+  <button onclick="openModal('add-door-modal')"
+          class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm cửa mới
+  </button>
+</div>
+{% endblock %}
 
 {% block head %}
 <style>
@@ -26,35 +38,12 @@
 <div class="container-fluid">
 
 
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div>
-      <p class="text-muted mb-1" style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">CẤU HÌNH HỆ THỐNG</p>
-      <h4 class="mb-0 font-weight-bold">Quản lý Cửa cuốn</h4>
-      <p class="text-muted mt-1 mb-0" style="font-size:13px;max-width:520px;">
-        Quản lý danh sách các cửa cuốn trong hệ thống, phân loại theo nhà cung cấp và địa điểm lắp đặt.
-      </p>
-    </div>
-    <div class="d-flex" style="gap:8px;">
-      <button onclick="startDiscovery()"
-              class="btn btn-light font-weight-bold"
-              style="font-size:12px;letter-spacing:1px;">
-        <i class="fas fa-satellite-dish mr-2"></i>QUÉT THIẾT BỊ MỚI
-      </button>
-      <button onclick="openModal('add-door-modal')"
-              class="btn btn-primary font-weight-bold"
-              style="font-size:12px;letter-spacing:1px;">
-        <i class="fas fa-plus mr-2"></i>THÊM CỬA MỚI
-      </button>
-    </div>
-  </div>
-
-
   <div class="card mb-4">
     <div class="card-body p-0">
       <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between" style="background:#f8f9fa;">
         <div class="d-flex align-items-center" style="gap:10px;">
           <div class="rounded d-flex align-items-center justify-content-center text-primary" style="width:32px;height:32px;background:rgba(99,102,241,.1);">
-            <i class="fas fa-cloud"></i>
+            <i class="bx bx-cloud"></i>
           </div>
           <h6 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:1px;">Cấu hình Tuya Mặc định</h6>
         </div>
@@ -161,11 +150,11 @@
                   </div>
                   <div class="d-flex" style="gap:4px;">
                     <button data-door="{{ door|tojson|forceescape }}" onclick="editDoor(this.dataset.door)" class="btn btn-sm btn-light" title="Sửa">
-                      <i class="fas fa-pen text-muted" style="font-size:11px;"></i>
+                      <i class="bx bx-edit-alt"></i>
                     </button>
                     <form action="/admin/rolling_doors/{{ door.id }}/delete" method="post" onsubmit="return confirm('Xóa cửa cuốn này?')" class="d-inline">
-                      <button type="submit" class="btn btn-sm btn-light" title="Xóa">
-                        <i class="fas fa-trash text-danger" style="font-size:11px;"></i>
+                      <button type="submit" class="btn btn-sm btn-danger" title="Xóa">
+                        <i class="bx bx-trash"></i>
                       </button>
                     </form>
                   </div>

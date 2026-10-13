@@ -1,26 +1,19 @@
 {% extends "layout.html" %}
 {% block title %}Cấu hình API Keys — {{ provider.name }}{% endblock %}
 {% block page_title %}Cấu hình API Key: {{ provider.name }}{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <button type="button" onclick="addNewKeyRow()" class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm trường mới
+  </button>
+  <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
+    Quay lại
+  </a>
+</div>
+{% endblock %}
 
 {% block content %}
 <div>
-
-
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center" style="gap:10px;">
-      <span style="font-size:24px;">🔑</span>
-      <h5 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:.04em;">Cấu hình API Key: {{ provider.name }}</h5>
-    </div>
-    <div class="d-flex" style="gap:8px;">
-      <button type="button" onclick="addNewKeyRow()"
-              class="btn btn-primary btn-sm">
-        <i class="bx bx-plus mr-1"></i> Thêm trường mới
-      </button>
-      <a href="/admin/providers" class="btn btn-light btn-sm">
-        Quay lại
-      </a>
-    </div>
-  </div>
 
 
   <div class="card shadow-sm">

@@ -68,7 +68,7 @@ class CameraOrchestrator:
             raise ValueError(f"Camera {cam_id} has no valid RTSP URL")
 
         site_id = cam['site_ids'][0] if cam.get('site_ids') else None
-        shm_name = f"/shm_cam_{cam_id}"
+        shm_name = f"shm_cam_{cam_id}"
         
         logger.info("Spawning Grabber for Camera %s (Site %s)", cam_id, site_id)
         
@@ -94,11 +94,11 @@ class CameraOrchestrator:
             del self.grabbers[cam_id]
 
     def run(self):
-        started = db._execute_query(
-            "UPDATE cameras SET is_streaming = TRUE WHERE is_active = TRUE RETURNING id",
-            fetchall=True,
+        db._execute_query(
+            "UPDATE cameras SET is_streaming = FALSE",
+            commit=True,
         )
-        logger.info("Enabled streaming for %d active camera(s).", len(started))
+        logger.info("Orchestrator initialized. Waiting for cameras to be opened from UI...")
 
         while not self.stop_event.is_set():
             for p in self.core_processes:

@@ -14,32 +14,27 @@ def _sites_list_html(request: Request, user: dict) -> str:
     for s in sites:
         name = escape(str(s.get("site_name") or ""), quote=True)
         address = escape(str(s.get("address") or "—"), quote=True)
-        delete_message = escape(json.dumps(f"Xóa địa điểm {s.get('site_name') or ''}?", ensure_ascii=False), quote=True)
-        active = "Bật" if s.get("is_active") else "Tắt"
-        active_cls = "text-status-green" if s.get("is_active") else "text-txt-mut"
-        dot_cls = "bg-status-green animate-pulse" if s.get("is_active") else "bg-txt-mut"
-        rows.append(f'''<tr class="border-b border-divider hover:bg-white/[0.02] transition-colors" id="site-{s['id']}">
-      <td class="px-5 py-3.5">
-        <div class="text-[13px] font-semibold text-white">{name}</div>
-      </td>
-      <td class="px-5 py-3.5 text-[12px] text-txt-sec">
-        {address}
-      </td>
-      <td class="px-5 py-3.5 text-[12px] text-txt-ter">
-        🅿️ {s.get('total_slots') or 0} chỗ
-      </td>
-      <td class="px-5 py-3.5 text-center">
+        delete_message = escape(json.dumps(f"Bạn chắc chắn muốn xóa địa điểm {s.get('site_name') or ''}?", ensure_ascii=False), quote=True)
+        is_active = bool(s.get("is_active"))
+        btn_cls = "btn-success" if is_active else "btn-secondary"
+        dot_bg = "#28a745" if is_active else "#6c757d"
+        active_txt = "Bật" if is_active else "Tắt"
+        rows.append(f'''<tr id="site-{s['id']}">
+      <td><span class="font-weight-bold" style="font-size:13px;">{name}</span></td>
+      <td class="text-muted" style="font-size:13px;">{address}</td>
+      <td class="text-muted" style="font-size:13px;">🅿️ {s.get('total_slots') or 0} chỗ</td>
+      <td class="text-center">
         <form hx-post="/admin/sites/{s['id']}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
-          <button type="submit" class="inline-flex items-center gap-1.5 text-[11px] font-medium {active_cls} mx-auto">
-            <span class="w-2 h-2 rounded-full {dot_cls}"></span>
-            {active}
+          <button type="submit" class="btn btn-sm {btn_cls} d-inline-flex align-items-center" style="gap:6px;">
+            <span class="rounded-circle" style="width:8px;height:8px;display:inline-block;background:{dot_bg};"></span>
+            {active_txt}
           </button>
         </form>
       </td>
-      <td class="px-5 py-3.5 text-right">
-        <div class="flex justify-end gap-3">
-          <button class="text-txt-sec hover:text-accent text-sm" hx-get="/admin/sites/{s['id']}/edit" hx-target="#site-{s['id']}" hx-swap="outerHTML">✏️</button>
-          <button class="text-txt-sec hover:text-status-red text-sm cursor-pointer" 
+      <td class="text-right">
+        <div class="d-flex justify-content-end" style="gap:6px;">
+          <button class="btn btn-sm btn-light" title="Sửa" hx-get="/admin/sites/{s['id']}/edit" hx-target="#site-{s['id']}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
+          <button class="btn btn-sm btn-danger" title="Xóa"
                   @click="window.dispatchEvent(new CustomEvent('show-confirm', {{
                     detail: {{
                       title: 'Xóa địa điểm',
@@ -49,11 +44,11 @@ def _sites_list_html(request: Request, user: dict) -> str:
                       confirmMethod: 'DELETE',
                       confirmTarget: '#site-{s['id']}'
                     }}
-                  }}))">🗑</button>
+                  }}))"><i class="bx bx-trash"></i></button>
         </div>
       </td>
     </tr>''')
-    return "\n".join(rows) if rows else '<tr><td colspan="5" class="px-5 py-8 text-center text-txt-ter text-sm">Chưa có địa điểm nào.</td></tr>'
+    return "\n".join(rows) if rows else '<tr><td colspan="5" class="text-center text-muted py-4">Chưa có địa điểm nào.</td></tr>'
 
 
 @router.get("")
@@ -98,38 +93,34 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
     checked = "checked" if site.get("is_active") else ""
     site_name = escape(str(site.get("site_name") or ""), quote=True)
     address = escape(str(site.get("address") or ""), quote=True)
-    html = f'''<tr class="bg-white/5" id="site-{site_id}">
-  <td colspan="5" class="p-5 border-b border-divider">
-    <form hx-post="/admin/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML" class="flex flex-col gap-4">
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Tên địa điểm *</label>
-          <input name="site_name" value="{site_name}" required
-             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+    html = f'''<tr id="site-{site_id}">
+  <td colspan="5" class="p-3 bg-light border-top border-bottom">
+    <form hx-post="/admin/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML">
+      <div class="row">
+        <div class="col-md-6 mb-2">
+          <label class="font-weight-bold" style="font-size:12px;">Tên địa điểm *</label>
+          <input name="site_name" value="{site_name}" required class="form-control form-control-sm" />
         </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Địa chỉ</label>
-          <input name="address" value="{address}"
-             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+        <div class="col-md-6 mb-2">
+          <label class="font-weight-bold" style="font-size:12px;">Địa chỉ</label>
+          <input name="address" value="{address}" class="form-control form-control-sm" />
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Sức chứa</label>
-          <input name="total_slots" type="number" min="0" value="{site.get('total_slots') or 0}"
-             class="w-full bg-bg-inset border border-white/5 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/50" />
+      <div class="row">
+        <div class="col-md-6 mb-2">
+          <label class="font-weight-bold" style="font-size:12px;">Sức chứa</label>
+          <input name="total_slots" type="number" min="0" value="{site.get('total_slots') or 0}" class="form-control form-control-sm" />
         </div>
-        <div>
-          <label class="block text-txt-sec text-[11px] uppercase tracking-wider font-semibold mb-1">Trạng thái</label>
-          <label class="flex items-center gap-2 text-sm text-white pt-2 cursor-pointer">
-            <input type="checkbox" name="is_active" value="on" {checked} class="accent-accent" /> Đang hoạt động
-          </label>
+        <div class="col-md-6 mb-2 d-flex align-items-center pt-3">
+          <div class="form-check">
+            <input type="checkbox" name="is_active" value="on" {checked} class="form-check-input" id="site-active-{site_id}" />
+            <label class="form-check-label font-weight-medium" for="site-active-{site_id}" style="font-size:13px;">Đang hoạt động</label>
+          </div>
         </div>
       </div>
-      <div class="flex gap-3">
-        <button type="submit" class="bg-accent text-bg-inset font-semibold text-[13px] px-5 py-2 rounded-md hover:bg-cyan-300">💾 Cập nhật</button>
-        <button type="button" class="text-txt-sec text-[13px] px-4 py-2 rounded-md hover:bg-white/5"
-                hx-get="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML">✕ Hủy</button>
+      <div class="d-flex mt-2" style="gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
+        <button type="button" class="btn btn-light btn-sm" hx-get="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML">Hủy</button>
       </div>
     </form>
   </td>
@@ -179,8 +170,7 @@ async def toggle_site_status(site_id: int, request: Request, user: dict = Depend
     if not site:
         return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
     new_status = not site.get("is_active", False)
-    if not db.update("sites", {"is_active": new_status}, {"id": site_id}):
-        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
+    db.update("sites", {"is_active": new_status}, {"id": site_id})
     msg = f"Đã {'bật' if new_status else 'tắt'} {site['site_name']}"
     html = _sites_list_html(request, user)
     resp = HTMLResponse(html)

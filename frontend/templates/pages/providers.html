@@ -1,21 +1,15 @@
 {% extends "layout.html" %}
-{% block title %}NCC Camera — Parking Camera{% endblock %}
+{% block title %}Nhà cung cấp Camera — Parking Camera{% endblock %}
 {% block page_title %}Nhà cung cấp Camera{% endblock %}
+{% block page_actions %}
+<button class="btn btn-primary btn-sm font-weight-bold"
+        onclick="document.getElementById('add-provider-form').classList.toggle('d-none')">
+  <i class="bx bx-plus mr-1"></i> Thêm NCC
+</button>
+{% endblock %}
 
 {% block content %}
 <div x-data="{}">
-
-
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div class="d-flex align-items-center" style="gap:10px;">
-      <span style="font-size:24px;">🏭</span>
-      <h5 class="mb-0 font-weight-bold">Nhà cung cấp Camera</h5>
-    </div>
-    <button class="btn btn-primary"
-            onclick="document.getElementById('add-provider-form').classList.toggle('d-none')">
-      <i class="bx bx-plus mr-1"></i> Thêm NCC
-    </button>
-  </div>
 
 
   <div class="card mb-4 d-none" id="add-provider-form">
@@ -69,7 +63,7 @@
           <label for="is_active_new" class="form-check-label" style="font-size:13px;">Kích hoạt (Hoạt động ngay)</label>
         </div>
         <div class="d-flex" style="gap:8px;">
-          <button type="submit" class="btn btn-primary btn-sm">💾 Lưu</button>
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
           <button type="button" class="btn btn-light btn-sm" onclick="document.getElementById('add-provider-form').classList.add('d-none')">Hủy</button>
         </div>
       </form>
@@ -116,7 +110,7 @@
                     {% endfor %}
                   </div>
                 {% else %}
-                  <span class="text-muted" style="font-size:11px;font-style:italic;">Chưa cấu hình API</span>
+                  <span class="badge badge-light text-muted" style="font-size:11px;font-weight:500;">Chưa cấu hình API</span>
                 {% endif %}
               </td>
               <td class="text-center">
@@ -127,12 +121,12 @@
                 </form>
               </td>
               <td class="text-right">
-                <div class="d-flex justify-content-end" style="gap:8px;">
+                <div class="d-flex justify-content-end" style="gap:6px;">
                   <a href="/admin/providers/{{ p.provider_key }}/api-keys"
-                     title="Cấu hình API Keys" class="btn btn-sm btn-light">⚙️</a>
+                     title="Cấu hình API Keys" class="btn btn-sm btn-light"><i class="bx bx-cog"></i></a>
                   <button type="button" title="Sửa thông tin"
                           onclick="document.getElementById('edit-provider-row-{{ p.provider_key }}').classList.toggle('d-none')"
-                          class="btn btn-sm btn-light">✏️</button>
+                          class="btn btn-sm btn-light"><i class="bx bx-edit-alt"></i></button>
                   <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                               detail: {
                                 title: 'Xóa nhà cung cấp',
@@ -143,7 +137,7 @@
                                 reload: true
                               }
                             }))"
-                          title="Xóa" class="btn btn-sm btn-danger">🗑</button>
+                          title="Xóa" class="btn btn-sm btn-danger"><i class="bx bx-trash"></i></button>
                 </div>
               </td>
             </tr>
@@ -198,7 +192,7 @@
                       <textarea name="notes" rows="2" class="form-control form-control-sm">{{ p.notes or '' }}</textarea>
                     </div>
                     <div class="d-flex" style="gap:8px;">
-                      <button type="submit" class="btn btn-primary btn-sm">💾 Cập nhật</button>
+                      <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
                       <button type="button" class="btn btn-light btn-sm"
                               onclick="document.getElementById('edit-provider-row-{{ p.provider_key }}').classList.add('d-none')">Hủy</button>
                     </div>

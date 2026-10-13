@@ -1,6 +1,20 @@
 {% extends "layout.html" %}
 {% block title %}Camera — Parking Camera{% endblock %}
 {% block page_title %}Quản lý Camera{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
+    <i class="bx bx-server mr-1"></i> NCC Camera
+  </a>
+  <button onclick="discoverCameras()" id="discover-btn" class="btn btn-secondary btn-sm font-weight-bold">
+    <i class="bx bx-search mr-1" id="discover-icon"></i> <span id="discover-text">Dò tìm Camera</span>
+  </button>
+  <button class="btn btn-primary btn-sm font-weight-bold"
+          onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
+    <i class="bx bx-plus mr-1"></i> Thêm Camera
+  </button>
+</div>
+{% endblock %}
 {% block head %}
 <style>
 
@@ -138,26 +152,6 @@
 }" @show-discovery.window="discoveredDevices = ($event.detail && $event.detail.devices) ? $event.detail.devices : []; updatedCameras = ($event.detail && $event.detail.updated_cameras) ? $event.detail.updated_cameras : []; discoverySummary = $event.detail.summary || {}; showDiscoveryModal = true; showDetails = false;">
 
 
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div class="d-flex align-items-center" style="gap:10px;">
-      <span class="text-primary" style="font-size:26px;">📹</span>
-      <h4 class="mb-0 font-weight-bold">Camera</h4>
-    </div>
-    <div class="d-flex" style="gap:8px;">
-      <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
-        <i class="fas fa-key mr-1"></i> Quản lý Key
-      </a>
-      <button onclick="discoverCameras()" id="discover-btn" class="btn btn-secondary btn-sm font-weight-bold">
-        <span id="discover-icon">🔍</span> <span id="discover-text">Dò tìm Camera</span>
-      </button>
-      <button class="btn btn-primary btn-sm font-weight-bold"
-              onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
-        <i class="fas fa-plus mr-1"></i> Thêm Camera
-      </button>
-    </div>
-  </div>
-
-
   <form id="add-cam-form" class="hidden card mb-4">
     <div class="card-body">
       <div class="row">
@@ -209,7 +203,7 @@
           </select>
         </div>
         <div class="col-12 mb-3">
-          <p class="text-muted mb-0" style="font-size:11px;font-style:italic;">Để trống MK nếu dùng cấu hình chung trong "Quản lý Key"</p>
+          <p class="text-muted mb-0" style="font-size:11px;font-style:italic;">Để trống MK nếu dùng cấu hình chung trong "NCC Camera"</p>
         </div>
       </div>
       <div class="mb-3">
@@ -218,7 +212,7 @@
           placeholder="Điền IP + Mã an toàn để tự tạo URL">
       </div>
       <div class="d-flex" style="gap:8px;">
-        <button type="submit" class="btn btn-primary btn-sm font-weight-bold">💾 Lưu</button>
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
         <button type="button" class="btn btn-light btn-sm"
           onclick="this.closest('form').classList.add('hidden')">Hủy</button>
       </div>
@@ -296,7 +290,7 @@
               <td class="text-right">
                 <div class="d-flex justify-content-end" style="gap:6px;">
                   <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
-                    class="btn btn-sm btn-light" title="Sửa">✏️</button>
+                    class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
                   <button type="button" class="btn btn-sm btn-danger"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
@@ -307,7 +301,7 @@
                               confirmMethod: 'DELETE',
                               reload: true
                             }
-                          }))" title="Xóa">🗑️</button>
+                          }))" title="Xóa"><i class="bx bx-trash"></i></button>
                 </div>
               </td>
             </tr>
@@ -383,7 +377,7 @@
                     </div>
                   </div>
                   <div class="d-flex" style="gap:8px;">
-                    <button type="submit" class="btn btn-primary btn-sm font-weight-bold">💾 Cập nhật</button>
+                    <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
                     <button type="button" class="btn btn-light btn-sm"
                       onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
                   </div>

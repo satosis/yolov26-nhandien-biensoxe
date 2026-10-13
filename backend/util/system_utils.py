@@ -11,7 +11,7 @@ def get_system_stats():
         "cpu_percent": psutil.cpu_percent(interval=None),
         "memory_percent": psutil.virtual_memory().percent,
         "disk_percent": psutil.disk_usage(_DISK_ROOT).percent,
-        "load_avg": list(os.getloadavg()),
+        "load_avg": list(psutil.getloadavg()),
     }
 
 def log_system_health():

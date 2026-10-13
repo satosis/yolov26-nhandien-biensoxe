@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}Phương tiện — Parking Camera{% endblock %}
 {% block page_title %}Phương tiện (Whitelist){% endblock %}
+{% block page_actions %}
+<button class="btn btn-primary btn-sm font-weight-bold" onclick="showAddForm()">
+  <i class="bx bx-plus mr-1"></i> Thêm xe
+</button>
+{% endblock %}
 
 {% block head %}
 <link href="/static/admin/css/tom-select.css" rel="stylesheet">
@@ -25,15 +30,6 @@
 
 {% block content %}
 <div x-data="{}">
-
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0 font-weight-bold">
-      <span class="mr-2">🚗</span> Phương tiện (Whitelist)
-    </h5>
-    <button class="btn btn-primary btn-sm" onclick="showAddForm()">
-      <i class="fas fa-plus mr-1"></i> Thêm xe
-    </button>
-  </div>
 
 
   <div id="add-vehicle-form" style="display:none;" class="mb-4">
@@ -123,8 +119,8 @@
           </div>
         </div>
         <div class="card-footer d-flex" style="gap:8px;">
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="fas fa-save mr-1"></i> Cập nhật
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold">
+            <i class="bx bx-save mr-1"></i> Cập nhật
           </button>
           <button type="button" class="btn btn-light btn-sm" onclick="hideEditForm()">Hủy</button>
         </div>
@@ -165,15 +161,15 @@
                 {% if v.fuel_consumption is not none %}<span class="font-weight-bold" style="font-family:monospace;">{{ "%g"|format(v.fuel_consumption|float) }}</span> <span class="text-muted small">L/100km</span>{% else %}<span class="text-muted">—</span>{% endif %}
               </td>
               <td class="text-right">
-                <div class="d-flex justify-content-end" style="gap:4px;">
+                <div class="d-flex justify-content-end" style="gap:6px;">
                   <a href="/admin/vehicles/{{ v.id }}/cargo"
-                     class="btn btn-sm btn-light" title="Lịch sử chuyến hàng">📋</a>
+                     class="btn btn-sm btn-light" title="Lịch sử chuyến hàng"><i class="bx bx-file-blank"></i></a>
                   <button class="btn btn-sm btn-light"
                           onclick='openEdit({{ v.id }}, {{ v.plate_number | tojson }}, {{ (v.owner_name or "") | tojson }}, {{ v.site_ids | tojson }}, {{ (v.note or "") | tojson }}, {{ (v.fuel_consumption | string if v.fuel_consumption is not none else "") | tojson }})'
                           title="Sửa">
-                    <i class="fas fa-pencil-alt text-primary"></i>
+                    <i class="bx bx-edit-alt"></i>
                   </button>
-                  <button class="btn btn-sm btn-light"
+                  <button class="btn btn-sm btn-danger"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa phương tiện',
@@ -185,7 +181,7 @@
                             }
                           }))"
                           title="Xóa">
-                    <i class="fas fa-trash text-danger"></i>
+                    <i class="bx bx-trash"></i>
                   </button>
                 </div>
               </td>

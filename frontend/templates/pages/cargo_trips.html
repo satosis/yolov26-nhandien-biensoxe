@@ -1,54 +1,50 @@
 {% extends "layout.html" %}
 {% block title %}Chuyến hàng — {{ vehicle.plate_number }}{% endblock %}
-{% block page_title %}Lịch sử chuyến hàng{% endblock %}
+{% block page_title %}
+Lịch sử chuyến hàng — <span class="badge badge-pill badge-success font-monospace ml-1" style="font-size:14px;vertical-align:middle;">{{ vehicle.plate_number }}</span>{% if vehicle.owner_name %} <span class="text-muted ml-1 font-weight-normal" style="font-size:14px;">({{ vehicle.owner_name }})</span>{% endif %}
+{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;" x-data="{ scanning: false }">
+  <a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold">
+    <i class="bx bx-arrow-back mr-1"></i> Quay lại
+  </a>
+
+  <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
+        enctype="multipart/form-data" class="d-inline"
+        @submit="scanning = true">
+    <label class="btn btn-secondary btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <span x-show="!scanning"><i class="bx bx-camera mr-1"></i> Quét văn bản</span>
+      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
+             class="d-none" @change="$el.closest('form').submit(); scanning = true">
+    </label>
+  </form>
+
+  <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
+        enctype="multipart/form-data" class="d-inline"
+        @submit="scanning = true">
+    <label class="btn btn-light btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <span x-show="!scanning"><i class="bx bx-file-blank mr-1"></i> File scan</span>
+      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
+             class="d-none" @change="$el.closest('form').submit(); scanning = true">
+    </label>
+  </form>
+
+  <a href="/admin/vehicles/{{ vehicle.id }}/cargo/add"
+     class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm chuyến
+  </a>
+</div>
+{% endblock %}
 
 {% block content %}
 <div x-data="{}" x-init="
   const p = new URLSearchParams(window.location.search);
-  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'✅ Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
-  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'⚠️ Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
-  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'❌ Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
+  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
+  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
+  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
 ">
-
-
-  <div class="d-flex align-items-center justify-content-between flex-wrap mb-4" style="gap:12px;">
-    <div class="d-flex align-items-center" style="gap:10px;">
-      <a href="/admin/vehicles" class="text-muted" style="font-size:13px;">← Quay lại</a>
-      <span class="text-muted">|</span>
-      <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;font-family:monospace;">{{ vehicle.plate_number }}</span>
-      <span class="font-weight-bold" style="font-size:16px;">{{ vehicle.owner_name or '' }}</span>
-      <span class="text-muted" style="font-size:13px;">— Lịch sử chuyến hàng</span>
-    </div>
-    <div class="d-flex align-items-center flex-wrap" style="gap:8px;" x-data="{ scanning: false }">
-
-      <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
-            enctype="multipart/form-data" class="d-inline"
-            @submit="scanning = true">
-        <label class="btn btn-secondary btn-sm mb-0" style="cursor:pointer;">
-          <span x-show="!scanning">📷 Quét văn bản</span>
-          <span x-show="scanning" class="text-primary">⏳ Đang xử lý...</span>
-          <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
-                 class="d-none" @change="$el.closest('form').submit(); scanning = true">
-        </label>
-      </form>
-
-      <form method="post" action="/admin/vehicles/{{ vehicle.id }}/cargo/scan"
-            enctype="multipart/form-data" class="d-inline"
-            @submit="scanning = true">
-        <label class="btn btn-light btn-sm mb-0" style="cursor:pointer;">
-          <span x-show="!scanning">▣ Ảnh/PDF scan</span>
-          <span x-show="scanning" class="text-primary">⏳ Đang xử lý...</span>
-          <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
-                 class="d-none" @change="$el.closest('form').submit(); scanning = true">
-        </label>
-      </form>
-
-      <a href="/admin/vehicles/{{ vehicle.id }}/cargo/add"
-         class="btn btn-primary btn-sm">
-        + Thêm chuyến
-      </a>
-    </div>
-  </div>
 
 
   <div class="card">
@@ -106,11 +102,12 @@
                 {% else %}—{% endif %}
               </td>
               <td class="text-right">
-                <div class="d-flex justify-content-end" style="gap:8px;">
+                <div class="d-flex justify-content-end" style="gap:6px;">
                   <a href="/admin/vehicles/{{ vehicle.id }}/cargo/{{ t.id }}/edit"
                      class="btn btn-sm btn-light"
-                     title="Sửa">✏️</a>
+                     title="Sửa"><i class="bx bx-edit-alt"></i></a>
                   <button class="btn btn-sm btn-danger"
+                          title="Xóa"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa chuyến hàng',
@@ -120,7 +117,7 @@
                               confirmMethod: 'POST',
                               reload: true
                             }
-                          }))">🗑</button>
+                          }))"><i class="bx bx-trash"></i></button>
                 </div>
               </td>
             </tr>

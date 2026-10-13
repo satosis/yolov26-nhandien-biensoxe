@@ -54,7 +54,7 @@ async def edit_api_keys_page(
 async def save_api_keys(
     provider_key: str,
     request: Request,
-    user: dict = Depends(require_menu("providers")),
+    _: dict = Depends(require_menu("providers")),
 ):
     form = await request.form()
     names = form.getlist("api_key_names[]")
@@ -80,8 +80,6 @@ async def save_api_keys(
 
 @router.post("")
 async def upsert_provider(
-    request: Request,
-    user: dict = Depends(require_menu("providers")),
     provider_key: str = Form(...),
     name: str = Form(...),
     api_base_url: Optional[str] = Form(None),
@@ -93,6 +91,7 @@ async def upsert_provider(
     notes: Optional[str] = Form(None),
     logo_url: Optional[str] = Form(None),
     is_active: Optional[str] = Form(None),
+    _: dict = Depends(require_menu("providers")),
 ):
     provider_key = provider_key.strip().lower()
     name = name.strip()
@@ -118,8 +117,7 @@ async def upsert_provider(
 @router.delete("/{provider_key}")
 async def delete_provider(
     provider_key: str,
-    request: Request,
-    user: dict = Depends(require_menu("providers")),
+    _: dict = Depends(require_menu("providers")),
 ):
     if not cam_svc.delete_provider(provider_key):
         return JSONResponse({"ok": False, "message": "Không tìm thấy nhà cung cấp camera."}, status_code=404)
@@ -129,8 +127,7 @@ async def delete_provider(
 @router.post("/{provider_key}/toggle")
 async def toggle_provider(
     provider_key: str,
-    request: Request,
-    user: dict = Depends(require_menu("providers")),
+    _: dict = Depends(require_menu("providers")),
 ):
     provider = cam_svc.get_provider(provider_key)
     if not provider:

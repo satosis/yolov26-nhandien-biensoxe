@@ -71,7 +71,7 @@ async def add_bot(
 @router.post("/{bot_name}/test")
 async def test_bot(
     bot_name: str,
-    user: dict = Depends(require_menu("telegram")),
+    _: dict = Depends(require_menu("telegram")),
 ):
     bot = db.select("telegram_bots", conditions={"bot_name": bot_name}, fetchall=False)
     if not bot:
@@ -98,8 +98,7 @@ async def test_bot(
 @router.delete("/{bot_name}")
 async def delete_bot(
     bot_name: str,
-    request: Request,
-    user: dict = Depends(require_menu("telegram")),
+    _: dict = Depends(require_menu("telegram")),
 ):
     deleted = db.execute_query(
         "DELETE FROM telegram_bots WHERE bot_name = %s RETURNING id",

@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Request, Form, Depends, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from pathlib import Path
+import uuid
 
 from backend.services.database import db
 from frontend.deps import get_current_user, get_menu_context, templates
 
-router = APIRouter(prefix="/cms", tags=["cms"])
+router = APIRouter(prefix="/cms", tags=["cms"], dependencies=[Depends(get_current_user)])
 
 
 def get_projects(limit: int = 10) -> list:
@@ -64,7 +65,7 @@ def get_landing_settings() -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def cms_dashboard(request: Request, user=Depends(get_current_user)):
+async def cms_dashboard(request: Request, user: dict = Depends(get_current_user)):
     projects = get_projects()
     news = get_news(limit=100)
 
@@ -83,7 +84,6 @@ async def cms_dashboard(request: Request, user=Depends(get_current_user)):
 
 @router.post("/projects", response_class=HTMLResponse)
 async def add_project(
-    request: Request,
     name: str = Form(...),
     location: str = Form(...),
     area: str = Form(...),
@@ -91,7 +91,6 @@ async def add_project(
     bays: str = Form(...),
     load_capacity: str = Form(...),
     image: str = Form("/static/brain/wh_real1.jpg"),
-    user=Depends(get_current_user)
 ):
     saved = db._execute_query(
         "INSERT INTO projects (name, location, area, height, bays, load_capacity, image) VALUES (%s, %s, %s, %s, %s, %s, %s)",
@@ -103,14 +102,14 @@ async def add_project(
 
 
 @router.get("/news/new", response_class=HTMLResponse)
-async def news_new_page(request: Request, user=Depends(get_current_user)):
+async def news_new_page(request: Request, user: dict = Depends(get_current_user)):
     ctx = get_menu_context(request, user)
     return templates.TemplateResponse("pages/cms_news_edit.html", {
         "request": request, "user": user, "item": None, "current_menu": "cms", **ctx
     })
 
 @router.get("/news/{news_id}/edit", response_class=HTMLResponse)
-async def news_edit_page(news_id: int, request: Request, user=Depends(get_current_user)):
+async def news_edit_page(news_id: int, request: Request, user: dict = Depends(get_current_user)):
     item = db._execute_query("SELECT * FROM news WHERE id=%s", (news_id,), fetch=True)
     if not item:
         return HTMLResponse("Không tìm thấy tin tức.", status_code=404)
@@ -121,7 +120,6 @@ async def news_edit_page(news_id: int, request: Request, user=Depends(get_curren
 
 @router.post("/news/save", response_class=HTMLResponse)
 async def news_save(
-    request: Request,
     news_id: str = Form(""),
     title: str = Form(...),
     category: str = Form(...),
@@ -129,14 +127,12 @@ async def news_save(
     content: str = Form(""),
     image: str = Form("/static/brain/news1.jpg"),
     is_published: str = Form("false"),
-    user=Depends(get_current_user)
 ):
     published = is_published == "true"
     if news_id:
-        if not news_id.isascii() or not news_id.isdecimal() or len(news_id) > 10:
-            return HTMLResponse("ID tin tức không hợp lệ.", status_code=422)
-        news_id_value = int(news_id)
-        if not 0 < news_id_value <= 2147483647:
+        try:
+            news_id_value = int(news_id)
+        except ValueError:
             return HTMLResponse("ID tin tức không hợp lệ.", status_code=422)
         saved = db._execute_query(
             "UPDATE news SET title=%s, category=%s, summary=%s, content=%s, image=%s, is_published=%s WHERE id=%s",
@@ -152,13 +148,13 @@ async def news_save(
     return RedirectResponse(url="/admin/cms", status_code=303)
 
 @router.delete("/projects/{project_id}", response_class=HTMLResponse)
-async def delete_project(project_id: int, user=Depends(get_current_user)):
+async def delete_project(project_id: int):
     if not db.delete("projects", {"id": project_id}):
         return HTMLResponse("Không tìm thấy dự án.", status_code=404)
     return HTMLResponse(content="")
 
 @router.delete("/news/{news_id}", response_class=HTMLResponse)
-async def delete_news(news_id: int, user=Depends(get_current_user)):
+async def delete_news(news_id: int):
     if not db.delete("news", {"id": news_id}):
         return HTMLResponse("Không tìm thấy tin tức.", status_code=404)
     return HTMLResponse(content="")
@@ -166,7 +162,6 @@ async def delete_news(news_id: int, user=Depends(get_current_user)):
 @router.post("/projects/update/{project_id}", response_class=HTMLResponse)
 async def update_project(
     project_id: int,
-    request: Request,
     name: str = Form(...),
     location: str = Form(...),
     area: str = Form(...),
@@ -174,7 +169,6 @@ async def update_project(
     bays: str = Form(""),
     load_capacity: str = Form(""),
     image: str = Form("/static/brain/wh_real1.jpg"),
-    user=Depends(get_current_user)
 ):
     if not db._execute_query(
         "UPDATE projects SET name=%s, location=%s, area=%s, height=%s, bays=%s, load_capacity=%s, image=%s WHERE id=%s",
@@ -186,13 +180,7 @@ async def update_project(
 
 
 @router.post("/upload-image")
-async def upload_image(
-    request: Request,
-    file: UploadFile = File(...),
-    user=Depends(get_current_user)
-):
-    import uuid
-
+async def upload_image(file: UploadFile = File(...)):
     extensions = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}
     ext = extensions.get(file.content_type)
     if ext is None:

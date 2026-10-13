@@ -105,7 +105,6 @@ async def vehicles_page(request: Request, user: dict = Depends(require_menu("veh
 
 @router.post("")
 async def add_vehicle(
-    request: Request,
     plate_number: str = Form(...),
     site_ids: List[PositiveInt] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
@@ -135,8 +134,7 @@ async def add_vehicle(
 @router.post("/{plate_id}/delete")
 async def delete_vehicle_post(
     plate_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("vehicles")),
+    _: dict = Depends(require_menu("vehicles")),
 ):
     if not db.delete("plate_whitelist", {"id": plate_id}):
         return HTMLResponse("Không tìm thấy xe.", status_code=404)
@@ -147,13 +145,12 @@ async def delete_vehicle_post(
 @router.post("/{vehicle_id}/edit")
 async def edit_vehicle(
     vehicle_id: int,
-    request: Request,
     plate_number: str = Form(...),
     site_ids: List[PositiveInt] = Form(default=[]),
     owner_name: Optional[str] = Form(None),
     note: Optional[str] = Form(None),
     fuel_consumption: Optional[str] = Form(None),
-    user: dict = Depends(require_menu("vehicles")),
+    _: dict = Depends(require_menu("vehicles")),
 ):
     plate_norm = normalize_plate(plate_number)
     fuel_value = _parse_fuel(fuel_consumption)

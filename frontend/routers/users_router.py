@@ -142,14 +142,13 @@ async def users_page(request: Request, error: Optional[str] = None, user: dict =
 
 @router.post("")
 async def create_user(
-    request: Request,
-    user: dict = Depends(require_menu("users")),
     username: str = Form(...),
     password: str = Form(...),
     full_name: Optional[str] = Form(None),
     role_name: str = Form(...),
     site_ids: Optional[str] = Form(None, pattern=_SITE_IDS_PATTERN),
     note: Optional[str] = Form(None),
+    _: dict = Depends(require_menu("users")),
 ):
     parsed_site_ids = _parsed_site_ids(site_ids)
     if parsed_site_ids and any(site_id > _MAX_DB_INTEGER for site_id in parsed_site_ids):
@@ -172,14 +171,13 @@ async def create_user(
 @router.post("/{user_id}/edit")
 async def edit_user(
     user_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("users")),
     username: str = Form(...),
     password: Optional[str] = Form(None),
     full_name: Optional[str] = Form(None),
     role_name: str = Form(...),
     site_ids: Optional[str] = Form(None, pattern=_SITE_IDS_PATTERN),
     note: Optional[str] = Form(None),
+    _: dict = Depends(require_menu("users")),
 ):
     parsed_site_ids = _parsed_site_ids(site_ids)
     if parsed_site_ids and any(site_id > _MAX_DB_INTEGER for site_id in parsed_site_ids):
@@ -206,8 +204,7 @@ async def edit_user(
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("users")),
+    _: dict = Depends(require_menu("users")),
 ):
     identity = str(user_id)
     person_dir = os.path.join(cfg.KNOWN_FACES_DIR, identity)
@@ -229,10 +226,9 @@ async def delete_user(
 @router.post("/{user_id}/face")
 async def upload_face(
     user_id: int,
-    request: Request,
     face_image: UploadFile = File(...),
     angle: Literal["front", "left", "right", "up", "down"] = Form("front"),
-    user: dict = Depends(require_menu("users")),
+    _: dict = Depends(require_menu("users")),
 ):
     target_user = get_user_by_id(user_id)
     if not target_user:

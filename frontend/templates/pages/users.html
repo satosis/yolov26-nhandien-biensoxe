@@ -1,21 +1,18 @@
 {% extends "layout.html" %}
 {% block title %}Người dùng — Parking Camera{% endblock %}
 {% block page_title %}Người dùng{% endblock %}
-{% block content %}
-<div class="mb-4 d-flex align-items-center justify-content-between">
-  <h4 class="mb-0 font-weight-bold text-dark">
-    <i class="fas fa-users mr-2 text-primary"></i> Người dùng
-  </h4>
-  <div class="d-flex" style="gap:8px;">
-    <button class="btn btn-light" onclick="cleanAiCache()">
-      <i class="fas fa-broom mr-1"></i> Dọn dẹp AI
-    </button>
-    <button class="btn btn-primary"
-      onclick="document.getElementById('add-user-form').classList.toggle('d-none')">
-      <i class="fas fa-plus mr-1"></i> Thêm mới
-    </button>
-  </div>
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <button class="btn btn-light btn-sm font-weight-bold" onclick="cleanAiCache()">
+    <i class="bx bx-refresh mr-1"></i> Dọn dẹp AI
+  </button>
+  <button class="btn btn-primary btn-sm font-weight-bold"
+    onclick="document.getElementById('add-user-form').classList.toggle('d-none')">
+    <i class="bx bx-plus mr-1"></i> Thêm mới
+  </button>
 </div>
+{% endblock %}
+{% block content %}
 
 
 <div id="add-user-form" class="card mb-4 d-none">
@@ -64,8 +61,8 @@
         </div>
       </div>
       <div class="d-flex mt-2" style="gap:8px;">
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-save mr-1"></i> Lưu thông tin
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold">
+          <i class="bx bx-save mr-1"></i> Lưu thông tin
         </button>
         <button type="button" class="btn btn-light"
           onclick="document.getElementById('add-user-form').classList.add('d-none')">Hủy</button>
@@ -138,11 +135,11 @@
               {% endif %}
             </td>
             <td class="text-right">
-              <div class="d-flex justify-content-end" style="gap:8px;">
+              <div class="d-flex justify-content-end" style="gap:6px;">
                 <button onclick="openFaceModal('{{ u.id }}', '{{ u.username }}')"
-                        class="btn btn-sm btn-light" title="Đăng ký khuôn mặt">📸</button>
+                        class="btn btn-sm btn-light" title="Đăng ký khuôn mặt"><i class="bx bx-camera"></i></button>
                 <button onclick="document.getElementById('edit-user-form-{{ u.id }}').classList.toggle('d-none')"
-                        class="btn btn-sm btn-light" title="Sửa">✏️</button>
+                        class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
                 {% if u.username != 'admin' %}
                 <button type="button" class="btn btn-sm btn-danger"
                         @click="window.dispatchEvent(new CustomEvent('show-confirm', {
@@ -154,7 +151,7 @@
                             confirmMethod: 'DELETE',
                             reload: true
                           }
-                        }))" title="Xóa">🗑️</button>
+                        }))" title="Xóa"><i class="bx bx-trash"></i></button>
                 {% endif %}
               </div>
             </td>
@@ -201,8 +198,8 @@
                       </div>
                     </div>
                     <div class="d-flex mt-2" style="gap:8px;">
-                      <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save mr-1"></i> Cập nhật
+                      <button type="submit" class="btn btn-primary btn-sm font-weight-bold">
+                        <i class="bx bx-save mr-1"></i> Cập nhật
                       </button>
                       <button type="button" class="btn btn-light"
                         onclick="document.getElementById('edit-user-form-{{ u.id }}').classList.add('d-none')">Hủy</button>
@@ -391,13 +388,14 @@
   let kycRunning = false;
   let detectInterval = null;
   let holdStart = 0;
-  const HOLD_TIME = 1500;
+  const HOLD_TIME = 1000;
   let modelsLoaded = false;
   let dirHistory = [];
-  const HISTORY_SIZE = 5;
+  const HISTORY_SIZE = 3;
 
   let baselineYaw = null;
-  let baselinePitch = null;
+  let baselineAsym = null;
+  let baselinePR = null;
   let uploadFailures = 0;
 
   const kycSteps = [
@@ -596,31 +594,35 @@
   }
 
   function estimateHeadPose(landmarks) {
-    const pts = landmarks.positions;
-    let minX = 9999, maxX = -9999, minY = 9999, maxY = -9999;
-    for (let p of pts) {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-    }
-    const boxW = maxX - minX;
-    const boxH = maxY - minY;
+    const jaw = landmarks.getJawOutline();
+    const nose = landmarks.getNose();
+    const faceLeft = jaw[0];
+    const faceRight = jaw[16];
+    const chin = jaw[8];
+    const noseTip = nose[3] || nose[6] || landmarks.positions[30];
 
-    const noseTip = landmarks.getNose()[6];
-    const yaw = (noseTip.x - minX) / boxW;
-    const pitch = (noseTip.y - minY) / boxH;
+    const faceW = Math.max(20, Math.abs(faceRight.x - faceLeft.x));
+    const faceCX = (faceLeft.x + faceRight.x) / 2;
+    const yaw = (noseTip.x - faceCX) / faceW;
 
-    dirHistory.push({ yaw, pitch });
+    const dLeftJaw = Math.hypot(noseTip.x - faceRight.x, noseTip.y - faceRight.y);
+    const dRightJaw = Math.hypot(noseTip.x - faceLeft.x, noseTip.y - faceLeft.y);
+    const asymYaw = (dRightJaw - dLeftJaw) / (dRightJaw + dLeftJaw + 0.001);
+
+    const brows = [...landmarks.getLeftEyeBrow(), ...landmarks.getRightEyeBrow()];
+    const browCenterY = brows.reduce((s, p) => s + p.y, 0) / brows.length;
+    const noseToBrow = Math.max(1, noseTip.y - browCenterY);
+    const noseToChin = Math.max(1, chin.y - noseTip.y);
+    const pitchRatio = noseToBrow / (noseToChin + 0.001);
+
+    dirHistory.push({ yaw, asymYaw, pitchRatio });
     if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
 
     const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
-    const avgPitch = dirHistory.reduce((s, d) => s + d.pitch, 0) / dirHistory.length;
+    const avgAsym = dirHistory.reduce((s, d) => s + d.asymYaw, 0) / dirHistory.length;
+    const avgPR = dirHistory.reduce((s, d) => s + d.pitchRatio, 0) / dirHistory.length;
 
-    window.debugPitch = avgPitch;
-    window.debugYaw = avgYaw;
-
-    return { yaw: avgYaw, pitch: avgPitch };
+    return { yaw: avgYaw, asymYaw: avgAsym, pitchRatio: avgPR };
   }
 
   function openFaceModal(userId, username) {
@@ -631,7 +633,8 @@
     kycRunning = false;
     holdStart = 0;
     baselineYaw = null;
-    baselinePitch = null;
+    baselineAsym = null;
+    baselinePR = null;
     document.getElementById('camera-start-overlay').classList.remove('d-none');
     document.getElementById('camera-start-overlay').classList.add('d-flex');
     document.getElementById('camera-loading').classList.remove('d-flex');
@@ -787,12 +790,12 @@
     document.getElementById('success-overlay').classList.add('d-none');
     document.getElementById('hold-bar').style.width = '0%';
     document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,1)';
-    document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
+    document.getElementById('kyc-status-text').textContent = '';
 
     holdStart = 0;
     dirHistory = [];
     if (detectInterval) clearInterval(detectInterval);
-    detectInterval = setInterval(() => detectFace(step.id), 300);
+    detectInterval = setInterval(() => detectFace(step.id), 250);
   }
 
   async function detectFace(expectedDir) {
@@ -819,44 +822,25 @@
     const pose = estimateHeadPose(detection.landmarks);
 
     let isCorrect = false;
-    let dirName = 'không rõ';
+    const dYaw = baselineYaw !== null ? pose.yaw - baselineYaw : 0;
+    const dAsym = baselineAsym !== null ? pose.asymYaw - baselineAsym : 0;
+    const dPR = baselinePR !== null ? pose.pitchRatio - baselinePR : 0;
 
     if (expectedDir === 'front') {
-        const isNeutral = (pose.yaw > 0.30 && pose.yaw < 0.70 && pose.pitch > 0.30 && pose.pitch < 0.70);
-        if (isNeutral) {
+        isCorrect = (Math.abs(pose.yaw) < 0.07 && Math.abs(pose.asymYaw) < 0.12 && pose.pitchRatio >= 0.90 && pose.pitchRatio <= 1.95);
+        if (isCorrect) {
             baselineYaw = pose.yaw;
-            baselinePitch = pose.pitch;
-            isCorrect = true;
-            dirName = 'thẳng';
-        } else {
-            isCorrect = false;
-            dirName = 'lệch chuẩn';
+            baselineAsym = pose.asymYaw;
+            baselinePR = pose.pitchRatio;
         }
-    } else {
-        const bYaw = baselineYaw !== null ? baselineYaw : 0.5;
-        const bPitch = baselinePitch !== null ? baselinePitch : 0.5;
-        const dYaw = pose.yaw - bYaw;
-        const dPitch = pose.pitch - bPitch;
-
-        let currentStatus = 'trực diện';
-        if (dPitch > 0.045) currentStatus = 'xuống';
-        else if (dPitch < -0.045) currentStatus = 'lên';
-        else if (dYaw < -0.06) currentStatus = 'trái';
-        else if (dYaw > 0.06) currentStatus = 'phải';
-
-        dirName = currentStatus;
-
-        if (baselineYaw !== null && baselinePitch !== null) {
-            if (expectedDir === 'down' && dPitch > 0.045) isCorrect = true;
-            if (expectedDir === 'up' && dPitch < -0.045) isCorrect = true;
-            if (expectedDir === 'left' && dYaw < -0.06) isCorrect = true;
-            if (expectedDir === 'right' && dYaw > 0.06) isCorrect = true;
-        } else {
-            if (expectedDir === 'down' && pose.pitch >= 0.53) isCorrect = true;
-            if (expectedDir === 'up' && pose.pitch <= 0.47) isCorrect = true;
-            if (expectedDir === 'left' && pose.yaw <= 0.44) isCorrect = true;
-            if (expectedDir === 'right' && pose.yaw >= 0.56) isCorrect = true;
-        }
+    } else if (expectedDir === 'left') {
+        isCorrect = (pose.yaw > 0.07 || pose.asymYaw > 0.12 || dYaw > 0.05 || dAsym > 0.08);
+    } else if (expectedDir === 'right') {
+        isCorrect = (pose.yaw < -0.07 || pose.asymYaw < -0.12 || dYaw < -0.05 || dAsym < -0.08);
+    } else if (expectedDir === 'up') {
+        isCorrect = (pose.pitchRatio < 0.95 || dPR < -0.20);
+    } else if (expectedDir === 'down') {
+        isCorrect = (pose.pitchRatio > 1.85 || dPR > 0.25);
     }
 
     if (isCorrect) {
@@ -867,19 +851,19 @@
       const elapsed = Date.now() - holdStart;
       const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
       bar.style.width = pct + '%';
-      status.textContent = `✅ Đúng hướng! Giữ yên... ${Math.ceil((HOLD_TIME - elapsed) / 1000)}s`;
+      const remainingSec = Math.max(1, Math.ceil((HOLD_TIME - elapsed) / 1000));
+      status.textContent = `✅ Giữ yên... ${remainingSec}s`;
 
       if (elapsed >= HOLD_TIME) {
         clearInterval(detectInterval);
         autoCaptureAndUpload();
       }
     } else {
-      ring.style.borderColor = 'rgba(245,158,11,0.5)';
-      ring.style.boxShadow = '0 0 20px rgba(245,158,11,0.1)';
+      ring.style.borderColor = 'rgba(255,255,255,0.8)';
+      ring.style.boxShadow = 'none';
       bar.style.width = '0%';
       holdStart = 0;
-      let prStr = window.debugPitch ? `P:${window.debugPitch.toFixed(2)} Y:${window.debugYaw.toFixed(2)}` : '?';
-      status.textContent = `⚠️ Lệch: ${dirName} (${prStr}) — Hãy ${kycSteps[currentStep].instruction.toLowerCase()}`;
+      status.textContent = '';
     }
   }
 
@@ -997,7 +981,7 @@
   async function cleanAiCache() {
     const { value: confirm } = await Swal.fire({
       title: 'Làm sạch bộ nhớ AI?',
-      text: 'Hành động này sẽ làm mới dữ liệu khuôn mặt và bộ nhớ nhận diện biển số (xe lạ) để cập nhật trạng thái mới nhất.',
+      text: 'Hành động này sẽ làm mới dữ liệu khuôn mặt và bộ nhớ nhận diện biển số để cập nhật trạng thái mới nhất.',
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#004b41',

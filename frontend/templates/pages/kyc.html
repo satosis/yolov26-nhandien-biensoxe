@@ -228,10 +228,10 @@ let currentStep = 0;
 let kycRunning = false;
 let detectInterval = null;
 let holdStart = 0;
-const HOLD_TIME = 1500;
+const HOLD_TIME = 1000;
 let modelsLoaded = false;
 let dirHistory = [];
-const HISTORY_SIZE = 5;
+const HISTORY_SIZE = 3;
 const MAX_UPLOAD_FAILURES = 3;
 const MAX_START_FAILURES = 3;
 const MAX_DETECTION_FAILURES = 3;
@@ -352,23 +352,32 @@ function estimateDirection(landmarks) {
     const jaw = landmarks.getJawOutline();
     const nose = landmarks.getNose();
     const faceLeft = jaw[0], faceRight = jaw[16], chin = jaw[8];
-    const faceW = faceRight.x - faceLeft.x;
+    const faceW = Math.max(20, Math.abs(faceRight.x - faceLeft.x));
     const faceCX = (faceLeft.x + faceRight.x) / 2;
-    const noseTip = nose[6];
+    const noseTip = nose[3] || nose[6] || landmarks.positions[30];
     const yaw = (noseTip.x - faceCX) / faceW;
+
+    const dLeftJaw = Math.hypot(noseTip.x - faceRight.x, noseTip.y - faceRight.y);
+    const dRightJaw = Math.hypot(noseTip.x - faceLeft.x, noseTip.y - faceLeft.y);
+    const asymYaw = (dRightJaw - dLeftJaw) / (dRightJaw + dLeftJaw + 0.001);
+
     const brows = [...landmarks.getLeftEyeBrow(), ...landmarks.getRightEyeBrow()];
     const browCenter = brows.reduce((s, p) => s + p.y, 0) / brows.length;
-    const noseToBrow = noseTip.y - browCenter;
-    const noseToChin = chin.y - noseTip.y;
+    const noseToBrow = Math.max(1, noseTip.y - browCenter);
+    const noseToChin = Math.max(1, chin.y - noseTip.y);
     const pitchRatio = noseToBrow / (noseToChin + 0.001);
-    dirHistory.push({ yaw, pitchRatio });
+
+    dirHistory.push({ yaw, asymYaw, pitchRatio });
     if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
+
     const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
+    const avgAsym = dirHistory.reduce((s, d) => s + d.asymYaw, 0) / dirHistory.length;
     const avgPR = dirHistory.reduce((s, d) => s + d.pitchRatio, 0) / dirHistory.length;
-    if (avgPR < 0.9) return 'up';
-    if (avgPR > 2.2) return 'down';
-    if (avgYaw > 0.15) return 'left';
-    if (avgYaw < -0.15) return 'right';
+
+    if (avgPR < 0.95) return 'up';
+    if (avgPR > 1.85) return 'down';
+    if (avgYaw > 0.07 || avgAsym > 0.12) return 'left';
+    if (avgYaw < -0.07 || avgAsym < -0.12) return 'right';
     return 'front';
 }
 
@@ -386,7 +395,7 @@ function faceDetectionResult(video) {
         const detection = await faceapi.detectSingleFace(
             video,
             new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 })
-        ).withFaceLandmarks(true);
+        ).withFaceLandmarks(true);  
         if (timedOut) return { ok: false, message: 'Nhận diện khuôn mặt quá lâu.' };
         return detection
             ? { ok: true, hasFace: true, direction: estimateDirection(detection.landmarks) }
@@ -439,7 +448,7 @@ function runStep() {
     document.getElementById('success-overlay').classList.add('d-none');
     document.getElementById('hold-bar').style.width = '0%';
     document.getElementById('video-ring').style.borderColor = '#e2e8f0';
-    document.getElementById('kyc-status-text').textContent = '🔍 Đang phát hiện hướng mặt...';
+    document.getElementById('kyc-status-text').textContent = '';
     holdStart = 0;
     dirHistory = [];
     uploadInProgress = false;
@@ -448,7 +457,7 @@ function runStep() {
     detectionGeneration++;
     const generation = detectionGeneration;
     if (detectInterval) clearInterval(detectInterval);
-    detectInterval = setInterval(() => detectFace(step.id, generation), 300);
+    detectInterval = setInterval(() => detectFace(step.id, generation), 250);
 }
 
 function handleUploadFailure(message) {
@@ -512,19 +521,19 @@ async function detectFace(expectedDir, generation) {
         const elapsed = Date.now() - holdStart;
         const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
         bar.style.width = pct + '%';
-        status.textContent = `✅ Đúng hướng! Giữ yên... ${Math.ceil((HOLD_TIME - elapsed) / 1000)}s`;
+        const remainingSec = Math.max(1, Math.ceil((HOLD_TIME - elapsed) / 1000));
+        status.textContent = `✅ Giữ yên... ${remainingSec}s`;
         if (elapsed >= HOLD_TIME && !uploadInProgress) {
             uploadInProgress = true;
             clearInterval(detectInterval);
             autoCaptureAndUpload();
         }
     } else {
-        ring.style.borderColor = 'rgba(255,200,50,0.5)';
-        ring.style.boxShadow = '0 0 20px rgba(255,200,50,0.1)';
+        ring.style.borderColor = '#e2e8f0';
+        ring.style.boxShadow = 'none';
         bar.style.width = '0%';
         holdStart = 0;
-        const dirNames = {front:'thẳng', left:'trái', right:'phải', up:'lên', down:'xuống'};
-        status.textContent = `⚠️ Hướng hiện tại: ${dirNames[dir] || dir} — Hãy ${kycSteps[currentStep].instruction.toLowerCase()}`;
+        status.textContent = '';
     }
 }
 

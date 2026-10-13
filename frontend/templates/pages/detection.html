@@ -99,7 +99,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   <div class="row no-gutters cam-main-grid">
 
 
-    <div class="col-12 col-xl-8 pr-xl-2 mb-3 mb-xl-0 d-flex flex-column">
+    <div class="col-12 col-xl-8 pr-xl-2 mb-3 mb-xl-0 d-flex flex-column h-100">
       <div id="cam-monitor-viewport" class="cam-monitor-card">
 
 
@@ -136,9 +136,100 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
 
           <div x-show="tab==='upload'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
-            <input type="file" id="upload-input" accept="image
+            <input type="file" id="upload-input" accept="image/*" class="d-none">
+            <canvas id="upload-canvas" class="cam-media-element d-none"></canvas>
+
+            <div id="upload-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('upload-input').click()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-cloud-upload" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Chọn ảnh</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="cam-floating-dock">
+          <button type="button" class="dock-btn primary" id="dock-btn-power" title="Bật / Dừng" onclick="handleActiveStreamToggle()">
+            <i class="bx bx-power-off"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="dock-btn-snap" title="Chụp ảnh" onclick="captureSnapshot()">
+            <i class="bx bx-camera"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="btn-select-device" x-show="tab==='webcam'" title="Chọn camera">
+            <i class="bx bx-devices"></i>
+          </button>
+
+          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp">
+            <i class="bx bx-folder-open"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="dock-btn-fullscreen" title="Toàn màn hình" onclick="toggleFullscreen()">
+            <i class="bx bx-fullscreen"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4 pl-xl-2 d-flex flex-column h-100">
+      <div class="cam-sidebar-card">
+
+        <div class="cam-sidebar-header">
+          <div class="d-flex align-items-center" style="gap:8px;">
+            <span class="cam-sidebar-title">Phát hiện</span>
+            <div id="cam-status-indicator" class="cam-live-badge" style="display:none;">
+              <span class="pulse-point"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <div class="cam-counter-pills">
+              <span class="counter-item" title="Khuôn mặt">
+                <i class="bx bx-user"></i>
+                <b id="stat-face-count">0</b>
+              </span>
+              <span class="counter-item" title="Biển số">
+                <i class="bx bx-car"></i>
+                <b id="stat-plate-count">0</b>
+              </span>
+              <span class="counter-item danger" title="Cảnh báo">
+                <i class="bx bx-error"></i>
+                <b id="stat-alert-count">0</b>
+              </span>
+            </div>
+            <button id="btn-clear-results" class="cam-btn-icon" title="Xoá danh sách">
+              <i class="bx bx-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="cam-feed-container" id="detection-results">
+          <div class="cam-empty-feed">
+            <div class="cam-empty-icon"><i class="bx bx-camera-off"></i></div>
+            <div class="cam-empty-title">Chưa có sự kiện</div>
+            <div class="cam-empty-hint">Bật camera để bắt đầu nhận diện</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+:root {
+  --cam-bg: #090d16;
+  --cam-hud-glass: rgba(15, 23, 42, 0.88);
+}
+
 .footer { display: none !important; }
-.page-content { padding-bottom: 8px !important; }
+.main-content { overflow-y: auto !important; }
+.page-content { padding: 6px 12px 6px !important; }
 
 .cam-app-root {
   display: flex;
@@ -152,8 +243,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 
@@ -319,8 +410,17 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
 
 .cam-main-grid {
-  height: calc(100vh - 150px);
-  min-height: 500px;
+  height: calc(100vh - 215px);
+  min-height: 380px;
+  max-height: calc(100vh - 195px);
+}
+
+@media (max-width: 1200px) {
+  .cam-main-grid {
+    height: auto;
+    min-height: auto;
+    max-height: none;
+  }
 }
 
 
@@ -371,8 +471,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 .cam-screen-surface {
   position: relative;
   width: 100%;
-  height: 100%;
-  flex-grow: 1;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -392,6 +492,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   left: 0;
   width: 100%;
   height: 100%;
+  object-fit: contain;
   z-index: 15;
   pointer-events: none;
 }
@@ -433,7 +534,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 }
 .cam-hero-placeholder:hover .cam-hero-btn {
   transform: scale(1.12);
-  box-shadow: 0 8px 28px rgba(37, 99, 235, 0.7);
 }
 .cam-hero-label {
   color: #94a3b8;
@@ -449,51 +549,55 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
 .cam-floating-dock {
   position: absolute;
-  bottom: 12px;
+  bottom: 28px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 35;
-  background: var(--cam-hud-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  padding: 4px 6px;
+  z-index: 45;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 .dock-btn {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   border: none;
-  color: #cbd5e1;
-  width: 32px;
-  height: 32px;
+  color: #e2e8f0;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   outline: none !important;
 }
 .dock-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
+  transform: scale(1.08);
 }
 .dock-btn i {
-  font-size: 16px;
+  font-size: 18px;
 }
 .dock-btn.primary {
   background: #3b82f6;
   color: #ffffff;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
 }
 .dock-btn.primary:hover {
   background: #2563eb;
+  transform: scale(1.08);
 }
 .dock-btn.primary.active-stream {
   background: #ef4444;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.5);
 }
 
 
@@ -1186,9 +1290,12 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
         rtspPlaceholder.classList.remove('d-none');
         setStreamActiveState(false);
+        fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST', keepalive: true });
       } else {
         const errBanner = document.getElementById('rtsp-error-banner');
         if (errBanner) errBanner.style.display = 'none';
+
+        fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
 
         rtspActive = true;
         rtspPlaceholder.classList.add('d-none');
@@ -1199,6 +1306,16 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         requestAnimationFrame(drawRtspOverlay);
       }
     };
+
+    function stopActiveRtspStream() {
+      if (rtspActive && rtspCamera && rtspCamera.value) {
+        const cid = rtspCamera.value;
+        fetch(`/admin/cameras/${cid}/stream/stop`, { method: 'POST', keepalive: true });
+      }
+    }
+
+    window.addEventListener('beforeunload', stopActiveRtspStream);
+    window.addEventListener('pagehide', stopActiveRtspStream);
 
     window.clearResults = function () {
       if (statFaceCount) statFaceCount.textContent = '0';

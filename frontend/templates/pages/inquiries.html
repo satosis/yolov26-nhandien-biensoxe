@@ -1,27 +1,24 @@
 {% extends "layout.html" %}
-{% block title %}Tin tư vấn{% endblock %}
-{% block page_title %}Tin tư vấn{% endblock %}
+{% block title %}Tin tư vấn — Parking Camera{% endblock %}
+{% block page_title %}
+Tin tư vấn
+{% if unread_count > 0 %}
+<span class="badge badge-pill badge-danger ml-2" style="font-size:12px;vertical-align:middle;">{{ unread_count }} mới</span>
+{% endif %}
+{% endblock %}
+{% block page_actions %}
+{% if unread_count > 0 %}
+<button hx-post="/admin/inquiries/read-all"
+        hx-confirm="Đánh dấu tất cả đã đọc?"
+        hx-on::after-request="window.location.reload()"
+        class="btn btn-sm btn-light border font-weight-bold">
+  <i class="bx bx-check-double mr-1"></i> Đọc tất cả
+</button>
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div x-data="{ tab: 'all' }">
-
-
-  <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:10px;">
-    <div class="d-flex align-items-center" style="gap:10px;">
-      <h4 class="mb-0 font-weight-bold">Tin tư vấn</h4>
-      {% if unread_count > 0 %}
-      <span class="badge badge-pill badge-danger">{{ unread_count }} mới</span>
-      {% endif %}
-    </div>
-    {% if unread_count > 0 %}
-    <button hx-post="/admin/inquiries/read-all"
-            hx-confirm="Đánh dấu tất cả đã đọc?"
-            hx-on::after-request="window.location.reload()"
-            class="btn btn-sm btn-light border">
-      <i class="fas fa-check mr-1"></i> Đọc tất cả
-    </button>
-    {% endif %}
-  </div>
 
 
   {% if inquiries %}
@@ -92,7 +89,7 @@
 
         <div id="badge-{{ inq.id }}" class="flex-shrink-0" @click.stop>
           {% if inq.is_read %}
-          <i class="fas fa-check-circle text-success" style="font-size:1.1rem;"></i>
+          <i class="bx bxs-check-circle text-success" style="font-size:1.25rem;"></i>
           {% else %}
           <button hx-post="/admin/inquiries/{{ inq.id }}/read"
                   hx-target="#badge-{{ inq.id }}"
@@ -100,16 +97,14 @@
                   title="Đánh dấu đã đọc"
                   class="btn btn-sm rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
                   style="width:32px;height:32px;background:rgba(253,126,20,.1);border:1px solid rgba(253,126,20,.3);color:#fd7e14;padding:0;">
-            <svg style="width:16px;height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"/>
-            </svg>
+            <i class="bx bx-envelope" style="font-size:16px;"></i>
           </button>
           {% endif %}
         </div>
 
 
-        <i class="fas fa-chevron-down text-muted flex-shrink-0 transition"
-           :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+        <i class="bx bx-chevron-down text-muted flex-shrink-0 transition"
+           :class="open ? 'bx-chevron-up' : 'bx-chevron-down'"></i>
       </div>
 
 
@@ -150,7 +145,7 @@
                 <input type="text" name="note" value="{{ inq.note or '' }}"
                        placeholder="Thêm ghi chú..."
                        class="form-control form-control-sm flex-grow-1">
-                <button type="submit" class="btn btn-sm btn-primary flex-shrink-0">Lưu</button>
+                <button type="submit" class="btn btn-sm btn-primary font-weight-bold flex-shrink-0"><i class="bx bx-save mr-1"></i> Lưu</button>
                 <span id="ns-{{ inq.id }}" class="hidden align-self-center text-success" style="font-size:12px;white-space:nowrap;">✓ Đã lưu</span>
               </form>
             </div>
@@ -158,12 +153,12 @@
             <div class="col-12">
               <div class="d-flex align-items-center justify-content-between pt-2 border-top" style="gap:8px;">
                 <div class="d-flex" style="gap:8px;">
-                  <a href="tel:{{ inq.phone }}" class="btn btn-sm btn-primary">
-                    📞 Gọi ngay
+                  <a href="tel:{{ inq.phone }}" class="btn btn-sm btn-primary font-weight-bold">
+                    <i class="bx bx-phone mr-1"></i> Gọi ngay
                   </a>
                   <a href="https://zalo.me/{{ inq.phone | replace(' ','') | replace('.','') | replace('-','') }}"
                      target="_blank"
-                     class="btn btn-sm btn-info text-white">
+                     class="btn btn-sm btn-info text-white font-weight-bold">
                     Zalo
                   </a>
                 </div>
@@ -171,8 +166,8 @@
                         hx-target="#row-{{ inq.id }}"
                         hx-swap="outerHTML"
                         hx-confirm="Xóa tin tư vấn này?"
-                        class="btn btn-sm btn-danger">
-                  Xóa
+                        class="btn btn-sm btn-danger font-weight-bold">
+                  <i class="bx bx-trash mr-1"></i> Xóa
                 </button>
               </div>
             </div>

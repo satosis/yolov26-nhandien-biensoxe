@@ -89,7 +89,6 @@ async def register_page(pending_id: str, request: Request, user: dict = Depends(
 @router.post("/{pending_id}/register")
 async def register_plate(
     pending_id: str,
-    request: Request,
     plate_number: str = Form(...),
     owner_name: Optional[str] = Form(None),
     site_ids: list[PositiveInt] = Form(default=[]),
@@ -111,8 +110,7 @@ async def register_plate(
     ):
         return HTMLResponse("Không thể đăng ký biển số.", status_code=500)
     
-    if not delete_pending_plate_by_id(pending_id):
-        return HTMLResponse("Không tìm thấy biển số chờ duyệt.", status_code=404)
+    delete_pending_plate_by_id(pending_id)
     return RedirectResponse("/admin/pending_plates", status_code=303)
 
 
@@ -126,7 +124,7 @@ async def pending_page(request: Request, user: dict = Depends(require_menu("pend
 
 
 @router.post("/bulk-reject")
-async def bulk_reject_plates(payload: BulkRejectInput, user: dict = Depends(require_menu("pending_plates"))):
+async def bulk_reject_plates(payload: BulkRejectInput, _: dict = Depends(require_menu("pending_plates"))):
     deleted = 0
     missing = []
     for pending_id in dict.fromkeys(payload.ids):

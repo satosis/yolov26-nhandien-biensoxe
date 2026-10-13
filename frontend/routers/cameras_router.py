@@ -117,7 +117,6 @@ async def create_camera(
 @router.delete("/{camera_id}")
 async def delete_camera(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
     if not cam_svc.delete_camera(camera_id):
@@ -128,14 +127,12 @@ async def delete_camera(
 @router.post("/{camera_id:int}/toggle")
 async def toggle_camera(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
     cam = cam_svc.get_camera(camera_id)
     if not cam:
         return HTMLResponse("Không tìm thấy camera.", status_code=404)
-
-    updated = cam_svc.update_camera(
+    cam_svc.update_camera(
         camera_id=camera_id,
         name=cam["camera_name"],
         cam_type=cam["camera_type"],
@@ -148,15 +145,12 @@ async def toggle_camera(
         camera_ip=cam.get("camera_ip"),
         camera_port=cam.get("camera_port"),
     )
-    if not updated:
-        return HTMLResponse("Không tìm thấy camera.", status_code=404)
     return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.post("/{camera_id}/edit")
 async def edit_camera(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
     camera_name: str = Form(...),
     camera_type: str = Form(...),
@@ -178,7 +172,7 @@ async def edit_camera(
 
     final_rtsp_url = rtsp_url.strip() if rtsp_url and rtsp_url.strip() else None
 
-    updated = cam_svc.update_camera(
+    cam_svc.update_camera(
         camera_id=camera_id,
         name=camera_name,
         cam_type=camera_type,
@@ -191,48 +185,32 @@ async def edit_camera(
         camera_ip=camera_ip if camera_ip else None,
         camera_port=camera_port,
     )
-    if not updated:
-        return HTMLResponse("Không tìm thấy camera.", status_code=404)
     return RedirectResponse(url="/admin/cameras", status_code=303)
 
 
 @router.post("/{camera_id}/stream/start")
 async def start_stream(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
-    cam = cam_svc.get_camera(camera_id)
-    if not cam:
-        return JSONResponse({"ok": False, "error": "Camera không tồn tại"}, status_code=404)
-
-    rtsp_url = cam_svc.get_camera_rtsp_url(camera_id)
-    if not rtsp_url:
-        return JSONResponse({
-            "ok": False,
-            "error": f"Camera '{cam.get('camera_name')}' chưa có địa chỉ IP hoặc mật khẩu để kết nối."
-        }, status_code=400)
-
     if not cam_svc.set_camera_streaming(camera_id, True):
-        return JSONResponse({"ok": False, "message": "Không tìm thấy camera."}, status_code=404)
+        return JSONResponse({"ok": False, "error": "Không tìm thấy camera."}, status_code=404)
     return {"ok": True}
 
 
 @router.post("/{camera_id}/stream/stop")
 async def stop_stream(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
     if not cam_svc.set_camera_streaming(camera_id, False):
-        return JSONResponse({"ok": False, "message": "Không tìm thấy camera."}, status_code=404)
+        return JSONResponse({"ok": False, "error": "Không tìm thấy camera."}, status_code=404)
     return {"ok": True}
 
 
 @router.get("/{camera_id}/stream/status")
 async def get_stream_status(
     camera_id: int,
-    request: Request,
     user: dict = Depends(require_menu("detection")),
 ):
     cam = cam_svc.get_camera(camera_id)
@@ -243,7 +221,6 @@ async def get_stream_status(
 
 @router.post("/discover")
 async def discover_cameras(
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
     import asyncio
@@ -254,7 +231,6 @@ async def discover_cameras(
 
 @router.post("/discover/subnet")
 async def discover_subnet(
-    request: Request,
     subnet: str = Form("192.168.1"),
     user: dict = Depends(require_menu("cameras")),
 ):
@@ -285,7 +261,7 @@ async def auto_add_camera(
         cam = cam_svc.get_camera(camera_id)
         if not cam:
             return JSONResponse({"ok": False, "name": name, "message": "Không tìm thấy camera."}, status_code=404)
-        ok = cam_svc.update_camera(
+        cam_svc.update_camera(
             camera_id=camera_id,
             name=name,
             cam_type=cam_type,
@@ -298,18 +274,10 @@ async def auto_add_camera(
             camera_ip=ip if ip else cam.get("camera_ip"),
             camera_port=onvif_port or cam.get("camera_port", 554),
         )
-        if not ok:
-            return JSONResponse({"ok": False, "name": name, "message": "Không tìm thấy camera."}, status_code=404)
         if rtsp_url_onvif:
-            rtsp_saved = cam_svc.store_onvif_detected_rtsp(camera_id, rtsp_url_onvif)
+            cam_svc.store_onvif_detected_rtsp(camera_id, rtsp_url_onvif)
         else:
-            url = cam_svc.get_camera_rtsp_url(camera_id)
-            rtsp_saved = _persist_derived_rtsp(camera_id, url)
-        if not rtsp_saved:
-            return JSONResponse({
-                "ok": False, "name": name, "updated": True, "partial": True,
-                "message": "Đã cập nhật camera nhưng không thể lưu địa chỉ RTSP.",
-            }, status_code=500)
+            _persist_derived_rtsp(camera_id, cam_svc.get_camera_rtsp_url(camera_id))
         return {"ok": True, "name": name, "updated": True}
     else:
         if not ip and cam_type == 'imou' and device_id and mk:
@@ -347,15 +315,9 @@ async def auto_add_camera(
             return JSONResponse({"ok": False, "name": name, "message": "Không thể thêm camera."}, status_code=500)
         if ip:
             if rtsp_url_onvif:
-                rtsp_saved = cam_svc.store_onvif_detected_rtsp(new_cam_id, rtsp_url_onvif)
+                cam_svc.store_onvif_detected_rtsp(new_cam_id, rtsp_url_onvif)
             else:
-                url = cam_svc.get_camera_rtsp_url(new_cam_id)
-                rtsp_saved = _persist_derived_rtsp(new_cam_id, url)
-            if not rtsp_saved:
-                return JSONResponse({
-                    "ok": False, "name": name, "camera_id": new_cam_id, "partial": True,
-                    "message": "Đã thêm camera nhưng không thể lưu địa chỉ RTSP. Kiểm tra camera đã thêm trước khi thử lại.",
-                }, status_code=500)
+                _persist_derived_rtsp(new_cam_id, cam_svc.get_camera_rtsp_url(new_cam_id))
         return {"ok": True, "name": name}
 
 
@@ -392,7 +354,6 @@ async def probe_onvif(
 
 @router.post("/discover-arp")
 async def discover_arp(
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
     import asyncio
@@ -413,7 +374,6 @@ async def discover_arp(
 
 @router.post("/auto-register/toggle")
 async def toggle_auto_register(
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
 ):
     current = get_app_setting("AUTO_REGISTER_NEW_CAMERAS", "false") or "false"
@@ -425,7 +385,6 @@ async def toggle_auto_register(
 
 @router.get("/health")
 async def camera_health(
-    request: Request,
     user: dict = Depends(require_menu("cameras")),
     hours: int = 24,
 ):

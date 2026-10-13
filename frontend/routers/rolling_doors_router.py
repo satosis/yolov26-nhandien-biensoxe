@@ -154,11 +154,10 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
 
 @router.post("/tuya_global")
 async def update_tuya_global(
-    request: Request,
     device_id: str = Form(""),
     local_key: str = Form(""),
     ip: str = Form(""),
-    user: dict = Depends(require_menu("rolling_doors")),
+    _: dict = Depends(require_menu("rolling_doors")),
 ):
     saved = set_many_app_settings({
         "TUYA_DEVICE_ID": device_id.strip(),
@@ -173,7 +172,6 @@ async def update_tuya_global(
 
 @router.post("")
 async def upsert_rolling_door(
-    request: Request,
     door_id: Optional[str] = Form(None, pattern=_OPTIONAL_POSITIVE_INT_PATTERN),
     name: str = Form(...),
     supplier_key: Optional[str] = Form(None),
@@ -191,7 +189,7 @@ async def upsert_rolling_door(
     camera_id: Optional[str] = Form(None, pattern=_OPTIONAL_POSITIVE_INT_PATTERN),
     auto_close_enabled: Optional[str] = Form(None),
     auto_close_delay_sec: Optional[int] = Form(300, gt=0),
-    user: dict = Depends(require_menu("rolling_doors")),
+    _: dict = Depends(require_menu("rolling_doors")),
 ):
     final_door_id = _optional_form_number(door_id)
     final_port = _optional_form_number(relay_port)
@@ -283,8 +281,7 @@ async def edit_rolling_door_page(
 @router.post("/{door_id}/delete")
 async def delete_rolling_door(
     door_id: int,
-    request: Request,
-    user: dict = Depends(require_menu("rolling_doors")),
+    _: dict = Depends(require_menu("rolling_doors")),
 ):
     if not delete_rolling_door_record(door_id):
         return HTMLResponse("Không tìm thấy cửa cuốn.", status_code=404)
@@ -295,7 +292,7 @@ async def delete_rolling_door(
 async def control_rolling_door(
     door_id: int,
     action: Literal["OPEN", "CLOSE"] = Form(...),
-    user: dict = Depends(require_menu("rolling_doors")),
+    _: dict = Depends(require_menu("rolling_doors")),
 ):
     door = get_rolling_door(door_id)
     if not door:

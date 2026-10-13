@@ -106,7 +106,7 @@ async def recordings_page(
     return templates.TemplateResponse("pages/recordings.html", {"request": request, **ctx})
 
 @router.delete("/{recording_id}")
-async def delete_recording(recording_id: int, user: dict = Depends(require_menu("recordings"))):
+async def delete_recording(recording_id: int, _: dict = Depends(require_menu("recordings"))):
     rec = db.select("video_recordings", conditions={"id": recording_id}, fetchall=False)
     if not rec:
         return JSONResponse(

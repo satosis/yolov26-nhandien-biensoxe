@@ -38,7 +38,6 @@ _last_request_time = 0
 _ocr_cache = OrderedDict()
 _ocr_lock = threading.Lock()
 MAX_OCR_CACHE_ENTRIES = 256
-MAX_RTSP_READ_FAILURES = 3
 
 def _ocr_crop_hash(crop):
     return hashlib.md5(crop[::4, ::4].tobytes()).hexdigest()
@@ -263,43 +262,23 @@ def _get_person_by_identity(identity):
     return None
 
 
-@router.post("/api/detect")
-async def detect_image(request: Request, file: UploadFile = File(...),
-                       user: dict = Depends(require_menu("detection"))):
-    contents = await file.read()
-    if not contents:
-        logger.warning("Detection upload is empty")
-        return JSONResponse(
-            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
-            status_code=400,
-        )
-    frame_bgr = await asyncio.to_thread(cv2.imdecode, np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
-    del contents
-    if frame_bgr is None:
-        logger.warning("Detection upload could not be decoded as an image")
-        return JSONResponse(
-            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
-            status_code=400,
-        )
-    detector, ocr, face = _get_models()
+_plate_worker_lock = threading.Lock()
+_plate_worker_busy = False
+_cached_plate_results = []
+_cached_plate_ts = 0
 
-    def run_ai_pipeline():
-        debug_dir = "/tmp/debug_frames"
-        if os.path.exists(debug_dir):
-            curr_time = int(time.time())
-            if not cv2.imwrite(f"{debug_dir}/frame_{curr_time}.jpg", frame_bgr):
-                logger.error("Detection debug frame write failed in %s", debug_dir)
-                raise OSError("Could not save detection debug frame")
 
-        res = []
-        orig_h, orig_w = frame_bgr.shape[:2]
-
+def _async_plate_detection_job(frame_bgr, s_id):
+    global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
+    try:
+        detector, ocr, _ = _get_models()
         detections = detector.detect(frame_bgr)
         detections = merge_plate_boxes(detections)
+        orig_h, orig_w = frame_bgr.shape[:2]
 
         plate_count = sum(1 for d in detections if d[5] == 0)
         if orig_h > 800 and plate_count == 0:
-            bottom_crop = frame_bgr[orig_h // 2:, :]
+            bottom_crop = frame_bgr[orig_h // 2 :, :]
             bottom_dets = detector.detect(bottom_crop)
             bottom_dets = merge_plate_boxes(bottom_dets)
             for x1, y1, x2, y2, conf, cls_id in bottom_dets:
@@ -308,7 +287,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
             cx, cy = orig_w // 2, orig_h // 2
             cw, ch = int(orig_w * 0.6), int(orig_h * 0.6)
             cx1, cy1 = cx - cw // 2, cy - ch // 2
-            center_crop = frame_bgr[cy1:cy1 + ch, cx1:cx1 + cw]
+            center_crop = frame_bgr[cy1 : cy1 + ch, cx1 : cx1 + cw]
             center_dets = detector.detect(center_crop)
             center_dets = merge_plate_boxes(center_dets)
             for x1, y1, x2, y2, conf, cls_id in center_dets:
@@ -316,8 +295,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
 
             detections = _dedupe_detections(detections)
 
-        logger.info(f"DEBUG: Found {len(detections)} detections (after merge)")
-
+        plate_res = []
         for x1, y1, x2, y2, conf, cls_id in detections:
             if cls_id == 0:
                 h_img, w_img = frame_bgr.shape[:2]
@@ -346,18 +324,12 @@ async def detect_image(request: Request, file: UploadFile = File(...),
 
                 if status == "unknown":
                     snap_path = save_snapshot(frame_bgr, "webcam", normalized)
-                    s_id = request.session.get("active_site_id") or None
-
-                    outcome = _add_pending_plate_simple(
+                    _add_pending_plate_simple(
                         normalized, text, "webcam", site_id=s_id,
                         image_path=snap_path, plate_type=p_type,
                     )
-                    if outcome is None:
-                        return None
-                    if outcome == "inserted":
-                        logger.info("Unknown plate saved from manual detection at site %s", s_id)
 
-                res.append({
+                plate_res.append({
                     "type": "plate",
                     "text": text if text else "(BIỂN SỐ ?)",
                     "plate_type": p_type,
@@ -368,16 +340,51 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                     "bbox": [x1, y1, x2, y2],
                 })
             elif cls_id == 1:
-                res.append({
+                plate_res.append({
                     "type": "person", "text": "Person",
                     "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
                 })
             elif cls_id == 2:
-                res.append({
+                plate_res.append({
                     "type": "door", "text": "Door",
                     "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
                 })
 
+        with _plate_worker_lock:
+            _cached_plate_results = plate_res
+            _cached_plate_ts = time.time()
+    except Exception as e:
+        logger.error("Async plate worker error: %s", e)
+    finally:
+        with _plate_worker_lock:
+            _plate_worker_busy = False
+
+
+@router.post("/api/detect")
+async def detect_image(request: Request, file: UploadFile = File(...),
+                       user: dict = Depends(require_menu("detection"))):
+    contents = await file.read()
+    if not contents:
+        logger.warning("Detection upload is empty")
+        return JSONResponse(
+            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
+            status_code=400,
+        )
+    frame_bgr = await asyncio.to_thread(cv2.imdecode, np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    del contents
+    if frame_bgr is None:
+        logger.warning("Detection upload could not be decoded as an image")
+        return JSONResponse(
+            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
+            status_code=400,
+        )
+    detector, ocr, face = _get_models()
+
+    def run_ai_pipeline():
+        global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
+        res = []
+
+        # 1. Run Face recognition synchronously on current frame (ULTRA FAST: ~70ms)
         name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
         if name:
             display_text = name
@@ -405,18 +412,33 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
             })
 
-        logger.info("API Detect: %s results", len(res))
+        # 2. Trigger asynchronous plate detector in background if idle
+        s_id = request.session.get("active_site_id") or None
+        now = time.time()
+        start_worker = False
+        with _plate_worker_lock:
+            if not _plate_worker_busy and (now - _cached_plate_ts > 1.2):
+                _plate_worker_busy = True
+                start_worker = True
+
+        if start_worker:
+            threading.Thread(
+                target=_async_plate_detection_job,
+                args=(frame_bgr.copy(), s_id),
+                daemon=True
+            ).start()
+
+        # 3. Merge cached plate/vehicle detections if recent (< 4.0s)
+        with _plate_worker_lock:
+            if now - _cached_plate_ts < 4.0:
+                res.extend(_cached_plate_results)
+
+        logger.info("API Detect: %s results (Face fastpath: %s)", len(res), bool(name))
         return res
 
     results = await asyncio.to_thread(run_ai_pipeline)
-    if results is None:
-        return JSONResponse(
-            {"ok": False, "message": "Không thể lưu biển số chờ duyệt."},
-            status_code=500,
-        )
-    
     return JSONResponse({
-        "results": results, 
+        "results": results,
         "count": len(results),
         "info": {
             "detector": True,
@@ -435,104 +457,43 @@ def _mjpeg_frame(frame, quality=75):
     return b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg.tobytes() + b"\r\n"
 
 
-def _stream_error(message):
-    frame = np.zeros((360, 640, 3), dtype=np.uint8)
-    cv2.putText(frame, message, (40, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (100, 100, 255), 2)
-    return _mjpeg_frame(frame)
+
+_stream_viewers = {}
+_stream_viewers_lock = threading.Lock()
 
 
 @router.get("/stream/{camera_id}")
 async def stream_camera(camera_id: int, request: Request, user: dict = Depends(require_menu("detection"))):
     shm_name = f"shm_cam_{camera_id}"
 
+    async def _stream():
+        shm = sm.SharedMemory(name=shm_name)
+        logger.info("Camera %s: Attached to Backend SharedMemory successfully", camera_id)
+        last_counter = -1
+        while not await request.is_disconnected():
+            counter = np.frombuffer(shm.buf, dtype=np.uint32, count=1)[0]
+            if counter != last_counter:
+                frame = np.frombuffer(shm.buf, dtype=np.uint8, offset=4, count=cfg.SHM_FRAME_BYTES).reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3)).copy()
+                frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_NEAREST)
+                yield _mjpeg_frame(frame, cfg.STREAM_JPEG_QUALITY_LIVE)
+                last_counter = counter
+                await asyncio.sleep(0)
+            else:
+                await asyncio.sleep(0.015)
+        shm.close()
+
     async def frame_generator():
-        shm_path = f"/dev/shm/{shm_name}"
-        if os.path.isdir("/dev/shm"):
-            for _ in range(30):
-                if os.path.exists(shm_path):
-                    break
-                await asyncio.sleep(0.5)
+        with _stream_viewers_lock:
+            _stream_viewers[camera_id] = _stream_viewers.get(camera_id, 0) + 1
+            cam_svc.set_camera_streaming(camera_id, True)
 
-        if os.path.exists(shm_path):
-            shm = sm.SharedMemory(name=shm_name)
-            try:
-                last_counter = -1
-                while not await request.is_disconnected():
-                    counter = np.frombuffer(shm.buf, dtype=np.uint32, count=1)[0]
-                    if counter != last_counter:
-                        frame = np.frombuffer(shm.buf, dtype=np.uint8, offset=4, count=cfg.SHM_FRAME_BYTES).reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3)).copy()
-                        frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_NEAREST)
-                        yield _mjpeg_frame(frame, cfg.STREAM_JPEG_QUALITY_LIVE)
-                        last_counter = counter
-                        await asyncio.sleep(0)
-                    else:
-                        await asyncio.sleep(0.02)
-            finally:
-                shm.close()
-            return
+        async for chunk in _stream():
+            yield chunk
 
-        cam = cam_svc.get_camera(camera_id)
-        rtsp_url = cam.get("rtsp_url", "") if cam else ""
-        if not rtsp_url:
-            logger.error(f"Camera {camera_id}: no RTSP URL configured")
-            yield _stream_error("No RTSP URL configured")
-            return
-
-        logger.info(f"Camera {camera_id}: SHM not available, falling back to direct RTSP")
-
-        latest_frame = [None]
-        reader_stop = threading.Event()
-
-        def _rtsp_reader():
-            cap = cv2.VideoCapture(rtsp_url)
-            try:
-                if not cap.isOpened():
-                    logger.error(f"Camera {camera_id}: cannot open RTSP")
-                    return
-                failures = 0
-                while not reader_stop.is_set():
-                    ret, frame = cap.read()
-                    if ret and frame is not None:
-                        failures = 0
-                        if frame.shape[1] > 854:
-                            frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_LINEAR)
-                        latest_frame[0] = frame
-                    else:
-                        failures += 1
-                        if failures >= MAX_RTSP_READ_FAILURES:
-                            logger.error(
-                                "Camera %s: RTSP stopped after %s consecutive read failures",
-                                camera_id,
-                                failures,
-                            )
-                            return
-                        reader_stop.wait(0.3)
-            finally:
-                cap.release()
-                reader_stop.set()
-
-        reader_thread = threading.Thread(target=_rtsp_reader, daemon=True)
-        reader_thread.start()
-
-        try:
-            for _ in range(30):
-                if latest_frame[0] is not None or reader_stop.is_set() or not reader_thread.is_alive():
-                    break
-                await asyncio.sleep(0.2)
-
-            if latest_frame[0] is None:
-                yield _stream_error("Cannot connect to camera")
-                return
-
-            while not await request.is_disconnected():
-                if reader_stop.is_set() or not reader_thread.is_alive():
-                    yield _stream_error("Camera disconnected")
-                    return
-                frame = latest_frame[0]
-                if frame is not None:
-                    yield _mjpeg_frame(frame)
-                await asyncio.sleep(0.033)
-        finally:
-            reader_stop.set()
+        with _stream_viewers_lock:
+            _stream_viewers[camera_id] = max(0, _stream_viewers.get(camera_id, 1) - 1)
+            if _stream_viewers[camera_id] == 0:
+                cam_svc.set_camera_streaming(camera_id, False)
+                logger.info("Camera %s: No active stream viewers, stopped camera streaming in backend.", camera_id)
 
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")

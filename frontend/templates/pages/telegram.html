@@ -1,49 +1,41 @@
 {% extends "layout.html" %}
 {% block title %}Telegram - Parking Camera{% endblock %}
 {% block page_title %}Cấu hình Telegram Bot{% endblock %}
+{% block page_actions %}
+<button @click="showAdd = !showAdd"
+        class="btn btn-primary btn-sm font-weight-bold">
+  <i class="bx bx-plus mr-1"></i> Thêm Bot
+</button>
+{% endblock %}
 {% block content %}
-<div class="container-fluid" x-data="{ showAdd: false }">
+<div class="container-fluid px-0" x-data="{ showAdd: false }">
 
   {% if error %}
   <div class="alert alert-danger" role="alert">{{ error }}</div>
   {% endif %}
 
   <div class="card">
-    <div class="card-header d-flex align-items-center justify-content-between">
-      <div class="d-flex align-items-center" style="gap:10px;">
-        <div class="rounded d-flex align-items-center justify-content-center text-success" style="width:32px;height:32px;background:rgba(40,167,69,.1);">
-          <i class="fas fa-robot"></i>
-        </div>
-        <h6 class="mb-0 font-weight-bold">Bot Telegram</h6>
-      </div>
-      <button @click="showAdd = !showAdd"
-              class="btn btn-primary btn-sm font-weight-bold" style="font-size:11px;letter-spacing:1px;">
-        + Thêm mới
-      </button>
-    </div>
-
-
     <div x-show="showAdd" x-collapse class="border-bottom">
       <form class="card-body" method="POST" action="/admin/telegram">
         <div class="row">
           <div class="col-12 col-md-4 mb-3">
             <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên gợi nhớ *</label>
-            <input name="bot_name" required placeholder="VD: Bảo vệ" class="form-control">
+            <input name="bot_name" required placeholder="VD: Bảo vệ" class="form-control form-control-sm">
           </div>
           <div class="col-12 col-md-4 mb-3">
             <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Bot token *</label>
-            <input name="bot_token" required placeholder="Token..." class="form-control">
+            <input name="bot_token" required placeholder="Token..." class="form-control form-control-sm">
           </div>
           <div class="col-12 col-md-4 mb-3">
             <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Chat ID *</label>
-            <input name="chat_id" required placeholder="ID..." class="form-control">
+            <input name="chat_id" required placeholder="ID..." class="form-control form-control-sm">
           </div>
         </div>
         <div class="d-flex justify-content-end" style="gap:8px;">
           <button type="button" @click="showAdd = false"
-                  class="btn btn-light font-weight-bold" style="font-size:12px;">Hủy</button>
+                  class="btn btn-light btn-sm font-weight-bold">Hủy</button>
           <button type="submit"
-                  class="btn btn-primary font-weight-bold" style="font-size:12px;">Lưu bot</button>
+                  class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu bot</button>
         </div>
       </form>
     </div>
@@ -88,13 +80,11 @@
                           reload: false
                         }
                       }))"
-                      class="btn btn-sm btn-outline-success d-flex align-items-center justify-content-center"
-                      style="width:32px;height:32px;padding:0;"
-                      title="Test">T</button>
+                      class="btn btn-sm btn-outline-success"
+                      title="Test"><i class="bx bx-paper-plane"></i></button>
               <button onclick="document.getElementById('edit-bot-form-{{ loop.index }}').style.display = document.getElementById('edit-bot-form-{{ loop.index }}').style.display === 'none' ? 'block' : 'none'"
-                      class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center"
-                      style="width:32px;height:32px;padding:0;"
-                      title="Sửa">E</button>
+                      class="btn btn-sm btn-outline-secondary"
+                      title="Sửa"><i class="bx bx-edit-alt"></i></button>
               <button type="button"
                       @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                         detail: {
@@ -106,9 +96,8 @@
                           reload: true
                         }
                       }))"
-                      class="btn btn-sm btn-outline-danger d-flex align-items-center justify-content-center"
-                      style="width:32px;height:32px;padding:0;"
-                      title="Xóa">X</button>
+                      class="btn btn-sm btn-outline-danger"
+                      title="Xóa"><i class="bx bx-trash"></i></button>
             </div>
           </div>
 

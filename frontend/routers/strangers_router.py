@@ -97,14 +97,14 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
 
 
 @router.post("/{stranger_id}/review")
-async def review_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
+async def review_stranger(stranger_id: int, _: dict = Depends(require_menu("strangers"))):
     if not update_stranger_status(stranger_id, "reviewed"):
         return HTMLResponse("Không tìm thấy người lạ.", status_code=404)
     return RedirectResponse("/admin/strangers", status_code=303)
 
 
 @router.delete("/{stranger_id}")
-async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("strangers"))):
+async def delete_stranger(stranger_id: int, _: dict = Depends(require_menu("strangers"))):
     if not delete_stranger_log(stranger_id):
         return JSONResponse({"ok": False, "message": "Không tìm thấy người lạ."}, status_code=404)
     get_stranger_manager().remove(stranger_id)
@@ -115,7 +115,7 @@ async def delete_stranger(stranger_id: int, user: dict = Depends(require_menu("s
 async def register_stranger(
     stranger_id: int = Form(..., gt=0),
     user_id: int = Form(..., gt=0),
-    user_auth: dict = Depends(require_menu("strangers"))
+    _: dict = Depends(require_menu("strangers"))
 ):
     if not get_user_by_id(user_id):
         return HTMLResponse("Không tìm thấy người dùng.", status_code=404)
@@ -129,7 +129,7 @@ async def register_stranger(
 @router.post("/bulk-register")
 async def bulk_register_strangers(
     payload: BulkRegisterInput,
-    user: dict = Depends(require_menu("strangers"))
+    _: dict = Depends(require_menu("strangers"))
 ):
     if not get_user_by_id(payload.user_id):
         return JSONResponse({"ok": False, "message": "Không tìm thấy người dùng."}, status_code=404)
@@ -154,7 +154,7 @@ async def bulk_register_strangers(
 @router.post("/bulk-delete")
 async def bulk_delete_strangers(
     payload: BulkDeleteInput,
-    user: dict = Depends(require_menu("strangers"))
+    _: dict = Depends(require_menu("strangers"))
 ):
     deleted = 0
     missing = []

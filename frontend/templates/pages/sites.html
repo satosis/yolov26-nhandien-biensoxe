@@ -1,18 +1,14 @@
 {% extends "layout.html" %}
 {% block title %}Địa điểm — Parking Camera{% endblock %}
 {% block page_title %}Địa điểm{% endblock %}
+{% block page_actions %}
+<button class="btn btn-primary btn-sm font-weight-bold"
+        onclick="document.getElementById('add-form').classList.toggle('d-none')">
+  <i class="bx bx-plus mr-1"></i> Thêm địa điểm
+</button>
+{% endblock %}
 {% block content %}
 <div x-data="{}">
-
-
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <div class="d-flex align-items-center" style="gap:8px;">
-      <span style="font-size:24px;">🏢</span>
-      <span class="font-weight-bold" style="font-size:18px;">Địa điểm</span>
-    </div>
-    <button class="btn btn-primary"
-            onclick="document.getElementById('add-form').classList.toggle('d-none')">+ Thêm</button>
-  </div>
 
 
   <div id="add-form" class="card d-none mb-3">
@@ -34,8 +30,8 @@
           <input name="address" class="form-control">
         </div>
         <div class="d-flex" style="gap:10px;">
-          <button type="submit" class="btn btn-primary">💾 Lưu</button>
-          <button type="button" class="btn btn-light" onclick="this.closest('.card').classList.add('d-none')">Hủy</button>
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
+          <button type="button" class="btn btn-light btn-sm" onclick="this.closest('.card').classList.add('d-none')">Hủy</button>
         </div>
       </form>
     </div>
@@ -76,10 +72,10 @@
                 </form>
               </td>
               <td class="text-right">
-                <div class="d-flex justify-content-end" style="gap:12px;">
-                  <button class="btn btn-sm btn-light"
-                          hx-get="/admin/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML">✏️</button>
-                  <button class="btn btn-sm btn-danger"
+                <div class="d-flex justify-content-end" style="gap:6px;">
+                  <button class="btn btn-sm btn-light" title="Sửa"
+                          hx-get="/admin/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
+                  <button class="btn btn-sm btn-danger" title="Xóa"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa địa điểm',
@@ -89,7 +85,7 @@
                               confirmMethod: 'DELETE',
                               confirmTarget: '#site-{{ s.id }}'
                             }
-                          }))">🗑</button>
+                          }))"><i class="bx bx-trash"></i></button>
                 </div>
               </td>
             </tr>
