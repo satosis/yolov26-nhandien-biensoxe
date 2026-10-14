@@ -13,10 +13,10 @@ from urllib.parse import urlencode
 import numpy as np
 import cv2
 import multiprocessing.shared_memory as sm
-from fastapi import APIRouter, Request, Depends, UploadFile, File
+from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from frontend.deps import get_menu_context, require_menu, templates
-from backend.util.image_utils import save_snapshot
+from backend.util.image_utils import save_snapshot, decode_image
 from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
 from backend.services import config as cfg
 from backend.services.database import db
@@ -268,88 +268,96 @@ _cached_plate_results = []
 _cached_plate_ts = 0
 
 
+def _detect_plates(frame_bgr, s_id, source="webcam"):
+    detector, ocr, _ = _get_models()
+    detections = detector.detect(frame_bgr)
+    detections = merge_plate_boxes(detections)
+    orig_h, orig_w = frame_bgr.shape[:2]
+
+    plate_count = sum(1 for d in detections if d[5] == 0)
+    if orig_h > 800 and plate_count == 0:
+        bottom_crop = frame_bgr[orig_h // 2 :, :]
+        bottom_dets = detector.detect(bottom_crop)
+        bottom_dets = merge_plate_boxes(bottom_dets)
+        for x1, y1, x2, y2, conf, cls_id in bottom_dets:
+            detections.append((x1, y1 + orig_h // 2, x2, y2 + orig_h // 2, conf, cls_id))
+
+        cx, cy = orig_w // 2, orig_h // 2
+        cw, ch = int(orig_w * 0.6), int(orig_h * 0.6)
+        cx1, cy1 = cx - cw // 2, cy - ch // 2
+        center_crop = frame_bgr[cy1 : cy1 + ch, cx1 : cx1 + cw]
+        center_dets = detector.detect(center_crop)
+        center_dets = merge_plate_boxes(center_dets)
+        for x1, y1, x2, y2, conf, cls_id in center_dets:
+            detections.append((x1 + cx1, y1 + cy1, x2 + cx1, y2 + cy1, conf, cls_id))
+
+        detections = _dedupe_detections(detections)
+
+    plate_res = []
+    for x1, y1, x2, y2, conf, cls_id in detections:
+        if cls_id == 0:
+            h_img, w_img = frame_bgr.shape[:2]
+            px = int((x2 - x1) * 0.15) + 10
+            py = int((y2 - y1) * 0.15) + 5
+            x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
+            x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
+
+            crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
+            text, ocr_conf, p_type = "", 0.0, "white"
+            if validate_plate_crop(crop):
+                processed = enhance_plate(crop)
+                ch = _ocr_crop_hash(processed)
+                text, ocr_conf, p_type = _read_cached_ocr(ocr, processed, ch)
+
+            status = "no_plate"
+            owner_name = "unknown"
+            if text:
+                normalized = cfg.normalize_plate(text)
+                wl = _check_whitelist(normalized)
+                if wl:
+                    status = "whitelist"
+                    owner_name = wl.get("owner_name", "Whitelist")
+                else:
+                    status = "unknown"
+
+            if status == "unknown":
+                snap_path = save_snapshot(frame_bgr, source, normalized)
+                _add_pending_plate_simple(
+                    normalized, text, source, site_id=s_id,
+                    image_path=snap_path, plate_type=p_type,
+                )
+
+            plate_item = {
+                "type": "plate",
+                "text": text if text else "(BIỂN SỐ ?)",
+                "plate_type": p_type,
+                "confidence": round(conf * 100, 1),
+                "ocr_confidence": round(ocr_conf * 100, 1),
+                "status": status,
+                "owner_name": owner_name,
+                "bbox": [x1, y1, x2, y2],
+            }
+            if source == "upload":
+                plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
+            plate_res.append(plate_item)
+        elif cls_id == 1:
+            plate_res.append({
+                "type": "person", "text": "Person",
+                "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
+            })
+        elif cls_id == 2:
+            plate_res.append({
+                "type": "door", "text": "Door",
+                "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
+            })
+
+    return plate_res
+
+
 def _async_plate_detection_job(frame_bgr, s_id):
     global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
     try:
-        detector, ocr, _ = _get_models()
-        detections = detector.detect(frame_bgr)
-        detections = merge_plate_boxes(detections)
-        orig_h, orig_w = frame_bgr.shape[:2]
-
-        plate_count = sum(1 for d in detections if d[5] == 0)
-        if orig_h > 800 and plate_count == 0:
-            bottom_crop = frame_bgr[orig_h // 2 :, :]
-            bottom_dets = detector.detect(bottom_crop)
-            bottom_dets = merge_plate_boxes(bottom_dets)
-            for x1, y1, x2, y2, conf, cls_id in bottom_dets:
-                detections.append((x1, y1 + orig_h // 2, x2, y2 + orig_h // 2, conf, cls_id))
-
-            cx, cy = orig_w // 2, orig_h // 2
-            cw, ch = int(orig_w * 0.6), int(orig_h * 0.6)
-            cx1, cy1 = cx - cw // 2, cy - ch // 2
-            center_crop = frame_bgr[cy1 : cy1 + ch, cx1 : cx1 + cw]
-            center_dets = detector.detect(center_crop)
-            center_dets = merge_plate_boxes(center_dets)
-            for x1, y1, x2, y2, conf, cls_id in center_dets:
-                detections.append((x1 + cx1, y1 + cy1, x2 + cx1, y2 + cy1, conf, cls_id))
-
-            detections = _dedupe_detections(detections)
-
-        plate_res = []
-        for x1, y1, x2, y2, conf, cls_id in detections:
-            if cls_id == 0:
-                h_img, w_img = frame_bgr.shape[:2]
-                px = int((x2 - x1) * 0.15) + 10
-                py = int((y2 - y1) * 0.15) + 5
-                x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
-                x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
-
-                crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
-                text, ocr_conf, p_type = "", 0.0, "white"
-                if validate_plate_crop(crop):
-                    processed = enhance_plate(crop)
-                    ch = _ocr_crop_hash(processed)
-                    text, ocr_conf, p_type = _read_cached_ocr(ocr, processed, ch)
-
-                status = "no_plate"
-                owner_name = "unknown"
-                if text:
-                    normalized = cfg.normalize_plate(text)
-                    wl = _check_whitelist(normalized)
-                    if wl:
-                        status = "whitelist"
-                        owner_name = wl.get("owner_name", "Whitelist")
-                    else:
-                        status = "unknown"
-
-                if status == "unknown":
-                    snap_path = save_snapshot(frame_bgr, "webcam", normalized)
-                    _add_pending_plate_simple(
-                        normalized, text, "webcam", site_id=s_id,
-                        image_path=snap_path, plate_type=p_type,
-                    )
-
-                plate_res.append({
-                    "type": "plate",
-                    "text": text if text else "(BIỂN SỐ ?)",
-                    "plate_type": p_type,
-                    "confidence": round(conf * 100, 1),
-                    "ocr_confidence": round(ocr_conf * 100, 1),
-                    "status": status,
-                    "owner_name": owner_name,
-                    "bbox": [x1, y1, x2, y2],
-                })
-            elif cls_id == 1:
-                plate_res.append({
-                    "type": "person", "text": "Person",
-                    "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
-                })
-            elif cls_id == 2:
-                plate_res.append({
-                    "type": "door", "text": "Door",
-                    "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
-                })
-
+        plate_res = _detect_plates(frame_bgr, s_id, source="webcam")
         with _plate_worker_lock:
             _cached_plate_results = plate_res
             _cached_plate_ts = time.time()
@@ -361,7 +369,9 @@ def _async_plate_detection_job(frame_bgr, s_id):
 
 
 @router.post("/api/detect")
-async def detect_image(request: Request, file: UploadFile = File(...),
+async def detect_image(request: Request,
+                       file: UploadFile = File(...),
+                       source: str = Form("webcam"),
                        user: dict = Depends(require_menu("detection"))):
     contents = await file.read()
     if not contents:
@@ -370,12 +380,12 @@ async def detect_image(request: Request, file: UploadFile = File(...),
             {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
             status_code=400,
         )
-    frame_bgr = await asyncio.to_thread(cv2.imdecode, np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    frame_bgr, dbg_decode = await asyncio.to_thread(decode_image, contents, return_debug=True)
     del contents
     if frame_bgr is None:
-        logger.warning("Detection upload could not be decoded as an image")
+        logger.warning("Detection upload decode failed: %s", dbg_decode.get("error"))
         return JSONResponse(
-            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
+            {"ok": False, "message": f"Ảnh tải lên không hợp lệ hoặc lỗi giải mã: {dbg_decode.get('error', 'Lỗi định dạng')}"},
             status_code=400,
         )
     detector, ocr, face = _get_models()
@@ -400,7 +410,7 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 from backend.ai.stranger_manager import get_stranger_manager
                 mgr = get_stranger_manager()
                 stranger_id, match_sim, _ = mgr.process_stranger(
-                    emb=emb, frame=frame_bgr, cam_id="webcam",
+                    emb=emb, frame=frame_bgr, cam_id=source,
                     bbox=f_bbox, direction=direction, site_id=None
                 )
                 display_text = f"Người lạ #{stranger_id}"
@@ -412,28 +422,33 @@ async def detect_image(request: Request, file: UploadFile = File(...),
                 "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
             })
 
-        # 2. Trigger asynchronous plate detector in background if idle
         s_id = request.session.get("active_site_id") or None
-        now = time.time()
-        start_worker = False
-        with _plate_worker_lock:
-            if not _plate_worker_busy and (now - _cached_plate_ts > 1.2):
-                _plate_worker_busy = True
-                start_worker = True
+        if source == "upload":
+            # For uploaded images, run plate/vehicle detection synchronously
+            plate_res = _detect_plates(frame_bgr, s_id, source="upload")
+            res.extend(plate_res)
+        else:
+            # For live streams, trigger async plate detector in background
+            now = time.time()
+            start_worker = False
+            with _plate_worker_lock:
+                if not _plate_worker_busy and (now - _cached_plate_ts > 1.2):
+                    _plate_worker_busy = True
+                    start_worker = True
 
-        if start_worker:
-            threading.Thread(
-                target=_async_plate_detection_job,
-                args=(frame_bgr.copy(), s_id),
-                daemon=True
-            ).start()
+            if start_worker:
+                threading.Thread(
+                    target=_async_plate_detection_job,
+                    args=(frame_bgr.copy(), s_id),
+                    daemon=True
+                ).start()
 
-        # 3. Merge cached plate/vehicle detections if recent (< 4.0s)
-        with _plate_worker_lock:
-            if now - _cached_plate_ts < 4.0:
-                res.extend(_cached_plate_results)
+            # Merge cached plate/vehicle detections if recent (< 4.0s)
+            with _plate_worker_lock:
+                if now - _cached_plate_ts < 4.0:
+                    res.extend(_cached_plate_results)
 
-        logger.info("API Detect: %s results (Face fastpath: %s)", len(res), bool(name))
+        logger.info("API Detect (%s): %s results (Face fastpath: %s)", source, len(res), bool(name))
         return res
 
     results = await asyncio.to_thread(run_ai_pipeline)

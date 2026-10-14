@@ -12,6 +12,7 @@ from typing import Literal, Optional
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.services.database import db
 from backend.services import config as cfg
+from backend.util.image_utils import decode_image
 
 logger = logging.getLogger(__name__)
 
@@ -245,11 +246,11 @@ async def upload_face(
             status_code=400,
         )
 
-    image = cv2.imdecode(np.frombuffer(contents, dtype=np.uint8), cv2.IMREAD_COLOR)
+    image, dbg = decode_image(contents, return_debug=True)
     if image is None:
-        logger.warning("Admin face upload rejected: unreadable image for user_id=%s", user_id)
+        logger.warning("Admin face upload rejected: unreadable image for user_id=%s: %s", user_id, dbg.get("error"))
         return JSONResponse(
-            {"ok": False, "error": "invalid_image", "message": "Ảnh không hợp lệ."},
+            {"ok": False, "error": "invalid_image", "message": f"Ảnh không hợp lệ: {dbg.get('error', 'Lỗi giải mã')}"},
             status_code=400,
         )
 
@@ -261,7 +262,7 @@ async def upload_face(
             status_code=500,
         )
     jpeg_bytes = encoded.tobytes()
-    canonical_image = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    canonical_image = decode_image(jpeg_bytes)
     if canonical_image is None:
         logger.error("Admin face JPEG could not be decoded for user_id=%s angle=%s", user_id, angle)
         return JSONResponse(

@@ -11,6 +11,7 @@ from frontend.deps import get_menu_context, require_menu, get_current_user, temp
 from backend.services.database import db
 from backend.services import config as cfg
 from backend.ai.kyc_manager import KYCManager
+from backend.util.image_utils import decode_image
 from frontend.routers.users_router import get_all_users, get_user_by_id
 from frontend.routers.strangers_router import get_stranger_log, update_stranger_status
 
@@ -67,7 +68,7 @@ def get_face_matrix(app):
             for fname in os.listdir(person_dir):
                 if not fname.lower().endswith((".jpg", ".jpeg", ".png")): continue
                 fpath = os.path.join(person_dir, fname)
-                img = cv2.imread(fpath)
+                img = decode_image(fpath)
                 if img is None:
                     logger.error("Stored KYC face image is unreadable for user_id=%s", person)
                     raise ValueError(f"Stored face image is unreadable for user {person}")
@@ -139,16 +140,16 @@ def _canonical_jpeg(contents: bytes, kind: str, user_id: int) -> tuple[np.ndarra
     if not contents or len(contents) > _MAX_KYC_IMAGE_BYTES:
         logger.warning("KYC %s image is empty or oversized for user_id=%s", kind, user_id)
         return None
-    image = cv2.imdecode(np.frombuffer(contents, dtype=np.uint8), cv2.IMREAD_COLOR)
+    image, dbg = decode_image(contents, return_debug=True)
     if image is None:
-        logger.warning("KYC %s image could not be decoded for user_id=%s", kind, user_id)
+        logger.warning("KYC %s image could not be decoded for user_id=%s: %s", kind, user_id, dbg.get("error"))
         return None
     encoded_ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 96])
     if not encoded_ok:
         logger.error("KYC %s JPEG encoding failed for user_id=%s", kind, user_id)
         raise RuntimeError("KYC JPEG encoding failed")
     jpeg_bytes = encoded.tobytes()
-    canonical = cv2.imdecode(np.frombuffer(jpeg_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
+    canonical = decode_image(jpeg_bytes)
     if canonical is None:
         logger.error("KYC %s canonical JPEG decode failed for user_id=%s", kind, user_id)
         raise RuntimeError("KYC canonical JPEG decode failed")

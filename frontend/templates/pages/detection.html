@@ -911,9 +911,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       canvas.height = naturalH;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (img instanceof HTMLImageElement && img === uploadCanvas) {
+      if (canvas === uploadCanvas) {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       }
+
+      if (!Array.isArray(results)) results = [];
 
       const detW = srcW || 640;
       const detH = srcH || 360;
@@ -961,13 +963,14 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         ctx.fillStyle = color + '15';
         ctx.fillRect(x1, y1, w, h);
 
+        const uiScale = Math.max(1, canvas.width / 960);
         ctx.strokeStyle = color + '66';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = Math.max(1, 1 * uiScale);
         ctx.strokeRect(x1, y1, w, h);
 
-        const cLen = Math.min(18, w * 0.28, h * 0.28);
+        const cLen = Math.min(24 * uiScale, w * 0.28, h * 0.28);
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2.5 * uiScale;
         ctx.lineCap = 'round';
 
         ctx.beginPath();
@@ -988,26 +991,27 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
         const confText = (r.confidence && r.confidence > 0) ? ` ${Math.round(r.confidence)}%` : '';
         const pillText = `${labelIcon} ${labelText}${confText}`;
-        ctx.font = '600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        const fontSize = Math.max(12, Math.round(13 * uiScale));
+        ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         const textMetrics = ctx.measureText(pillText);
-        const pillW = textMetrics.width + 14;
-        const pillH = 22;
+        const pillW = textMetrics.width + 14 * uiScale;
+        const pillH = 22 * uiScale;
         const pillX = Math.max(0, x1);
-        const pillY = Math.max(pillH + 4, y1 - 4);
+        const pillY = Math.max(pillH + 4 * uiScale, y1 - 4 * uiScale);
 
         ctx.fillStyle = 'rgba(9, 13, 22, 0.90)';
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(pillX, pillY - pillH, pillW, pillH, 5);
+        if (ctx.roundRect) ctx.roundRect(pillX, pillY - pillH, pillW, pillH, 5 * uiScale);
         else ctx.rect(pillX, pillY - pillH, pillW, pillH);
         ctx.fill();
 
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.2 * uiScale;
         ctx.stroke();
 
         ctx.fillStyle = '#ffffff';
         ctx.textBaseline = 'middle';
-        ctx.fillText(pillText, pillX + 7, pillY - pillH / 2);
+        ctx.fillText(pillText, pillX + 7 * uiScale, pillY - pillH / 2);
       }
     }
 
@@ -1025,8 +1029,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       let faces = 0, plates = 0, alerts = 0;
 
       data.results.forEach(r => {
-        if (!uniqueMap[r.type] || r.confidence > uniqueMap[r.type].confidence) {
-          uniqueMap[r.type] = r;
+        const key = r.type + '_' + (r.text || '');
+        if (!uniqueMap[key] || r.confidence > uniqueMap[key].confidence) {
+          uniqueMap[key] = r;
         }
         if (r.type === 'face') {
           faces++;
@@ -1337,6 +1342,10 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       if (uploadCanvas) {
         const uCtx = uploadCanvas.getContext('2d');
         uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+        uploadCanvas.classList.add('d-none');
+      }
+      if (uploadPlaceholder) {
+        uploadPlaceholder.classList.remove('d-none');
       }
     };
     if (btnClear) btnClear.addEventListener('click', window.clearResults);
@@ -1366,8 +1375,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     }
 
     if (uploadInput) {
+      uploadInput.addEventListener('click', () => {
+        uploadInput.value = '';
+      });
       uploadInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = e.target.files && e.target.files[0];
         if (!file) return;
         uploadPlaceholder.classList.add('d-none');
         uploadCanvas.classList.remove('d-none');
@@ -1400,8 +1412,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
           detectCanvas.toBlob(async (blob) => {
             const data = await sendFrame(blob, 'upload');
-            renderResults(data);
-            drawBoxes(uploadCanvas, img, data.results, sendW, sendH);
+            if (data.error) {
+              renderResults(data);
+              drawBoxes(uploadCanvas, img, [], sendW, sendH);
+            } else {
+              renderResults(data);
+              drawBoxes(uploadCanvas, img, data.results || [], sendW, sendH);
+            }
             URL.revokeObjectURL(img.src);
           }, 'image/jpeg', 0.90);
         };

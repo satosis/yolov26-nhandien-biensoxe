@@ -15,6 +15,8 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
+from backend.util.image_utils import decode_image
+
 logger = logging.getLogger(__name__)
 
 
@@ -485,9 +487,10 @@ def _detect_line_crops_by_contours(
 
 
 def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
-    with Image.open(io.BytesIO(image_bytes)) as img:
-        img = ImageOps.exif_transpose(img).convert("RGB")
-        return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    decoded = decode_image(image_bytes)
+    if decoded is None:
+        raise ValueError("Cannot decode provided image data")
+    return decoded
 
 
 def _ocr_line_results(image_bytes: bytes) -> list[dict]:

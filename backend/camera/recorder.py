@@ -7,6 +7,7 @@ from multiprocessing import Queue, Event
 from backend.services import config as cfg
 from backend.services.database import db
 from backend.services.telegram_service import notify_telegram_video
+from backend.util.image_utils import decode_image
 
 logger = logging.getLogger("recorder")
 
@@ -50,7 +51,7 @@ class RecorderProcess:
         recording_started = False
         try:
             for i, blob in enumerate(buf):
-                frame = cv2.imdecode(blob, cv2.IMREAD_COLOR)
+                frame = decode_image(blob)
                 if frame is None:
                     logger.error("Recorder prebuffer frame %d could not be decoded for camera %s", i, cam_id)
                     raise ValueError(f"Recorder prebuffer frame could not be decoded for camera {cam_id}")

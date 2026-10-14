@@ -30,7 +30,7 @@ from insightface.app import FaceAnalysis
 from backend.services import config as cfg
 from backend.services.database import db
 from backend.util.ocr_utils import VNPlateOCR
-from backend.util.image_utils import save_snapshot
+from backend.util.image_utils import save_snapshot, decode_image
 from backend.util.texture_utils import check_plate_authenticity
 from backend.util.bbox_utils import merge_plate_boxes
 
@@ -381,9 +381,9 @@ class FaceRecognizer:
             for fname in os.listdir(person_dir):
                 if not fname.lower().endswith((".jpg", ".jpeg", ".png")): continue
                 image_path = os.path.join(person_dir, fname)
-                img = cv2.imread(image_path)
+                img = decode_image(image_path)
                 if img is None:
-                    logger.error("Known face image cannot be decoded")
+                    logger.error("Known face image cannot be decoded: %s", image_path)
                     raise ValueError(f"Known face image cannot be decoded: {image_path}")
                 faces = self._app.get(img)
                 if faces:
