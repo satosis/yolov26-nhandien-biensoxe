@@ -7,7 +7,13 @@
   tab: localStorage.getItem('detection_tab') || 'rtsp',
   camMenuOpen: false,
   selectedCamId: '{{ cameras[0].id if cameras else '' }}',
-  selectedCamName: '{{ cameras[0].camera_name if cameras else 'Chưa có camera' }}'
+  selectedCamName: '{{ cameras[0].camera_name if cameras else 'Chưa có camera' }}',
+  selectedCamStatus: '{{ cameras[0].status if cameras else 'unknown' }}',
+  camStatuses: {
+    {% for cam in cameras %}
+    '{{ cam.id }}': '{{ cam.status }}',
+    {% endfor %}
+  }
 }"
 x-init="
   const saved = localStorage.getItem('selected_rtsp_camera');
@@ -16,6 +22,7 @@ x-init="
     if (el) {
       selectedCamId = saved;
       selectedCamName = el.textContent;
+      selectedCamStatus = camStatuses[saved] || 'unknown';
     }
   }
 "
@@ -43,7 +50,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
       <div x-show="tab==='rtsp'" class="position-relative">
         <button type="button" @click="camMenuOpen = !camMenuOpen" class="cam-select-capsule" title="Chọn camera">
-          <span class="cam-live-dot"></span>
+          <span class="cam-live-dot" :class="selectedCamStatus === 'stream_up' ? '' : (selectedCamStatus === 'stream_down' ? 'offline' : 'unknown')"></span>
           <span class="cam-select-text" x-text="selectedCamName"></span>
           <i class="bx bx-chevron-down cam-select-arrow" :style="camMenuOpen ? 'transform:rotate(180deg)' : ''"></i>
         </button>
@@ -59,6 +66,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
                @click="
                  selectedCamId = '{{ cam.id }}';
                  selectedCamName = '{{ cam.camera_name }}';
+                 selectedCamStatus = camStatuses['{{ cam.id }}'] || 'unknown';
                  camMenuOpen = false;
                  const sel = document.getElementById('rtsp-camera');
                  if (sel) {
@@ -66,9 +74,12 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
                    sel.dispatchEvent(new Event('change'));
                  }
                ">
-            <span class="cam-item-dot"></span>
+            <span class="cam-item-dot {{ 'offline' if cam.status == 'stream_down' else ('unknown' if cam.status != 'stream_up' else '') }}"></span>
             <span class="cam-item-name">{{ cam.camera_name }}</span>
-            <i class="bx bx-check ml-auto text-primary" x-show="selectedCamId == '{{ cam.id }}'"></i>
+            <span class="badge ml-auto mr-2" style="font-size:10px; {{ 'background:#ecfdf5;color:#059669;' if cam.status == 'stream_up' else ('background:#fef2f2;color:#dc2626;' if cam.status == 'stream_down' else 'background:#f1f5f9;color:#64748b;') }}">
+              {{ 'Online' if cam.status == 'stream_up' else ('Tắt' if cam.status == 'stream_down' else 'Chưa rõ') }}
+            </span>
+            <i class="bx bx-check text-primary" x-show="selectedCamId == '{{ cam.id }}'"></i>
           </div>
           {% endfor %}
         </div>
@@ -320,6 +331,14 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
   flex-shrink: 0;
 }
+.cam-live-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+.cam-live-dot.unknown {
+  background: #94a3b8;
+  box-shadow: none;
+}
 .cam-custom-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -358,6 +377,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   height: 7px;
   border-radius: 50%;
   background: #10b981;
+  flex-shrink: 0;
+}
+.cam-item-dot.offline {
+  background: #ef4444;
+}
+.cam-item-dot.unknown {
+  background: #94a3b8;
 }
 
 
@@ -841,13 +867,29 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       }
     }
 
-    function setStreamActiveState(isActive) {
-      if (isActive) {
-        if (statusIndicator) statusIndicator.style.display = 'inline-flex';
+    function setStreamActiveState(state) {
+      if (state === true || state === 'live') {
+        if (statusIndicator) {
+          statusIndicator.style.display = 'inline-flex';
+          statusIndicator.style.background = '';
+          statusIndicator.style.color = '';
+          statusIndicator.innerHTML = '<span class="pulse-point"></span><span>LIVE</span>';
+        }
         dockBtnPower.classList.add('active-stream');
+        dockBtnPower.title = 'Tắt camera';
+      } else if (state === 'connecting') {
+        if (statusIndicator) {
+          statusIndicator.style.display = 'inline-flex';
+          statusIndicator.style.background = 'rgba(245, 158, 11, 0.15)';
+          statusIndicator.style.color = '#f59e0b';
+          statusIndicator.innerHTML = '<i class="bx bx-loader-alt spin-anim" style="font-size:12px;"></i><span>ĐANG KẾT NỐI...</span>';
+        }
+        dockBtnPower.classList.remove('active-stream');
+        dockBtnPower.title = 'Đang kết nối (nhấn để hủy)...';
       } else {
         if (statusIndicator) statusIndicator.style.display = 'none';
         dockBtnPower.classList.remove('active-stream');
+        dockBtnPower.title = 'Bật / Dừng';
       }
     }
 
@@ -1250,6 +1292,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           window.toggleRtsp();
           return;
         }
+        rtspHasLiveFeed = true;
+        setStreamActiveState('live');
         rtspLastResults = data.results;
         renderResults(data);
       }, 'image/jpeg', 0.70);
@@ -1268,43 +1312,123 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       requestAnimationFrame(drawRtspOverlay);
     };
 
+    let rtspReconnectTimer = null;
+    let rtspStatusCheckTimer = null;
+    let rtspWatchdogTimer = null;
+    let rtspReconnectAttempts = 0;
+    let rtspHasLiveFeed = false;
+
+    function showCameraOffline(msg = 'Camera đang tắt hoặc không thể kết nối. Vui lòng kiểm tra lại nguồn/mạng của camera.') {
+      if (msg) {
+        const errBanner = document.getElementById('rtsp-error-banner');
+        const errText = document.getElementById('rtsp-error-text');
+        if (errText) errText.textContent = msg;
+        if (errBanner) errBanner.style.display = 'flex';
+      }
+
+      rtspActive = false;
+      rtspHasLiveFeed = false;
+      if (rtspDetectionLoop) { clearInterval(rtspDetectionLoop); rtspDetectionLoop = null; }
+      if (rtspReconnectTimer) { clearTimeout(rtspReconnectTimer); rtspReconnectTimer = null; }
+      if (rtspStatusCheckTimer) { clearInterval(rtspStatusCheckTimer); rtspStatusCheckTimer = null; }
+      if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+      rtspLastResults = [];
+      if (rtspFeedImg) {
+        rtspFeedImg.onerror = null;
+        rtspFeedImg.src = '';
+        rtspFeedImg.classList.add('d-none');
+      }
+      rtspFeed.classList.add('d-none');
+      rtspOverlay.classList.add('d-none');
+      const ctx = rtspOverlay.getContext('2d');
+      ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+      rtspPlaceholder.classList.remove('d-none');
+      setStreamActiveState(false);
+
+      const camId = rtspCamera ? rtspCamera.value : null;
+      if (camId) {
+        fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST', keepalive: true });
+      }
+    }
+
     function connectMJPEG(camId) {
       rtspFeed.classList.add('d-none');
+      rtspHasLiveFeed = false;
+
+      if (rtspWatchdogTimer) clearTimeout(rtspWatchdogTimer);
+      rtspWatchdogTimer = setTimeout(() => {
+        if (rtspActive && !rtspHasLiveFeed) {
+          console.warn('Watchdog: Camera took >4s to respond, camera is off.');
+          showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+        }
+      }, 4000);
+
       if (rtspFeedImg) {
+        if (rtspReconnectTimer) clearTimeout(rtspReconnectTimer);
+        rtspFeedImg.onerror = function() {
+          if (!rtspActive) return;
+          rtspReconnectAttempts++;
+          if (rtspReconnectAttempts > 1) {
+            console.warn('RTSP stream failed. Camera offline.');
+            showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+            return;
+          }
+          console.warn(`RTSP stream retry #${rtspReconnectAttempts}...`);
+          rtspReconnectTimer = setTimeout(() => {
+            if (rtspActive && rtspCamera && rtspCamera.value == camId) {
+              rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
+            }
+          }, 1500);
+        };
         rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
         rtspFeedImg.classList.remove('d-none');
       }
+
+      if (rtspStatusCheckTimer) clearInterval(rtspStatusCheckTimer);
+      rtspStatusCheckTimer = setInterval(async () => {
+        if (!rtspActive || !rtspCamera || rtspCamera.value != camId) {
+          clearInterval(rtspStatusCheckTimer);
+          return;
+        }
+        try {
+          const res = await fetch(`/admin/cameras/${camId}/stream/status`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.streaming === false) {
+              console.warn('Backend stream status: camera stopped.');
+              showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+            }
+          }
+        } catch (e) {
+          // ignore network glitch
+        }
+      }, 1500);
     }
 
     window.toggleRtsp = async () => {
       const camId = rtspCamera.value;
       if (!camId) return;
 
-      if (rtspActive) {
-        rtspActive = false;
-        if (rtspDetectionLoop) clearInterval(rtspDetectionLoop);
-        rtspDetectionLoop = null;
-        rtspLastResults = [];
-        if (rtspFeedImg) {
-          rtspFeedImg.src = '';
-          rtspFeedImg.classList.add('d-none');
-        }
-        rtspFeed.classList.add('d-none');
-        rtspOverlay.classList.add('d-none');
-        const ctx = rtspOverlay.getContext('2d');
-        ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
-        rtspPlaceholder.classList.remove('d-none');
-        setStreamActiveState(false);
-        fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST', keepalive: true });
+      const isCurrentlyOpen = rtspActive || (rtspFeedImg && !rtspFeedImg.classList.contains('d-none'));
+
+      if (isCurrentlyOpen) {
+        showCameraOffline('');
+        const errBanner = document.getElementById('rtsp-error-banner');
+        if (errBanner) errBanner.style.display = 'none';
       } else {
         const errBanner = document.getElementById('rtsp-error-banner');
         if (errBanner) errBanner.style.display = 'none';
+
+        rtspReconnectAttempts = 0;
+        rtspHasLiveFeed = false;
+        if (rtspStatusCheckTimer) { clearInterval(rtspStatusCheckTimer); rtspStatusCheckTimer = null; }
+        if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
 
         fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
 
         rtspActive = true;
         rtspPlaceholder.classList.add('d-none');
-        setStreamActiveState(true);
+        setStreamActiveState('connecting');
         connectMJPEG(camId);
 
         rtspDetectionLoop = setInterval(runRtspDetection, 600);
@@ -1313,6 +1437,14 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     };
 
     function stopActiveRtspStream() {
+      if (rtspStatusCheckTimer) {
+        clearInterval(rtspStatusCheckTimer);
+        rtspStatusCheckTimer = null;
+      }
+      if (rtspWatchdogTimer) {
+        clearTimeout(rtspWatchdogTimer);
+        rtspWatchdogTimer = null;
+      }
       if (rtspActive && rtspCamera && rtspCamera.value) {
         const cid = rtspCamera.value;
         fetch(`/admin/cameras/${cid}/stream/stop`, { method: 'POST', keepalive: true });
