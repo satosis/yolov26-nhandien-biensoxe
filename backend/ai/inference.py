@@ -25,8 +25,6 @@ from typing import Optional
 ort = importlib.import_module("onnxruntime") if importlib.util.find_spec("onnxruntime") else None
 _HAS_ORT = ort is not None
 
-from insightface.app import FaceAnalysis
-
 from backend.services import config as cfg
 from backend.services.database import db
 from backend.util.ocr_utils import VNPlateOCR
@@ -345,6 +343,8 @@ class OCRReader:
 
 class FaceRecognizer:
     def __init__(self):
+        from insightface.app import FaceAnalysis
+
         preferred = ["CPUExecutionProvider"]
         self._app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=preferred)
         self._app.prepare(ctx_id=-1, det_size=(640, 640))

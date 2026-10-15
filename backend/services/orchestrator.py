@@ -120,19 +120,19 @@ class CameraOrchestrator:
             )
             streaming_ids = {str(c['id']) for c in streaming_cams}
 
-            if streaming_cams and not self.core_processes:
-                self.start_inference()
-
             for cam in streaming_cams:
                 cid = str(cam['id'])
                 grabber = self.grabbers.get(cid)
                 if grabber is None:
                     self.spawn_grabber(cam)
                 elif not grabber.is_alive():
-                    logger.error("Grabber %s exited with code %s", grabber.name, grabber.exitcode)
-                    raise RuntimeError(
-                        f"Grabber {grabber.name} (PID {grabber.pid}) exited with code {grabber.exitcode}"
-                    )
+                    logger.warning("Grabber %s for camera %s stopped (exitcode %s)", grabber.name, cid, grabber.exitcode)
+                    self.stop_grabber(cid)
+                    from backend.camera import camera_service as cam_svc
+                    cam_svc.set_camera_streaming(cam['id'], False)
+
+            if streaming_cams and not self.core_processes:
+                self.start_inference()
 
             active_cid_list = list(self.grabbers.keys())
             for cid in active_cid_list:

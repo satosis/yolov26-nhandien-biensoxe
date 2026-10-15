@@ -83,7 +83,20 @@ class CameraReader:
         self._camera_db_id = camera_db_id
 
         total = self.HEADER_BYTES + cfg.SHM_FRAME_BYTES
-        self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
+        try:
+            self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
+        except FileExistsError:
+            try:
+                self._shm = shared_memory.SharedMemory(name=shm_name)
+            except Exception:
+                try:
+                    old_shm = shared_memory.SharedMemory(name=shm_name)
+                    old_shm.close()
+                    old_shm.unlink()
+                except Exception:
+                    pass
+                self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
+
         self._buf = np.ndarray(
             (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3),
             dtype=np.uint8,
@@ -109,6 +122,7 @@ class CameraReader:
                     break
 
                 logger.info("[%s] Stream opened", self.cam_id)
+                self._write_health_event('stream_up')
                 t_last = time.monotonic()
                 read_failed = False
                 stable_frames = 0
@@ -227,7 +241,13 @@ class CameraReader:
         
         logger.info("[%s] Attempting to open camera stream", self.cam_id)
         
-        cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+        params = []
+        if hasattr(cv2, 'CAP_PROP_OPEN_TIMEOUT_MSEC'):
+            params.extend([cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 3000])
+        if hasattr(cv2, 'CAP_PROP_READ_TIMEOUT_MSEC'):
+            params.extend([cv2.CAP_PROP_READ_TIMEOUT_MSEC, 3000])
+
+        cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG, params) if params else cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
         if not cap.isOpened() and not self.rtsp_url.startswith("rtsp://"):
             cap.release()
             cap = cv2.VideoCapture(self.rtsp_url)
