@@ -26,7 +26,7 @@ x-init="
     }
   }
 "
-x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam();">
+x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) window.clearResults(); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam(); if(tab !== 'video' && window.stopVideo) window.stopVideo();">
 
 
   <div class="cam-app-bar">
@@ -44,6 +44,10 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         <button type="button" class="cam-seg-btn" :class="tab==='upload' ? 'active' : ''" @click="tab='upload'" title="Tải ảnh">
           <i class="bx bx-image-add"></i>
           <span>Ảnh</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='video' ? 'active' : ''" @click="tab='video'" title="Nhận diện Video">
+          <i class="bx bx-video"></i>
+          <span>Video</span>
         </button>
       </div>
 
@@ -158,6 +162,21 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             </div>
           </div>
 
+
+          <div x-show="tab==='video'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <input type="file" id="video-upload-input" accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*" class="d-none">
+            <video id="video-player" playsinline controls loop class="cam-media-element d-none" style="object-fit:contain;"></video>
+            <canvas id="video-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+            <div id="video-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('video-upload-input').click()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-video-plus" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Chọn video</div>
+              <small class="text-muted mt-1" style="font-size:11px;">Hỗ trợ MP4, WebM, MOV...</small>
+            </div>
+          </div>
+
         </div>
 
         <div class="cam-floating-dock">
@@ -173,8 +192,12 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             <i class="bx bx-devices"></i>
           </button>
 
-          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp">
+          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp ảnh">
             <i class="bx bx-folder-open"></i>
+          </button>
+
+          <button type="button" class="dock-btn" x-show="tab==='video'" onclick="document.getElementById('video-upload-input').click()" title="Chọn tệp video">
+            <i class="bx bx-movie-play"></i>
           </button>
 
           <button type="button" class="dock-btn" id="dock-btn-fullscreen" title="Toàn màn hình" onclick="toggleFullscreen()">
@@ -819,6 +842,15 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     const uploadInput = document.getElementById('upload-input');
     const uploadCanvas = document.getElementById('upload-canvas');
     const uploadPlaceholder = document.getElementById('upload-placeholder');
+    const videoUploadInput = document.getElementById('video-upload-input');
+    const videoPlayer = document.getElementById('video-player');
+    const videoOverlay = document.getElementById('video-overlay');
+    const videoPlaceholder = document.getElementById('video-placeholder');
+    const videoCaptureCanvas = document.createElement('canvas');
+    let videoDetectionLoop = null;
+    let videoProcessing = false;
+    let videoLastResults = [];
+    let videoAnimFrame = null;
     const resultsDiv = document.getElementById('detection-results');
 
     const rtspCamera = document.getElementById('rtsp-camera');
@@ -901,6 +933,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         window.toggleWebcam();
       } else if (currentTab === 'upload') {
         uploadInput.click();
+      } else if (currentTab === 'video') {
+        if (!videoPlayer || videoPlayer.classList.contains('d-none') || !videoPlayer.src) {
+          videoUploadInput.click();
+        } else {
+          if (videoPlayer.paused) videoPlayer.play();
+          else videoPlayer.pause();
+        }
       }
     };
 
@@ -923,6 +962,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         activeSource = video;
       } else if (currentTab === 'upload' && !uploadCanvas.classList.contains('d-none')) {
         activeSource = uploadCanvas;
+      } else if (currentTab === 'video' && videoPlayer && !videoPlayer.classList.contains('d-none')) {
+        activeSource = videoPlayer;
       }
 
       if (!activeSource) return;
@@ -1479,6 +1520,21 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       if (uploadPlaceholder) {
         uploadPlaceholder.classList.remove('d-none');
       }
+      if (videoOverlay) {
+        const vCtx = videoOverlay.getContext('2d');
+        vCtx.clearRect(0, 0, videoOverlay.width, videoOverlay.height);
+        videoOverlay.classList.add('d-none');
+      }
+      if (videoPlayer) {
+        videoLastResults = [];
+        if (!videoPlayer.classList.contains('d-none')) {
+          videoPlayer.pause();
+          videoPlayer.classList.add('d-none');
+        }
+      }
+      if (videoPlaceholder) {
+        videoPlaceholder.classList.remove('d-none');
+      }
     };
     if (btnClear) btnClear.addEventListener('click', window.clearResults);
 
@@ -1563,9 +1619,173 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       });
     }
 
+    let videoLastSrcW = 1280;
+    let videoLastSrcH = 720;
+
+    const captureVideoFrame = () => {
+      if (!videoPlayer || !videoPlayer.videoWidth || videoPlayer.readyState < 2) return null;
+      const vw = videoPlayer.videoWidth;
+      const vh = videoPlayer.videoHeight;
+      const maxDim = 1280;
+      let sendW = vw;
+      let sendH = vh;
+      if (sendW > maxDim || sendH > maxDim) {
+        const ratio = Math.min(maxDim / sendW, maxDim / sendH);
+        sendW = Math.round(sendW * ratio);
+        sendH = Math.round(sendH * ratio);
+      }
+      videoLastSrcW = sendW;
+      videoLastSrcH = sendH;
+      videoCaptureCanvas.width = sendW;
+      videoCaptureCanvas.height = sendH;
+      const ctx = videoCaptureCanvas.getContext('2d', { alpha: false });
+      ctx.drawImage(videoPlayer, 0, 0, sendW, sendH);
+      return { sendW, sendH };
+    };
+
+    const runVideoDetection = async () => {
+      if (!videoPlayer || videoProcessing) return;
+      if (videoPlayer.paused || videoPlayer.ended) return;
+      const frameInfo = captureVideoFrame();
+      if (!frameInfo) return;
+
+      videoProcessing = true;
+      videoCaptureCanvas.toBlob(async (blob) => {
+        try {
+          const data = await sendFrame(blob, 'upload');
+          if (data && !data.error && Array.isArray(data.results)) {
+            videoLastResults = data.results;
+            renderResults(data);
+          }
+        } catch (e) {
+          console.error('Video detection error:', e);
+        } finally {
+          videoProcessing = false;
+        }
+      }, 'image/jpeg', 0.85);
+    };
+
+    const runOneShotVideoDetection = async () => {
+      if (!videoPlayer || videoProcessing) return;
+      const frameInfo = captureVideoFrame();
+      if (!frameInfo) return;
+
+      videoProcessing = true;
+      videoCaptureCanvas.toBlob(async (blob) => {
+        try {
+          const data = await sendFrame(blob, 'upload');
+          if (data && !data.error && Array.isArray(data.results)) {
+            videoLastResults = data.results;
+            renderResults(data);
+          }
+        } catch (e) {
+          console.error('One-shot video detection error:', e);
+        } finally {
+          videoProcessing = false;
+        }
+      }, 'image/jpeg', 0.88);
+    };
+
+    const drawVideoOverlay = () => {
+      const currentTab = localStorage.getItem('detection_tab');
+      if (currentTab === 'video' && videoPlayer && !videoPlayer.classList.contains('d-none')) {
+        if (videoPlayer.videoWidth && videoLastResults.length > 0) {
+          videoOverlay.classList.remove('d-none');
+          drawBoxes(videoOverlay, videoPlayer, videoLastResults, videoLastSrcW, videoLastSrcH);
+        }
+      }
+      videoAnimFrame = requestAnimationFrame(drawVideoOverlay);
+    };
+
+    function startVideoDetection() {
+      if (videoDetectionLoop) clearInterval(videoDetectionLoop);
+      videoDetectionLoop = setInterval(runVideoDetection, 500);
+      if (!videoAnimFrame) {
+        videoAnimFrame = requestAnimationFrame(drawVideoOverlay);
+      }
+    }
+
+    function stopVideoDetectionLoop() {
+      if (videoDetectionLoop) {
+        clearInterval(videoDetectionLoop);
+        videoDetectionLoop = null;
+      }
+    }
+
+    window.stopVideo = function () {
+      stopVideoDetectionLoop();
+      if (videoPlayer) {
+        videoPlayer.pause();
+        setStreamActiveState(false);
+      }
+    };
+
+    if (videoUploadInput && videoPlayer) {
+      videoUploadInput.addEventListener('click', () => {
+        videoUploadInput.value = '';
+      });
+      videoUploadInput.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        window.stopVideo();
+        if (videoPlayer.src && videoPlayer.src.startsWith('blob:')) {
+          URL.revokeObjectURL(videoPlayer.src);
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        videoPlayer.src = objectUrl;
+        videoPlayer.classList.remove('d-none');
+        if (videoPlaceholder) videoPlaceholder.classList.add('d-none');
+        if (videoOverlay) videoOverlay.classList.remove('d-none');
+
+        // Start overlay drawing loop
+        if (!videoAnimFrame) {
+          videoAnimFrame = requestAnimationFrame(drawVideoOverlay);
+        }
+
+        videoPlayer.play().catch(() => {});
+      });
+
+      videoPlayer.addEventListener('loadeddata', () => {
+        // Run initial detection immediately upon loading
+        setTimeout(() => runOneShotVideoDetection(), 200);
+      });
+
+      videoPlayer.addEventListener('play', () => {
+        startVideoDetection();
+        setStreamActiveState(true);
+      });
+
+      videoPlayer.addEventListener('pause', () => {
+        stopVideoDetectionLoop();
+        setStreamActiveState(false);
+        // Run detection on paused frame so bounding box is visible
+        setTimeout(() => runOneShotVideoDetection(), 100);
+      });
+
+      videoPlayer.addEventListener('ended', () => {
+        stopVideoDetectionLoop();
+        setStreamActiveState(false);
+        setTimeout(() => runOneShotVideoDetection(), 100);
+      });
+
+      videoPlayer.addEventListener('seeked', () => {
+        setTimeout(() => runOneShotVideoDetection(), 150);
+      });
+
+      // Start animation loop once
+      if (!videoAnimFrame) {
+        videoAnimFrame = requestAnimationFrame(drawVideoOverlay);
+      }
+    }
+
     document.addEventListener('visibilitychange', () => {
       if (document.hidden && stream) {
         window.stopWebcam();
+      }
+      if (document.hidden && videoPlayer && !videoPlayer.paused) {
+        videoPlayer.pause();
       }
     });
 

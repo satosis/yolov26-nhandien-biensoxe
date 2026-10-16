@@ -31,11 +31,17 @@ def get_parking_history(limit=50, date_filter=None) -> list[dict]:
         params.append(date_filter)
     params.append(limit)
     query = f"""
-        SELECT vs.*, s.site_name, c_in.camera_name as cam_in, c_out.camera_name as cam_out
+        SELECT
+            vs.*,
+            vs.plate_norm AS plate_number,
+            s.site_name,
+            c_in.camera_name AS cam_in,
+            c_out.camera_name AS cam_out,
+            COALESCE(c_in.camera_name, c_out.camera_name) AS camera_name
         FROM vehicle_sessions vs
         LEFT JOIN sites s ON vs.site_id = s.id
-        LEFT JOIN cameras c_in ON vs.camera_id_in = c_in.id
-        LEFT JOIN cameras c_out ON vs.camera_id_out = c_out.id
+        LEFT JOIN cameras c_in ON c_in.id::text = vs.camera_id_in
+        LEFT JOIN cameras c_out ON c_out.id::text = vs.camera_id_out
         {where}
         ORDER BY vs.entry_time DESC
         LIMIT %s
@@ -47,6 +53,44 @@ def _aggregate_stats(rows: list) -> dict:
     total_slots = sum(r.get("total_slots") or 0 for r in rows)
     occupied = sum(r.get("occupied_slots") or 0 for r in rows)
     return {"total_slots": total_slots, "occupied": occupied}
+
+
+def _get_analytics_kpi(site_id=None) -> dict:
+    where = ""
+    params = []
+    if site_id is not None:
+        where = "WHERE site_id = %s"
+        params.append(site_id)
+
+    query = f"""
+        SELECT
+            COUNT(*) FILTER (WHERE entry_time >= CURRENT_DATE) AS today_count,
+            COUNT(*) FILTER (WHERE entry_time >= date_trunc('week', CURRENT_DATE)) AS week_count,
+            COUNT(*) FILTER (WHERE entry_time >= date_trunc('month', CURRENT_DATE)) AS month_count,
+            AVG(stay_duration) FILTER (WHERE stay_duration IS NOT NULL AND stay_duration > 0) AS avg_duration_sec
+        FROM vehicle_sessions
+        {where}
+    """
+    row = db.execute_query(query, tuple(params) if params else None, fetch=True)
+    if not row:
+        return {"today_count": 0, "week_count": 0, "month_count": 0, "avg_duration": "—"}
+
+    avg_sec = row.get("avg_duration_sec")
+    if avg_sec:
+        avg_min = int(avg_sec // 60)
+        if avg_min < 60:
+            avg_str = f"{avg_min} phút"
+        else:
+            avg_str = f"{avg_min // 60}h {avg_min % 60}p"
+    else:
+        avg_str = "—"
+
+    return {
+        "today_count": row.get("today_count") or 0,
+        "week_count": row.get("week_count") or 0,
+        "month_count": row.get("month_count") or 0,
+        "avg_duration": avg_str,
+    }
 
 
 def _build_peak_hours(history: list) -> dict:
@@ -87,7 +131,9 @@ async def analytics(request: Request, user: dict = Depends(require_menu("parking
     site_id = request.session.get("active_site_id") or None
     rows = get_occupancy_stats(site_id=site_id)
     history = get_parking_history(limit=200)
-    ctx["stats"] = _aggregate_stats(rows)
+    kpi_stats = _get_analytics_kpi(site_id=site_id)
+    kpi_stats.update(_aggregate_stats(rows))
+    ctx["stats"] = kpi_stats
     ctx["peak_hours"] = _build_peak_hours(history)
     ctx["recent_events"] = get_parking_history(limit=10)
     return templates.TemplateResponse("pages/parking_analytics.html", {"request": request, **ctx})

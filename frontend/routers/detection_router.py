@@ -341,7 +341,7 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
                 "owner_name": owner_name,
                 "bbox": [x1, y1, x2, y2],
             }
-            if source == "upload":
+            if source in ("upload", "video"):
                 plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
             plate_res.append(plate_item)
         elif cls_id == 1:
@@ -427,9 +427,9 @@ async def detect_image(request: Request,
             })
 
         s_id = request.session.get("active_site_id") or None
-        if source == "upload":
-            # For uploaded images, run plate/vehicle detection synchronously
-            plate_res = _detect_plates(frame_bgr, s_id, source="upload")
+        if source in ("upload", "video"):
+            # For uploaded images and videos, run plate/vehicle detection synchronously
+            plate_res = _detect_plates(frame_bgr, s_id, source=source)
             res.extend(plate_res)
         else:
             # For live streams, trigger async plate detector in background
