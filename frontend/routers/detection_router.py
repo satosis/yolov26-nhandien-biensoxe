@@ -500,12 +500,17 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
     async def _stream():
         shm = None
         attach_start = time.time()
-        max_wait_seconds = 7.0
+        max_wait_seconds = 15.0
 
         # Wait and retry until Backend Grabber creates SharedMemory
         while shm is None and not await request.is_disconnected():
             try:
                 shm = sm.SharedMemory(name=shm_name)
+                try:
+                    from multiprocessing import resource_tracker
+                    resource_tracker.unregister(shm._name, "shared_memory")
+                except Exception:
+                    pass
                 logger.info("Camera %s: Attached to Backend SharedMemory successfully", camera_id)
             except FileNotFoundError:
                 elapsed = time.time() - attach_start
@@ -513,7 +518,7 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                     logger.warning("Camera %s: Timed out waiting for SharedMemory (%s)", camera_id, shm_name)
                     yield _placeholder_frame("Camera dang tat hoac mat ket noi")
                     return
-                if elapsed > 2.0:
+                if elapsed > 10.0:
                     cam = cam_svc.get_camera(camera_id)
                     if not cam or not cam.get("is_streaming", False):
                         logger.warning("Camera %s: Stream is down / offline in DB", camera_id)
@@ -538,8 +543,8 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                 # If grabber hasn't written any frame yet
                 if counter == 0:
                     elapsed = time.time() - attach_start
-                    if elapsed > 3.5:
-                        logger.warning("Camera %s: No frames received within 3.5s, camera stream down", camera_id)
+                    if elapsed > 15.0:
+                        logger.warning("Camera %s: No frames received within 15s, camera stream down", camera_id)
                         yield _placeholder_frame("Camera dang tat hoac mat ket noi")
                         break
                     yield _placeholder_frame(f"Dang ket noi Camera {camera_id}...")

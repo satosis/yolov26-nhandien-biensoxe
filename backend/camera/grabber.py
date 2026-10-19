@@ -97,6 +97,12 @@ class CameraReader:
                     pass
                 self._shm = shared_memory.SharedMemory(name=shm_name, create=True, size=total)
 
+        try:
+            from multiprocessing import resource_tracker
+            resource_tracker.unregister(self._shm._name, "shared_memory")
+        except Exception:
+            pass
+
         self._buf = np.ndarray(
             (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3),
             dtype=np.uint8,

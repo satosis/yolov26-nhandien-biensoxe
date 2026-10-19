@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
-from backend.ai.stranger_manager import get_stranger_manager
+from backend.ai.stranger_manager import get_stranger_manager, merge_duplicate_strangers
 from frontend.routers.users_router import get_all_users, get_user_by_id
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,10 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "strangers"
     active_site_id = ctx.get("active_site_id")
+    try:
+        merge_duplicate_strangers()
+    except Exception as e:
+        logger.warning("Auto-clustering strangers on page load error: %s", e)
     ctx["strangers"] = get_stranger_logs(status="new", limit=50, site_id=active_site_id or None)
     ctx["all_users"] = get_all_users()
     return templates.TemplateResponse("pages/strangers.html", {"request": request, **ctx})

@@ -32,6 +32,7 @@ class CameraOrchestrator:
         self.grabbers = {}
         self._last_cleanup_ts = 0
         self._last_health_ts = 0
+        self._last_stranger_merge_ts = 0
 
     def start_inference(self):
         if self.core_processes:
@@ -143,6 +144,16 @@ class CameraOrchestrator:
                 self._last_cleanup_ts = now
                 from backend.services.retention_manager import RetentionManager
                 RetentionManager().run()
+
+            if now - self._last_stranger_merge_ts > 60:
+                self._last_stranger_merge_ts = now
+                try:
+                    from backend.ai.stranger_manager import merge_duplicate_strangers
+                    merged = merge_duplicate_strangers()
+                    if merged > 0:
+                        logger.info("Auto-merged %d duplicate stranger records", merged)
+                except Exception as e:
+                    logger.warning("Periodic stranger merge error: %s", e)
 
             time.sleep(1)
 

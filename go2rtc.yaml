@@ -1,5 +1,6 @@
 streams:
-  cam_7: rtsp://admin:bB123456789@@192.168.43.111:554/cam/realmonitor?channel=1&subtype=1
+  cam_9: rtsp://admin:bB123456789@@192.170.43.1:554/cam/realmonitor?channel=1&subtype=1
+  cam_7: rtsp://admin:bB123456789@@192.170.43.1:554/cam/realmonitor?channel=1&subtype=1
 
 webrtc:
   candidates:

@@ -1364,7 +1364,7 @@ COPY public.camera_status_log (id, camera_id, status, event_type, notes, logged_
 --
 
 COPY public.cameras (id, camera_name, camera_type, imou_device_id, imou_channel_id, rtsp_url, onvif_rtsp_detected, camera_ip, camera_port, provider_keys, site_ids, is_active, is_streaming, created_at, updated_at) FROM stdin;
-9	Ranger 2-H3-B063	imou	5552ABJPSFFB063	0	rtsp://admin:bB123456789%40@192.170.43.26:554/cam/realmonitor?channel=1&subtype=1	\N	192.170.43.26	554	{"mk": "bB123456789@"}	\N	t	f	2026-09-19 06:13:01.223405+00	2026-10-07 11:01:18.836948+00
+9	Ranger 2-H3-B063	imou	5552ABJPSFFB063	0	rtsp://admin:bB123456789%40@192.170.43.1:554/cam/realmonitor?channel=1&subtype=1	\N	192.170.43.1	554	{"mk": "bB123456789@"}	\N	t	f	2026-09-19 06:13:01.223405+00	2026-10-07 11:01:18.836948+00
 \.
 
 

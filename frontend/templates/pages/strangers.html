@@ -33,12 +33,10 @@
     },
     async bulkDelete() {
       if (!this.selected.length || this.busy) return;
-      if (!confirm('Xóa vĩnh viễn ' + this.selected.length + ' người lạ đã chọn khỏi DB? Không thể hoàn tác.')) return;
       await this.submitChange('/admin/strangers/bulk-delete', { ids: this.selected });
     },
     async deleteOne(id) {
       if (this.busy) return;
-      if (!confirm('Xóa vĩnh viễn người lạ này khỏi DB? Không thể hoàn tác.')) return;
       await this.submitChange('/admin/strangers/bulk-delete', { ids: [id] });
     }
   }">
@@ -47,7 +45,7 @@
   {% if strangers %}
 
   <div class="card mb-3">
-    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between" style="gap:10px;">
+    <div class="card-body py-2 px-3 d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
       <label class="d-flex align-items-center mb-0 text-muted" style="font-size:13px;cursor:pointer;gap:8px;">
         <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
                style="width:16px;height:16px;">
@@ -67,8 +65,8 @@
           Đăng ký đã chọn
         </button>
         <button @click="bulkDelete()" :disabled="busy"
-                class="btn btn-sm btn-danger font-weight-bold">
-          🗑 Xóa đã chọn
+                class="btn btn-sm btn-danger font-weight-bold d-inline-flex align-items-center">
+          <i class="bx bx-trash mr-1"></i> Xóa đã chọn
         </button>
       </div>
     </div>
@@ -139,14 +137,16 @@
           </form>
 
           <form action="/admin/strangers/{{ s.id }}/review" method="POST" class="mb-0">
-            <button type="submit" class="btn btn-sm btn-light border text-muted" title="Bỏ qua">
-              ✕
+            <button type="submit" class="btn btn-sm btn-light border text-muted d-inline-flex align-items-center justify-content-center"
+                    style="width:31px;height:31px;" title="Bỏ qua">
+              <i class="bx bx-x font-size-16"></i>
             </button>
           </form>
 
           <button type="button" @click="deleteOne('{{ s.id }}')"
-                  class="btn btn-sm btn-danger" title="Xóa khỏi DB">
-            🗑
+                  class="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center"
+                  style="width:31px;height:31px;" title="Xóa">
+            <i class="bx bx-trash font-size-14"></i>
           </button>
         </div>
 

@@ -689,7 +689,13 @@ class InferenceWorker:
 
     def _get_shm_frame(self, shm_name: str):
         if shm_name not in self._shm_clients:
-            self._shm_clients[shm_name] = shared_memory.SharedMemory(name=shm_name, create=False)
+            client = shared_memory.SharedMemory(name=shm_name, create=False)
+            try:
+                from multiprocessing import resource_tracker
+                resource_tracker.unregister(client._name, "shared_memory")
+            except Exception:
+                pass
+            self._shm_clients[shm_name] = client
         shm = self._shm_clients[shm_name]
         counter = np.ndarray((1,), dtype=np.uint32, buffer=shm.buf[0:4])
         arr = np.ndarray((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8, buffer=shm.buf[4:])

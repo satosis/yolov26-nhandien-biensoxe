@@ -1317,6 +1317,12 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0 && el.complete) : (el.videoWidth > 0 && el.readyState >= 2);
       if (!hasContent) return;
 
+      if (!rtspHasLiveFeed) {
+        rtspHasLiveFeed = true;
+        setStreamActiveState('live');
+        if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+      }
+
       rtspProcessing = true;
       rtspCaptureCanvas.width = 640;
       rtspCaptureCanvas.height = 360;
@@ -1330,11 +1336,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         if (!rtspActive) return;
         if (data.error) {
           renderResults(data);
-          window.toggleRtsp();
           return;
         }
-        rtspHasLiveFeed = true;
-        setStreamActiveState('live');
         rtspLastResults = data.results;
         renderResults(data);
       }, 'image/jpeg', 0.70);
@@ -1399,17 +1402,24 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       if (rtspWatchdogTimer) clearTimeout(rtspWatchdogTimer);
       rtspWatchdogTimer = setTimeout(() => {
         if (rtspActive && !rtspHasLiveFeed) {
-          console.warn('Watchdog: Camera took >4s to respond, camera is off.');
+          console.warn('Watchdog: Camera took >20s to respond, camera is off.');
           showCameraOffline('Camera đang tắt hoặc mất kết nối.');
         }
-      }, 4000);
+      }, 20000);
 
       if (rtspFeedImg) {
         if (rtspReconnectTimer) clearTimeout(rtspReconnectTimer);
+        rtspFeedImg.onload = function() {
+          if (!rtspActive) return;
+          rtspReconnectAttempts = 0;
+          rtspHasLiveFeed = true;
+          setStreamActiveState('live');
+          if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+        };
         rtspFeedImg.onerror = function() {
           if (!rtspActive) return;
           rtspReconnectAttempts++;
-          if (rtspReconnectAttempts > 1) {
+          if (rtspReconnectAttempts > 3) {
             console.warn('RTSP stream failed. Camera offline.');
             showCameraOffline('Camera đang tắt hoặc mất kết nối.');
             return;
@@ -1419,16 +1429,22 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
             if (rtspActive && rtspCamera && rtspCamera.value == camId) {
               rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
             }
-          }, 1500);
+          }, 2000);
         };
         rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
         rtspFeedImg.classList.remove('d-none');
       }
 
       if (rtspStatusCheckTimer) clearInterval(rtspStatusCheckTimer);
+      const streamStartedAt = Date.now();
+      let offlineStreak = 0;
       rtspStatusCheckTimer = setInterval(async () => {
         if (!rtspActive || !rtspCamera || rtspCamera.value != camId) {
           clearInterval(rtspStatusCheckTimer);
+          return;
+        }
+        // Give backend at least 10 seconds grace period to spawn grabber and open RTSP
+        if (Date.now() - streamStartedAt < 10000) {
           return;
         }
         try {
@@ -1436,14 +1452,19 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           if (res.ok) {
             const data = await res.json();
             if (data.ok && data.streaming === false) {
-              console.warn('Backend stream status: camera stopped.');
-              showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+              offlineStreak++;
+              if (offlineStreak >= 3) {
+                console.warn('Backend stream status: camera stopped.');
+                showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+              }
+            } else {
+              offlineStreak = 0;
             }
           }
         } catch (e) {
           // ignore network glitch
         }
-      }, 1500);
+      }, 2500);
     }
 
     window.toggleRtsp = async () => {
