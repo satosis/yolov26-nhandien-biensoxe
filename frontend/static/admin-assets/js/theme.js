@@ -10,17 +10,13 @@
     'use strict';
 
     function initMetisMenu() {
-        // Robust accordion for the sidebar (does not depend on the metisMenu plugin,
-        // which can fail to bind when the menu is wrapped by simplebar).
+        // Toggle each sidebar group independently of the others.
         $(document).on("click", "#side-menu a.has-arrow", function (e) {
             e.preventDefault();
             var $a = $(this);
             var $li = $a.parent();
             var $sub = $a.next("ul");
             var isOpen = $li.hasClass("mm-active");
-            // Accordion: collapse sibling groups
-            $li.siblings(".mm-active").removeClass("mm-active")
-               .children("ul").removeClass("mm-show").attr("aria-expanded", false);
             if (isOpen) {
                 $li.removeClass("mm-active");
                 $sub.removeClass("mm-show").attr("aria-expanded", false);

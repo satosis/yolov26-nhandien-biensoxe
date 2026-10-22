@@ -1,0 +1,98 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý API Key{% endblock %}
+{% block page_title %}Quản lý API Key{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  {% if saved %}
+  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đã lưu khóa API.', type: 'success'}})));</script>
+  {% elif error == 'invalid' %}
+  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Key và value không hợp lệ hoặc bị trùng.', type: 'error'}})));</script>
+  {% elif error == 'conflict' %}
+  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Key đã được sử dụng ở phần cấu hình khác.', type: 'error'}})));</script>
+  {% elif error == 'save_failed' %}
+  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Không lưu được khóa API.', type: 'error'}})));</script>
+  {% endif %}
+
+  <form method="post" action="/admin/api-keys/entries" class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <button type="button" class="btn btn-primary btn-sm" onclick="addApiKeyRow()">
+        <i class="bx bx-plus mr-1"></i>Thêm key
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:35%;">Key</th>
+            <th>Value</th>
+            <th style="width:85px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="api-key-rows">
+          {% for item in api_keys %}
+          <tr class="api-key-item">
+            <td class="text-center text-muted font-weight-medium key-stt" style="vertical-align:middle;">{{ loop.index }}</td>
+            <td><input name="keys" value="{{ item.key }}" class="form-control font-monospace" required maxlength="128" aria-label="Key"></td>
+            <td><input name="values" value="{{ item.value }}" type="password" class="form-control font-monospace" required aria-label="Value của {{ item.key }}"></td>
+            <td class="text-right text-nowrap">
+              <button type="button" class="btn btn-light btn-sm" onclick="toggleApiKeyValue(this)" aria-label="Hiện hoặc ẩn value" title="Hiện hoặc ẩn value"><i class="bx bx-show"></i></button>
+              <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeApiKeyRow(this)" aria-label="Xóa key" title="Xóa key"><i class="bx bx-trash"></i></button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer text-right">
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bx bx-save mr-1"></i>Lưu thay đổi</button>
+    </div>
+  </form>
+</div>
+
+<template id="api-key-row-template">
+  <tr class="api-key-item">
+    <td class="text-center text-muted font-weight-medium key-stt" style="vertical-align:middle;"></td>
+    <td><input name="keys" class="form-control font-monospace" required maxlength="128" placeholder="KEY_NAME" aria-label="Key"></td>
+    <td><input name="values" type="password" class="form-control font-monospace" required placeholder="Value" aria-label="Value"></td>
+    <td class="text-right text-nowrap">
+      <button type="button" class="btn btn-light btn-sm" onclick="toggleApiKeyValue(this)" aria-label="Hiện hoặc ẩn value" title="Hiện hoặc ẩn value"><i class="bx bx-show"></i></button>
+      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeApiKeyRow(this)" aria-label="Xóa key" title="Xóa key"><i class="bx bx-trash"></i></button>
+    </td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renumberApiKeyRows() {
+  document.querySelectorAll('#api-key-rows tr.api-key-item').forEach((tr, idx) => {
+    const stt = tr.querySelector('.key-stt');
+    if (stt) stt.textContent = idx + 1;
+  });
+}
+
+function removeApiKeyRow(button) {
+  const tr = button.closest('tr');
+  if (tr) {
+    tr.remove();
+    renumberApiKeyRows();
+  }
+}
+
+function addApiKeyRow() {
+  const row = document.getElementById('api-key-row-template').content.firstElementChild.cloneNode(true);
+  document.getElementById('api-key-rows').appendChild(row);
+  renumberApiKeyRows();
+  row.querySelector('[name="keys"]').focus();
+}
+
+function toggleApiKeyValue(button) {
+  const input = button.closest('tr').querySelector('[name="values"]');
+  const visible = input.type === 'password';
+  input.type = visible ? 'text' : 'password';
+  button.querySelector('i').className = visible ? 'bx bx-hide' : 'bx bx-show';
+}
+</script>
+{% endblock %}

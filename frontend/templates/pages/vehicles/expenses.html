@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+{% block title %}Chi phí xe — {{ selected_vehicle.plate_number }}{% endblock %}
+{% block head %}<link href="/static/admin-assets/css/vehicle-expenses.css?v=1" rel="stylesheet">{% endblock %}
+{% block page_title %}Chi phí xe — <span class="badge badge-pill badge-success font-monospace ml-1">{{ selected_vehicle.plate_number }}</span>{% endblock %}
+{% block page_back_button %}<a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block content %}
+<div class="vehicle-expenses-page">
+<div class="card expense-filter-card mb-3"><div class="card-body">
+  <form method="get" action="/admin/vehicles/expenses" class="expense-filter-form"
+        onsubmit="this.elements['month'].value=this.elements['year'].value+'-'+this.elements['month_part'].value">
+    <input type="hidden" name="month" value="{{ month }}">
+    <select name="month_part" class="form-control form-control-sm expense-filter-month" aria-label="Tháng" onchange="this.form.requestSubmit()">
+      {% for m in range(1, 13) %}<option value="{{ '%02d'|format(m) }}" {% if m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>{% endfor %}
+    </select>
+    <input name="year" type="number" value="{{ month[:4] }}" min="1000" max="9999" required
+           class="form-control form-control-sm expense-filter-year" aria-label="Năm" onchange="this.form.requestSubmit()">
+    <select name="vehicle_id" class="form-control form-control-sm expense-filter-vehicle" aria-label="Xe" onchange="this.form.requestSubmit()">
+      {% for v in vehicle_options %}<option value="{{ v.id }}" {% if v.id == vehicle_id %}selected{% endif %}>{{ v.plate_number }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Xem</button>
+  </form>
+</div></div>
+<div class="card expense-entry-card mb-3">
+  <div class="card-header font-weight-bold">Thêm chi phí</div>
+  <div class="card-body">
+    <form method="post" action="/admin/vehicles/expenses">
+      {% if vehicle_id is not none %}<input type="hidden" name="return_vehicle_id" value="{{ vehicle_id }}">{% endif %}
+      <input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">
+      <div class="row">
+        <div class="col-12 col-sm-6 col-md-4 mb-2"><label for="expense-date">Ngày *</label>
+          <input id="expense-date" name="expense_date" type="date" value="{{ month }}-01" required class="form-control form-control-sm"></div>
+        <div class="col-12 col-sm-6 col-md-4 mb-2"><label for="expense-type">Loại *</label>
+          <select id="expense-type" name="expense_type" required class="form-control form-control-sm" onchange="toggleExpenseFuelFields()">
+            {% for key, label in expense_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select></div>
+        <div class="col-12 col-sm-6 col-md-4 mb-2"><label for="expense-amount">Số tiền (đ) *</label>
+          <input id="expense-amount" name="amount" type="number" min="0" step="0.01" required class="form-control form-control-sm"></div>
+        <div class="col-12 col-sm-6 col-md-4 mb-2 expense-fuel-only"><label for="expense-quantity">Số lít</label>
+          <input id="expense-quantity" name="quantity" type="number" min="0" step="0.001" class="form-control form-control-sm"></div>
+        <div class="col-12 col-sm-6 col-md-4 mb-2 expense-fuel-only"><label for="expense-unit-price">Đơn giá dầu</label>
+          <input id="expense-unit-price" name="unit_price" type="number" min="0" step="0.01" class="form-control form-control-sm"></div>
+        <div class="col-12 col-sm-6 col-md-8 mb-2"><label for="expense-vendor">Đơn vị / Cây xăng</label>
+          <input id="expense-vendor" name="vendor" maxlength="500" class="form-control form-control-sm"></div>
+        <div class="col-12 col-sm-6 col-md-4 mb-2"><label for="expense-invoice">Số hóa đơn</label>
+          <input id="expense-invoice" name="invoice_number" maxlength="500" class="form-control form-control-sm"></div>
+        <div class="col-12 mb-2"><label for="expense-note">Ghi chú / Hạng mục / Trạm thu phí</label>
+          <input id="expense-note" name="note" maxlength="500" class="form-control form-control-sm"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bx bx-save mr-1"></i>Lưu chi phí</button>
+    </form>
+  </div>
+</div>
+
+<div class="card expense-records-card">
+  <div class="card-header font-weight-bold">Chứng từ chi phí — {{ month[5:7] }}/{{ month[:4] }} <span class="text-muted font-weight-normal">({{ total_expenses if total_expenses is defined else expense_rows|length }})</span></div>
+  <div class="table-responsive"><table class="table table-sm mb-0 expense-records-table">
+    <thead><tr><th style="width:50px;" class="text-center">STT</th><th>Ngày</th><th>Loại</th><th>Đơn vị</th><th>Hóa đơn</th><th>Ghi chú</th><th class="text-right">Số tiền</th><th class="text-right">Thao tác</th></tr></thead>
+    <tbody>{% for e in expense_rows %}<tr>
+      <td class="text-center text-muted font-weight-medium align-middle">{{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}</td>
+      <td class="text-nowrap">{{ e.expense_date.strftime('%d/%m/%Y') if e.expense_date else '—' }}</td><td>{{ expense_types[e.expense_type] }}</td>
+      <td>{{ e.vendor or '—' }}</td><td>{{ e.invoice_number or '—' }}</td><td>{{ e.note or '—' }}</td>
+      <td class="text-right font-weight-bold text-nowrap">{% if e.amount is not none %}{{ "{:,.0f}".format(e.amount)|replace(',', '.') }} đ{% else %}<span class="text-warning">Chưa có số tiền</span>{% endif %}</td>
+      <td class="text-right text-nowrap">
+        {% if e.amount is none %}<form method="post" action="/admin/vehicles/expenses/{{ e.id }}/amount" class="d-inline-flex align-items-center mr-1 expense-amount-form">
+          <input type="hidden" name="month" value="{{ month }}">
+          {% if vehicle_id is not none %}<input type="hidden" name="return_vehicle_id" value="{{ vehicle_id }}">{% endif %}
+          <input name="amount" type="number" min="0" step="0.01" required aria-label="Bổ sung số tiền" class="form-control form-control-sm">
+          <button type="submit" class="btn btn-primary btn-sm">Lưu tiền</button>
+        </form>{% endif %}
+        <form method="post" action="/admin/vehicles/expenses/{{ e.id }}/delete" class="d-inline" onsubmit="return confirm('Xóa khoản chi này?')">
+        <input type="hidden" name="month" value="{{ month }}">{% if vehicle_id is not none %}<input type="hidden" name="return_vehicle_id" value="{{ vehicle_id }}">{% endif %}<button type="submit" class="btn btn-danger btn-sm" title="Xóa" aria-label="Xóa khoản chi"><i class="bx bx-trash"></i></button>
+        </form>
+      </td>
+    </tr>{% else %}<tr><td colspan="8" class="text-center text-muted py-4">Chưa có chứng từ chi phí trong tháng này.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% include "partials/pagination.html" %}
+</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleExpenseFuelFields() {
+  const isFuel = document.getElementById('expense-type').value === 'fuel';
+  document.querySelectorAll('.expense-fuel-only').forEach(field => {
+    field.hidden = !isFuel;
+    field.querySelector('input').disabled = !isFuel;
+  });
+}
+toggleExpenseFuelFields();
+</script>
+{% endblock %}

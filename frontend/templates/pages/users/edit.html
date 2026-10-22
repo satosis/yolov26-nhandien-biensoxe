@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+{% block title %}Chỉnh sửa người dùng — {{ target_user.username }}{% endblock %}
+{% block page_title %}Chỉnh sửa người dùng{% endblock %}
+{% block page_back_button %}
+<a href="/admin/users" class="btn btn-light btn-sm font-weight-bold">
+  <i class="bx bx-arrow-back mr-1"></i> Quay lại
+</a>
+{% endblock %}
+
+{% block content %}
+{% if error_msg %}
+<script>
+  window.addEventListener('DOMContentLoaded', function() {
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: {{ error_msg|tojson }}, type: 'error' }
+    }));
+  });
+</script>
+{% endif %}
+
+<div class="row">
+  <div class="col-12 col-xl-9 col-lg-10">
+    <div class="card shadow-sm border-0" style="border-radius:10px;">
+      <div class="card-body p-4">
+        <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
+          <div class="d-inline-flex align-items-center justify-content-center text-primary mr-2"
+               style="width:36px; height:36px; background:#e0e7ff; border-radius:8px; font-size:18px;">
+            <i class="bx bx-user-pin"></i>
+          </div>
+          <div>
+            <h5 class="mb-0 font-weight-bold text-dark">Thông tin người dùng: {{ target_user.username }}</h5>
+            <small class="text-muted">Mã ID: #{{ target_user.id }} &bull; Đăng ký ngày: {{ target_user.created_at or '—' }}</small>
+          </div>
+        </div>
+
+        <form method="POST" action="/admin/users/{{ target_user.id }}/edit">
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Username <span class="text-danger">*</span></label>
+              <input name="username" value="{{ target_user.username }}" required class="form-control">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Mật khẩu mới</label>
+              <input name="password" type="password" class="form-control" placeholder="Để trống nếu không muốn đổi mật khẩu">
+              <small class="text-muted font-size-11">Chỉ nhập khi bạn cần thiết lập mật khẩu mới cho người dùng.</small>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-5 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Họ và tên</label>
+              <input id="user-fullname-input" name="full_name" value="{{ target_user.full_name or '' }}" class="form-control" placeholder="Nhập họ và tên đầy đủ">
+            </div>
+            <div class="col-12 col-md-2 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Giới tính</label>
+              <select id="user-gender-select" name="gender" class="form-control">
+                <option value="nam" {% if (target_user.gender or 'nam') == 'nam' %}selected{% endif %}>Nam</option>
+                <option value="nữ" {% if target_user.gender == 'nữ' %}selected{% endif %}>Nữ</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Email</label>
+              <input name="email" type="email" value="{{ target_user.email or '' }}" class="form-control" placeholder="email@domain.com">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Nickname / tên gọi trong Zalo</label>
+              <input name="nickname" maxlength="120" value="{{ target_user.nickname or '' }}" class="form-control" placeholder="Ví dụ: Tư hoặc Chú Tư">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Số điện thoại</label>
+              <input name="phone" type="tel" value="{{ target_user.phone or '' }}" class="form-control" placeholder="Ví dụ: 0912345678">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Số tài khoản ngân hàng</label>
+              <input name="bank_account" value="{{ target_user.bank_account or '' }}" inputmode="numeric" class="form-control" placeholder="Ví dụ: 110003058298">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Ngân hàng</label>
+              <input name="bank_name" value="{{ target_user.bank_name or '' }}" class="form-control" placeholder="Ví dụ: VIETINBANK, TECHCOMBANK...">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Vai trò <span class="text-danger">*</span></label>
+              <select name="role_name" required class="form-control">
+                {% for r in roles %}
+                <option value="{{ r.role_name }}" {% if (target_user.role or '') == r.role_name %}selected{% endif %}>
+                  {{ r.role_name }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Địa điểm (ID, cách nhau bởi dấu phẩy)</label>
+              <input name="site_ids" value="{{ target_user.site_ids|join(', ') if target_user.site_ids else '' }}" placeholder="1, 2, 3" class="form-control">
+              <div class="mt-2 d-flex flex-wrap" style="gap:4px;">
+                {% for s in sites %}
+                <span class="badge badge-light border text-muted">{{ s.id }}: {{ s.site_name }}</span>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Công ty (1 người có thể thuộc nhiều công ty)</label>
+              {% set u_cids = target_user.company_ids or [] %}
+              <select id="edit-user-company-select" name="company_ids" multiple class="form-control" placeholder="— Chọn một hoặc nhiều công ty —">
+                {% for comp in all_companies %}
+                <option value="{{ comp.id }}" {% if comp.id in u_cids %}selected{% endif %}>
+                  {{ comp.name }}{% if comp.tax_code %} (MST: {{ comp.tax_code }}){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Ghi chú</label>
+              <textarea name="note" rows="2" class="form-control" placeholder="Ghi chú thêm về người dùng...">{{ target_user.note or '' }}</textarea>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center mt-3 pt-3 border-top" style="gap:10px;">
+            <button type="submit" class="btn btn-primary px-4 font-weight-bold">
+              <i class="bx bx-save mr-1"></i> Lưu thay đổi
+            </button>
+            <a href="/admin/users" class="btn btn-light px-3 font-weight-bold">Hủy</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof TomSelect !== 'undefined') {
+    new TomSelect('#edit-user-company-select', {
+      plugins: ['remove_button'],
+      placeholder: '— Chọn một hoặc nhiều công ty —',
+      maxItems: null
+    });
+  }
+
+  const nameInput = document.getElementById('user-fullname-input');
+  const genderSelect = document.getElementById('user-gender-select');
+  let manualGenderChanged = true; // User already has assigned gender
+
+  if (genderSelect) {
+    genderSelect.addEventListener('change', () => {
+      manualGenderChanged = true;
+    });
+  }
+
+  const FEMALE_KEYWORDS = new Set([
+    'thị', 'thi', 'huyền', 'huyen', 'hoa', 'thảo', 'thao', 'lan', 'hương', 'huong',
+    'ngọc', 'ngoc', 'mai', 'phương', 'phuong', 'trang', 'linh', 'nhung', 'thủy', 'thuy',
+    'tuyết', 'tuyet', 'thu', 'ngân', 'ngan', 'dung', 'hạnh', 'hanh', 'oanh', 'yến', 'yen',
+    'liên', 'lien', 'vân', 'van', 'quỳnh', 'quynh', 'hằng', 'hang', 'diệp', 'diep',
+    'loan', 'nga', 'bích', 'bich', 'hồng', 'hong', 'thoa', 'tươi', 'tuoi', 'diệu', 'dieu',
+    'hiền', 'hien', 'mơ', 'mo', 'thơ', 'tho', 'gái', 'gai', 'nữ', 'nu', 'mỹ', 'my',
+    'nhi', 'nương', 'nuong', 'phượng', 'phuong', 'cúc', 'cuc', 'đào', 'dao', 'ly',
+    'trinh', 'xuyến', 'xuyen', 'lệ', 'le', 'nụ', 'nu'
+  ]);
+
+  const MALE_KEYWORDS = new Set([
+    'văn', 'van', 'đức', 'duc', 'hùng', 'hung', 'dũng', 'dung', 'thành', 'thanh',
+    'cường', 'cuong', 'tuấn', 'tuan', 'hoàng', 'hoang', 'huy', 'nam', 'quân', 'quan',
+    'trung', 'hải', 'hai', 'minh', 'long', 'quuyết', 'quyet', 'thắng', 'thang',
+    'sơn', 'son', 'tùng', 'tung', 'bách', 'bach', 'khang', 'khôi', 'khoi', 'phúc', 'phuc',
+    'trọng', 'trong', 'hiệp', 'hiep', 'tiến', 'tien', 'toàn', 'toan', 'việt', 'viet',
+    'bảo', 'bao', 'kiên', 'kien', 'đạt', 'dat', 'khoa', 'binh', 'bình', 'chiến', 'chien',
+    'phong', 'lợi', 'loi', 'đáng', 'dang', 'thái', 'thai', 'duân', 'duan', 'lăng', 'lang',
+    'yên', 'yen', 'thường', 'thuong', 'thiết', 'thiet', 'luân', 'luan', 'hữu', 'huu',
+    'quang', 'mạnh', 'manh', 'duy', 'đình', 'dinh', 'khắc', 'khac', 'bá', 'ba', 'phú', 'phu',
+    'thế', 'the', 'tuyên', 'tuyen', 'hà', 'ha', 'bắc', 'bac', 'hưng', 'hung'
+  ]);
+
+  function predictGender(name) {
+    if (!name) return 'nam';
+    const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'nam';
+    if (parts.includes('thị') || parts.includes('thi')) return 'nữ';
+    if (parts.includes('văn') || parts.includes('van')) return 'nam';
+    const given = parts[parts.length - 1];
+    const middle = parts.length > 1 ? parts[parts.length - 2] : '';
+    if (FEMALE_KEYWORDS.has(given)) {
+      if (MALE_KEYWORDS.has(middle)) return 'nam';
+      return 'nữ';
+    }
+    if (MALE_KEYWORDS.has(given)) return 'nam';
+    if (FEMALE_KEYWORDS.has(middle)) return 'nữ';
+    if (MALE_KEYWORDS.has(middle)) return 'nam';
+    return 'nam';
+  }
+
+  // If user changed the name completely and wants auto suggestion, they can double-click or we update if field was empty
+  if (nameInput && genderSelect) {
+    nameInput.addEventListener('change', () => {
+      // If user clears gender or if name changed and gender not manually overridden on this edit session
+      if (!genderSelect.value) {
+        genderSelect.value = predictGender(nameInput.value);
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

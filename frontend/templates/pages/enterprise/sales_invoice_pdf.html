@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>Hóa đơn bán hàng {{ sale.display_invoice_number }}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      color: #111;
+      font-family: "Times New Roman", Times, Georgia, serif;
+      font-size: 13px;
+      line-height: 1.4;
+      background: #fff;
+    }
+    .invoice-container {
+      border: none;
+      padding: 10px 10px 20px 10px;
+      min-height: auto;
+      position: relative;
+      background: #fff;
+    }
+    .invoice-header-row {
+      position: relative;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    .invoice-title {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      color: #222;
+      margin-top: 4px;
+    }
+    .invoice-number-top {
+      position: absolute;
+      top: 0;
+      right: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+    }
+    .customer-info-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    .customer-info-table td {
+      border: none;
+      padding: 3px 0;
+      vertical-align: top;
+      font-size: 13px;
+    }
+    .customer-name {
+      color: #c92a2a;
+      font-weight: bold;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .items-table th, .items-table td {
+      border: 1px solid #444;
+      padding: 5px 6px;
+      font-size: 13px;
+    }
+    .items-table th {
+      text-align: center;
+      font-weight: bold;
+      background-color: #fff;
+    }
+    .items-table td.center {
+      text-align: center;
+    }
+    .items-table td.right {
+      text-align: right;
+    }
+    .items-table td.left {
+      text-align: left;
+    }
+    .empty-row td {
+      height: 24px;
+    }
+    .summary-label {
+      text-align: right;
+      font-weight: 500;
+      padding-right: 12px !important;
+    }
+    .summary-val {
+      text-align: right;
+      font-weight: bold;
+    }
+    .grand-total-row {
+      background-color: #fff;
+    }
+    .grand-total-label {
+      text-align: right;
+      font-weight: bold;
+      color: #c92a2a;
+      font-size: 13.5px;
+      padding-right: 12px !important;
+    }
+    .grand-total-val {
+      text-align: right;
+      font-weight: bold;
+      color: #c92a2a;
+      font-size: 13.5px;
+    }
+    .payment-row td {
+      border: 1px solid #444;
+      padding: 5px 6px;
+      font-size: 13px;
+    }
+    .remaining-row td {
+      border-top: 1px dashed #444 !important;
+      border-bottom: 1px solid #444;
+      border-left: 1px solid #444;
+      border-right: 1px solid #444;
+      padding: 5px 6px;
+      font-size: 13px;
+    }
+    .remaining-label {
+      text-align: right;
+      font-weight: normal;
+      padding-right: 12px !important;
+    }
+    .remaining-val {
+      text-align: right;
+      font-weight: bold;
+    }
+    .words-section {
+      margin-top: 14px;
+      font-size: 13px;
+    }
+    .footer-section {
+      margin-top: 25px;
+      width: 100%;
+      min-height: 58px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .footer-stamp-col {
+      width: 100%;
+      text-align: center;
+      vertical-align: middle;
+      padding-top: 10px;
+    }
+    .footer-date-col {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      text-align: right;
+      vertical-align: middle;
+      font-style: italic;
+      font-size: 13px;
+    }
+    .stamp-box {
+      display: inline-block;
+      padding: 7px 18px;
+      font-size: 14.5px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      line-height: 1.25;
+    }
+    .stamp-box.unpaid {
+      font-size: 13.5px;
+      padding: 7px 16px;
+      letter-spacing: 0.5px;
+      border: 2px solid #c92a2a;
+      color: #c92a2a;
+      box-shadow: 0 0 0 1px #c92a2a;
+    }
+    .stamp-box.paid {
+      font-size: 14.5px;
+      padding: 7px 18px;
+      border: 2px solid #2b8a3e;
+      color: #2b8a3e;
+      box-shadow: 0 0 0 1px #2b8a3e;
+    }
+    .stamp-box.pending {
+      font-size: 13.5px;
+      padding: 7px 16px;
+      border: 2px dashed #d9480f;
+      color: #d9480f;
+      box-shadow: 0 0 0 1px #d9480f;
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <div class="invoice-header-row">
+      <div class="invoice-title">HOÁ ĐƠN BÁN HÀNG</div>
+      {% if sale.status == 'pending' %}
+      <div style="font-size: 13px; font-weight: bold; color: #d9480f; margin-top: 3px; letter-spacing: 0.5px;">(ĐƠN ĐẶT HÀNG — CHƯA LẤY HÀNG)</div>
+      {% elif sale.status == 'delivering' %}
+      <div style="font-size: 13px; font-weight: bold; color: #1098ad; margin-top: 3px;">(ĐANG GIAO HÀNG)</div>
+      {% elif sale.status == 'cancelled' %}
+      <div style="font-size: 13px; font-weight: bold; color: #868e96; margin-top: 3px;">(ĐÃ HỦY ĐƠN)</div>
+      {% endif %}
+      <div class="invoice-number-top">{% if sale.display_invoice_number %}{{ sale.display_invoice_number }}{% else %}Chưa cấp số{% endif %}</div>
+    </div>
+
+    <table class="customer-info-table">
+      <tr>
+        <td style="width: 58%;">
+          Họ và tên người mua : &nbsp;<span class="customer-name">{{ sale.customer_name }}</span>
+        </td>
+        <td style="width: 42%;">
+          SĐT : {{ sale.customer_phone or '' }}
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Địa chỉ: {{ sale.customer_address or '' }}
+        </td>
+        <td>
+          Xe vận chuyển : {{ sale.carrier or '0' }}
+        </td>
+      </tr>
+    </table>
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          {% if has_weigh_info %}
+          <th style="width: 5%;">STT</th>
+          <th style="width: 36%;">Tên hàng hoá</th>
+          <th style="width: 7%;">ĐVT</th>
+          <th style="width: 10%;">Cân tổng</th>
+          <th style="width: 9%;">Bì</th>
+          <th style="width: 10%;">Số lượng</th>
+          <th style="width: 10%;">Đơn giá</th>
+          <th style="width: 13%;">Thành tiền</th>
+          {% else %}
+          <th style="width: 6%;">STT</th>
+          <th style="width: 44%;">Tên hàng hoá</th>
+          <th style="width: 8%;">ĐVT</th>
+          <th style="width: 12%;">Số lượng</th>
+          <th style="width: 14%;">Đơn giá</th>
+          <th style="width: 16%;">Thành tiền</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          {% if has_weigh_info %}
+          <td class="left">{{ item.product_name }}</td>
+          <td class="center">{{ item.unit }}</td>
+          <td class="right">{{ item.gross_weight_display or '' }}</td>
+          <td class="right">{{ item.tare_weight_display or '' }}</td>
+          <td class="right">{{ item.quantity_display }}</td>
+          <td class="right">{{ item.unit_price_fmt }}</td>
+          <td class="right">{{ item.line_total_fmt }}</td>
+          {% else %}
+          <td class="left">{{ item.product_name }}</td>
+          <td class="center">{{ item.unit }}</td>
+          <td class="right">{{ item.quantity_display }}</td>
+          <td class="right">{{ item.unit_price_fmt }}</td>
+          <td class="right">{{ item.line_total_fmt }}</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+
+        {% for _ in pad_rows %}
+        <tr class="empty-row">
+          <td>&nbsp;</td>
+          {% if has_weigh_info %}
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          {% else %}
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          <td>&nbsp;</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+
+        <tr>
+          <td colspan="{{ summary_colspan }}" class="summary-label">
+            Cộng tiền hàng ngày {{ sale_date_day_month }}
+          </td>
+          <td class="summary-val">{{ sale.invoice_total_fmt }}</td>
+        </tr>
+        <tr>
+          <td colspan="{{ summary_colspan }}" class="summary-label">
+            Nợ cũ đến {{ prev_date_day_month }}
+          </td>
+          <td class="summary-val">{{ sale.old_debt_fmt }}</td>
+        </tr>
+        <tr class="grand-total-row">
+          <td colspan="{{ summary_colspan }}" class="grand-total-label">
+            TỔNG CỘNG
+          </td>
+          <td class="grand-total-val">{{ sale.grand_total_fmt }}</td>
+        </tr>
+        {% if payments %}
+          {% for p in payments %}
+          <tr class="payment-row">
+            <td colspan="{{ summary_colspan }}" class="summary-label">
+              {{ p.label }}
+            </td>
+            <td class="summary-val">{{ p.amount_fmt }}</td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+        <tr class="remaining-row">
+          <td colspan="{{ summary_colspan }}" class="summary-label remaining-label">
+            {{ sale.remaining_debt_label or 'còn nợ' }}
+          </td>
+          <td class="summary-val remaining-val">{{ sale.remaining_debt_fmt }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="words-section">
+      Số tiền bằng chữ : &nbsp;<strong>{{ sale.remaining_debt_words }}</strong>
+    </div>
+
+    <div class="footer-section">
+      <div class="footer-stamp-col">
+        {% if sale.status == 'pending' %}
+        <div class="stamp-box pending" style="margin-right: 12px;">CHƯA LẤY HÀNG</div>
+        {% endif %}
+        {% if sale.remaining_debt <= 0 %}
+        <div class="stamp-box paid">ĐÃ THANH TOÁN</div>
+        {% else %}
+        <div class="stamp-box unpaid">CHƯA THANH TOÁN</div>
+        {% endif %}
+      </div>
+      <div class="footer-date-col">
+        Ngày {{ sale.sale_date.day }} tháng {{ "%02d"|format(sale.sale_date.month) if sale.sale_date.month < 10 else sale.sale_date.month }} năm {{ sale.sale_date.year }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

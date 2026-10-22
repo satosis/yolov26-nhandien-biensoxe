@@ -1,11 +1,29 @@
 
 {% set group_icons = {
   "📊 Theo dõi & AI": "bx-tachometer",
+  "Theo dõi & AI": "bx-tachometer",
   "🅿️ Bãi xe": "bx-car",
+  "Bãi xe": "bx-car",
   "🛠 Quản lý": "bx-wrench",
-  "⚙️ Hệ thống": "bx-cog"
+  "Quản lý": "bx-wrench",
+  "🏢 Doanh nghiệp": "bx-briefcase-alt-2",
+  "Doanh nghiệp": "bx-briefcase-alt-2",
+  "🚚 Vận chuyển": "bxs-truck",
+  "Vận chuyển": "bxs-truck",
+  "⚙️ Hệ thống": "bx-cog",
+  "Hệ thống": "bx-cog"
 } %}
 {% set item_icons = {
+  "enterprise": "bx-building-house",
+  "departments": "bx-sitemap",
+  "attendance": "bx-calendar-check",
+  "advances": "bx-wallet",
+  "assets": "bx-package",
+  "companies": "bx-buildings",
+  "staff": "bx-user-pin",
+  "payroll": "bx-money",
+  "debts": "bx-receipt",
+  "sales": "bx-receipt",
   "detection": "bx-scan",
   "recordings": "bx-video",
   "parking_dashboard": "bx-bar-chart-square",
@@ -20,11 +38,22 @@
   "strangers": "bx-user-x",
   "pending_plates": "bx-time-five",
   "inquiries": "bx-message-rounded-dots",
+  "administrative_divisions": "bx-map",
   "cms": "bx-globe",
   "users": "bx-user",
   "rbac": "bx-lock-alt",
-  "telegram": "bx-paper-plane"
+  "telegram": "bx-paper-plane",
+  "zalo_inbox": "bx-message-square-detail",
+  "service_accounts": "bx-globe",
+  "api_keys": "bx-key"
 } %}
+{% set transport_path = request.url.path %}
+{% set transport_active = 'contracts' if transport_path.startswith('/admin/transport/contracts') else
+  'catalog_' ~ (request.query_params.get('tab', 'service')) if transport_path.startswith('/admin/transport/catalog') or transport_path.startswith('/admin/vehicles/catalog') else
+  'staff_payroll' if transport_path.startswith('/admin/transport/payroll') else
+  'input_invoices' if transport_path.startswith('/admin/transport/input-invoices') else
+  'cargo' if transport_path.startswith('/admin/vehicles/cargo') or '/cargo' in transport_path else
+  'vehicles' %}
 
 <div class="vertical-menu">
   <div data-simplebar class="h-100">
@@ -59,12 +88,40 @@
           </a>
           <ul class="sub-menu mm-collapse {% if ns.active %}mm-show{% endif %}" {% if ns.active %}aria-expanded="true"{% endif %}>
             {% for key, label in items.items() %}
-            {% set l_clean = label.split(' ', 1)[1] if ' ' in label else label %}
+            {% if group_name == '🚚 Vận chuyển' and key == 'vehicles' %}
+            {% for menu_key, menu_label, menu_icon, menu_url in [
+              ('vehicles', 'Danh sách xe', 'bx-car', '/admin/vehicles'),
+              ('cargo', 'Chuyến hàng', 'bx-package', '/admin/vehicles/cargo'),
+              ('contracts', 'Hợp đồng', 'bx-file', '/admin/transport/contracts'),
+              ('catalog_service', 'Danh mục dịch vụ', 'bx-list-ul', '/admin/transport/catalog?tab=service'),
+              ('catalog_cargo_type', 'Danh mục hàng hóa', 'bx-box', '/admin/transport/catalog?tab=cargo_type'),
+              ('input_invoices', 'Chi phí đầu vào', 'bx-receipt', '/admin/transport/input-invoices')
+            ] %}
+            <li class="{% if transport_active == menu_key %}mm-active{% endif %}">
+              <a href="{{ menu_url }}" class="{% if transport_active == menu_key %}active{% endif %}"><i class="bx {{ menu_icon }}"></i> {{ menu_label }}</a>
+            </li>
+            {% endfor %}
+            {% else %}
+            {% set parts = label.split(' ', 1) %}
+            {% set l_clean = parts[1] if parts|length > 1 and parts[0]|length <= 2 else label %}
+            {% set target_url =
+              '/admin/administrative-divisions' if key == 'administrative_divisions' else
+              '/admin/service-accounts' if key == 'service_accounts' else
+              '/admin/api-keys' if key == 'api_keys' else
+              '/admin/transport/payroll' if key == 'payroll' else
+              '/admin/enterprise/departments' if key == 'departments' else
+              '/admin/enterprise/attendance' if key == 'attendance' else
+              '/admin/enterprise/advances' if key == 'advances' else
+              '/admin/enterprise/assets' if key == 'assets' else
+              '/admin/enterprise/debts' if key == 'debts' else
+              '/admin/enterprise/sales' if key == 'sales' else
+              '/admin/' ~ key %}
             <li class="{% if current_menu == key %}mm-active{% endif %}">
-              <a href="/admin/{{ key }}" class="{% if current_menu == key %}active{% endif %}">
+              <a href="{{ target_url }}" class="{% if current_menu == key %}active{% endif %}">
                 <i class="bx {{ item_icons.get(key, 'bx-chevron-right') }}"></i> {{ l_clean }}
               </a>
             </li>
+            {% endif %}
             {% endfor %}
           </ul>
         </li>

@@ -1,12 +1,13 @@
 import logging
 import re
-from fastapi import APIRouter, Request, Depends, Form, Response
+from fastapi import APIRouter, Request, Depends, Form, Query, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, StringConstraints
 from starlette.responses import RedirectResponse
 from typing import Annotated, Optional
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 from backend.services.config import normalize_plate
 from frontend.routers.vehicles_router import upsert_vehicle_whitelist
 
@@ -20,14 +21,30 @@ class BulkRejectInput(BaseModel):
     ids: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]] = Field(min_length=1)
 
 
-def get_pending_plates(site_id=None) -> list[dict]:
+def get_pending_plates(site_id=None, limit=None, offset=None) -> list[dict]:
     query = "SELECT p.*, p.first_seen_utc AS first_seen, s.site_name FROM pending_plates p LEFT JOIN sites s ON p.site_id = s.id WHERE LOWER(TRIM(p.status)) = 'pending'"
     params = []
     if site_id:
         query += " AND (p.site_id = %s OR p.site_id IS NULL)"
         params.append(site_id)
     query += " ORDER BY p.first_seen_utc DESC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
+
+
+def count_pending_plates(site_id=None) -> int:
+    query = "SELECT COUNT(*) AS total FROM pending_plates p WHERE LOWER(TRIM(p.status)) = 'pending'"
+    params = []
+    if site_id:
+        query += " AND (p.site_id = %s OR p.site_id IS NULL)"
+        params.append(site_id)
+    row = db.execute_query(query, tuple(params) if params else None, fetch=True)
+    return int((row or {}).get("total") or 0)
 
 
 def get_pending_plate_by_id(pending_id: str) -> dict | None:
@@ -37,6 +54,29 @@ def get_pending_plate_by_id(pending_id: str) -> dict | None:
         (pending_id,),
         fetch=True
     )
+
+
+@router.put("/{pending_id}")
+async def update_pending_plate(
+    pending_id: str,
+    request: Request,
+    user: dict = Depends(require_menu("pending_plates")),
+):
+    data = await request.json()
+    plate_raw = str(data.get("plate") or "").strip().upper()
+    plate_norm = normalize_plate(plate_raw)
+    if not re.fullmatch(r"[A-Z0-9]{4,16}", plate_norm):
+        return JSONResponse({"ok": False, "message": "Biển số không hợp lệ."}, status_code=400)
+    updated = db.execute_query(
+        """UPDATE pending_plates
+              SET plate_raw = %s, plate_norm = %s
+            WHERE pending_id = %s AND LOWER(TRIM(status)) = 'pending'
+            RETURNING pending_id""",
+        (plate_raw, plate_norm, pending_id), fetch=True, commit=True,
+    )
+    if not updated:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy biển số chờ duyệt."}, status_code=404)
+    return JSONResponse({"ok": True, "plate": plate_norm})
 
 
 def delete_pending_plate_by_id(pending_id: str) -> bool:
@@ -102,7 +142,7 @@ async def register_plate(
         return HTMLResponse("Biển số không hợp lệ.", status_code=422)
     username = user.get("username", "admin")
     if not upsert_vehicle_whitelist(
-        plate_norm=plate_norm,
+        plate_number=plate_number.strip().upper(),
         label=owner_name,
         added_by=username,
         site_ids=site_ids,
@@ -115,11 +155,27 @@ async def register_plate(
 
 
 @router.get("")
-async def pending_page(request: Request, user: dict = Depends(require_menu("pending_plates"))):
+async def pending_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("pending_plates")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "pending_plates"
     active_site_id = ctx.get("active_site_id", 0)
-    ctx["plates"] = get_pending_plates(site_id=active_site_id or None)
+    total_plates = count_pending_plates(site_id=active_site_id or None)
+    paginated = paginate_counts(total_plates, page=page, per_page=20, base_url="/admin/pending_plates")
+    plates = get_pending_plates(
+        site_id=active_site_id or None,
+        limit=paginated["per_page"],
+        offset=(paginated["page"] - 1) * paginated["per_page"],
+    ) or []
+
+    ctx["plates"] = plates
+    ctx["page"] = paginated["page"]
+    ctx["total_pages"] = paginated["total_pages"]
+    ctx["total"] = paginated["total"]
+    ctx["page_base_url"] = paginated["page_base_url"]
     return templates.TemplateResponse("pages/pending_plates.html", {"request": request, **ctx})
 
 

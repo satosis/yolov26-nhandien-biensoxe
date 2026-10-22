@@ -6,6 +6,9 @@ import uuid
 import asyncio
 import time
 import hashlib
+import json
+import base64
+from pathlib import Path
 from contextlib import closing
 from collections import OrderedDict
 from http.client import HTTPConnection
@@ -13,8 +16,9 @@ from urllib.parse import urlencode
 import numpy as np
 import cv2
 import multiprocessing.shared_memory as sm
-from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Request, Depends, UploadFile, File, Form, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
+from starlette.concurrency import run_in_threadpool
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.util.image_utils import save_snapshot, decode_image
 from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
@@ -23,6 +27,10 @@ from backend.services.database import db
 from backend.util.bbox_utils import merge_plate_boxes
 from backend.camera import camera_service as cam_svc
 from backend.services.settings_service import get_app_setting
+from backend.ai.plate_analysis import PlateFrameAnalyzer, detect_plate_regions
+from backend.services.video_ocr import VideoOCRJobs
+from backend.util.ocr_pipeline import OCRTrackAggregator, assess_image
+from backend.util.ocr_utils import prepare_plate_preview
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/detection")
@@ -33,39 +41,53 @@ _face_recognizer = None
 
 
 _model_lock = threading.Lock()
+_video_jobs_lock = threading.Lock()
+_detector_lock = threading.Lock()
 _last_request_time = 0
+_video_jobs = None
 
 _ocr_cache = OrderedDict()
 _ocr_lock = threading.Lock()
 MAX_OCR_CACHE_ENTRIES = 256
 
 def _ocr_crop_hash(crop):
-    return hashlib.md5(crop[::4, ::4].tobytes()).hexdigest()
+    digest = hashlib.blake2b(digest_size=16)
+    digest.update(str(crop.shape).encode("ascii"))
+    digest.update(crop.tobytes())
+    return digest.hexdigest()
 
-def _read_cached_ocr(ocr_reader, crop, crop_hash):
+def _read_cached_ocr(ocr_reader, crop, crop_hash, *, quick=False):
+    crop_hash = (crop_hash, quick)
     with _ocr_lock:
         cached = _ocr_cache.get(crop_hash)
         if cached and time.time() - cached[3] < 5:
             _ocr_cache.move_to_end(crop_hash)
             return cached[0], cached[1], cached[2]
-        text, conf, ptype = ocr_reader.read(crop)
+        read = ocr_reader.read_quick if quick else ocr_reader.read
+        text, conf, ptype = read(crop)
         _ocr_cache[crop_hash] = (text, conf, ptype, time.time())
         _ocr_cache.move_to_end(crop_hash)
         if len(_ocr_cache) > MAX_OCR_CACHE_ENTRIES:
             _ocr_cache.popitem(last=False)
         return text, conf, ptype
 
-async def _cleanup_models_loop():
+def _cleanup_idle_models():
     global _plate_detector, _ocr_reader, _face_recognizer
+    with _model_lock:
+        if _last_request_time > 0 and (time.time() - _last_request_time) > 600:
+            if _plate_detector or _ocr_reader or _face_recognizer:
+                logger.info("Auto-unloading detection models after ten minutes idle")
+                _plate_detector = None
+                _ocr_reader = None
+                _face_recognizer = None
+
+
+async def _cleanup_models_loop():
     while True:
         await asyncio.sleep(60)
-        with _model_lock:
-            if _last_request_time > 0 and (time.time() - _last_request_time) > 600:
-                if _plate_detector or _ocr_reader or _face_recognizer:
-                    logger.info("Auto-unloading detection models after ten minutes idle")
-                    _plate_detector = None
-                    _ocr_reader = None
-                    _face_recognizer = None
+        # Model initialization can hold this lock for seconds; never wait on it
+        # in the web event loop while unrelated pages and progress need service.
+        await run_in_threadpool(_cleanup_idle_models)
 
 _cleanup_task = None
 
@@ -97,7 +119,7 @@ def _dedupe_detections(detections, iou_threshold=0.5):
             keep.append(d)
     return keep
 
-def _get_models():
+def _get_models(include_face=False):
     global _plate_detector, _ocr_reader, _face_recognizer, _last_request_time
     _last_request_time = time.time()
     
@@ -105,25 +127,144 @@ def _get_models():
         os.environ["ORT_COREML_FLAGS"] = "0" 
         
         if _plate_detector is None:
-            _plate_detector = PlateDetector()
+            _plate_detector = PlateDetector(native_threads=2, prefer_float=True)
             logger.info("PlateDetector loaded successfully (Frontend CPU mode)")
                 
         if _ocr_reader is None:
-            _ocr_reader = OCRReader()
+            _ocr_reader = OCRReader(native_threads=2)
             logger.info("OCRReader loaded successfully")
 
         rt = os.path.join(cfg.KNOWN_FACES_DIR, ".reload")
-        if _face_recognizer is None:
+        if include_face and _face_recognizer is None:
             _face_recognizer = FaceRecognizer()
             logger.info("FaceRecognizer loaded successfully")
             _get_models._last_face_reload = os.path.getmtime(rt) if os.path.exists(rt) else 0
-        elif os.path.exists(rt):
+        elif include_face and os.path.exists(rt):
             mtime = os.path.getmtime(rt)
             if mtime > _get_models._last_face_reload:
                 _face_recognizer.reload()
                 _get_models._last_face_reload = mtime
                     
         return _plate_detector, _ocr_reader, _face_recognizer
+
+
+def _get_video_jobs():
+    global _video_jobs
+    with _video_jobs_lock:
+        if _video_jobs is None:
+            # Video models and native inference stay in the bounded child;
+            # live/image requests keep their own independent web model state.
+            _video_jobs = VideoOCRJobs(Path(cfg.DATA_DIR) / "ocr_jobs",
+                                      process_isolation=True, cpu_workers=2)
+    return _video_jobs
+
+
+def _video_identity(request, user):
+    return str(user["id"]), str(request.session.get("active_site_id") or 0)
+
+
+def _owned_video_job(request, user, job_id):
+    manager = _get_video_jobs()
+    job = manager.get(job_id, *_video_identity(request, user))
+    if job is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ video hoặc tác vụ đã hết hạn.")
+    return manager, job
+
+
+@router.post("/api/videos", status_code=202)
+async def analyze_video(request: Request, file: UploadFile = File(...),
+                        mode: str = Form("fast"), roi: str = Form(""),
+                        user: dict = Depends(require_menu("detection"))):
+    region = None
+    try:
+        if roi:
+            region = json.loads(roi)
+            if (not isinstance(region, list) or len(region) != 4
+                    or any(isinstance(v, bool) or not isinstance(v, (float, int)) for v in region)
+                    or not (0 <= region[0] < region[2] <= 1 and 0 <= region[1] < region[3] <= 1)):
+                raise ValueError("Vùng nhận diện không hợp lệ.")
+        manager = await run_in_threadpool(_get_video_jobs)
+        job = await run_in_threadpool(manager.reserve, *_video_identity(request, user), file.filename,
+                                     mode=mode, roi=region)
+    except (ValueError, json.JSONDecodeError) as exc:
+        await file.close()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        await file.close()
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    try:
+        size = 0
+        with job.source.open("wb") as target:
+            while chunk := await file.read(4 * 1024 * 1024):
+                size += len(chunk)
+                if size > 512 * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="Video vượt quá 512 MB. Hãy chia thành đoạn nhỏ hơn.")
+                # Large uploads must not block status/cancel/live requests on disk I/O.
+                await run_in_threadpool(target.write, chunk)
+        if not size:
+            raise HTTPException(status_code=400, detail="Video tải lên rỗng.")
+        await run_in_threadpool(manager.enqueue, job)
+        return await run_in_threadpool(manager.snapshot, job)
+    except BaseException:
+        await run_in_threadpool(manager.discard, job)
+        raise
+    finally:
+        await file.close()
+
+
+@router.get("/api/videos/latest")
+@router.get("/api/videos/current", include_in_schema=False)
+async def current_video_analysis(request: Request,
+                                 user: dict = Depends(require_menu("detection"))):
+    manager = await run_in_threadpool(_get_video_jobs)
+    job = await run_in_threadpool(manager.latest, *_video_identity(request, user))
+    snapshot = await run_in_threadpool(manager.snapshot, job) if job is not None else {"job_id": None}
+    return JSONResponse(snapshot, headers={"Cache-Control": "no-store"})
+
+
+@router.get("/api/videos/{job_id}")
+async def video_analysis_status(job_id: str, request: Request,
+                                after: str = "",
+                                user: dict = Depends(require_menu("detection"))):
+    manager, job = await run_in_threadpool(_owned_video_job, request, user, job_id)
+    snapshot = await run_in_threadpool(manager.snapshot, job)
+    if after:
+        if not re.fullmatch(r"[0-9a-f]{32}", after):
+            raise HTTPException(status_code=400, detail="Mốc sự kiện không hợp lệ.")
+        events = snapshot["events"]
+        index = next((i for i, event in enumerate(events) if event.get("id") == after), None)
+        snapshot["events_total"] = len(events)
+        # A missing cursor returns a complete snapshot so clients can resync.
+        snapshot["events_complete"] = index is None
+        if index is not None:
+            snapshot["events"] = events[index + 1:]
+    return JSONResponse(snapshot, headers={"Cache-Control": "no-store"})
+
+
+@router.post("/api/videos/{job_id}/cancel")
+async def cancel_video_analysis(job_id: str, request: Request,
+                                user: dict = Depends(require_menu("detection"))):
+    manager, job = await run_in_threadpool(_owned_video_job, request, user, job_id)
+    await run_in_threadpool(manager.cancel_job, job)
+    return await run_in_threadpool(manager.snapshot, job)
+
+
+@router.get("/api/videos/{job_id}/assets/{filename}")
+async def video_analysis_crop(job_id: str, filename: str, request: Request,
+                              user: dict = Depends(require_menu("detection"))):
+    _, job = await run_in_threadpool(_owned_video_job, request, user, job_id)
+    if not re.fullmatch(r"[0-9a-f]{32}\.jpg", filename):
+        raise HTTPException(status_code=404)
+    path = job.directory / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404)
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "private, no-store"})
+
+
+@router.on_event("shutdown")
+def _close_video_jobs():
+    if _video_jobs is not None:
+        _video_jobs.close()
 
 
 def _request_go2rtc_webrtc(params: dict, sdp_offer: str) -> tuple[int, str]:
@@ -213,7 +354,7 @@ def _check_whitelist(plate_text: str) -> dict | None:
     clean_input = re.sub(r'[^A-Z0-9]', '', plate_text.upper())
     query = """
         SELECT * FROM plate_whitelist 
-        WHERE regexp_replace(plate_number, '[^a-zA-Z0-9]', '', 'g') = %s 
+        WHERE UPPER(regexp_replace(plate_number, '[^a-zA-Z0-9]', '', 'g')) = %s
         AND is_active = TRUE 
         LIMIT 1
     """
@@ -266,56 +407,156 @@ def _get_person_by_identity(identity):
     return None
 
 
-_plate_worker_lock = threading.Lock()
-_plate_worker_busy = False
-_cached_plate_results = []
-_cached_plate_ts = 0
+_live_streams_lock = threading.Lock()
+_live_streams = OrderedDict()
+_LIVE_STREAM_TTL_SECONDS = 20
+_MAX_LIVE_STREAMS = 64
 
 
-def _detect_plates(frame_bgr, s_id, source="webcam"):
-    detector, ocr, _ = _get_models()
-    detections = detector.detect(frame_bgr)
-    detections = merge_plate_boxes(detections)
-    orig_h, orig_w = frame_bgr.shape[:2]
+def _live_stream_state(stream_key, detector, ocr):
+    now = time.monotonic()
+    with _live_streams_lock:
+        expired = [key for key, value in _live_streams.items()
+                   if now - value["last_seen"] > _LIVE_STREAM_TTL_SECONDS]
+        for key in expired:
+            _live_streams.pop(key, None)
 
-    plate_count = sum(1 for d in detections if d[5] == 0)
-    if orig_h > 800 and plate_count == 0:
-        bottom_crop = frame_bgr[orig_h // 2 :, :]
-        bottom_dets = detector.detect(bottom_crop)
-        bottom_dets = merge_plate_boxes(bottom_dets)
-        for x1, y1, x2, y2, conf, cls_id in bottom_dets:
-            detections.append((x1, y1 + orig_h // 2, x2, y2 + orig_h // 2, conf, cls_id))
+        state = _live_streams.get(stream_key)
+        if state is None:
+            analyzer = PlateFrameAnalyzer(
+                detector, ocr, search_small=True, detector_lock=_detector_lock,
+                ocr_lock=_ocr_lock, include_people=True, quick_ocr=True,
+            )
+            aggregator = OCRTrackAggregator(
+                normalize=cfg.normalize_plate,
+                validator=analyzer.is_valid,
+                recognize=analyzer.recognize_crop,
+                recognize_track=analyzer.recognize_track,
+                max_gap_seconds=1.25,
+                max_crops=5,
+                iou_threshold=0.10,
+                max_tracks=64,
+            )
+            state = {
+                "analyzer": analyzer,
+                "aggregator": aggregator,
+                "lock": threading.Lock(),
+                "last_seen": now,
+                "track_meta": {},
+            }
+            _live_streams[stream_key] = state
+        else:
+            _live_streams.move_to_end(stream_key)
+            state["last_seen"] = now
 
-        cx, cy = orig_w // 2, orig_h // 2
-        cw, ch = int(orig_w * 0.6), int(orig_h * 0.6)
-        cx1, cy1 = cx - cw // 2, cy - ch // 2
-        center_crop = frame_bgr[cy1 : cy1 + ch, cx1 : cx1 + cw]
-        center_dets = detector.detect(center_crop)
-        center_dets = merge_plate_boxes(center_dets)
-        for x1, y1, x2, y2, conf, cls_id in center_dets:
-            detections.append((x1 + cx1, y1 + cy1, x2 + cx1, y2 + cy1, conf, cls_id))
+        while len(_live_streams) > _MAX_LIVE_STREAMS:
+            _live_streams.popitem(last=False)
+        return state
 
-        detections = _dedupe_detections(detections)
+
+def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_frame=None):
+    track_id = event["track_id"]
+    meta = state["track_meta"].setdefault(track_id, {})
+    text = event.get("text") or ""
+    recognized = event.get("status") == "recognized" and bool(text)
+    normalized = cfg.normalize_plate(text) if text else ""
+    owner_name = meta.get("owner_name", "unknown")
+    status = "no_plate"
+
+    if recognized:
+        if not meta.get("whitelist_checked"):
+            whitelist = _check_whitelist(normalized)
+            meta["owner_name"] = (whitelist.get("owner_name") or "Whitelist") if whitelist else "unknown"
+            meta["whitelist_checked"] = True
+            owner_name = meta["owner_name"]
+        status = "whitelist" if owner_name != "unknown" else "unknown"
+        if status == "unknown" and not meta.get("pending_saved"):
+            snapshot = save_snapshot(snapshot_frame if snapshot_frame is not None else frame_bgr,
+                                     source, normalized)
+            _add_pending_plate_simple(
+                normalized, text, source, site_id=site_id,
+                image_path=snapshot, plate_type="white",
+            )
+            meta["pending_saved"] = True
+
+    return {
+        "type": "plate",
+        "text": text or "(BIỂN SỐ ?)",
+        "plate_type": "white",
+        "confidence": round(float(event.get("detector_confidence") or 0) * 100, 1),
+        "ocr_confidence": round(float(event.get("confidence") or 0) * 100, 1),
+        "status": status,
+        "owner_name": owner_name,
+        "bbox": [int(value) for value in event["bbox"]],
+        "ocr_text": text,
+        "quality": {"quality_score": float(event.get("quality_score") or 0)},
+        "valid_format": bool(text and state["analyzer"].is_valid(text)),
+        "recognition_status": event.get("status", "unreadable"),
+        "track_id": track_id,
+        "observations": event.get("observations", 0),
+    }
+
+
+def _detect_realtime_frame(frame_bgr, stream_key, site_id, source):
+    detector, ocr, _ = _get_models(include_face=False)
+    state = _live_stream_state(stream_key, detector, ocr)
+    with state["lock"]:
+        timestamp = time.monotonic()
+        observations = state["analyzer"].observe(frame_bgr, timestamp)
+        plate_observations = [item for item in observations if item.get("type") == "plate"]
+        people = [{
+            "type": "person", "text": "Person", "confidence": round(float(item["confidence"]) * 100, 1),
+            "status": "unknown", "bbox": item["bbox"],
+        } for item in observations if item.get("type") == "person"]
+
+        expired = state["aggregator"].update(timestamp, plate_observations)
+        active = state["aggregator"].snapshot()
+        events_by_id = {event["track_id"]: (event, True) for event in expired}
+        events_by_id.update({event["track_id"]: (event, False) for event in active})
+        results = people + [
+            _realtime_plate_item(
+                event, state, frame_bgr, site_id, source,
+                snapshot_frame=event.get("best_crop") if is_expired else None,
+            )
+            for event, is_expired in events_by_id.values()
+        ]
+        for event in expired:
+            state["track_meta"].pop(event["track_id"], None)
+        return results
+
+
+def _detect_plates(frame_bgr, s_id, source="webcam", *, preview_view="both", full_ocr=False):
+    detector, ocr, _ = _get_models(include_face=False)
+    is_preview = source == "video_preview"
+    detections = detect_plate_regions(detector, frame_bgr,
+                                     roi=(.2, .2, .8, .8) if is_preview and preview_view == "center" else None,
+                                     search_small=source in ("upload", "video") or (is_preview and preview_view == "both"),
+                                     lock=_detector_lock)
 
     plate_res = []
     for x1, y1, x2, y2, conf, cls_id in detections:
         if cls_id == 0:
             h_img, w_img = frame_bgr.shape[:2]
-            px = int((x2 - x1) * 0.15) + 10
-            py = int((y2 - y1) * 0.15) + 5
+            px = max(2, round((x2 - x1) * .10))
+            py = max(1, round((y2 - y1) * .12))
             x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
             x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
 
             crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
+            quality = assess_image(crop)
             text, ocr_conf, p_type = "", 0.0, "white"
-            if validate_plate_crop(crop):
-                processed = enhance_plate(crop)
-                ch = _ocr_crop_hash(processed)
-                text, ocr_conf, p_type = _read_cached_ocr(ocr, processed, ch)
+            if quality["valid"]:
+                ch = _ocr_crop_hash(crop)
+                # Playback frames use the bounded quick reader. Paused frames
+                # request both views and can afford the full multi-variant OCR
+                # pass, which tries deskewing, sharpening, and thresholding.
+                quick_ocr = source == "video_preview" and preview_view != "both" and not full_ocr
+                text, ocr_conf, p_type = _read_cached_ocr(ocr, crop, ch, quick=quick_ocr)
 
             status = "no_plate"
             owner_name = "unknown"
-            if text:
+            valid_format = bool(text and ocr._ocr.is_valid_vn_plate(text))
+            if valid_format and ocr_conf >= .70:
                 normalized = cfg.normalize_plate(text)
                 wl = _check_whitelist(normalized)
                 if wl:
@@ -324,7 +565,7 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
                 else:
                     status = "unknown"
 
-            if status == "unknown":
+            if status == "unknown" and source != "video_preview":
                 snap_path = save_snapshot(frame_bgr, source, normalized)
                 _add_pending_plate_simple(
                     normalized, text, source, site_id=s_id,
@@ -340,42 +581,35 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
                 "status": status,
                 "owner_name": owner_name,
                 "bbox": [x1, y1, x2, y2],
+                "ocr_text": text or "",
+                "quality": quality,
+                "valid_format": valid_format,
+                "recognition_status": "recognized" if valid_format and ocr_conf >= .70 else "uncertain" if text else "unreadable",
             }
-            if source in ("upload", "video"):
+            if source in ("upload", "video", "video_preview"):
                 plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
+            if source == "video_preview" and quality["valid"]:
+                preview = prepare_plate_preview(crop)
+                ok, encoded = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 94])
+                if ok:
+                    plate_item["crop_preview"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
             plate_res.append(plate_item)
         elif cls_id == 1:
             plate_res.append({
                 "type": "person", "text": "Person",
                 "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
             })
-        elif cls_id == 2:
-            plate_res.append({
-                "type": "door", "text": "Door",
-                "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
-            })
 
     return plate_res
-
-
-def _async_plate_detection_job(frame_bgr, s_id):
-    global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
-    try:
-        plate_res = _detect_plates(frame_bgr, s_id, source="webcam")
-        with _plate_worker_lock:
-            _cached_plate_results = plate_res
-            _cached_plate_ts = time.time()
-    except Exception as e:
-        logger.error("Async plate worker error: %s", e)
-    finally:
-        with _plate_worker_lock:
-            _plate_worker_busy = False
 
 
 @router.post("/api/detect")
 async def detect_image(request: Request,
                        file: UploadFile = File(...),
                        source: str = Form("webcam"),
+                       preview_view: str = Form("both"),
+                       preview_ocr: str = Form("quick"),
+                       stream_id: str = Form(""),
                        user: dict = Depends(require_menu("detection"))):
     contents = await file.read()
     if not contents:
@@ -392,77 +626,42 @@ async def detect_image(request: Request,
             {"ok": False, "message": f"Ảnh tải lên không hợp lệ hoặc lỗi giải mã: {dbg_decode.get('error', 'Lỗi định dạng')}"},
             status_code=400,
         )
-    detector, ocr, face = _get_models()
-
     def run_ai_pipeline():
-        global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
         res = []
 
-        # 1. Run Face recognition synchronously on current frame (ULTRA FAST: ~70ms)
-        name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
-        if name:
-            display_text = name
-            status = "stranger"
-
-            if name != "STRANGER":
-                user_info = _get_person_by_identity(name)
-                if user_info:
-                    display_name = user_info.get('full_name') or user_info.get('username') or "Không xác định"
-                    display_text = f"Tên: {display_name} + id: {user_info['identity']}"
-                    status = "known"
-            else:
-                from backend.ai.stranger_manager import get_stranger_manager
-                mgr = get_stranger_manager()
-                stranger_id, match_sim, _ = mgr.process_stranger(
-                    emb=emb, frame=frame_bgr, cam_id=source,
-                    bbox=f_bbox, direction=direction, site_id=None
-                )
-                display_text = f"Người lạ #{stranger_id}"
-                if match_sim > 0:
-                    sim = match_sim
-
-            res.append({
-                "type": "face", "text": display_text,
-                "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
-            })
-
         s_id = request.session.get("active_site_id") or None
-        if source in ("upload", "video"):
+        if source in ("upload", "video", "video_preview"):
             # For uploaded images and videos, run plate/vehicle detection synchronously
-            plate_res = _detect_plates(frame_bgr, s_id, source=source)
+            plate_res = _detect_plates(frame_bgr, s_id, source=source,
+                                      preview_view=preview_view if preview_view in ("full", "center", "both") else "both",
+                                      full_ocr=source == "video_preview" and preview_ocr == "full")
             res.extend(plate_res)
         else:
-            # For live streams, trigger async plate detector in background
-            now = time.time()
-            start_worker = False
-            with _plate_worker_lock:
-                if not _plate_worker_busy and (now - _cached_plate_ts > 1.2):
-                    _plate_worker_busy = True
-                    start_worker = True
+            client_host = request.client.host if request.client else "unknown"
+            client_stream_id = (stream_id or f"{source}:{client_host}")[:120]
+            stream_key = (
+                str(user.get("id") or "anonymous"),
+                str(s_id or 0),
+                str(source),
+                client_stream_id,
+            )
+            res.extend(_detect_realtime_frame(frame_bgr, stream_key, s_id, source))
 
-            if start_worker:
-                threading.Thread(
-                    target=_async_plate_detection_job,
-                    args=(frame_bgr.copy(), s_id),
-                    daemon=True
-                ).start()
-
-            # Merge cached plate/vehicle detections if recent (< 4.0s)
-            with _plate_worker_lock:
-                if now - _cached_plate_ts < 4.0:
-                    res.extend(_cached_plate_results)
-
-        logger.info("API Detect (%s): %s results (Face fastpath: %s)", source, len(res), bool(name))
+        logger.info("API Detect (%s): %s person/plate results", source, len(res))
         return res
 
+    started = time.perf_counter()
     results = await asyncio.to_thread(run_ai_pipeline)
     return JSONResponse({
         "results": results,
         "count": len(results),
+        "processing_ms": round((time.perf_counter() - started) * 1000, 1),
+        "frame_size": [int(frame_bgr.shape[1]), int(frame_bgr.shape[0])],
         "info": {
             "detector": True,
             "ocr": True,
-            "face": True,
+            "face": False,
+            "classes": ["person", "plate"],
             "cached_face": False,
         }
     })
@@ -553,7 +752,6 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
 
                 if counter != last_counter:
                     frame = np.frombuffer(shm.buf, dtype=np.uint8, offset=4, count=cfg.SHM_FRAME_BYTES).reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3)).copy()
-                    frame = cv2.resize(frame, (854, 480), interpolation=cv2.INTER_NEAREST)
                     yield _mjpeg_frame(frame, cfg.STREAM_JPEG_QUALITY_LIVE)
                     last_counter = counter
                     last_frame_time = time.monotonic()

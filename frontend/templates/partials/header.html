@@ -21,6 +21,23 @@
 
     <div class="d-flex align-items-center">
 
+      {% if user_companies is defined and user_companies %}
+      <div class="d-inline-flex align-items-center mr-2 mr-sm-3 me-2 me-sm-3">
+        <select name="company_id" id="header-active-company"
+                class="form-control form-control-sm font-size-13"
+                style="border-radius:6px;font-weight:600;color:#1e293b;cursor:pointer;background-color:#f8fafc;border-color:#e2e8f0;width:auto;min-width:220px;max-width:480px;padding-right:28px;text-overflow:ellipsis;"
+                title="Nguồn công ty đang làm việc"
+                hx-post="/set-company" hx-trigger="change" hx-swap="none"
+                hx-on::after-request="if (typeof window.onActiveCompanyChanged === 'function') { window.onActiveCompanyChanged(); } else { window.location.reload(); }">
+          {% for c in user_companies %}
+          <option value="{{ c.id }}" {% if active_company_id == c.id %}selected{% endif %}>
+            {{ c.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
       <div class="dropdown d-inline-block">
         <button type="button" class="btn header-item waves-effect d-flex align-items-center"
                 style="gap:8px;"

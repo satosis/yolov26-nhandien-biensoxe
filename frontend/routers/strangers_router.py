@@ -2,13 +2,15 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Request, Depends, Form
+import math
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 from starlette.responses import RedirectResponse
 
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate
 from backend.ai.stranger_manager import get_stranger_manager, merge_duplicate_strangers
 from frontend.routers.users_router import get_all_users, get_user_by_id
 
@@ -27,7 +29,21 @@ class BulkDeleteInput(BaseModel):
     ids: list[PositiveInt] = Field(min_length=1)
 
 
-def get_stranger_logs(status: str | None = None, limit: int = 50, site_id: int | None = None) -> list:
+def count_stranger_logs(status: str | None = None, site_id: int | None = None) -> int:
+    params: list = []
+    where_clauses = []
+    if status:
+        where_clauses.append("LOWER(TRIM(status)) = LOWER(%s)")
+        params.append(status)
+    if site_id:
+        where_clauses.append("(site_id = %s OR site_id IS NULL)")
+        params.append(site_id)
+    where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    row = db._execute_query(f"SELECT COUNT(*) AS total FROM stranger_logs {where}", tuple(params) if params else None, fetch=True, commit=False)
+    return row["total"] if row else 0
+
+
+def get_stranger_logs(status: str | None = None, limit: int = 20, offset: int = 0, site_id: int | None = None) -> list:
     params: list = []
     where_clauses = []
     if status:
@@ -37,7 +53,7 @@ def get_stranger_logs(status: str | None = None, limit: int = 50, site_id: int |
         where_clauses.append("(sl.site_id = %s OR sl.site_id IS NULL)")
         params.append(site_id)
     where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    params.append(limit)
+    params.extend((limit, offset))
     query = f"""
         SELECT sl.*, s.site_name, u.username AS converted_username
         FROM stranger_logs sl
@@ -45,7 +61,7 @@ def get_stranger_logs(status: str | None = None, limit: int = 50, site_id: int |
         LEFT JOIN users u ON sl.converted_user_id = u.id
         {where}
         ORDER BY COALESCE(sl.last_seen, sl.event_time) DESC
-        LIMIT %s
+        LIMIT %s OFFSET %s
     """
     return db._execute_query(query, tuple(params), fetchall=True, commit=False)
 
@@ -87,7 +103,11 @@ def delete_stranger_log(stranger_id: int) -> bool:
 
 
 @router.get("")
-async def strangers_page(request: Request, user: dict = Depends(require_menu("strangers"))):
+async def strangers_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("strangers")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "strangers"
     active_site_id = ctx.get("active_site_id")
@@ -95,7 +115,17 @@ async def strangers_page(request: Request, user: dict = Depends(require_menu("st
         merge_duplicate_strangers()
     except Exception as e:
         logger.warning("Auto-clustering strangers on page load error: %s", e)
-    ctx["strangers"] = get_stranger_logs(status="new", limit=50, site_id=active_site_id or None)
+
+    total = count_stranger_logs(status="new", site_id=active_site_id or None)
+    total_pages = max(1, math.ceil(total / 20))
+    page_num = max(1, min(page, total_pages))
+    offset = (page_num - 1) * 20
+
+    ctx["strangers"] = get_stranger_logs(status="new", limit=20, offset=offset, site_id=active_site_id or None)
+    ctx["page"] = page_num
+    ctx["total_pages"] = total_pages
+    ctx["total"] = total
+    ctx["page_base_url"] = "/admin/strangers?"
     ctx["all_users"] = get_all_users()
     return templates.TemplateResponse("pages/strangers.html", {"request": request, **ctx})
 

@@ -1,0 +1,36 @@
+<section class="cargo-fuel-section mb-3" aria-labelledby="{{ fuel_field_prefix }}-fuel-heading">
+  <div id="{{ fuel_field_prefix }}-fuel-heading" class="cargo-fuel-heading">
+    Chi phí dầu
+    <span x-show="loadingPrice" class="text-primary font-weight-normal">Đang lấy giá...</span>
+  </div>
+  <div class="row">
+    <div class="col-12 col-md-6 col-lg-4 mb-2">
+      <div class="cargo-field-label-row d-flex align-items-center justify-content-between">
+        <label class="font-size-13 text-muted mb-0" for="{{ fuel_field_prefix }}-fuel-liters">Số lít dầu (lít)</label>
+        <button type="button" class="btn btn-link cargo-fuel-calc text-primary"
+                x-show="fuelRate > 0 && distance_km > 0"
+                @click="calcLitersFromRate(); fuelLitersTouched = true"
+                title="Tự tính theo định mức xe × quãng đường">
+          Tự tính theo km
+        </button>
+      </div>
+      <input type="number" step="0.01" min="0" name="fuel_liters"
+             id="{{ fuel_field_prefix }}-fuel-liters"
+             x-model="fuelLiters"
+             @input="fuelLitersTouched = true; fuelLitersUserEdited = true"
+             class="form-control">
+    </div>
+    <div class="col-12 col-md-6 col-lg-4 mb-2">
+      <label class="font-size-13 text-muted">Giá dầu</label>
+      <input type="hidden" name="fuel_price_per_liter" :value="fuelPrice">
+      <div class="form-control cargo-field-output d-flex align-items-center text-muted"
+           x-text="{% if fuel_field_prefix == 'edit' %}fuelPrice !== null && fuelPrice !== ''{% else %}fuelPrice > 0{% endif %} ? (Number(fuelPrice).toLocaleString('vi-VN') + ' ₫/lít') : '—'"></div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4 mb-2">
+      <label class="font-size-13 text-muted">Tổng chi phí dầu</label>
+      <div class="form-control cargo-field-output d-flex align-items-center font-weight-bold"
+           :class="fuelTotal > 0 ? 'text-warning' : 'text-muted'"
+           x-text="{% if fuel_field_prefix == 'edit' %}fuelTotal !== null{% else %}fuelTotal > 0{% endif %} ? fuelTotal.toLocaleString('vi-VN') + ' ₫' : '—'"></div>
+    </div>
+  </div>
+</section>

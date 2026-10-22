@@ -1,0 +1,40 @@
+<div class="card bg-light mb-3" x-show="newCompanyOpen" style="display:none;">
+  <div class="card-body py-3">
+    <div class="row">
+      <div class="col-12 col-md-6 mb-3">
+        <label class="font-size-13 text-muted" for="new-company-tax-code">Mã số thuế *</label>
+        <div class="input-group">
+          <input id="new-company-tax-code" type="text" class="form-control" x-model="companyDraft.tax_code"
+                 :readonly="editingCompany" autocomplete="off" placeholder="Nhập mã số thuế">
+          <div class="input-group-append" x-show="!editingCompany">
+            <button type="button" class="btn btn-outline-primary cargo-field-action"
+                    @click="lookupCompany()" :disabled="lookingUpCompany"
+                    x-text="lookingUpCompany ? 'Đang tra cứu...' : 'Tra cứu'"></button>
+          </div>
+          <div class="input-group-append" x-show="editingCompany">
+            <button type="button" class="btn btn-outline-primary cargo-field-action"
+                    @click="refreshCompany()" :disabled="lookingUpCompany || savingCompany"
+                    x-text="lookingUpCompany ? 'Đang cập nhật...' : 'Cập nhật từ MST'"></button>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 mb-3">
+        <label class="font-size-13 text-muted" for="new-company-name">Tên đơn vị *</label>
+        <input id="new-company-name" type="text" class="form-control" x-model="companyDraft.name" placeholder="Tên trên hóa đơn">
+      </div>
+      <div class="col-12 mb-3">
+        <label class="font-size-13 text-muted" for="new-company-address">Địa chỉ đơn vị *</label>
+        <input id="new-company-address" type="text" class="form-control" x-model="companyDraft.address" placeholder="Địa chỉ trên hóa đơn">
+      </div>
+      <div class="col-12 mb-2">
+        <label class="font-size-13 text-muted" for="new-company-email">Email đơn vị</label>
+        <input id="new-company-email" type="email" class="form-control" x-model="companyDraft.email"
+               :disabled="!newCompanyOpen" autocomplete="email" placeholder="Email nhận hóa đơn">
+      </div>
+    </div>
+    <div x-show="lookupMessage" :class="lookupSuccess ? 'text-success' : 'text-warning'" class="mb-2 font-size-13" x-text="lookupMessage"></div>
+    <button type="button" class="btn btn-primary btn-sm" @click="saveCompany()" :disabled="savingCompany"
+            x-text="savingCompany ? 'Đang lưu...' : (editingCompany ? 'Cập nhật đơn vị' : 'Lưu và chọn đơn vị')"></button>
+    <button type="button" class="btn btn-light btn-sm ml-1" @click="newCompanyOpen = false">Hủy</button>
+  </div>
+</div>

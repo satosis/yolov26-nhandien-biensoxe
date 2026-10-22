@@ -26,8 +26,8 @@ ort = importlib.import_module("onnxruntime") if importlib.util.find_spec("onnxru
 _HAS_ORT = ort is not None
 
 from backend.services import config as cfg
-from backend.services.database import db
 from backend.util.ocr_utils import VNPlateOCR
+from backend.util.ocr_pipeline import prepare_ocr_image
 from backend.util.image_utils import save_snapshot, decode_image
 from backend.util.texture_utils import check_plate_authenticity
 from backend.util.bbox_utils import merge_plate_boxes
@@ -90,6 +90,59 @@ def _patch_e2e_loss():
         module.E2ELoss = E2ELoss
 
 
+def _onnx_runtime_target(path: str, available_providers, *, explicit_model: bool = False, prefer_float: bool = False):
+    """Choose an available accelerator and a compatible plate model.
+
+    The bundled ``_int8.onnx`` uses ConvInteger nodes and is intended for CPU.
+    When a GPU is present, prefer its floating-point companion so a nominal
+    CUDA/TensorRT session does not silently spend most time on CPU fallback.
+    An explicitly configured model path is always respected.
+    """
+    available = set(available_providers)
+    gpu = [name for name in ("TensorrtExecutionProvider", "CUDAExecutionProvider")
+           if name in available]
+    if (gpu or prefer_float) and not explicit_model and path.lower().endswith("_int8.onnx"):
+        candidate = path[:-len("_int8.onnx")] + ".onnx"
+        if os.path.isfile(candidate):
+            path = candidate
+    if path.lower().endswith("_int8.onnx"):
+        gpu = []
+    providers = gpu
+    if not gpu and "CoreMLExecutionProvider" in available and "int8" not in path.lower():
+        providers = ["CoreMLExecutionProvider"]
+    providers.append("CPUExecutionProvider")
+    return path, providers
+
+
+def _plate_ort_session_options(native_threads=None):
+    """Bound detector CPU workers when the caller or video worker requests it.
+
+    Web models pass an explicit limit to avoid competing native thread pools.
+    Video workers retain their environment override; other callers retain
+    their existing settings when neither limit is supplied.
+    """
+    if not _HAS_ORT:
+        return None
+    value = native_threads if native_threads is not None else os.environ.get("VIDEO_OCR_NATIVE_THREADS")
+    if value is None:
+        return None
+    try:
+        threads = int(value)
+    except ValueError:
+        logger.warning("Ignoring invalid VIDEO_OCR_NATIVE_THREADS=%r", value)
+        return None
+    if not 1 <= threads <= 64:
+        logger.warning("Ignoring out-of-range VIDEO_OCR_NATIVE_THREADS=%r", value)
+        return None
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = threads
+    options.inter_op_num_threads = 1
+    options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    options.add_session_config_entry("session.intra_op.allow_spinning", "0")
+    options.add_session_config_entry("session.inter_op.allow_spinning", "0")
+    return options
+
+
 @dataclass
 class InferenceResult:
     cam_id: str
@@ -129,30 +182,8 @@ def validate_plate_crop(crop) -> bool:
 
 
 def enhance_plate(crop):
-    h, w = crop.shape[:2]
-    MIN_OCR_HEIGHT = 100
-
-    if h < 40:
-        scale = max(3, min(4, MIN_OCR_HEIGHT // h))
-        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
-    elif h < MIN_OCR_HEIGHT:
-        scale = max(2, min(3, MIN_OCR_HEIGHT // h))
-        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
-    elif h < 200:
-        upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
-    else:
-        upscaled = crop
-
-    lab = cv2.cvtColor(upscaled, cv2.COLOR_BGR2LAB)
-    l_ch, a_ch, b_ch = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-    cl = clahe.apply(l_ch)
-    enhanced = cv2.cvtColor(cv2.merge((cl, a_ch, b_ch)), cv2.COLOR_LAB2BGR)
-
-    gaussian = cv2.GaussianBlur(enhanced, (0, 0), 1.0)
-    sharpened = cv2.addWeighted(enhanced, 1.5, gaussian, -0.5, 0)
-
-    return sharpened
+    """Compatibility wrapper; OCR itself keeps the original crop as its first try."""
+    return prepare_ocr_image(crop, profile="plate")
 
 
 
@@ -195,7 +226,7 @@ class PlateVoter:
 
 
 class PlateDetector:
-    def __init__(self):
+    def __init__(self, native_threads=None, prefer_float=False):
         self._engine_type = "cpu"
         self._ort_session = None
         self._model = None
@@ -210,7 +241,8 @@ class PlateDetector:
 
             _patch_e2e_loss()
             self._model = YOLO(model_path, task="detect")
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
+            device = ("cuda" if torch.cuda.is_available() else
+                      "mps" if torch.backends.mps.is_available() else "cpu")
             self._model.to(device)
             logger.info("PlateDetector: PyTorch loaded using %s", device.upper())
             self._engine_type = f"yolo_{device}"
@@ -240,20 +272,21 @@ class PlateDetector:
                     path = onnx_path
 
             if path.endswith(".onnx") and os.path.exists(path):
-                is_int8 = "int8" in path.lower()
-                providers = ['CPUExecutionProvider']
-                provider_options = [{}]
-                if not is_int8:
-                    providers.insert(0, 'CoreMLExecutionProvider')
-                    provider_options.insert(0, {"MLComputeUnits": "CPUAndGPU"})
-                self._ort_session = ort.InferenceSession(path, providers=providers, provider_options=provider_options)
+                path, providers = _onnx_runtime_target(
+                    path, ort.get_available_providers(),
+                    explicit_model="PLATE_MODEL_PATH" in os.environ,
+                    prefer_float=prefer_float,
+                )
+                provider_options = [({"MLComputeUnits": "CPUAndGPU"}
+                                     if name == "CoreMLExecutionProvider" else {})
+                                    for name in providers]
+                self._ort_session = ort.InferenceSession(
+                    path, sess_options=_plate_ort_session_options(native_threads),
+                    providers=providers, provider_options=provider_options)
                 active = self._ort_session.get_providers()
-                if "CoreMLExecutionProvider" in active:
-                    self._engine_type = "coreml"
-                    logger.info("PlateDetector: ONNX + CoreML: %s", path)
-                else:
-                    self._engine_type = "onnx_cpu"
-                    logger.info("PlateDetector: ONNX CPU: %s", path)
+                accelerated = next((name for name in providers if name in active and name != "CPUExecutionProvider"), None)
+                self._engine_type = "onnx_" + (accelerated or "cpu")
+                logger.info("PlateDetector: ONNX model=%s providers=%s active=%s", path, providers, active)
 
         if self._engine_type == "cpu":
             if not os.path.exists(model_path):
@@ -334,12 +367,15 @@ class PlateDetector:
         self._model = None
 
 class OCRReader:
-    def __init__(self):
-        self._ocr = VNPlateOCR()
+    def __init__(self, native_threads=None):
+        self._ocr = VNPlateOCR(native_threads=native_threads)
         logger.info("OCRReader initialised")
 
-    def read(self, crop):
-        return self._ocr.read(crop)
+    def read(self, crop, return_debug: bool = False):
+        return self._ocr.read(crop, return_debug=return_debug)
+
+    def read_quick(self, crop):
+        return self._ocr.read_quick(crop)
 
 class FaceRecognizer:
     def __init__(self):
@@ -593,13 +629,15 @@ class InferenceWorker:
         self._trackers: dict[str, SimpleTracker] = {}
 
     def _is_plate_whitelisted(self, plate_norm: str, site_id: Optional[int] = None) -> bool:
+        from backend.services.database import db
         if site_id:
-            query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND site_ids @> %s::jsonb AND is_active = TRUE LIMIT 1"
+            query = "SELECT 1 FROM plate_whitelist WHERE UPPER(REGEXP_REPLACE(plate_number, '[^A-Za-z0-9]', '', 'g')) = %s AND site_ids @> %s::jsonb AND is_active = TRUE LIMIT 1"
             return db.execute_query(query, (plate_norm, json.dumps([site_id])), fetch=True) is not None
-        query = "SELECT 1 FROM plate_whitelist WHERE plate_number = %s AND is_active = TRUE LIMIT 1"
+        query = "SELECT 1 FROM plate_whitelist WHERE UPPER(REGEXP_REPLACE(plate_number, '[^A-Za-z0-9]', '', 'g')) = %s AND is_active = TRUE LIMIT 1"
         return db.execute_query(query, (plate_norm,), fetch=True) is not None
 
     def _record_vehicle_entry(self, plate_norm: str, vehicle_type: str, camera_id: str, image_path: str, site_id: Optional[int] = None) -> bool:
+        from backend.services.database import db
         active = db.execute_query(
             "SELECT id FROM vehicle_sessions WHERE plate_norm = %s AND status = 'parking' LIMIT 1",
             (plate_norm,),
@@ -622,6 +660,7 @@ class InferenceWorker:
         return True
 
     def _add_pending_plate(self, plate_norm: str, plate_raw: str, camera_id: Optional[str] = None, site_id: Optional[int] = None, image_path: Optional[str] = None, plate_type: str = "white") -> bool:
+        from backend.services.database import db
         clean_plate = re.sub(r'[^A-Z0-9]', '', plate_norm.upper())
         existing = db.execute_query("""
             SELECT pending_id FROM pending_plates
@@ -909,8 +948,7 @@ class InferenceWorker:
         if not validate_plate_crop(crop):
             logger.debug("Crop rejected by plate validation (cam: %s)", cam_id)
             return
-        processed = enhance_plate(crop)
-        text, ocr_conf, p_type = self._ocr.read(processed)
+        text, ocr_conf, p_type = self._ocr.read(crop)
         if text:
             voter.add(text, ocr_conf)
             result.plate_type = p_type

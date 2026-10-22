@@ -1,0 +1,254 @@
+{% extends "layout.html" %}
+{% block title %}Duyệt bản quét — {{ vehicle.plate_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column" style="gap:20px;" x-data>
+  <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
+    <div class="d-flex align-items-center" style="gap:12px;">
+      <a href="/admin/vehicles/cargo?vehicle_id={{ vehicle.id }}" class="btn btn-light btn-sm font-weight-bold">← Quay lại</a>
+      <span class="text-muted">|</span>
+      <span class="badge badge-success font-weight-bold" style="font-size:14px;font-family:monospace;">{{ vehicle.plate_number }}</span>
+      <span class="font-weight-bold" style="font-size:17px;">Duyệt kết quả quét</span>
+    </div>
+    <div class="text-muted" style="font-size:12px;">
+      {{ line_count }} dòng OCR · {{ candidate_count }} chuyến dự đoán
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body py-3 text-muted" style="font-size:13px;">
+      Kiểm tra các dòng màu vàng/đỏ trước khi lưu. Với chữ viết khó đọc, hệ thống chỉ điền nháp và không tự lưu vào lịch trình.
+    </div>
+  </div>
+
+  {% if quality_warnings %}
+  <div class="alert alert-warning">
+    <div class="font-weight-bold text-uppercase mb-2" style="font-size:12px;letter-spacing:.08em;">Chất lượng ảnh cần chú ý</div>
+    {% for msg in quality_warnings %}
+    <div style="font-size:13px;">{{ msg }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if not candidates %}
+  <div class="card">
+    <div class="card-body">
+      <div class="font-weight-bold text-warning mb-2" style="font-size:14px;">Chưa tách được chuyến hàng</div>
+      <p class="text-muted mb-0" style="font-size:14px;">Có thể ảnh quá mờ, giấy bị nghiêng hoặc chữ không đủ tương phản. Hãy thử quét lại gần hơn, đủ sáng hơn.</p>
+    </div>
+  </div>
+  {% else %}
+  <form id="scanReviewForm" method="post" action="/admin/vehicles/cargo/scan/confirm" class="d-flex flex-column" style="gap:16px;">
+    <input type="hidden" name="token" value="{{ token }}">
+    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+
+    {% for c in candidates %}
+    {% set i = loop.index0 %}
+    {% set warnings = c.get('warnings', []) %}
+    {% set field_conf = c.get('_field_confidence', {}) %}
+    {% set field_sources = c.get('_field_sources', {}) %}
+    <div data-scan-row class="card {% if warnings|selectattr('level','equalto','danger')|list %}border-danger{% elif warnings %}border-warning{% endif %}">
+      <div class="card-header d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
+        <div class="d-flex align-items-center" style="gap:12px;">
+          <span class="font-weight-bold" style="font-size:14px;">Chuyến {{ loop.index }}</span>
+          {% if warnings %}
+          <span class="badge badge-warning badge-pill">{{ warnings|length }} cảnh báo</span>
+          {% else %}
+          <span class="badge badge-success badge-pill">Ổn</span>
+          {% endif %}
+        </div>
+        <label class="d-flex align-items-center mb-0" style="gap:8px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" name="skip_{{ i }}" @change="$el.closest('[data-scan-row]').querySelectorAll('input:not([type=checkbox]), textarea').forEach(i => i.disabled = $el.checked)">
+          Bỏ qua dòng này
+        </label>
+      </div>
+
+      {% if warnings %}
+      <div class="px-3 py-2 border-bottom bg-light">
+        {% for w in warnings %}
+        <div style="font-size:12px;" class="{% if w.level == 'danger' %}text-danger{% else %}text-warning{% endif %}">
+          {{ w.message }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Xuất phát *</label>
+            <input type="datetime-local" name="departure_{{ i }}" value="{{ c.departure_time or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('departure_time') %}
+            <small class="text-muted">OCR {{ (field_conf.get('departure_time') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Ngày về</label>
+            <input type="datetime-local" name="return_{{ i }}" value="{{ c.return_time or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('return_time') %}
+            <small class="text-muted">OCR {{ (field_conf.get('return_time') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Số lít dầu</label>
+            <input type="number" name="fuel_{{ i }}" step="0.01" value="{{ c.fuel_liters or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('fuel_liters') %}
+            <small class="text-muted">OCR {{ (field_conf.get('fuel_liters') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Điểm lấy hàng</label>
+            <input type="text" name="origin_{{ i }}" value="{{ c.origin or '' }}"
+                   class="form-control form-control-sm">
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Điểm giao hàng</label>
+            <input type="text" name="destination_{{ i }}" value="{{ c.destination or '' }}"
+                   class="form-control form-control-sm">
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Cước vận chuyển</label>
+            <input type="number" name="revenue_{{ i }}" step="1" value="{{ c.freight_revenue or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('freight_revenue') %}
+            <small class="text-muted">OCR {{ (field_conf.get('freight_revenue') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-3 mb-3">
+            <label class="text-muted font-weight-bold" style="font-size:12px;">Quãng đường (km)</label>
+            <input type="number" name="distance_{{ i }}" step="0.1" value="{{ c.distance_km or '' }}"
+                   class="form-control form-control-sm">
+            {% if field_conf.get('distance_km') %}
+            <small class="text-muted">OCR {{ (field_conf.get('distance_km') * 100)|round|int }}%</small>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <details class="border-top">
+        <summary class="px-3 py-2 text-muted" style="font-size:12px;cursor:pointer;">Xem dòng OCR gốc</summary>
+        <div class="px-3 pb-3">
+          <div class="row">
+            {% for line in c.source_lines %}
+            <div class="col-12 col-md-6 mb-3">
+              <div class="card border">
+                <div class="card-body p-3">
+                  <div class="text-muted mb-2" style="font-size:11px;">Dòng {{ line.index }} · {{ (line.confidence * 100)|round|int }}%</div>
+                  {% if line.crop_image %}
+                  <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="img-fluid rounded mb-2" style="max-height:92px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;">
+                  {% endif %}
+                  <div style="font-size:13px;" class="mb-2">{{ line.text }}</div>
+                  <label class="text-muted" style="font-size:11px;">Dòng chuẩn</label>
+                  <textarea name="line_text_{{ i }}_{{ loop.index0 }}" rows="2"
+                            class="form-control form-control-sm">{{ line.text }}</textarea>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </details>
+    </div>
+    {% endfor %}
+
+    <div id="scanCandidatePagination" class="d-flex justify-content-center py-2"></div>
+    <div class="d-flex align-items-center sticky-bottom bg-white border-top py-3" style="gap:12px;">
+      <button type="submit" class="btn btn-primary font-weight-bold">
+        Lưu các chuyến đã duyệt
+      </button>
+      <a href="/admin/vehicles/cargo?vehicle_id={{ vehicle.id }}" class="btn btn-light">
+        Hủy
+      </a>
+    </div>
+  </form>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header">
+      <span class="font-weight-bold text-uppercase text-muted" style="font-size:12px;letter-spacing:.08em;">Toàn bộ OCR</span>
+    </div>
+    <div class="cx-overflow-x-auto" style="max-height:360px;overflow-y:auto;">
+      <table class="table-cinema">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:70px;">Dòng</th>
+            <th style="width:80px;">Độ tin cậy</th>
+            <th>Nội dung</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr data-scan-line>
+            <td class="text-center text-muted font-weight-medium" style="font-size:12px;">{{ loop.index }}</td>
+            <td class="text-muted" style="font-size:12px;">Dòng {{ line.index }}</td>
+            <td style="font-size:12px;">
+              <span class="{% if line.confidence < 0.62 %}text-danger{% elif line.confidence < 0.78 %}text-warning{% else %}text-success{% endif %}">
+                {{ (line.confidence * 100)|round|int }}%
+              </span>
+            </td>
+            <td style="font-size:12px;">
+              {% if line.crop_image %}
+              <img src="{{ line.crop_image }}" alt="OCR line {{ line.index }}" class="img-fluid rounded mb-1" style="max-height:72px;object-fit:contain;background:#fff;border:1px solid #e2e8f0;">
+              {% endif %}
+              <div>{{ line.text }}</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div id="scanLinePagination" class="d-flex justify-content-center py-2"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  function paginateRows(rows, container, pageSize, useClass) {
+    let page = 1;
+    function render() {
+      const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      page = Math.max(1, Math.min(page, totalPages));
+      rows.forEach((row, index) => {
+        const visible = index >= (page - 1) * pageSize && index < page * pageSize;
+        if (useClass) row.classList.toggle('d-none', !visible);
+        else row.style.display = visible ? '' : 'none';
+      });
+      if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = '<nav aria-label="Phân trang"><ul class="pagination pagination-sm mb-0">' +
+        '<li class="page-item ' + (page === 1 ? 'disabled' : '') + '"><button type="button" class="page-link" data-page="' + (page - 1) + '">Trước</button></li>' +
+        '<li class="page-item disabled"><span class="page-link">' + page + ' / ' + totalPages + ' · ' + rows.length + ' dòng</span></li>' +
+        '<li class="page-item ' + (page === totalPages ? 'disabled' : '') + '"><button type="button" class="page-link" data-page="' + (page + 1) + '">Tiếp</button></li>' +
+        '</ul></nav>';
+    }
+    container.addEventListener('click', event => {
+      const button = event.target.closest('[data-page]');
+      if (!button || button.closest('.disabled')) return;
+      page = Number(button.dataset.page) || 1;
+      render();
+    });
+    render();
+  }
+
+  const form = document.getElementById('scanReviewForm');
+  if (form) paginateRows(Array.from(form.querySelectorAll('[data-scan-row]')),
+    document.getElementById('scanCandidatePagination'), 10, true);
+  paginateRows(Array.from(document.querySelectorAll('[data-scan-line]')),
+    document.getElementById('scanLinePagination'), 20, false);
+})();
+</script>
+{% endblock %}

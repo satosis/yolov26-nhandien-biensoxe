@@ -1,14 +1,14 @@
 {% extends "layout.html" %}
 {% block title %}Cấu hình API Keys — {{ provider.name }}{% endblock %}
 {% block page_title %}Cấu hình API Key: {{ provider.name }}{% endblock %}
+{% block page_back_button %}
+<a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">Quay lại</a>
+{% endblock %}
 {% block page_actions %}
 <div class="d-flex" style="gap:8px;">
   <button type="button" onclick="addNewKeyRow()" class="btn btn-primary btn-sm font-weight-bold">
     <i class="bx bx-plus mr-1"></i> Thêm trường mới
   </button>
-  <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
-    Quay lại
-  </a>
 </div>
 {% endblock %}
 
@@ -24,6 +24,7 @@
           <table class="table-cinema">
             <thead>
               <tr>
+                <th style="width:50px;" class="text-center">STT</th>
                 <th style="width:280px;">TÊN TRƯỜNG (KEY)</th>
                 <th>GIÁ TRỊ (VALUE)</th>
                 <th style="width:120px;" class="text-right">HÀNH ĐỘNG</th>
@@ -32,6 +33,7 @@
             <tbody id="keys-list-container">
               {% for name, value in api_keys.items() %}
               <tr class="key-row">
+                <td class="text-center text-muted font-weight-medium key-stt">{{ loop.index }}</td>
                 <td>
                   <input name="api_key_names[]" value="{{ name }}" required
                          class="form-control form-control-sm font-monospace"
@@ -45,7 +47,7 @@
                          placeholder="Nhập giá trị">
                 </td>
                 <td class="text-right">
-                  <button type="button" onclick="this.closest('tr.key-row').remove()"
+                  <button type="button" onclick="removeKeyRow(this)"
                           title="Xóa trường này" class="btn btn-sm btn-danger">🗑</button>
                 </td>
               </tr>
@@ -54,25 +56,29 @@
               {% if not api_keys %}
                 {% if provider.provider_key == 'imou' %}
                 <tr class="key-row">
+                  <td class="text-center text-muted font-weight-medium key-stt">1</td>
                   <td><input name="api_key_names[]" value="open_app_id" required class="form-control form-control-sm" style="font-family:monospace;"></td>
                   <td><input name="api_key_values[]" type="text" placeholder="Nhập App ID" required class="form-control form-control-sm" style="font-family:monospace;"></td>
-                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                  <td class="text-right"><button type="button" onclick="removeKeyRow(this)" class="btn btn-sm btn-danger">🗑</button></td>
                 </tr>
                 <tr class="key-row">
+                  <td class="text-center text-muted font-weight-medium key-stt">2</td>
                   <td><input name="api_key_names[]" value="open_app_secret" required class="form-control form-control-sm" style="font-family:monospace;"></td>
                   <td><input name="api_key_values[]" type="text" placeholder="Nhập App Secret" required class="form-control form-control-sm" style="font-family:monospace;"></td>
-                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                  <td class="text-right"><button type="button" onclick="removeKeyRow(this)" class="btn btn-sm btn-danger">🗑</button></td>
                 </tr>
                 {% elif provider.provider_key == 'dori' %}
                 <tr class="key-row">
+                  <td class="text-center text-muted font-weight-medium key-stt">1</td>
                   <td><input name="api_key_names[]" value="email" required class="form-control form-control-sm" style="font-family:monospace;"></td>
                   <td><input name="api_key_values[]" type="text" placeholder="Email đăng nhập" required class="form-control form-control-sm" style="font-family:monospace;"></td>
-                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                  <td class="text-right"><button type="button" onclick="removeKeyRow(this)" class="btn btn-sm btn-danger">🗑</button></td>
                 </tr>
                 <tr class="key-row">
+                  <td class="text-center text-muted font-weight-medium key-stt">2</td>
                   <td><input name="api_key_names[]" value="password" required class="form-control form-control-sm" style="font-family:monospace;"></td>
                   <td><input name="api_key_values[]" type="text" placeholder="Mật khẩu" required class="form-control form-control-sm" style="font-family:monospace;"></td>
-                  <td class="text-right"><button type="button" onclick="this.closest('tr.key-row').remove()" class="btn btn-sm btn-danger">🗑</button></td>
+                  <td class="text-right"><button type="button" onclick="removeKeyRow(this)" class="btn btn-sm btn-danger">🗑</button></td>
                 </tr>
                 {% endif %}
               {% endif %}
@@ -97,11 +103,31 @@
 
 {% block scripts %}
 <script>
+function renumberKeyRows() {
+  const container = document.getElementById('keys-list-container');
+  if (!container) return;
+  const rows = container.querySelectorAll('tr.key-row');
+  rows.forEach((row, idx) => {
+    const sttCell = row.querySelector('.key-stt');
+    if (sttCell) sttCell.textContent = idx + 1;
+  });
+}
+
+function removeKeyRow(btn) {
+  const tr = btn.closest('tr.key-row');
+  if (tr) {
+    tr.remove();
+    renumberKeyRows();
+  }
+}
+
 function addNewKeyRow() {
   const container = document.getElementById('keys-list-container');
+  const count = container.querySelectorAll('tr.key-row').length + 1;
   const tr = document.createElement('tr');
   tr.className = 'key-row';
   tr.innerHTML = `
+    <td class="text-center text-muted font-weight-medium key-stt">${count}</td>
     <td>
       <input name="api_key_names[]" required
              class="form-control form-control-sm"
@@ -115,11 +141,12 @@ function addNewKeyRow() {
              placeholder="Giá trị">
     </td>
     <td class="text-right">
-      <button type="button" onclick="this.closest('tr.key-row').remove()"
+      <button type="button" onclick="removeKeyRow(this)"
               class="btn btn-sm btn-danger">🗑</button>
     </td>
   `;
   container.appendChild(tr);
+  renumberKeyRows();
 }
 </script>
 {% endblock %}

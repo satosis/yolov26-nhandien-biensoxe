@@ -1,0 +1,129 @@
+{% extends "layout.html" %}
+{% block title %}Chuyến hàng còn nợ — {{ company.name }}{% endblock %}
+{% block page_title %}Chuyến hàng còn nợ — {{ company.name }}{% endblock %}
+{% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="d-flex flex-wrap align-items-center" style="gap:16px;">
+        <div>
+          <div class="text-muted small">Mã số thuế</div>
+          <strong>{{ company.tax_code }}</strong>
+        </div>
+        <div style="flex:1 1 200px;">
+          <div class="text-muted small">Tên đơn vị</div>
+          <strong>{{ company.name }}</strong>
+        </div>
+        {% if company.director_name %}
+        <div>
+          <div class="text-muted small">Giám đốc</div>
+          <span>{{ company.director_name }}</span>
+        </div>
+        {% endif %}
+        {% if company.email %}
+        <div>
+          <div class="text-muted small">Email</div>
+          <span>{{ company.email }}</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-3">
+    <div class="col-6 col-md-4 mb-2 mb-md-0">
+      <div class="card mb-0">
+        <div class="card-body py-2">
+          <div class="text-muted small">Số hóa đơn còn nợ</div>
+          <strong class="text-danger">{{ trips|length }}</strong>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4">
+      <div class="card mb-0">
+        <div class="card-body py-2">
+          <div class="text-muted small">Tổng tiền còn nợ</div>
+          <strong class="text-danger">{{ total_debt_fmt }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header font-weight-bold d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <span>Danh sách hóa đơn còn nợ</span>
+      <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bx bx-arrow-back mr-1"></i>Quay lại danh mục đơn vị
+      </a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover table-bordered mb-0" data-bulk-select="1" style="font-size:12px; min-width:900px;">
+        <thead class="thead-light">
+          <tr>
+            <th style="width:45px;" class="text-center">STT</th>
+            <th style="width:100px;">Ngày</th>
+            <th style="width:110px;">Số HĐ</th>
+            <th style="width:110px;">Biển số xe</th>
+            <th>Nơi bốc</th>
+            <th>Nơi trả</th>
+            <th>Loại hàng hóa</th>
+            <th class="text-right" style="width:130px;">Doanh thu (đ)</th>
+            <th class="text-right" style="width:130px;">Còn nợ (đ)</th>
+            <th>Ghi chú</th>
+            <th style="width:90px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in trips %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
+            <td class="text-nowrap align-middle">
+              {% if t.invoice_date %}{{ t.invoice_date.strftime('%d/%m/%Y') }}{% else %}—{% endif %}
+            </td>
+            <td class="align-middle font-weight-bold">{{ t.document_number or '—' }}</td>
+            <td class="align-middle text-nowrap">{{ t.plate_number or '—' }}</td>
+            <td class="align-middle" style="min-width:120px;">{{ t.origin or '—' }}</td>
+            <td class="align-middle" style="min-width:120px;">{{ t.destination or '—' }}</td>
+            <td class="align-middle">{{ t.cargo_description or '—' }}</td>
+            <td class="text-right text-nowrap align-middle">
+              {% if t.freight_revenue is not none %}
+                {{ "{:,.0f}".format(t.freight_revenue * (1 + (t.vat_rate or 0)))|replace(',', '.') }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle font-weight-bold text-danger">
+              {{ "{:,.0f}".format(t.debt_amount)|replace(',', '.') }}
+            </td>
+            <td class="align-middle small text-muted">{{ t.trip_note or '' }}</td>
+            <td class="text-nowrap align-middle">
+              <a href="/admin/vehicles/cargo/{{ t.id }}/edit"
+                 class="btn btn-light btn-sm">Sửa</a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center text-muted py-4">
+              <i class="bx bx-check-circle text-success" style="font-size:2rem;"></i>
+              <div class="mt-1">Đơn vị này không có chuyến hàng còn nợ.</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if trips %}
+        <tfoot class="thead-light">
+          <tr>
+            <td colspan="8" class="text-right font-weight-bold small">Tổng cộng:</td>
+            <td class="text-right font-weight-bold text-danger text-nowrap">{{ total_debt_fmt }}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}

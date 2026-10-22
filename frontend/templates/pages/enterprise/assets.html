@@ -1,0 +1,337 @@
+{% extends "layout.html" %}
+
+{% block title %}Tài sản{% endblock %}
+{% block page_title %}Tài sản{% endblock %}
+
+{% block content %}
+<style>
+  #enterpriseAssets .card { box-shadow: none; }
+  #enterpriseAssets .card-header { background: #fff; }
+  #enterpriseAssets .table thead th { background: #f6f7f8; color: #454b52; font-weight: 600; white-space: nowrap; }
+  #enterpriseAssets .asset-status { display: inline-block; padding: 2px 7px; border: 1px solid #d6dbe1; border-radius: 3px; color: #495057; background: #f8f9fa; white-space: nowrap; }
+  #enterpriseAssets .btn-primary, #enterpriseAssets .btn-outline-primary { color: #343a40; background: #fff; border-color: #cfd5dc; }
+  #enterpriseAssets .btn-primary:hover, #enterpriseAssets .btn-outline-primary:hover { background: #f1f3f5; border-color: #adb5bd; }
+</style>
+
+<div class="container-fluid px-0 w-100" id="enterpriseAssets">
+  <div class="card mb-0">
+    <div class="card-header py-2">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+        <div>
+          <strong>Danh sách tài sản</strong>
+          <span class="text-muted ml-2" id="assetCount">({{ assets|length }})</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="addAssetButton" {% if not company %}disabled{% endif %}>
+          <i class="bx bx-plus mr-1"></i>Thêm tài sản
+        </button>
+      </div>
+    </div>
+
+    <div class="p-2 border-bottom">
+      <div class="form-row align-items-center">
+        <div class="col-md-4 mb-1 mb-md-0">
+          <input type="search" class="form-control form-control-sm" id="assetSearch" placeholder="Tìm tên, mã hoặc số sê-ri...">
+        </div>
+        <div class="col-md-3 mb-1 mb-md-0">
+          <select class="form-control form-control-sm" id="assetCategoryFilter">
+            <option value="">Tất cả loại tài sản</option>
+            <option value="vehicle">Phương tiện</option>
+            <option value="equipment">Thiết bị</option>
+            <option value="tool">Công cụ, dụng cụ</option>
+            <option value="other">Khác</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <select class="form-control form-control-sm" id="assetStatusFilter">
+            <option value="">Tất cả trạng thái</option>
+            <option value="available">Sẵn sàng</option>
+            <option value="in_use">Đang sử dụng</option>
+            <option value="repair">Đang sửa chữa</option>
+            <option value="liquidated">Đã thanh lý</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:140px;">Mã tài sản</th>
+            <th>Tên tài sản</th>
+            <th style="width:150px;">Loại</th>
+            <th style="width:160px;">Số sê-ri / Biển số</th>
+            <th style="width:180px;">Người đang giữ</th>
+            <th style="width:175px;">Ngày mua / Nguyên giá</th>
+            <th style="width:135px;">Trạng thái</th>
+            <th style="width:115px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="assetRows"></tbody>
+      </table>
+    </div>
+    <div id="assetPagination" class="d-flex justify-content-center py-2"></div>
+  </div>
+</div>
+
+<div class="modal fade" id="assetModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="assetForm">
+        <div class="modal-header py-2">
+          <h5 class="modal-title" id="assetModalTitle">Thêm tài sản</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="assetId">
+          <div class="form-row">
+            <div class="form-group col-md-8">
+              <label for="assetName">Tên tài sản <span class="text-danger">*</span></label>
+              <input class="form-control form-control-sm" id="assetName" required maxlength="255">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="assetCode">Mã tài sản</label>
+              <input class="form-control form-control-sm" id="assetCode" maxlength="100">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label for="assetCategory">Loại tài sản</label>
+              <select class="form-control form-control-sm" id="assetCategory">
+                <option value="vehicle">Phương tiện</option>
+                <option value="equipment">Thiết bị</option>
+                <option value="tool">Công cụ, dụng cụ</option>
+                <option value="other">Khác</option>
+              </select>
+            </div>
+            <div class="form-group col-md-6">
+              <label for="assetSerial">Số sê-ri / Biển số</label>
+              <input class="form-control form-control-sm" id="assetSerial" maxlength="160">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group col-md-4">
+              <label for="assetAcquiredDate">Ngày mua</label>
+              <input type="date" class="form-control form-control-sm" id="assetAcquiredDate">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="assetCost">Nguyên giá (đ)</label>
+              <input type="number" min="0" step="1" class="form-control form-control-sm" id="assetCost" value="0">
+            </div>
+            <div class="form-group col-md-4">
+              <label for="assetStatus">Trạng thái</label>
+              <select class="form-control form-control-sm" id="assetStatus">
+                <option value="available">Sẵn sàng</option>
+                <option value="in_use">Đang sử dụng</option>
+                <option value="repair">Đang sửa chữa</option>
+                <option value="liquidated">Đã thanh lý</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="assetAssignedTo">Người đang giữ</label>
+            <input class="form-control form-control-sm" id="assetAssignedTo" maxlength="255">
+          </div>
+          <div class="form-group mb-0">
+            <label for="assetNote">Ghi chú</label>
+            <textarea class="form-control form-control-sm" id="assetNote" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-light border" id="saveAssetButton">Lưu tài sản</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const apiUrl = '/admin/enterprise/assets/api';
+  let assets = {{ assets|tojson }};
+  const rows = document.getElementById('assetRows');
+  const pagination = document.getElementById('assetPagination');
+  let currentPage = {{ asset_page }};
+  let totalPages = {{ asset_total_pages }};
+  let totalAssets = {{ asset_total }};
+  let searchTimer;
+  const form = document.getElementById('assetForm');
+  const modal = $('#assetModal');
+  const categories = { vehicle: 'Phương tiện', equipment: 'Thiết bị', tool: 'Công cụ, dụng cụ', other: 'Khác' };
+  const statuses = { available: 'Sẵn sàng', in_use: 'Đang sử dụng', repair: 'Đang sửa chữa', liquidated: 'Đã thanh lý' };
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char];
+    });
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + ' đ';
+  }
+
+  function render() {
+    document.getElementById('assetCount').textContent = '(' + totalAssets + ')';
+    pagination.innerHTML = totalPages > 1 ?
+      '<nav aria-label="Phân trang tài sản"><ul class="pagination pagination-sm mb-0">' +
+      '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><button type="button" class="page-link" data-page="' + (currentPage - 1) + '">Trước</button></li>' +
+      Array.from({ length: Math.min(totalPages, 5) }, function (_, index) { const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + index; return '<li class="page-item ' + (page === currentPage ? 'active' : '') + '"><button type="button" class="page-link" data-page="' + page + '">' + page + '</button></li>'; }).join('') +
+      '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><button type="button" class="page-link" data-page="' + (currentPage + 1) + '">Tiếp</button></li></ul></nav>' : '';
+    if (!assets.length) {
+      const hasFilter = document.getElementById('assetSearch').value.trim() || document.getElementById('assetCategoryFilter').value || document.getElementById('assetStatusFilter').value;
+      rows.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">' + (hasFilter ? 'Không có tài sản phù hợp.' : 'Doanh nghiệp chưa có tài sản.') + '</td></tr>';
+      return;
+    }
+    rows.innerHTML = assets.map(function (asset, idx) {
+      const stt = (currentPage - 1) * 20 + idx + 1;
+      return '<tr>' +
+        '<td class="text-center text-muted font-weight-medium">' + stt + '</td>' +
+        '<td class="text-muted">' + escapeHtml(asset.asset_code || '—') + '</td>' +
+        '<td><strong>' + escapeHtml(asset.name) + '</strong>' + (asset.note ? '<div class="small text-muted">' + escapeHtml(asset.note) + '</div>' : '') + '</td>' +
+        '<td>' + escapeHtml(categories[asset.category] || categories.other) + '</td>' +
+        '<td>' + escapeHtml(asset.serial_number || '—') + '</td>' +
+        '<td>' + escapeHtml(asset.assigned_to || '—') + '</td>' +
+        '<td>' + escapeHtml(asset.acquired_date || '—') + '<div class="small text-muted">' + money(asset.purchase_cost) + '</div></td>' +
+        '<td><span class="asset-status">' + escapeHtml(statuses[asset.status] || asset.status) + '</span></td>' +
+        '<td class="text-right text-nowrap"><button type="button" class="btn btn-sm btn-light border js-edit-asset" data-id="' + asset.id + '">Sửa</button> ' +
+          '<button type="button" class="btn btn-sm btn-light border js-delete-asset" data-id="' + asset.id + '" data-bulk-action="delete" data-bulk-url="' + apiUrl + '/' + asset.id + '/delete" data-bulk-method="POST">Xóa</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function loadAssets(page = 1) {
+    const params = new URLSearchParams({
+      q: document.getElementById('assetSearch').value.trim(),
+      category: document.getElementById('assetCategoryFilter').value,
+      status: document.getElementById('assetStatusFilter').value,
+      page: String(page)
+    });
+    try {
+      const response = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể tải danh sách tài sản.');
+      assets = data.assets || [];
+      currentPage = Number(data.page) || 1;
+      totalPages = Number(data.total_pages) || 1;
+      totalAssets = Number(data.total) || 0;
+      render();
+    } catch (error) {
+      showNotice(error.message, true);
+    }
+  }
+
+  function showNotice(message, isError) {
+    if (!message) return;
+    if (window.toastr) {
+      if (isError) toastr.error(message);
+      else toastr.success(message);
+    } else {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: { msg: message, type: isError ? 'error' : 'success' }
+      }));
+    }
+  }
+
+  function clearForm() {
+    form.reset();
+    document.getElementById('assetId').value = '';
+    document.getElementById('assetCost').value = '0';
+    document.getElementById('assetModalTitle').textContent = 'Thêm tài sản';
+  }
+
+  function fillForm(asset) {
+    document.getElementById('assetId').value = asset.id;
+    document.getElementById('assetName').value = asset.name || '';
+    document.getElementById('assetCode').value = asset.asset_code || '';
+    document.getElementById('assetCategory').value = asset.category || 'other';
+    document.getElementById('assetSerial').value = asset.serial_number || '';
+    document.getElementById('assetAcquiredDate').value = asset.acquired_date || '';
+    document.getElementById('assetCost').value = asset.purchase_cost || 0;
+    document.getElementById('assetStatus').value = asset.status || 'available';
+    document.getElementById('assetAssignedTo').value = asset.assigned_to || '';
+    document.getElementById('assetNote').value = asset.note || '';
+    document.getElementById('assetModalTitle').textContent = 'Sửa thông tin tài sản';
+  }
+
+  async function send(url, method, body) {
+    const response = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể thực hiện thao tác.');
+    return data;
+  }
+
+  document.getElementById('addAssetButton').addEventListener('click', function () {
+    clearForm();
+    modal.modal('show');
+  });
+  document.getElementById('assetSearch').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () { loadAssets(1); }, 250);
+  });
+  ['assetCategoryFilter', 'assetStatusFilter'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () { loadAssets(1); });
+  });
+  pagination.addEventListener('click', function (event) {
+    const button = event.target.closest('[data-page]');
+    if (!button || button.closest('.disabled')) return;
+    loadAssets(Number(button.dataset.page) || 1);
+  });
+  rows.addEventListener('click', async function (event) {
+    const editButton = event.target.closest('.js-edit-asset');
+    const deleteButton = event.target.closest('.js-delete-asset');
+    if (editButton) {
+      const asset = assets.find(function (item) { return String(item.id) === editButton.dataset.id; });
+      if (asset) { fillForm(asset); modal.modal('show'); }
+    }
+    if (deleteButton) {
+      const asset = assets.find(function (item) { return String(item.id) === deleteButton.dataset.id; });
+      if (!asset || !window.confirm('Xóa tài sản “' + asset.name + '”?')) return;
+      try {
+        const result = await send(apiUrl + '/' + asset.id + '/delete', 'POST');
+        await loadAssets(currentPage);
+        showNotice(result.message, false);
+      } catch (error) { showNotice(error.message, true); }
+    }
+  });
+  form.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    const id = document.getElementById('assetId').value;
+    const payload = {
+      name: document.getElementById('assetName').value,
+      asset_code: document.getElementById('assetCode').value,
+      category: document.getElementById('assetCategory').value,
+      serial_number: document.getElementById('assetSerial').value,
+      acquired_date: document.getElementById('assetAcquiredDate').value,
+      purchase_cost: document.getElementById('assetCost').value,
+      status: document.getElementById('assetStatus').value,
+      assigned_to: document.getElementById('assetAssignedTo').value,
+      note: document.getElementById('assetNote').value
+    };
+    const button = document.getElementById('saveAssetButton');
+    button.disabled = true;
+    try {
+      const result = await send(id ? apiUrl + '/' + id + '/update' : apiUrl, 'POST', payload);
+      await loadAssets(id ? currentPage : 1);
+      modal.modal('hide');
+      showNotice(result.message, false);
+    } catch (error) {
+      showNotice(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  render();
+})();
+</script>
+{% endblock %}

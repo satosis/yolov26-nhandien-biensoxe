@@ -1,10 +1,11 @@
 import re
 from typing import Optional
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi.responses import JSONResponse, HTMLResponse
 from starlette.responses import RedirectResponse
 
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 from backend.services.database import db
 from backend.camera import camera_service as cam_svc
 
@@ -19,15 +20,25 @@ def _mask(val) -> str:
 
 
 @router.get("")
-async def providers_page(request: Request, user: dict = Depends(require_menu("providers"))):
+async def providers_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("providers")),
+):
     ctx = get_menu_context(request, user)
-    providers = cam_svc.get_all_providers()
+    total_providers = cam_svc.count_providers()
+    page_data = paginate_counts(total_providers, page=page, per_page=20, base_url="/admin/providers")
+    providers = cam_svc.get_all_providers(
+        limit=page_data["per_page"], offset=(page_data["page"] - 1) * page_data["per_page"],
+    ) or []
     for p in providers:
         pk = p["provider_key"]
         keys = cam_svc.get_provider_api_keys(pk)
         p["_api_keys"] = keys
         p["_masked"] = {k: _mask(v) for k, v in keys.items() if k != "email" and str(v or "").strip()}
     ctx["providers"] = providers
+    ctx["pagination"] = page_data
+    ctx["total_providers"] = total_providers
     ctx["current_menu"] = "providers"
     return templates.TemplateResponse("pages/providers.html", {"request": request, **ctx})
 

@@ -1,0 +1,391 @@
+{% extends "layout.html" %}
+{% block title %}Sửa đơn vị — {{ company.name }}{% endblock %}
+{% block page_title %}Sửa thông tin đơn vị / Công ty{% endblock %}
+{% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block head %}
+<style>
+  .company-assets{border-top:1px solid #e2e8f0;margin-top:2px;padding-top:18px}
+  .company-assets-title{font-size:14px;font-weight:700;color:#334155;margin:0 0 12px}
+  .company-assets-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .company-asset-card{min-width:0;padding:14px;border:1px solid #dbe3ee;border-radius:8px;background:#fff}
+  .company-asset-heading{display:flex;align-items:center;gap:7px;margin-bottom:10px;font-size:12px;font-weight:700;color:#334155}
+  .company-asset-canvas{height:116px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc}
+  .company-asset-canvas img{display:block;max-width:100%;max-height:96px;object-fit:contain}
+  .company-asset-current,.company-asset-new,.company-asset-empty{width:100%;height:100%;align-items:center;justify-content:center}
+  .company-asset-current{display:flex;padding:8px}
+  .company-asset-new{display:none;padding:8px}
+  .company-asset-empty{display:flex;color:#94a3b8;font-size:12px}
+  .company-asset-card.has-new-image .company-asset-current,.company-asset-card.has-new-image .company-asset-empty{display:none}
+  .company-asset-card.has-new-image .company-asset-new{display:flex}
+  .company-asset-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:11px}
+  .company-asset-actions .btn{margin:0}
+  .company-asset-filename{margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#64748b;font-size:11px}
+  .company-asset-filename:empty{display:none}
+  @media(max-width:640px){.company-assets-grid{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100" style="max-width:860px;">
+
+  <div class="card shadow-sm border-0" style="border-radius:10px;">
+    <div class="card-header bg-white font-weight-bold border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <div><i class="bx bx-edit-alt text-primary mr-1"></i> Sửa thông tin: {{ company.name }}</div>
+    </div>
+    <div class="card-body p-4">
+      <form method="post" action="/admin/transport/catalog/companies/{{ company.id }}/edit" id="company-edit-form" class="company-form" enctype="multipart/form-data">
+        <input type="hidden" name="back" value="{{ back_url }}">
+
+        <div class="form-row">
+          <div class="col-md-4 mb-3">
+            <label for="edit-tax-code" class="small font-weight-bold">Mã số thuế <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input id="edit-tax-code" name="tax_code" value="{{ company.tax_code }}" maxlength="14" required
+                     class="form-control" placeholder="VD: 0100109106"
+                     oninput="clearLookupMessage()">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" onclick="lookupTaxCode()" id="lookup-btn" title="Cập nhật lại từ MaSoThue">
+                  <i class="bx bx-search-alt-2"></i>
+                </button>
+              </div>
+            </div>
+            <small id="lookup-message" class="d-block mt-1 text-muted" aria-live="polite"></small>
+          </div>
+          <div class="col-md-8 mb-3">
+            <label for="edit-name" class="small font-weight-bold">Tên công ty / Đơn vị <span class="text-danger">*</span></label>
+            <input id="edit-name" name="name" value="{{ company.name }}" maxlength="255" required class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="col-md-6 mb-3">
+            <label for="edit-director" class="small font-weight-bold">Giám đốc</label>
+            <select id="edit-director" name="director_user_id" class="form-control" aria-describedby="edit-director-help" onchange="onCompanyDirectorSelect(this)">
+              <option value="">-- Chọn người dùng làm giám đốc --</option>
+              {% for u in users_list or [] %}
+                {% set u_val = u.full_name or u.username %}
+                <option value="{{ u.id }}"
+                        data-email="{{ u.email or '' }}"
+                        data-phone="{{ u.phone or '' }}"
+                        data-bank-account="{{ u.bank_account or '' }}"
+                        data-bank-name="{{ u.bank_name or '' }}"
+                        {% if company.director_user_id == u.id %}selected{% endif %}>
+                  {{ u_val }}{% if u.username and u.full_name and u.username != u.full_name %} ({{ u.username }}){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label for="edit-phone" class="small font-weight-bold">Số điện thoại</label>
+            <input id="edit-phone" name="phone" type="tel" value="{{ company.phone or '' }}" class="form-control" placeholder="VD: 0912345678">
+          </div>
+        </div>
+        {% set bank_prefix = 'edit' %}
+        {% include "partials/company_bank_accounts.html" %}
+
+        <div class="form-row">
+          <div class="col-md-4 mb-3">
+            <label for="edit-email" class="small font-weight-bold">Email</label>
+            <input id="edit-email" name="email" type="email" value="{{ company.email or '' }}" class="form-control">
+          </div>
+          <div class="col-md-8 mb-3">
+            <label for="edit-address" class="small font-weight-bold">Địa chỉ <span class="text-danger">*</span></label>
+            <input id="edit-address" name="address" value="{{ company.address }}" maxlength="500" required class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group mb-3">
+          <label for="edit-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger">*</span></label>
+          <input id="edit-business-activity" name="business_activity" value="{{ company.business_activity or '' }}" maxlength="500" required class="form-control" placeholder="VD: Vận tải hàng hóa bằng đường bộ, cho thuê xe, kho bãi...">
+        </div>
+
+        <section class="company-assets mb-3" aria-labelledby="company-assets-title">
+          <h2 id="company-assets-title" class="company-assets-title">Chữ ký và con dấu</h2>
+          <div class="company-assets-grid">
+            <div class="company-asset-card" id="card-signature" data-has-saved="{{ '1' if company.signature_url else '0' }}">
+              <div class="company-asset-heading"><i class="bx bx-pen text-primary"></i> Chữ ký</div>
+              <div class="company-asset-canvas" id="canvas-signature">
+                {% if company.signature_url %}
+                <a class="company-asset-current" href="{{ company.signature_url }}" target="_blank" rel="noopener noreferrer" title="Xem chữ ký">
+                  <img src="{{ company.signature_url }}" alt="Chữ ký hiện tại">
+                </a>
+                {% else %}<div class="company-asset-empty">Chưa có ảnh</div>{% endif %}
+                <div id="preview-signature" class="company-asset-new"><img src="" alt="Chữ ký mới chọn"></div>
+              </div>
+              <div class="company-asset-actions">
+                <input type="file" class="sr-only" id="edit-signature-file" name="signature_file" accept="image/png,image/jpeg,image/webp,image/gif" onchange="previewUploadImage(this, 'signature')">
+                <label class="btn btn-outline-primary btn-sm" for="edit-signature-file" id="btn-label-signature">
+                  <i class="bx bx-upload mr-1"></i><span>{{ 'Thay ảnh' if company.signature_url else 'Chọn ảnh' }}</span>
+                </label>
+                <button type="button"
+                        id="btn-delete-signature"
+                        class="btn btn-outline-danger btn-sm"
+                        onclick="deleteCompanyAsset('signature', {{ company.id }})"
+                        title="Xóa chữ ký ngay"
+                        aria-label="Xóa chữ ký"
+                        style="{% if not company.signature_url %}display:none;{% endif %}">
+                  <i class="bx bx-trash"></i>
+                </button>
+              </div>
+              <div class="company-asset-filename" aria-live="polite"></div>
+            </div>
+
+            <div class="company-asset-card" id="card-stamp" data-has-saved="{{ '1' if company.stamp_url else '0' }}">
+              <div class="company-asset-heading"><i class="bx bx-certification text-danger"></i> Con dấu</div>
+              <div class="company-asset-canvas" id="canvas-stamp">
+                {% if company.stamp_url %}
+                <a class="company-asset-current" href="{{ company.stamp_url }}" target="_blank" rel="noopener noreferrer" title="Xem con dấu">
+                  <img src="{{ company.stamp_url }}" alt="Con dấu hiện tại">
+                </a>
+                {% else %}<div class="company-asset-empty">Chưa có ảnh</div>{% endif %}
+                <div id="preview-stamp" class="company-asset-new"><img src="" alt="Con dấu mới chọn"></div>
+              </div>
+              <div class="company-asset-actions">
+                <input type="file" class="sr-only" id="edit-stamp-file" name="stamp_file" accept="image/png,image/jpeg,image/webp,image/gif" onchange="previewUploadImage(this, 'stamp')">
+                <label class="btn btn-outline-primary btn-sm" for="edit-stamp-file" id="btn-label-stamp">
+                  <i class="bx bx-upload mr-1"></i><span>{{ 'Thay ảnh' if company.stamp_url else 'Chọn ảnh' }}</span>
+                </label>
+                <button type="button"
+                        id="btn-delete-stamp"
+                        class="btn btn-outline-danger btn-sm"
+                        onclick="deleteCompanyAsset('stamp', {{ company.id }})"
+                        title="Xóa con dấu ngay"
+                        aria-label="Xóa con dấu"
+                        style="{% if not company.stamp_url %}display:none;{% endif %}">
+                  <i class="bx bx-trash"></i>
+                </button>
+              </div>
+              <div class="company-asset-filename" aria-live="polite"></div>
+            </div>
+          </div>
+        </section>
+
+
+        <div class="d-flex align-items-center mt-3 pt-3 border-top" style="gap:10px;">
+          <button type="submit" class="btn btn-primary px-4 font-weight-bold">
+            <i class="bx bx-save mr-1"></i> Lưu thay đổi
+          </button>
+          <a href="{{ back_url }}" class="btn btn-light px-3 font-weight-bold">Hủy</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if message or error %}
+window.dispatchEvent(new CustomEvent('showToast', {
+  detail: {msg: {{ (error or message)|tojson }}, type: {{ ('error' if error else 'success')|tojson }}}
+}));
+{% endif %}
+
+function clearLookupMessage() {
+  document.getElementById('lookup-message').textContent = '';
+}
+
+function onCompanyDirectorSelect(selectEl) {
+  const form = selectEl.closest('form');
+  if (!form) return;
+  const opt = selectEl.options[selectEl.selectedIndex];
+  if (!opt || !opt.value) return;
+
+  const email = opt.getAttribute('data-email');
+  const phone = opt.getAttribute('data-phone');
+  const bankAccount = opt.getAttribute('data-bank-account');
+  const bankName = opt.getAttribute('data-bank-name');
+
+  if (form.elements['email'] && (email || !form.elements['email'].value)) {
+    form.elements['email'].value = email || '';
+  }
+  if (form.elements['phone'] && phone && !form.elements['phone'].value) {
+    form.elements['phone'].value = phone;
+  }
+  const firstAccount = document.getElementById('edit-bank-account');
+  if (firstAccount && !firstAccount.value) firstAccount.value = bankAccount || '';
+  const firstBank = document.getElementById('edit-bank-name');
+  if (firstBank && !firstBank.value) setCompanyBankSelect(firstBank, bankName || '');
+}
+
+async function lookupTaxCode() {
+  const taxCode = document.getElementById('edit-tax-code').value.trim();
+  const message = document.getElementById('lookup-message');
+  const btn = document.getElementById('lookup-btn');
+  if (!taxCode) { message.textContent = 'Vui lòng nhập mã số thuế.'; return; }
+  message.textContent = 'Đang tra cứu...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
+    const result = await resp.json();
+    if (!resp.ok || !result.ok) throw new Error(result.message || 'Không tra cứu được.');
+    document.getElementById('edit-name').value = result.name || '';
+    const addr = (result.address || '').trim();
+    document.getElementById('edit-address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;
+    if (result.business_activity) document.getElementById('edit-business-activity').value = result.business_activity;
+    if (result.email) document.getElementById('edit-email').value = result.email;
+    if (result.phone) document.getElementById('edit-phone').value = result.phone;
+
+    const dirSelect = document.getElementById('edit-director');
+    if (dirSelect && result.director_user_id != null) {
+      const directorId = String(result.director_user_id);
+      const directorLabel = result.director_label || (result.director_name ? (result.director_username ? `${result.director_name} (${result.director_username})` : result.director_name) : `ID ${result.director_user_id}`);
+      let option = Array.from(dirSelect.options).find(opt => opt.value === directorId);
+      if (!option) {
+        option = new Option(directorLabel, directorId, true, true);
+        if (result.director_email) option.setAttribute('data-email', result.director_email);
+        if (result.director_phone) option.setAttribute('data-phone', result.director_phone);
+        if (result.director_bank_account) option.setAttribute('data-bank-account', result.director_bank_account);
+        if (result.director_bank_name) option.setAttribute('data-bank-name', result.director_bank_name);
+        dirSelect.add(option);
+      }
+      if (dirSelect.tomselect) {
+        if (!dirSelect.tomselect.options[directorId]) {
+          dirSelect.tomselect.addOption({
+            value: directorId,
+            text: directorLabel,
+            email: result.director_email || '',
+            phone: result.director_phone || '',
+            bank_account: result.director_bank_account || '',
+            bank_name: result.director_bank_name || ''
+          });
+        }
+        dirSelect.tomselect.sync();
+        dirSelect.tomselect.setValue(directorId, false);
+      } else {
+        dirSelect.value = directorId;
+        dirSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      onCompanyDirectorSelect(dirSelect);
+    }
+    if (result.bank_account) document.getElementById('edit-bank-account').value = result.bank_account;
+    if (result.bank_name) setCompanyBankSelect(document.getElementById('edit-bank-name'), result.bank_name);
+    message.className = 'd-block mt-1 text-success small';
+    let successMsg = 'Đã cập nhật thông tin từ MaSoThue. Kiểm tra lại trước khi lưu.';
+    if (result.director_user_created) {
+      successMsg = 'Đã lấy thông tin và tự động tạo tài khoản giám đốc mới: ' + (result.director_label || result.director_name) + '. Kiểm tra lại trước khi lưu.';
+    } else if (result.director_name) {
+      successMsg = 'Đã lấy thông tin và đồng bộ giám đốc: ' + (result.director_label || result.director_name) + '. Kiểm tra lại trước khi lưu.';
+    }
+    message.textContent = successMsg;
+  } catch (err) {
+    message.className = 'd-block mt-1 text-danger small';
+    message.textContent = err.message || 'Không tra cứu được mã số thuế.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function previewUploadImage(input, type) {
+  const card = document.getElementById('card-' + type);
+  const previewImg = document.querySelector('#preview-' + type + ' img');
+  const file = input.files && input.files[0];
+  if (!card) return;
+
+  if (file) {
+    if (previewImg) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        if (input.files && input.files[0] === file) {
+          previewImg.src = event.target.result;
+          card.classList.add('has-new-image');
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    const filenameEl = card.querySelector('.company-asset-filename');
+    if (filenameEl) filenameEl.textContent = file.name;
+
+    const delBtn = document.getElementById('btn-delete-' + type);
+    if (delBtn) delBtn.style.display = '';
+
+    const labelSpan = document.querySelector('#btn-label-' + type + ' span');
+    if (labelSpan) labelSpan.textContent = 'Thay ảnh';
+  }
+}
+
+async function deleteCompanyAsset(type, companyId) {
+  const isSignature = type === 'signature';
+  const labelText = isSignature ? 'chữ ký' : 'con dấu';
+  const card = document.getElementById('card-' + type);
+  const fileInput = document.getElementById('edit-' + type + '-file');
+  const hasSavedImage = card && card.dataset.hasSaved === '1';
+
+  if (!hasSavedImage) {
+    if (fileInput) fileInput.value = '';
+    if (card) {
+      card.classList.remove('has-new-image');
+      const filenameEl = card.querySelector('.company-asset-filename');
+      if (filenameEl) filenameEl.textContent = '';
+      const previewImg = card.querySelector('#preview-' + type + ' img');
+      if (previewImg) previewImg.src = '';
+    }
+    const delBtn = document.getElementById('btn-delete-' + type);
+    if (delBtn) delBtn.style.display = 'none';
+    const labelSpan = document.querySelector('#btn-label-' + type + ' span');
+    if (labelSpan) labelSpan.textContent = 'Chọn ảnh';
+    return;
+  }
+
+  if (!confirm(`Bạn có chắc muốn xóa ảnh ${labelText} không?\nẢnh trên hệ thống và nơi lưu trữ sẽ bị xóa vĩnh viễn.`)) {
+    return;
+  }
+
+  const btn = document.getElementById('btn-delete-' + type);
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>';
+  }
+
+  try {
+    const resp = await fetch(`/admin/transport/catalog/companies/${companyId}/remove-${type}`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    const result = await resp.json();
+    if (!resp.ok || !result.success) {
+      throw new Error(result.error || `Không thể xóa ảnh ${labelText}.`);
+    }
+
+    if (card) {
+      card.dataset.hasSaved = '0';
+      card.classList.remove('has-new-image');
+      const canvas = document.getElementById('canvas-' + type);
+      if (canvas) {
+        canvas.innerHTML = `
+          <div class="company-asset-empty">Chưa có ảnh</div>
+          <div id="preview-${type}" class="company-asset-new"><img src="" alt="${isSignature ? 'Chữ ký' : 'Con dấu'} mới chọn"></div>
+        `;
+      }
+      const filenameEl = card.querySelector('.company-asset-filename');
+      if (filenameEl) filenameEl.textContent = '';
+    }
+
+    if (fileInput) fileInput.value = '';
+    if (btn) {
+      btn.style.display = 'none';
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+    const labelSpan = document.querySelector('#btn-label-' + type + ' span');
+    if (labelSpan) labelSpan.textContent = 'Chọn ảnh';
+
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: `Đã xóa ảnh ${labelText} và dọn dẹp nơi lưu trữ thành công.`, type: 'success' }
+    }));
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: err.message || `Lỗi khi xóa ảnh ${labelText}.`, type: 'error' }
+    }));
+  }
+}
+</script>
+{% endblock %}

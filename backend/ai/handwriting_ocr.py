@@ -6,6 +6,7 @@ import logging
 import difflib
 import calendar
 import math
+import time
 import unicodedata
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -16,59 +17,120 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from backend.util.image_utils import decode_image
+from backend.util.ocr_pipeline import assess_image, best_prediction, iter_ocr_variants
 
 logger = logging.getLogger(__name__)
 
 
-_VN_PROVINCES = [
-    "An Giang", "Bà Rịa Vũng Tàu", "Bắc Giang", "Bắc Kạn", "Bạc Liêu",
-    "Bắc Ninh", "Bến Tre", "Bình Định", "Bình Dương", "Bình Phước",
-    "Bình Thuận", "Cà Mau", "Cần Thơ", "Cao Bằng", "Đà Nẵng",
-    "Đắk Lắk", "Đắk Nông", "Điện Biên", "Đồng Nai", "Đồng Tháp",
-    "Gia Lai", "Hà Giang", "Hà Nam", "Hà Nội", "Hà Tĩnh",
-    "Hải Dương", "Hải Phòng", "Hậu Giang", "Hòa Bình", "Hưng Yên",
-    "Khánh Hòa", "Kiên Giang", "Kon Tum", "Lai Châu", "Lạng Sơn",
-    "Lào Cai", "Lâm Đồng", "Long An", "Nam Định", "Nghệ An",
-    "Ninh Bình", "Ninh Thuận", "Phú Thọ", "Phú Yên", "Quảng Bình",
-    "Quảng Nam", "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sóc Trăng",
-    "Sơn La", "Tây Ninh", "Thái Bình", "Thái Nguyên", "Thanh Hóa",
-    "Thừa Thiên Huế", "Huế", "Tiền Giang", "TP Hồ Chí Minh", "Sài Gòn",
-    "Trà Vinh", "Tuyên Quang", "Vĩnh Long", "Vĩnh Phúc", "Yên Bái",
-    "Biên Hòa", "Nha Trang", "Đà Lạt", "Buôn Ma Thuột", "Vinh",
-    "Huế", "Hội An", "Tam Kỳ", "Quy Nhơn", "Pleiku", "Bảo Lộc",
-    "Phan Thiết", "Phan Rang", "Mỹ Tho", "Cần Thơ", "Long Xuyên",
-    "Rạch Giá", "Cà Mau", "Bến Tre", "Tân An", "Vũng Tàu",
-    "Thủ Dầu Một", "Tây Ninh", "Đồng Xoài", "Bảo Lộc", "Gia Nghĩa",
-    "Tề Lỗ", "Yên Lạc", "Vĩnh Phúc",
-]
+def _fold_text(text: str) -> str:
+    text = unicodedata.normalize("NFD", text or "")
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.replace("đ", "d").replace("Đ", "D")
 
-_CARGO_TYPES = [
-    "gạo", "lúa", "ngô", "bắp", "sắn", "khoai", "cám", "trấu",
-    "phân bón", "phân NPK", "phân urê", "phân đạm", "vôi bột",
-    "xi măng", "cát", "đá", "sỏi", "gạch", "ngói", "cát xây",
-    "thép", "sắt", "tôn", "nhôm", "đồng", "dây điện",
-    "gỗ", "ván", "ván ép", "tre", "nứa", "lồ ô", "củi",
-    "mía", "mủ cao su", "cao su", "mủ", "latex",
-    "cà phê", "tiêu", "điều", "hạt điều", "dứa", "chuối",
-    "thanh long", "xoài", "nhãn", "vải", "chôm chôm",
-    "thủy sản", "tôm", "cá", "mực", "hải sản",
-    "hàng đông lạnh", "hàng khô", "hàng bách hóa", "hàng tạp hóa",
-    "hàng hóa", "hàng tổng hợp", "vật liệu xây dựng", "nông sản",
-    "phế liệu", "giấy", "bìa", "nhựa", "bao bì", "chai lọ",
-    "thiết bị", "máy móc", "linh kiện", "đồ điện", "hàng gia dụng",
-]
 
-_CARGO_LIST_LOWER = [c.lower() for c in _CARGO_TYPES]
+_DB_PLACES_CACHE: list[str] | None = None
+_DB_PLACES_FOLDED: dict[str, str] | None = None
+_DB_PLACES_TIMESTAMP: float = 0
+_CACHE_TTL = 300  # 5 phút tự động làm mới từ DB
+
+
+def _get_places_from_db() -> tuple[list[str], dict[str, str]]:
+    """Tải toàn bộ danh mục tỉnh thành và xã/phường từ database (administrative_provinces và administrative_communes)."""
+    global _DB_PLACES_CACHE, _DB_PLACES_FOLDED, _DB_PLACES_TIMESTAMP
+    now = time.time()
+    if _DB_PLACES_CACHE is not None and (now - _DB_PLACES_TIMESTAMP < _CACHE_TTL):
+        return _DB_PLACES_CACHE, _DB_PLACES_FOLDED
+
+    places: list[str] = []
+    try:
+        from backend.services.database import db
+        # 1. Tỉnh / Thành phố từ DB
+        p_rows = db._execute_query(
+            "SELECT name FROM public.administrative_provinces WHERE is_active = TRUE ORDER BY name",
+            fetchall=True, commit=False,
+        ) or []
+        for r in p_rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            places.append(name)
+            short = re.sub(r"^(Thành phố|Tỉnh)\s+", "", name, flags=re.IGNORECASE).strip()
+            if short and short != name:
+                places.append(short)
+
+        # 2. Xã / Phường từ DB
+        c_rows = db._execute_query(
+            "SELECT name FROM public.administrative_communes WHERE is_active = TRUE ORDER BY name",
+            fetchall=True, commit=False,
+        ) or []
+        for r in c_rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            places.append(name)
+            short = re.sub(r"^(Xã|Phường|Thị trấn|Đặc khu)\s+", "", name, flags=re.IGNORECASE).strip()
+            if short and short != name:
+                places.append(short)
+    except Exception as e:
+        logger.warning("Không thể tải danh mục tỉnh xã từ DB: %s", e)
+
+    seen = set()
+    unique_places: list[str] = []
+    for p in places:
+        plow = p.lower()
+        if plow not in seen:
+            seen.add(plow)
+            unique_places.append(p)
+
+    folded_lookup: dict[str, str] = {}
+    for place in unique_places:
+        fk = _fold_text(place).lower()
+        if fk not in folded_lookup:
+            folded_lookup[fk] = place
+
+    _DB_PLACES_CACHE = unique_places
+    _DB_PLACES_FOLDED = folded_lookup
+    _DB_PLACES_TIMESTAMP = now
+    return _DB_PLACES_CACHE, _DB_PLACES_FOLDED
+
+
+_DB_CARGO_CACHE: list[str] | None = None
+_DB_CARGO_TIMESTAMP: float = 0
+
+
+def _get_cargo_types_from_db() -> list[str]:
+    """Tải toàn bộ danh mục loại hàng hóa từ database (cargo_catalog_items)."""
+    global _DB_CARGO_CACHE, _DB_CARGO_TIMESTAMP
+    now = time.time()
+    if _DB_CARGO_CACHE is not None and (now - _DB_CARGO_TIMESTAMP < _CACHE_TTL):
+        return _DB_CARGO_CACHE
+
+    cargos: list[str] = []
+    try:
+        from backend.services.database import db
+        rows = db._execute_query(
+            "SELECT name FROM public.cargo_catalog_items WHERE kind = 'cargo_type' ORDER BY name",
+            fetchall=True, commit=False,
+        ) or []
+        cargos = [r["name"].strip() for r in rows if r.get("name")]
+    except Exception as e:
+        logger.warning("Không thể tải danh mục hàng hóa từ DB: %s", e)
+
+    _DB_CARGO_CACHE = cargos
+    _DB_CARGO_TIMESTAMP = now
+    return _DB_CARGO_CACHE
 
 
 def _correct_place(text: str) -> str:
     if len(text) < 3:
         return text
-    folded_lookup = {_fold_text(place).lower(): place for place in _VN_PROVINCES}
+    places, folded_lookup = _get_places_from_db()
+    if not places:
+        return text
     folded_text = _fold_text(text).lower()
     if folded_text in folded_lookup:
         return folded_lookup[folded_text]
-    matches = difflib.get_close_matches(text, _VN_PROVINCES, n=1, cutoff=0.72)
+    matches = difflib.get_close_matches(text, places, n=1, cutoff=0.72)
     if matches:
         logger.debug("place correction: '%s' → '%s'", text, matches[0])
         return matches[0]
@@ -83,11 +145,15 @@ def _correct_place(text: str) -> str:
 def _correct_cargo(text: str) -> str:
     if len(text) < 3:
         return text
+    cargos = _get_cargo_types_from_db()
+    if not cargos:
+        return text
+    cargos_lower = [c.lower() for c in cargos]
     tl = text.lower()
-    matches = difflib.get_close_matches(tl, _CARGO_LIST_LOWER, n=1, cutoff=0.68)
+    matches = difflib.get_close_matches(tl, cargos_lower, n=1, cutoff=0.68)
     if matches:
-        idx = _CARGO_LIST_LOWER.index(matches[0])
-        corrected = _CARGO_TYPES[idx]
+        idx = cargos_lower.index(matches[0])
+        corrected = cargos[idx]
         logger.debug("cargo correction: '%s' → '%s'", text, corrected)
         return corrected
     return text
@@ -177,13 +243,15 @@ def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
 
 
 def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
-    variants = [normalized_crop]
+    bgr = cv2.cvtColor(np.array(normalized_crop.convert("RGB")), cv2.COLOR_RGB2BGR)
+    variants = [
+        Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        for image in iter_ocr_variants(bgr, profile="handwriting", max_variants=3)
+    ]
 
-    gray = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
-    variants.append(Image.fromarray(cv2.cvtColor(eq, cv2.COLOR_GRAY2RGB)))
-
     binary = cv2.adaptiveThreshold(
         eq, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY, 31, 11,
@@ -194,28 +262,16 @@ def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
     normalized = cv2.divide(eq, background, scale=255)
     variants.append(Image.fromarray(cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)))
 
-    bgr = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2BGR)
-    denoised = cv2.fastNlMeansDenoisingColored(bgr, None, 10, 10, 7, 21)
-    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-    sharpened = cv2.filter2D(denoised, -1, kernel)
-    variants.append(Image.fromarray(cv2.cvtColor(sharpened, cv2.COLOR_BGR2RGB)))
-
     return variants
 
 
 def _ocr_best_result(normalized_crop: Image.Image, predictor) -> dict:
-    best_text = ""
-    best_prob = -1.0
-
+    predictions = []
     for variant in _make_variants(normalized_crop):
         text, prob = predictor.predict(variant, return_prob=True)
-        text = (text or "").strip()
-        logger.debug("OCR variant prob=%.3f text=%r", prob, text[:40])
-        if prob > best_prob:
-            best_prob = prob
-            best_text = text
-
-    return {"text": best_text, "confidence": max(0.0, float(best_prob))}
+        logger.debug("OCR variant prob=%r text=%r", prob, str(text or "")[:40])
+        predictions.append({"text": text, "confidence": prob})
+    return best_prediction(predictions) or {"text": "", "confidence": 0.0}
 
 
 def _image_to_data_uri(pil_img: Image.Image) -> str:
@@ -318,11 +374,14 @@ def _prepare_page_bgr(img_bgr: np.ndarray) -> np.ndarray:
 
 
 def _assess_image_quality(img_bgr: np.ndarray) -> dict:
+    assessment = assess_image(img_bgr)
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    brightness = float(np.mean(gray))
+    brightness = assessment["brightness"]
     contrast = float(np.std(gray))
+    # The existing warning threshold was calibrated on native page pixels.
+    # Shared sharpness uses a bounded preview and remains a separate metric.
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-    h, w = gray.shape[:2]
+    h, w = assessment["height"], assessment["width"]
 
     warnings: list[str] = []
     if min(h, w) < 900:
@@ -342,6 +401,9 @@ def _assess_image_quality(img_bgr: np.ndarray) -> dict:
         "brightness": round(brightness, 1),
         "contrast": round(contrast, 1),
         "blur_score": round(blur_score, 1),
+        "sharpness": assessment["sharpness"],
+        "quality_score": assessment["quality_score"],
+        "valid": assessment["valid"],
         "warnings": warnings,
     }
 
@@ -595,10 +657,6 @@ _OCR_DIGIT_TRANS = str.maketrans({
 })
 
 
-def _fold_text(text: str) -> str:
-    text = unicodedata.normalize("NFD", text or "")
-    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
-    return text.replace("đ", "d").replace("Đ", "D")
 
 
 def _normalize_ocr_digits(text: str) -> str:

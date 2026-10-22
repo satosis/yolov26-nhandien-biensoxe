@@ -10,10 +10,14 @@ body {
 .main-content {
     background: #f8fafc !important;
     margin-top: 40px;
+    min-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
 }
 .page-content {
     padding: 12px 12px 8px !important;
     animation: fadeIn 0.3s ease-out;
+    flex: 1 0 auto;
 }
 .page-title-box {
     padding: 4px 0 !important;
@@ -482,6 +486,8 @@ body {
 .footer {
     padding: 8px 0;
     font-size: 11px;
+    position: static;
+    margin-top: auto;
 }
 
 
@@ -640,6 +646,22 @@ body[data-sidebar-size="sm"] .vertical-menu {
     padding: 2px 8px !important;
     font-size: 11.5px !important;
 }
+.vehicle-form .ts-wrapper .ts-control,
+.vehicle-form .ts-wrapper.multi.has-items .ts-control {
+    height: 28px;
+    min-height: 28px;
+    padding: 2px 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+    font-size: 11.5px;
+}
+.vehicle-form .ts-wrapper.multi .ts-control > div {
+    margin-bottom: 0;
+    padding: 1px 5px;
+}
+.vehicle-form .ts-wrapper.multi .ts-control > input {
+    min-width: 2rem;
+}
 .btn {
     padding: 3px 10px !important;
     font-size: 11.5px !important;
@@ -687,6 +709,37 @@ body[data-sidebar-size="sm"] .vertical-menu {
 }
 
 
+/* ==========================================================================
+   GLOBAL SEARCHABLE SELECTS (TOMSELECT) - MATCHING INVOICE FORM DESIGN
+   ========================================================================== */
+
+/* Universal 28px height for all small form controls */
+.form-control-sm:not(textarea),
+.input-group-sm > .form-control:not(textarea),
+.input-group-sm > .input-group-append > .btn,
+.input-group-sm > .input-group-prepend > .btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    padding: 2px 8px !important;
+    font-size: 11.5px !important;
+    line-height: 22px !important;
+    box-sizing: border-box !important;
+}
+
+input[type="date"].form-control-sm,
+input[type="date"].form-control {
+    padding-top: 1px !important;
+    padding-bottom: 1px !important;
+    line-height: 22px !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer;
+}
+
 .ts-wrapper.form-control,
 .ts-wrapper.form-control-sm,
 .ts-wrapper.form-control-lg {
@@ -696,4 +749,263 @@ body[data-sidebar-size="sm"] .vertical-menu {
     border: none !important;
     background: transparent !important;
     box-shadow: none !important;
+}
+
+.ts-wrapper {
+    width: 100%;
+    min-width: 0;
+    position: relative;
+}
+
+.input-group > .ts-wrapper {
+    flex: 1 1 auto !important;
+    width: 1% !important;
+    min-width: 0 !important;
+}
+
+.input-group > .ts-wrapper:not(:first-child) .ts-control {
+    border-top-left-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+}
+
+.input-group > .ts-wrapper:not(:last-child) .ts-control {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+}
+
+.ts-wrapper .ts-control {
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 2px 8px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 4px !important;
+    background: #fff !important;
+    color: #495057 !important;
+    font-size: 11.5px !important;
+    line-height: 22px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+}
+
+.ts-wrapper.multi .ts-control {
+    height: auto !important;
+    min-height: 28px !important;
+    padding: 2px 6px !important;
+    flex-wrap: wrap !important;
+}
+
+.ts-wrapper.focus .ts-control {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .25) !important;
+}
+
+.ts-wrapper.disabled .ts-control {
+    background-color: #e9ecef !important;
+    cursor: not-allowed !important;
+    opacity: 0.7 !important;
+}
+
+.ts-wrapper .ts-control > .item {
+    padding: 0 !important;
+    margin: 0 !important;
+    color: #495057 !important;
+    font-size: 11.5px !important;
+    line-height: 22px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.ts-wrapper .ts-control > input {
+    padding: 0 !important;
+    margin: 0 !important;
+    color: #495057 !important;
+    font-size: 11.5px !important;
+    line-height: 22px !important;
+    min-width: 2rem !important;
+    max-width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.ts-wrapper.multi .ts-control > div {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 1px 6px !important;
+    margin: 2px 4px 2px 0 !important;
+    background: #e0e7ff !important;
+    color: #3730a3 !important;
+    border-radius: 3px !important;
+    font-size: 11px !important;
+    line-height: 16px !important;
+    font-weight: 500 !important;
+}
+
+.ts-wrapper.multi .ts-control > div .remove {
+    margin-left: 4px !important;
+    color: #4f46e5 !important;
+    text-decoration: none !important;
+    font-weight: bold !important;
+    cursor: pointer !important;
+}
+
+.ts-wrapper.single .ts-control {
+    padding-right: 22px !important;
+}
+
+.ts-wrapper.single .ts-control:after {
+    content: ' ';
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    margin-top: -2px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 4px 4px 0 4px;
+    border-color: #64748b transparent transparent transparent;
+    pointer-events: none;
+    transition: transform .15s ease-in-out;
+}
+
+.ts-wrapper.single.dropdown-active .ts-control:after {
+    border-width: 0 4px 4px 4px;
+    border-color: transparent transparent #64748b transparent;
+}
+
+.ts-dropdown.admin-search-dropdown,
+.ts-dropdown {
+    z-index: 1065 !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 4px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+    background: #fff !important;
+    font-size: 11.5px !important;
+    padding: 4px 0 !important;
+    margin-top: 2px !important;
+}
+
+.ts-dropdown .ts-dropdown-content {
+    max-height: 250px !important;
+    overflow-y: auto !important;
+}
+
+.ts-dropdown .option {
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+    line-height: 1.4 !important;
+    color: #334155 !important;
+    cursor: pointer !important;
+}
+
+.ts-dropdown .active,
+.ts-dropdown .option:hover {
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+}
+
+.ts-dropdown .selected {
+    background-color: #e0e7ff !important;
+    color: #4338ca !important;
+    font-weight: 600 !important;
+}
+
+.ts-dropdown .no-results {
+    padding: 8px 10px !important;
+    font-size: 11.5px !important;
+    color: #94a3b8 !important;
+    font-style: italic;
+}
+
+.bx.bx-truck:before, .bx-truck:before {
+    content: "\ee86" !important;
+}
+
+/* Fix missing Bootstrap dropdown carets across application */
+.dropdown-toggle::after {
+    display: inline-block;
+    margin-left: 0.255em;
+    vertical-align: 0.255em;
+    content: "";
+    border-top: 0.3em solid;
+    border-right: 0.3em solid transparent;
+    border-bottom: 0;
+    border-left: 0.3em solid transparent;
+}
+.dropdown-toggle-split::after {
+    margin-left: 0;
+}
+.dropdown-toggle:empty::after {
+    margin-left: 0;
+}
+.dropup .dropdown-toggle::after {
+    border-top: 0;
+    border-bottom: 0.3em solid;
+}
+.dropdown-toggle:has(> .bx-chevron-down)::after,
+.dropdown-toggle:has(> .mdi-chevron-down)::after {
+    display: none !important;
+}
+
+/* Fix table dropdowns being clipped or squashed by .table-responsive */
+.card .table-responsive {
+    min-height: 260px;
+}
+.table-responsive .dropdown-menu {
+    z-index: 1050;
+}
+
+.admin-bulk-toolbar {
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #dbe3ef;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 42px;
+    padding: 6px 10px;
+}
+.admin-bulk-toolbar[hidden],
+.admin-bulk-toolbar button[hidden] {
+    display: none !important;
+}
+.admin-bulk-count {
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: auto;
+}
+.admin-bulk-select-cell {
+    text-align: center !important;
+    vertical-align: middle !important;
+    width: 38px;
+}
+.admin-bulk-select-cell input {
+    cursor: pointer;
+    height: 15px;
+    width: 15px;
+}
+.admin-bulk-card-check {
+    background: #fff;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
+    cursor: pointer;
+    height: 16px;
+    left: -9px;
+    position: absolute;
+    top: 9px;
+    width: 16px;
+    z-index: 6;
+}
+[data-bulk-item] {
+    position: relative;
 }

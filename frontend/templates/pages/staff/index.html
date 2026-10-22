@@ -1,0 +1,1166 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản lý nhân sự nội bộ{% endblock %}
+{% block page_title %}Quản lý nhân sự nội bộ{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold" style="white-space:nowrap;">
+            Hồ sơ nhân sự (<span id="staff-count-badge">{{ total }}</span>)
+          </span>
+        </div>
+        <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+          <!-- Filter by Department -->
+          <select id="filter-department" class="form-control form-control-sm" style="width:160px;" onchange="applyStaffFilters()">
+            <option value="" {% if not selected_department %}selected{% endif %}>Tất cả bộ phận</option>
+            {% for dept in department_list %}
+              <option value="{{ dept }}" {% if selected_department == dept %}selected{% endif %}>
+                {{ dept }}
+              </option>
+            {% endfor %}
+          </select>
+
+          <!-- Search Input -->
+          <input id="staff-search-input" type="search"
+                 class="form-control form-control-sm"
+                 style="width:200px; max-width:100%;"
+                 placeholder="Tìm tên, SĐT, CCCD..."
+                 value="{{ q }}"
+                 oninput="scheduleStaffSearch()"
+                 onkeydown="if (event.key === 'Enter') { event.preventDefault(); applyStaffFilters(); }">
+
+          <!-- Add Staff Button -->
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddStaffModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm nhân sự
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Staff Table Area -->
+    <div id="staff-table-area" style="position: relative; transition: opacity 0.2s ease;">
+      <div class="table-responsive" style="min-height: 280px;">
+        <table class="table table-sm table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width:50px;" class="text-center">STT</th>
+              <th style="width:220px;">Họ và tên</th>
+              <th style="width:170px;">Chức vụ & Bộ phận</th>
+              <th style="width:150px;">Liên hệ</th>
+              <th style="width:160px;">Tài khoản ngân hàng</th>
+              <th class="text-right" style="width:190px;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for s in staff_list %}
+            <tr>
+              <td class="text-center text-muted font-weight-medium align-middle">{{ (page - 1) * 20 + loop.index if page else loop.index }}</td>
+              <!-- Personnel Column -->
+              <td>
+                <div class="font-weight-bold text-dark">{{ s.full_name or s.username }}</div>
+                <div class="small text-muted font-monospace">
+                  @{{ s.username }}
+                  {% if s.gender %} · {{ s.gender }}{% endif %}
+                  {% if s.id_number %} · {{ s.id_number }}{% endif %}
+                </div>
+                {% if s.license_warning %}
+                <div class="small text-danger font-weight-bold mt-1" style="font-size:11.5px;">
+                  <i class="bx bx-error-circle mr-1"></i>{{ s.license_warning }}
+                </div>
+                {% endif %}
+                {% if s.contract_warning %}
+                <div class="small text-warning font-weight-bold mt-1" style="font-size:11.5px;">
+                  <i class="bx bx-time mr-1"></i>{{ s.contract_warning }}
+                </div>
+                {% endif %}
+              </td>
+
+              <!-- Job Title & Department -->
+              <td>
+                {% if s.job_title %}
+                  <div class="font-weight-medium text-dark">{{ s.job_title }}</div>
+                {% else %}
+                  <span class="text-muted small">--</span>
+                {% endif %}
+                {% if s.department %}
+                  <div class="small text-muted">{{ s.department }}</div>
+                {% endif %}
+              </td>
+
+              <!-- Contact -->
+              <td>
+                {% if s.phone %}
+                  <div><a href="tel:{{ s.phone }}" class="text-dark">{{ s.phone }}</a></div>
+                {% endif %}
+                {% if s.email %}
+                  <div class="small text-muted text-truncate" style="max-width:140px;" title="{{ s.email }}">{{ s.email }}</div>
+                {% endif %}
+                {% if not s.phone and not s.email %}
+                  <span class="text-muted small">--</span>
+                {% endif %}
+              </td>
+
+              <!-- Bank Account -->
+              <td>
+                {% if s.bank_account %}
+                  <div class="font-monospace text-dark font-weight-bold" style="font-family:monospace; font-size:12.5px;">
+                    {{ s.bank_account }}
+                  </div>
+                  {% if s.bank_name %}
+                    <div class="small text-muted text-truncate" style="max-width:150px;" title="{{ s.bank_name }}">
+                      {{ s.bank_name }}
+                    </div>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted small">--</span>
+                {% endif %}
+              </td>
+
+              <!-- Actions -->
+              <td class="text-right text-nowrap">
+                <div class="d-inline-flex align-items-center justify-content-end" style="gap:4px;">
+                  <button type="button" class="btn btn-sm btn-light border"
+                          onclick="openStaffRecordsModal({{ s.id }}, '{{ (s.full_name or s.username)|escape }}')"
+                          title="Hợp đồng lao động, Bằng lái & Quá trình công tác">
+                    Hồ sơ
+                  </button>
+                  <button type="button" class="btn btn-sm btn-light border"
+                          onclick="openEditStaffModal({{ s.id }})" title="Chỉnh sửa thông tin">
+                    Sửa
+                  </button>
+                  <a href="/admin/transport/payroll/month?user_id={{ s.id }}"
+                     class="btn btn-sm btn-light border"
+                     title="Xem phiếu lương tháng">
+                    Lương
+                  </a>
+                  {% if s.username != 'admin' %}
+                    <button type="button" class="btn btn-sm btn-light border text-danger" data-bulk-action="delete" data-bulk-url="/admin/staff/{{ s.id }}/delete" data-bulk-method="POST"
+                            onclick="openDeleteStaffModal({{ s.id }}, '{{ (s.full_name or s.username)|escape }}')"
+                            title="Xóa nhân sự">
+                      <i class="bx bx-trash"></i>
+                    </button>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">
+                Chưa có nhân sự nào phù hợp điều kiện tìm kiếm.
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% include "partials/pagination.html" %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Common Datalists for Positions and Departments -->
+<datalist id="common-job-titles">
+  <option value="Giám Đốc">
+  <option value="Phó Giám Đốc">
+  <option value="Kế toán trưởng">
+  <option value="Kế toán viên">
+  <option value="Tài xế xe tải">
+  <option value="Lái xe tải cẩu">
+  <option value="Tài xế đầu kéo">
+  <option value="Điều hành xe">
+  <option value="Thủ kho bãi">
+  <option value="Nhân viên giao nhận">
+  <option value="Nhân viên kỹ thuật">
+</datalist>
+
+<datalist id="common-departments">
+  <option value="Ban giám đốc">
+  <option value="Bộ phận lái xe">
+  <option value="Đội xe vận tải">
+  <option value="Phòng kế toán">
+  <option value="Phòng điều hành & vận tải">
+  <option value="Kho bãi">
+  <option value="Phòng kỹ thuật">
+  <option value="Phòng hành chính nhân sự">
+</datalist>
+
+<!-- Add Staff Modal -->
+<div class="modal fade" id="addStaffModal" tabindex="-1" role="dialog" aria-labelledby="addStaffModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="addStaffModalLabel">Thêm mới nhân sự</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="add-staff-form" method="post" action="/admin/staff/create" onsubmit="return submitStaffForm(event, this)">
+        <input type="hidden" name="back" value="{{ request.url }}">
+        <div class="modal-body" style="max-height: calc(85vh - 120px); overflow-y: auto;">
+
+          <!-- Section 1: Thông tin cá nhân -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2">1. Thông tin cá nhân</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Họ và tên <span class="text-danger">*</span></label>
+              <input type="text" name="full_name" class="form-control form-control-sm" placeholder="VD: Nguyễn Văn Lợi" required>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Giới tính</label>
+              <select name="gender" class="form-control form-control-sm">
+                <option value="nam">Nam</option>
+                <option value="nữ">Nữ</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Ngày sinh</label>
+              <input type="date" name="date_of_birth" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Số CCCD / CMND</label>
+              <input type="text" name="id_number" class="form-control form-control-sm" placeholder="12 chữ số...">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Số điện thoại</label>
+              <input type="tel" name="phone" class="form-control form-control-sm" placeholder="0987...">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Email</label>
+              <input type="email" name="email" class="form-control form-control-sm" placeholder="email@gmail.com">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên đăng nhập (để trống để tự tạo)</label>
+              <input type="text" name="username" class="form-control form-control-sm" placeholder="Tên đăng nhập">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Mật khẩu</label>
+              <input type="text" name="password" class="form-control form-control-sm" value="123456">
+            </div>
+            <div class="col-12 mb-1">
+
+            </div>
+          </div>
+
+          <!-- Section 2: Chức vụ & Đơn vị -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2 mt-3">2. Chức vụ, Bộ phận & Đơn vị</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Chức vụ</label>
+              <input type="text" name="job_title" list="common-job-titles" class="form-control form-control-sm" placeholder="VD: Tài xế xe tải">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Bộ phận</label>
+              <input type="text" name="department" list="common-departments" class="form-control form-control-sm" placeholder="VD: Bộ phận lái xe">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Công ty trực thuộc</label>
+            <div class="border rounded p-2" style="max-height:110px; overflow-y:auto; background:#f8fafc;">
+              {% for comp in all_companies %}
+                <div class="custom-control custom-checkbox custom-control-inline d-block mb-1">
+                  <input type="checkbox" class="custom-control-input" id="add-comp-{{ comp.id }}" name="company_ids" value="{{ comp.id }}"
+                         {% if selected_company_id == comp.id %}checked{% endif %}>
+                  <label class="custom-control-label small" for="add-comp-{{ comp.id }}">
+                    {{ comp.name }} (MST: {{ comp.tax_code }})
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Section 3: Lương & Ngân hàng -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2 mt-3">3. Mức lương thỏa thuận & Ngân hàng</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Lương chính thỏa thuận (đ)</label>
+              <input type="text" name="base_salary" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
+              <input type="text" name="insurance_salary" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Trách nhiệm (đ)</label>
+              <input type="text" name="responsibility_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Tiền ăn (đ)</label>
+              <input type="text" name="meal_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Điện thoại (đ)</label>
+              <input type="text" name="phone_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Số tài khoản ngân hàng</label>
+              <input type="text" name="bank_account" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" placeholder="Số TK...">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên ngân hàng</label>
+              <input type="text" name="bank_name" list="bank-names-list" class="form-control form-control-sm" placeholder="VD: Vietcombank, Techcombank...">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="Ghi chú nhân sự...">
+          </div>
+
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu nhân sự</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Staff Modal -->
+<div class="modal fade" id="editStaffModal" tabindex="-1" role="dialog" aria-labelledby="editStaffModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="editStaffModalLabel">Chỉnh sửa hồ sơ nhân sự</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="edit-staff-form" method="post" action="" onsubmit="return submitStaffForm(event, this)">
+        <input type="hidden" name="back" value="{{ request.url }}">
+        <div class="modal-body" style="max-height: calc(85vh - 120px); overflow-y: auto;">
+
+          <!-- Section 1: Thông tin cá nhân -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2">1. Thông tin cá nhân</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Họ và tên <span class="text-danger">*</span></label>
+              <input type="text" id="edit-full-name" name="full_name" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Giới tính</label>
+              <select id="edit-gender" name="gender" class="form-control form-control-sm">
+                <option value="nam">Nam</option>
+                <option value="nữ">Nữ</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Ngày sinh</label>
+              <input type="date" id="edit-dob" name="date_of_birth" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Số CCCD / CMND</label>
+              <input type="text" id="edit-id-number" name="id_number" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Số điện thoại</label>
+              <input type="tel" id="edit-phone" name="phone" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Email</label>
+              <input type="email" id="edit-email" name="email" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên đăng nhập</label>
+              <input type="text" id="edit-username" class="form-control form-control-sm bg-light" readonly>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Đổi mật khẩu mới (bỏ trống nếu không đổi)</label>
+              <input type="password" name="new_password" class="form-control form-control-sm" placeholder="Nhập mật khẩu mới...">
+            </div>
+          </div>
+
+          <!-- Section 2: Chức vụ & Đơn vị -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2 mt-3">2. Chức vụ, Bộ phận & Đơn vị</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Chức vụ</label>
+              <input type="text" id="edit-job-title" name="job_title" list="common-job-titles" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Bộ phận</label>
+              <input type="text" id="edit-department" name="department" list="common-departments" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Công ty trực thuộc</label>
+            <div class="border rounded p-2" style="max-height:110px; overflow-y:auto; background:#f8fafc;">
+              {% for comp in all_companies %}
+                <div class="custom-control custom-checkbox custom-control-inline d-block mb-1">
+                  <input type="checkbox" class="custom-control-input edit-company-cb" id="edit-comp-{{ comp.id }}" name="company_ids" value="{{ comp.id }}">
+                  <label class="custom-control-label small" for="edit-comp-{{ comp.id }}">
+                    {{ comp.name }} (MST: {{ comp.tax_code }})
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- Section 3: Lương & Ngân hàng -->
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-2 mt-3">3. Mức lương thỏa thuận & Ngân hàng</div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Lương chính thỏa thuận (đ)</label>
+              <input type="text" id="edit-base-salary" name="base_salary" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
+              <input type="text" id="edit-insurance-salary" name="insurance_salary" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Trách nhiệm (đ)</label>
+              <input type="text" id="edit-resp-allowance" name="responsibility_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Tiền ăn (đ)</label>
+              <input type="text" id="edit-meal-allowance" name="meal_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">PC Điện thoại (đ)</label>
+              <input type="text" id="edit-phone-allowance" name="phone_allowance" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Số tài khoản ngân hàng</label>
+              <input type="text" id="edit-bank-account" name="bank_account" class="form-control form-control-sm font-monospace"
+                     style="font-family:monospace;">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên ngân hàng</label>
+              <input type="text" id="edit-bank-name" name="bank_name" list="bank-names-list" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <input type="text" id="edit-note" name="note" class="form-control form-control-sm">
+          </div>
+
+        </div>
+        <div class="modal-footer bg-light py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Cập nhật hồ sơ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Staff Modal -->
+<div class="modal fade" id="deleteStaffModal" tabindex="-1" role="dialog" aria-labelledby="deleteStaffModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="deleteStaffModalLabel">Xác nhận xóa nhân sự</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Bạn có chắc chắn muốn xóa nhân sự sau?</p>
+        <div class="alert alert-light border mb-0 font-weight-bold" id="deleteStaffName"></div>
+      </div>
+      <div class="modal-footer bg-light py-2">
+        <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-danger font-weight-bold" id="confirmDeleteStaffBtn">
+          Xóa nhân sự
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Datalist for bank names -->
+<datalist id="bank-names-list">
+  {% for b in bank_names %}
+    <option value="{{ b }}">
+  {% endfor %}
+</datalist>
+
+<script>
+{% if error or message %}
+showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
+const staffUrl = new URL(window.location.href);
+staffUrl.searchParams.delete('message');
+staffUrl.searchParams.delete('error');
+window.history.replaceState(null, '', staffUrl.pathname + staffUrl.search + staffUrl.hash);
+{% endif %}
+
+let _staffLoading = false;
+async function loadStaffAjax(targetUrl, pushState = true) {
+  const tableArea = document.getElementById('staff-table-area');
+  if (!tableArea) return;
+  _staffLoading = true;
+  tableArea.style.opacity = '0.45';
+  tableArea.style.pointerEvents = 'none';
+
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) throw new Error('Không thể tải dữ liệu nhân sự.');
+    const htmlText = await res.text();
+    const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+
+    const newTableArea = doc.getElementById('staff-table-area');
+    if (newTableArea) tableArea.innerHTML = newTableArea.innerHTML;
+
+    const newCount = doc.getElementById('staff-count-badge');
+    const curCount = document.getElementById('staff-count-badge');
+    if (newCount && curCount) curCount.textContent = newCount.textContent;
+
+    if (pushState) {
+      window.history.pushState(null, '', targetUrl);
+    }
+  } catch (err) {
+    console.error('Lỗi tải nhân sự AJAX:', err);
+    showNotify('Lỗi tải dữ liệu: ' + err.message, 'error');
+  } finally {
+    tableArea.style.opacity = '1';
+    tableArea.style.pointerEvents = '';
+    _staffLoading = false;
+  }
+}
+
+function reloadStaffTable() {
+  loadStaffAjax(window.location.href, false);
+}
+
+window.addEventListener('popstate', function() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('company_id');
+  const params = url.searchParams;
+  const searchInput = document.getElementById('staff-search-input');
+  if (searchInput) searchInput.value = params.get('q') || '';
+  const deptSelect = document.getElementById('filter-department');
+  if (deptSelect) deptSelect.value = params.get('department') || '';
+  window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+  loadStaffAjax(url.toString(), false);
+});
+
+document.addEventListener('click', function(e) {
+  const paginationLink = e.target.closest('#staff-table-area .pagination a.page-link');
+  if (paginationLink && paginationLink.href) {
+    e.preventDefault();
+    loadStaffAjax(paginationLink.href, true);
+  }
+});
+
+let _searchTimer = null;
+function scheduleStaffSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(applyStaffFilters, 300);
+}
+
+function applyStaffFilters() {
+  const url = new URL(window.location.href);
+  const q = (document.getElementById('staff-search-input')?.value || '').trim();
+  const dept = document.getElementById('filter-department')?.value || '';
+
+  if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
+  url.searchParams.delete('company_id');
+  if (dept) url.searchParams.set('department', dept); else url.searchParams.delete('department');
+  url.searchParams.delete('page');
+
+  loadStaffAjax(url.toString(), true);
+}
+
+function formatCurrencyInput(input) {
+  let val = input.value.replace(/\D/g, '');
+  if (!val) { input.value = ''; return; }
+  input.value = new Intl.NumberFormat('vi-VN').format(parseInt(val, 10));
+}
+
+function formatNumber(num) {
+  if (!num || num === 0) return '0';
+  return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+}
+
+function openAddStaffModal() {
+  const form = document.getElementById('add-staff-form');
+  if (form) form.reset();
+  $('#addStaffModal').modal('show');
+}
+
+async function openEditStaffModal(userId) {
+  try {
+    const res = await fetch(`/admin/staff/${userId}/json`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || 'Không thể tải thông tin.');
+
+    const s = data.staff;
+    const form = document.getElementById('edit-staff-form');
+    form.action = `/admin/staff/${userId}/edit`;
+
+    document.getElementById('edit-full-name').value = s.full_name || '';
+    document.getElementById('edit-gender').value = s.gender || 'nam';
+    document.getElementById('edit-dob').value = s.date_of_birth || '';
+    document.getElementById('edit-id-number').value = s.id_number || '';
+    document.getElementById('edit-phone').value = s.phone || '';
+    document.getElementById('edit-email').value = s.email || '';
+    document.getElementById('edit-username').value = s.username || '';
+
+    document.getElementById('edit-job-title').value = s.job_title || '';
+    document.getElementById('edit-department').value = s.department || '';
+
+    // Checkboxes for companies
+    const assignedCids = (s.company_ids || []).map(Number);
+    document.querySelectorAll('.edit-company-cb').forEach(cb => {
+      cb.checked = assignedCids.includes(Number(cb.value));
+    });
+
+    document.getElementById('edit-base-salary').value = formatNumber(s.base_salary);
+    document.getElementById('edit-insurance-salary').value = formatNumber(s.insurance_salary);
+    document.getElementById('edit-resp-allowance').value = formatNumber(s.responsibility_allowance);
+    document.getElementById('edit-meal-allowance').value = formatNumber(s.meal_allowance);
+    document.getElementById('edit-phone-allowance').value = formatNumber(s.phone_allowance);
+    document.getElementById('edit-bank-account').value = s.bank_account || '';
+    document.getElementById('edit-bank-name').value = s.bank_name || '';
+    document.getElementById('edit-note').value = s.note || '';
+
+    $('#editStaffModal').modal('show');
+  } catch (err) {
+    showNotify('Lỗi: ' + err.message, 'error');
+  }
+}
+
+async function submitStaffForm(event, form) {
+  event.preventDefault();
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const origText = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Đang lưu...';
+  }
+
+  try {
+    const formData = new FormData(form);
+    const res = await fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      $('.modal').modal('hide');
+      showNotify(data.message || 'Đã lưu hồ sơ nhân sự thành công.', 'success');
+      reloadStaffTable();
+    } else {
+      showNotify(data.message || 'Có lỗi xảy ra khi lưu.', 'error');
+    }
+  } catch (err) {
+    showNotify('Lỗi kết nối: ' + err.message, 'error');
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = origText;
+    }
+  }
+  return false;
+}
+
+function openDeleteStaffModal(userId, staffName) {
+  const nameEl = document.getElementById('deleteStaffName');
+  if (nameEl) nameEl.textContent = staffName;
+
+  const confirmBtn = document.getElementById('confirmDeleteStaffBtn');
+  confirmBtn.onclick = async function() {
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Đang xóa...';
+
+    try {
+      const res = await fetch(`/admin/staff/${userId}/delete`, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        $('#deleteStaffModal').modal('hide');
+        showNotify(data.message || 'Đã xóa nhân sự.', 'success');
+        reloadStaffTable();
+      } else {
+        showNotify(data.message || 'Không thể xóa nhân sự.', 'error');
+      }
+    } catch (err) {
+      showNotify('Lỗi kết nối: ' + err.message, 'error');
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = 'Xóa nhân sự';
+    }
+  };
+
+  $('#deleteStaffModal').modal('show');
+}
+
+// Staff Records Modal (Contracts, Licenses, Work History)
+let _currentRecordsUserId = null;
+
+async function openStaffRecordsModal(userId, staffName) {
+  _currentRecordsUserId = userId;
+  document.getElementById('recordsStaffTitleName').textContent = staffName;
+  $('#staffRecordsModal').modal('show');
+  await loadStaffRecords(userId);
+}
+
+async function loadStaffRecords(userId) {
+  try {
+    const res = await fetch(`/admin/staff/${userId}/records`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error('Không tải được hồ sơ.');
+
+    // 1. Render contracts
+    const cTbody = document.getElementById('contractsTbody');
+    cTbody.innerHTML = '';
+    if (data.contracts && data.contracts.length > 0) {
+      data.contracts.forEach((c, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+          <td><strong>${c.contract_number || 'Chưa có số'}</strong></td>
+          <td><span class="badge badge-light border">${c.contract_type}</span></td>
+          <td class="small">${c.start_date || '--'} &rarr; ${c.end_date || 'KTH'}</td>
+          <td class="text-right font-monospace">${c.salary_rate_fmt || '0 đ'}</td>
+          <td class="small text-muted">${c.note || '--'}</td>
+          <td class="text-right">
+            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                    data-bulk-action="delete" data-bulk-url="/admin/staff/contracts/${c.id}/delete" data-bulk-method="POST" onclick="deleteContract(${c.id})"><i class="bx bx-trash"></i></button>
+          </td>
+        `;
+        cTbody.appendChild(tr);
+      });
+    } else {
+      cTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có hợp đồng lao động nào.</td></tr>';
+    }
+
+    // 2. Render licenses
+    const lTbody = document.getElementById('licensesTbody');
+    lTbody.innerHTML = '';
+    if (data.licenses && data.licenses.length > 0) {
+      data.licenses.forEach((l, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+          <td><strong>${l.license_type}</strong></td>
+          <td class="font-monospace">${l.license_number || '--'}</td>
+          <td class="small">${l.issued_date || '--'}</td>
+          <td class="small font-weight-bold">${l.expiry_date || 'Không thời hạn'}</td>
+          <td class="small text-muted">${l.issued_by || '--'}</td>
+          <td class="text-right">
+            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                    data-bulk-action="delete" data-bulk-url="/admin/staff/licenses/${l.id}/delete" data-bulk-method="POST" onclick="deleteLicense(${l.id})"><i class="bx bx-trash"></i></button>
+          </td>
+        `;
+        lTbody.appendChild(tr);
+      });
+    } else {
+      lTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có bằng lái hoặc chứng chỉ nào.</td></tr>';
+    }
+
+    // 3. Render work history
+    const wTbody = document.getElementById('workHistoryTbody');
+    wTbody.innerHTML = '';
+    if (data.work_history && data.work_history.length > 0) {
+      data.work_history.forEach((w, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+          <td class="small font-weight-bold">${w.event_date || '--'}</td>
+          <td><span class="badge badge-light border">${w.event_type}</span></td>
+          <td class="small">${w.old_value || '--'}</td>
+          <td class="small font-weight-bold text-dark">${w.new_value || '--'}</td>
+          <td class="small font-monospace">${w.decision_number || '--'}</td>
+          <td class="small text-muted">${w.note || '--'}</td>
+          <td class="text-right">
+            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                    data-bulk-action="delete" data-bulk-url="/admin/staff/work-history/${w.id}/delete" data-bulk-method="POST" onclick="deleteWorkHistory(${w.id})"><i class="bx bx-trash"></i></button>
+          </td>
+        `;
+        wTbody.appendChild(tr);
+      });
+    } else {
+      wTbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">Chưa có lịch sử công tác nào.</td></tr>';
+    }
+
+  } catch (err) {
+    showNotify('Lỗi tải hồ sơ: ' + err.message, 'error');
+  }
+}
+
+async function submitContractForm(event, form) {
+  event.preventDefault();
+  if (!_currentRecordsUserId) return false;
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/contracts/create`, {
+      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      form.reset();
+      showNotify('Đã lưu hợp đồng.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    } else {
+      showNotify(data.message || 'Lỗi lưu hợp đồng.', 'error');
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  return false;
+}
+
+async function deleteContract(contractId) {
+  if (!confirm('Xác nhận xóa hợp đồng này?')) return;
+  try {
+    const res = await fetch(`/admin/staff/contracts/${contractId}/delete`, {
+      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showNotify('Đã xóa hợp đồng.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+}
+
+async function submitLicenseForm(event, form) {
+  event.preventDefault();
+  if (!_currentRecordsUserId) return false;
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/licenses/create`, {
+      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      form.reset();
+      showNotify('Đã lưu bằng lái/chứng chỉ.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    } else {
+      showNotify(data.message || 'Lỗi lưu bằng lái.', 'error');
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  return false;
+}
+
+async function deleteLicense(licenseId) {
+  if (!confirm('Xác nhận xóa bằng lái/chứng chỉ này?')) return;
+  try {
+    const res = await fetch(`/admin/staff/licenses/${licenseId}/delete`, {
+      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showNotify('Đã xóa bằng lái.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+}
+
+async function submitWorkHistoryForm(event, form) {
+  event.preventDefault();
+  if (!_currentRecordsUserId) return false;
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/work-history/create`, {
+      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      form.reset();
+      showNotify('Đã lưu quá trình công tác.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    } else {
+      showNotify(data.message || 'Lỗi lưu lịch sử.', 'error');
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  return false;
+}
+
+async function deleteWorkHistory(histId) {
+  if (!confirm('Xác nhận xóa lịch sử này?')) return;
+  try {
+    const res = await fetch(`/admin/staff/work-history/${histId}/delete`, {
+      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showNotify('Đã xóa bản ghi công tác.', 'success');
+      loadStaffRecords(_currentRecordsUserId);
+    }
+  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+}
+</script>
+
+<!-- Modal Hồ Sơ Nghiệp Vụ (HĐLĐ, Bằng Lái, Quá Trình Công Tác) -->
+<div class="modal fade" id="staffRecordsModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">
+          Hồ sơ nghiệp vụ & Hợp đồng lao động: <span id="recordsStaffTitleName" class="text-primary font-weight-bold"></span>
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body p-3">
+        <!-- Sub Tabs -->
+        <ul class="nav nav-tabs mb-3" id="recordsTab" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link active font-weight-bold py-2" id="tab-contracts-link" data-toggle="tab" href="#pane-contracts" role="tab">
+              <i class="bx bx-file mr-1"></i>Hợp đồng lao động
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link font-weight-bold py-2" id="tab-licenses-link" data-toggle="tab" href="#pane-licenses" role="tab">
+              <i class="bx bx-id-card mr-1"></i>Bằng lái & Chứng chỉ
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link font-weight-bold py-2" id="tab-history-link" data-toggle="tab" href="#pane-history" role="tab">
+              <i class="bx bx-history mr-1"></i>Quá trình công tác / Khen thưởng & Kỷ luật
+            </a>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="recordsTabContent">
+          <!-- Pane 1: Contracts -->
+          <div class="tab-pane fade show active" id="pane-contracts" role="tabpanel">
+            <div class="table-responsive mb-3 border rounded">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="width:45px;" class="text-center">STT</th>
+                    <th>Số hợp đồng</th>
+                    <th>Loại hợp đồng</th>
+                    <th>Thời hạn</th>
+                    <th class="text-right">Mức lương HĐ</th>
+                    <th>Ghi chú</th>
+                    <th style="width:60px;" class="text-right">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="contractsTbody">
+                  <tr><td colspan="7" class="text-center py-2 text-muted">Đang tải...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Add Contract Form -->
+            <form onsubmit="return submitContractForm(event, this)" class="border rounded p-3 bg-light">
+              <div class="font-weight-bold small text-dark mb-2">+ Thêm hợp đồng lao động mới</div>
+              <div class="form-row">
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Số hợp đồng</label>
+                  <input type="text" name="contract_number" class="form-control form-control-sm" placeholder="VD: HĐLĐ-01/2026">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Loại hợp đồng</label>
+                  <select name="contract_type" class="form-control form-control-sm">
+                    <option value="thử việc">Thử việc (1-2 tháng)</option>
+                    <option value="xác định thời hạn 1 năm">Xác định thời hạn (1 năm)</option>
+                    <option value="xác định thời hạn 3 năm">Xác định thời hạn (3 năm)</option>
+                    <option value="không xác định thời hạn">Không xác định thời hạn</option>
+                    <option value="khoán việc / thời vụ">Khoán việc / Thời vụ</option>
+                  </select>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Ngày bắt đầu</label>
+                  <input type="date" name="start_date" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Ngày kết thúc</label>
+                  <input type="date" name="end_date" class="form-control form-control-sm">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Lương theo HĐ (đ)</label>
+                  <input type="text" name="salary_rate" class="form-control form-control-sm font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
+                  <input type="text" name="insurance_rate" class="form-control form-control-sm font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+                </div>
+                <div class="col-md-4 mb-2">
+                  <label class="small font-weight-bold">Ghi chú</label>
+                  <input type="text" name="note" class="form-control form-control-sm" placeholder="Ghi chú điều khoản...">
+                </div>
+                <div class="col-md-2 mb-2 d-flex align-items-end">
+                  <button type="submit" class="btn btn-sm btn-primary btn-block font-weight-bold">Lưu HĐ</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- Pane 2: Licenses -->
+          <div class="tab-pane fade" id="pane-licenses" role="tabpanel">
+            <div class="table-responsive mb-3 border rounded">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="width:45px;" class="text-center">STT</th>
+                    <th>Loại bằng / Chứng chỉ</th>
+                    <th>Số hiệu GPLX / Mã</th>
+                    <th>Ngày cấp</th>
+                    <th>Ngày hết hạn</th>
+                    <th>Nơi cấp</th>
+                    <th style="width:60px;" class="text-right">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="licensesTbody">
+                  <tr><td colspan="7" class="text-center py-2 text-muted">Đang tải...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Add License Form -->
+            <form onsubmit="return submitLicenseForm(event, this)" class="border rounded p-3 bg-light">
+              <div class="font-weight-bold small text-dark mb-2">+ Thêm bằng lái / Chứng chỉ nghề / Khám sức khỏe</div>
+              <div class="form-row">
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Loại chứng chỉ</label>
+                  <select name="license_type" class="form-control form-control-sm">
+                    <option value="GPLX Hạng C">GPLX Hạng C (Xe tải)</option>
+                    <option value="GPLX Hạng FC">GPLX Hạng FC (Đầu kéo)</option>
+                    <option value="GPLX Hạng B2">GPLX Hạng B2</option>
+                    <option value="GPLX Hạng D">GPLX Hạng D</option>
+                    <option value="GPLX Hạng E">GPLX Hạng E</option>
+                    <option value="Giấy KSK lái xe định kỳ">Giấy KSK lái xe định kỳ</option>
+                    <option value="Chứng chỉ an toàn lao động">Chứng chỉ an toàn lao động</option>
+                    <option value="Chứng chỉ sơ cấp cứu">Chứng chỉ sơ cấp cứu</option>
+                  </select>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Số hiệu GPLX / Số hồ sơ</label>
+                  <input type="text" name="license_number" class="form-control form-control-sm font-monospace" placeholder="VD: 010182001928">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Ngày cấp</label>
+                  <input type="date" name="issued_date" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Ngày hết hạn <span class="text-danger">*</span></label>
+                  <input type="date" name="expiry_date" class="form-control form-control-sm" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="col-md-5 mb-2">
+                  <label class="small font-weight-bold">Nơi cấp (Sở GTVT...)</label>
+                  <input type="text" name="issued_by" class="form-control form-control-sm" placeholder="VD: Sở GTVT Hà Nội">
+                </div>
+                <div class="col-md-5 mb-2">
+                  <label class="small font-weight-bold">Ghi chú</label>
+                  <input type="text" name="note" class="form-control form-control-sm" placeholder="Ghi chú thêm...">
+                </div>
+                <div class="col-md-2 mb-2 d-flex align-items-end">
+                  <button type="submit" class="btn btn-sm btn-primary btn-block font-weight-bold">Lưu bằng</button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- Pane 3: Work History -->
+          <div class="tab-pane fade" id="pane-history" role="tabpanel">
+            <div class="table-responsive mb-3 border rounded">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="width:45px;" class="text-center">STT</th>
+                    <th style="width:110px;">Ngày hiệu lực</th>
+                    <th style="width:120px;">Sự kiện</th>
+                    <th>Thông tin cũ</th>
+                    <th>Thông tin mới</th>
+                    <th style="width:140px;">Số quyết định</th>
+                    <th>Ghi chú</th>
+                    <th style="width:60px;" class="text-right">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="workHistoryTbody">
+                  <tr><td colspan="8" class="text-center py-2 text-muted">Đang tải...</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Add History Form -->
+            <form onsubmit="return submitWorkHistoryForm(event, this)" class="border rounded p-3 bg-light">
+              <div class="font-weight-bold small text-dark mb-2">+ Ghi nhận sự kiện / Quyết định nhân sự</div>
+              <div class="form-row">
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Loại sự kiện</label>
+                  <select name="event_type" class="form-control form-control-sm">
+                    <option value="bổ nhiệm">Bổ nhiệm chức vụ</option>
+                    <option value="điều chuyển">Điều chuyển phòng ban / xe</option>
+                    <option value="tăng lương">Điều chỉnh / Tăng lương</option>
+                    <option value="khen thưởng">Khen thưởng thành tích</option>
+                    <option value="kỷ luật">Kỷ luật / Khiển trách</option>
+                    <option value="tuyển dụng">Tiếp nhận / Tuyển dụng</option>
+                  </select>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Ngày hiệu lực <span class="text-danger">*</span></label>
+                  <input type="date" name="event_date" class="form-control form-control-sm" required>
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Thông tin cũ</label>
+                  <input type="text" name="old_value" class="form-control form-control-sm" placeholder="VD: Lương 10.000.000, Lái xe...">
+                </div>
+                <div class="col-md-3 mb-2">
+                  <label class="small font-weight-bold">Thông tin mới</label>
+                  <input type="text" name="new_value" class="form-control form-control-sm" placeholder="VD: Lương 12.000.000, Đội phó...">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="col-md-4 mb-2">
+                  <label class="small font-weight-bold">Số quyết định</label>
+                  <input type="text" name="decision_number" class="form-control form-control-sm" placeholder="VD: QĐ-15/2026/GĐ">
+                </div>
+                <div class="col-md-6 mb-2">
+                  <label class="small font-weight-bold">Ghi chú / Căn cứ</label>
+                  <input type="text" name="note" class="form-control form-control-sm" placeholder="Căn cứ quyết định bổ nhiệm hoặc thành tích...">
+                </div>
+                <div class="col-md-2 mb-2 d-flex align-items-end">
+                  <button type="submit" class="btn btn-sm btn-primary btn-block font-weight-bold">Lưu sự kiện</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Đóng cửa sổ</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

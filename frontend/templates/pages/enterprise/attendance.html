@@ -1,0 +1,365 @@
+{% extends "layout.html" %}
+
+{% block title %}Chấm công & Quản lý nghỉ phép — {{ company.name if company else 'Doanh nghiệp' }}{% endblock %}
+{% block page_title %}Chấm công & Quản lý nghỉ phép{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Sub Navigation & Filters -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+        <!-- Tabs -->
+        <ul class="nav nav-pills" style="gap:4px;">
+          <li class="nav-item">
+            <a class="nav-link py-1 px-3 btn-sm {{ 'active font-weight-bold' if active_tab == 'sheet' else 'text-dark' }}"
+               href="/admin/enterprise/attendance?tab=sheet&month={{ selected_month }}">
+              <i class="bx bx-table mr-1"></i>Bảng chấm công tháng
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link py-1 px-3 btn-sm {{ 'active font-weight-bold' if active_tab == 'requests' else 'text-dark' }}"
+               href="/admin/enterprise/attendance?tab=requests&month={{ selected_month }}">
+              <i class="bx bx-receipt mr-1"></i>Đơn xin nghỉ & Công tác ({{ leave_pagination.total }})
+            </a>
+          </li>
+        </ul>
+
+        <!-- Month Filter Toolbar -->
+        <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+          {% if active_tab == 'sheet' %}
+          <form method="post" action="/admin/enterprise/attendance/quick-fill" class="d-inline"
+                onsubmit="return confirm('Điền nhanh 26 ngày công chuẩn cho tất cả nhân sự trong tháng {{ selected_month }}?')">
+            <input type="hidden" name="month" value="{{ selected_month }}">
+            <input type="hidden" name="standard_days" value="26">
+            <button type="submit" class="btn btn-sm btn-light border">
+              <i class="bx bx-check-double mr-1"></i>Điền nhanh 26 công
+            </button>
+          </form>
+          {% else %}
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="$('#addLeaveModal').modal('show')">
+            <i class="bx bx-plus mr-1"></i>Tạo đơn nghỉ phép
+          </button>
+          {% endif %}
+
+          <div class="d-flex align-items-center" style="gap:4px;">
+            <label class="small text-muted mb-0 mr-1">Tháng:</label>
+            <select id="attendance-month-part" class="form-control form-control-sm" style="width:auto; min-width:105px;"
+                    onchange="const y = document.getElementById('attendance-year').value; window.location.href='/admin/enterprise/attendance?tab={{ active_tab }}&month=' + y + '-' + this.value;">
+              {% for m in range(1, 13) %}
+              <option value="{{ '%02d'|format(m) }}" {% if m == selected_month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+              {% endfor %}
+            </select>
+            <input id="attendance-year" type="number" value="{{ selected_month[:4] }}" min="1000" max="9999" required
+                   class="form-control form-control-sm" style="width:70px;"
+                   onchange="const m = document.getElementById('attendance-month-part').value; window.location.href='/admin/enterprise/attendance?tab={{ active_tab }}&month=' + this.value + '-' + m;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if active_tab == 'sheet' %}
+  <!-- Tab 1: Attendance Sheet -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">
+          Bảng chấm công tháng {{ selected_month }} ({{ attendance_pagination.total }} nhân sự)
+        </span>
+
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 280px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:220px;">Họ và tên</th>
+            <th style="width:170px;">Chức vụ / Bộ phận</th>
+            <th style="width:105px;" class="text-center">Công chuẩn</th>
+            <th style="width:115px;" class="text-center">Công thực tế</th>
+            <th style="width:115px;" class="text-center">Nghỉ có lương</th>
+            <th style="width:115px;" class="text-center">Nghỉ không lương</th>
+            <th style="width:105px;" class="text-center">Giờ tăng ca</th>
+            <th>Ghi chú</th>
+            <th style="width:80px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in staff_attendance_rows %}
+          <tr id="att-row-{{ s.id }}">
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (attendance_pagination.page - 1) * attendance_pagination.per_page + loop.index if attendance_pagination else loop.index }}
+            </td>
+            <td>
+              <div class="font-weight-bold text-dark">{{ s.full_name or s.username }}</div>
+              <div class="small text-muted font-monospace">@{{ s.username }}{% if s.phone %} · {{ s.phone }}{% endif %}</div>
+            </td>
+            <td>
+              <div class="text-dark">{{ s.job_title or '--' }}</div>
+              {% if s.department %}<div class="small text-muted">{{ s.department }}</div>{% endif %}
+            </td>
+            <td class="text-center">
+              <input type="number" step="0.5" class="form-control form-control-sm text-center font-weight-bold input-std-days"
+                     value="{{ s.standard_days if s.standard_days is not none else 26 }}">
+            </td>
+            <td class="text-center">
+              <input type="number" step="0.5" class="form-control form-control-sm text-center font-weight-bold text-primary input-act-days"
+                     value="{{ s.actual_days if s.actual_days is not none else 0 }}">
+            </td>
+            <td class="text-center">
+              <input type="number" step="0.5" class="form-control form-control-sm text-center input-paid-leave"
+                     value="{{ s.paid_leave_days if s.paid_leave_days is not none else 0 }}">
+            </td>
+            <td class="text-center">
+              <input type="number" step="0.5" class="form-control form-control-sm text-center input-unpaid-leave"
+                     value="{{ s.unpaid_leave_days if s.unpaid_leave_days is not none else 0 }}">
+            </td>
+            <td class="text-center">
+              <input type="number" step="0.5" class="form-control form-control-sm text-center input-ot"
+                     value="{{ s.overtime_hours if s.overtime_hours is not none else 0 }}">
+            </td>
+            <td>
+              <input type="text" class="form-control form-control-sm input-note" placeholder="Ghi chú công..."
+                     value="{{ s.att_note or '' }}">
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border btn-save-att"
+                      onclick="saveAttendanceRow({{ s.id }}, '{{ selected_month }}')">
+                Lưu
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="10" class="text-center py-4 text-muted">
+              Chưa có nhân sự nào trong danh sách.
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% with pagination=attendance_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+  </div>
+
+  {% else %}
+  <!-- Tab 2: Leave Requests -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">
+          Danh sách đơn xin nghỉ phép & Công tác ({{ leave_pagination.total }})
+        </span>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="$('#addLeaveModal').modal('show')">
+          <i class="bx bx-plus mr-1"></i>Tạo đơn mới
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Nhân sự</th>
+            <th style="width:130px;">Loại nghỉ</th>
+            <th style="width:200px;">Thời gian</th>
+            <th style="width:90px;" class="text-center">Số ngày</th>
+            <th>Lý do</th>
+            <th style="width:120px;" class="text-center">Trạng thái</th>
+            <th style="width:170px;">Người duyệt</th>
+            <th style="width:150px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in leave_requests %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (leave_pagination.page - 1) * leave_pagination.per_page + loop.index if leave_pagination else loop.index }}
+            </td>
+            <td>
+              <div class="font-weight-bold text-dark">{{ r.full_name or r.username }}</div>
+              <div class="small text-muted font-monospace">@{{ r.username }}</div>
+            </td>
+            <td>
+              <span class="badge badge-light border text-dark">{{ r.leave_type }}</span>
+            </td>
+            <td>
+              <div class="small text-dark font-weight-medium">
+                {{ r.start_date.strftime('%d/%m/%Y') }} &rarr; {{ r.end_date.strftime('%d/%m/%Y') }}
+              </div>
+            </td>
+            <td class="text-center font-weight-bold">
+              {{ r.total_days }} ngày
+            </td>
+            <td class="small text-muted">
+              {{ r.reason or '--' }}
+            </td>
+            <td class="text-center">
+              {% if r.status == 'approved' %}
+                <span class="badge badge-light border text-success font-weight-bold">Đã duyệt</span>
+              {% elif r.status == 'rejected' %}
+                <span class="badge badge-light border text-danger font-weight-bold">Từ chối</span>
+              {% else %}
+                <span class="badge badge-light border text-warning font-weight-bold">Chờ duyệt</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">
+              {% if r.approver_name %}
+                <i class="bx bx-check-circle text-success mr-1"></i>{{ r.approver_name }}
+              {% else %}
+                --
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              {% if r.status == 'pending' %}
+                <form method="post" action="/admin/enterprise/attendance/leave-request/{{ r.id }}/status" class="d-inline">
+                  <input type="hidden" name="status" value="approved">
+                  <button type="submit" class="btn btn-sm btn-light border text-success mr-1" title="Duyệt đơn">
+                    Duyệt
+                  </button>
+                </form>
+                <form method="post" action="/admin/enterprise/attendance/leave-request/{{ r.id }}/status" class="d-inline">
+                  <input type="hidden" name="status" value="rejected">
+                  <button type="submit" class="btn btn-sm btn-light border text-danger mr-1" title="Từ chối">
+                    Từ chối
+                  </button>
+                </form>
+              {% endif %}
+              <form method="post" action="/admin/enterprise/attendance/leave-request/{{ r.id }}/delete" class="d-inline"
+                    onsubmit="return confirm('Bạn có chắc muốn xóa đơn này?')">
+                <button type="submit" class="btn btn-sm btn-light border text-muted" title="Xóa đơn">
+                  Xóa
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">
+              Chưa có đơn xin nghỉ phép nào.
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% with pagination=leave_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal Tạo Đơn Nghỉ Phép -->
+<div class="modal fade" id="addLeaveModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Tạo đơn xin nghỉ phép / Công tác</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form method="post" action="/admin/enterprise/attendance/leave-request/create">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Nhân sự xin nghỉ <span class="text-danger">*</span></label>
+            <select name="user_id" class="form-control form-control-sm" required>
+              <option value="">-- Chọn nhân sự --</option>
+              {% for u in all_staff %}
+              <option value="{{ u.id }}">{{ u.full_name or u.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Loại nghỉ phép</label>
+              <select name="leave_type" class="form-control form-control-sm">
+                <option value="phép năm">Phép năm (có lương)</option>
+                <option value="nghỉ ốm">Nghỉ ốm đau / BHXH</option>
+                <option value="việc riêng">Việc riêng (có lương)</option>
+                <option value="nghỉ không lương">Nghỉ không lương</option>
+                <option value="công tác">Đi công tác</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Số ngày nghỉ</label>
+              <input type="number" step="0.5" name="total_days" class="form-control form-control-sm font-weight-bold" value="1.0" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Từ ngày</label>
+              <input type="date" name="start_date" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Đến ngày</label>
+              <input type="date" name="end_date" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Lý do xin nghỉ</label>
+            <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Ghi rõ lý do xin nghỉ hoặc kế hoạch công tác..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Gửi đơn</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+async function saveAttendanceRow(userId, month) {
+  const row = document.getElementById('att-row-' + userId);
+  if (!row) return;
+  const btn = row.querySelector('.btn-save-att');
+  const origText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+  const stdDays = row.querySelector('.input-std-days').value;
+  const actDays = row.querySelector('.input-act-days').value;
+  const paidLeave = row.querySelector('.input-paid-leave').value;
+  const unpaidLeave = row.querySelector('.input-unpaid-leave').value;
+  const ot = row.querySelector('.input-ot').value;
+  const note = row.querySelector('.input-note').value;
+
+  const formData = new FormData();
+  formData.append('user_id', userId);
+  formData.append('month', month);
+  formData.append('standard_days', stdDays);
+  formData.append('actual_days', actDays);
+  formData.append('paid_leave_days', paidLeave);
+  formData.append('unpaid_leave_days', unpaidLeave);
+  formData.append('overtime_hours', ot);
+  formData.append('note', note);
+
+  try {
+    const res = await fetch('/admin/enterprise/attendance/save-row', {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showNotify(data.message || 'Đã lưu ngày công.', 'success');
+      btn.innerHTML = '<i class="bx bx-check text-success"></i>';
+      setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 1500);
+    } else {
+      showNotify('Lỗi lưu ngày công.', 'error');
+      btn.innerHTML = origText;
+      btn.disabled = false;
+    }
+  } catch (err) {
+    showNotify('Lỗi kết nối: ' + err.message, 'error');
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

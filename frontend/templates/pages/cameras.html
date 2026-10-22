@@ -91,7 +91,7 @@
     document.getElementById('add-camera-ip').value = dev.ip || '';
     const typeSelect = document.getElementById('add-camera-type');
     if (dev.type && typeSelect) {
-        typeSelect.value = dev.type;
+        setAdminSelectValue(typeSelect, dev.type);
     }
     if (typeof autoFillRtsp === 'function') {
         autoFillRtsp(document.getElementById('add-cam-form'));
@@ -226,6 +226,7 @@
         <table class="table-cinema">
           <thead>
             <tr>
+              <th style="width:50px;" class="text-center">STT</th>
               <th class="text-center" style="width:60px;">TT</th>
               <th style="width:180px;">TÊN CAMERA</th>
               <th style="width:130px;">NHÀ CUNG CẤP</th>
@@ -240,6 +241,9 @@
           <tbody>
             {% for cam in cameras %}
             <tr class="{% if not cam.is_active %}text-muted{% endif %}" id="cam-row-{{ cam.id }}">
+              <td class="text-center text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
               <td class="text-center" style="font-size:14px;">
                 {% set health = camera_status.get(cam.id|string, {}) %}
                 {% set status = health.get('status', '') %}
@@ -291,7 +295,7 @@
                 <div class="d-flex justify-content-end" style="gap:6px;">
                   <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
                     class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
-                  <button type="button" class="btn btn-sm btn-danger"
+                  <button type="button" class="btn btn-sm btn-danger" data-bulk-action="delete" data-bulk-url="/admin/cameras/{{ cam.id }}" data-bulk-method="DELETE"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa camera',
@@ -388,7 +392,7 @@
 
             {% if not cameras %}
             <tr>
-              <td colspan="9" class="text-center py-5">
+              <td colspan="10" class="text-center py-5">
                 <div class="d-flex flex-column align-items-center" style="gap:10px;">
                   <span style="font-size:40px;opacity:.2;">📽️</span>
                   <div>
@@ -407,6 +411,7 @@
         </table>
       </div>
     </div>
+    {% include "partials/pagination.html" %}
   </div>
 
 
@@ -485,6 +490,7 @@
                 <table class="table table-sm table-hover mb-0">
                   <thead class="thead-light">
                     <tr>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;width:40px;" class="text-center">STT</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Thiết bị</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Model</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">IP</th>
@@ -493,8 +499,9 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <template x-for="dev in discoveredDevices" :key="dev.id + dev.ip">
+                    <template x-for="(dev, idx) in discoveredDevices" :key="dev.id + dev.ip">
                       <tr :class="dev._added ? 'table-success' : ''">
+                        <td class="text-center text-muted font-weight-medium align-middle" style="font-size:11px;" x-text="idx + 1"></td>
                         <td>
                           <div class="d-flex align-items-center" style="gap:8px;">
                             <div class="d-flex align-items-center justify-content-center rounded" style="width:28px;height:28px;font-size:13px;flex-shrink:0;"
@@ -569,6 +576,7 @@
                 <table class="table table-sm table-hover mb-0">
                   <thead class="thead-light">
                     <tr>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;width:40px;" class="text-center">STT</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Tên trong DB</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Phát hiện</th>
                       <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">IP</th>
@@ -577,8 +585,9 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <template x-for="dev in discoveredDevices.filter(d => d._exists)" :key="(dev.camera_id || dev.id) + dev.ip">
+                    <template x-for="(dev, idx) in discoveredDevices.filter(d => d._exists)" :key="(dev.camera_id || dev.id) + dev.ip">
                       <tr :class="dev._updated ? 'table-warning' : ''">
+                        <td class="text-center text-muted font-weight-medium align-middle" style="font-size:11px;" x-text="idx + 1"></td>
                         <td>
                           <div class="d-flex align-items-center" style="gap:8px;">
                             <div class="d-flex align-items-center justify-content-center rounded" style="width:28px;height:28px;font-size:13px;flex-shrink:0;background:#fff3e0;">

@@ -6,7 +6,7 @@ import re
 from typing import Literal, Optional
 from urllib.parse import urlparse
 import tinytuya
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from backend.services.database import db
 from backend.iot.door_controller import DoorController
@@ -14,6 +14,7 @@ from backend.iot.door_config import canonical_relay_config, relay_config_error, 
 from backend.iot.hunonic_handler import HunonicHandler
 from backend.services.settings_service import get_app_setting, set_many_app_settings
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 from frontend.routers.door_providers_router import get_all_door_providers
 
 logger = logging.getLogger("rolling_doors_router")
@@ -87,7 +88,7 @@ async def hunonic_devices(
     return {"ok": True, "status": "success", "devices": devices}
 
 
-def get_all_rolling_doors() -> list:
+def get_all_rolling_doors(limit=None, offset=None) -> list:
     query = """
         SELECT rd.*, dp.name as supplier_name, s.site_name 
         FROM rolling_doors rd
@@ -95,7 +96,19 @@ def get_all_rolling_doors() -> list:
         LEFT JOIN sites s ON rd.site_id = s.id
         ORDER BY dp.name ASC, rd.name ASC
     """
-    return db.execute_query(query, fetchall=True, commit=False)
+    params = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True, commit=False)
+
+
+def count_rolling_doors() -> int:
+    row = db.execute_query("SELECT COUNT(*) AS total FROM rolling_doors", fetch=True, commit=False)
+    return int((row or {}).get("total") or 0)
 
 
 def get_rolling_door(door_id: int) -> dict | None:
@@ -117,7 +130,11 @@ def delete_rolling_door_record(door_id: int):
 
 
 @router.get("")
-async def rolling_doors_page(request: Request, user: dict = Depends(require_menu("rolling_doors"))):
+async def rolling_doors_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("rolling_doors")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rolling_doors"
     
@@ -125,7 +142,11 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
     ctx["global_tuya_local_key"] = get_app_setting("TUYA_LOCAL_KEY", "")
     ctx["global_tuya_ip"] = get_app_setting("TUYA_IP", "")
     
-    doors = get_all_rolling_doors()
+    total_doors = count_rolling_doors()
+    page_data = paginate_counts(total_doors, page=page, per_page=20, base_url="/admin/rolling_doors")
+    doors = get_all_rolling_doors(
+        limit=page_data["per_page"], offset=(page_data["page"] - 1) * page_data["per_page"],
+    ) or []
     suppliers = get_all_door_providers()
     sites = db.select('sites', order_by='site_name ASC')
     
@@ -145,6 +166,8 @@ async def rolling_doors_page(request: Request, user: dict = Depends(require_menu
         grouped_doors[s_name].append(d)
     
     ctx["grouped_doors"] = grouped_doors
+    ctx.update(page=page_data["page"], total_pages=page_data["total_pages"],
+               total=page_data["total"], page_base_url=page_data["page_base_url"])
     ctx["suppliers"] = suppliers
     ctx["sites"] = sites
     ctx["cameras"] = db.select('cameras', order_by='camera_name ASC')

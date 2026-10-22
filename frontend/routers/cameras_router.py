@@ -1,10 +1,11 @@
 import logging
-from fastapi import APIRouter, Request, Depends, Form, Body
+from fastapi import APIRouter, Request, Depends, Form, Body, Query
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field, StringConstraints
 from typing import Optional
 from typing import Annotated
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 from backend.services.database import db
 from backend.camera import camera_service as cam_svc
 from backend.services.settings_service import get_app_setting, set_app_setting
@@ -53,17 +54,31 @@ def _persist_derived_rtsp(camera_id: int, rtsp_url: str | None) -> bool:
 
 
 @router.get("")
-async def cameras_page(request: Request, user: dict = Depends(require_menu("cameras"))):
+async def cameras_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("cameras")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "cameras"
     
     active_site_id = ctx["active_site_id"]
-    cameras = cam_svc.get_all_cameras(site_id=active_site_id or None)
+    total_cameras = cam_svc.count_cameras(site_id=active_site_id or None)
+    page_data = paginate_counts(
+        total_cameras, page=page, per_page=20, base_url="/admin/cameras",
+    )
+    cameras = cam_svc.get_all_cameras(
+        site_id=active_site_id or None,
+        limit=page_data["per_page"],
+        offset=(page_data["page"] - 1) * page_data["per_page"],
+    ) or []
     for cam in cameras:
         if not cam.get("rtsp_url"):
             cam["rtsp_url"] = cam_svc.get_camera_rtsp_url(cam["id"])
 
     ctx["cameras"] = cameras
+    ctx["pagination"] = page_data
+    ctx["total_cameras"] = total_cameras
     ctx["providers"] = cam_svc.get_all_providers()
     ctx["provider_templates"] = {p['provider_key']: p.get('rtsp_template', '') for p in ctx["providers"]}
     ctx["global_mk"] = get_app_setting("IMOU_MK", "")

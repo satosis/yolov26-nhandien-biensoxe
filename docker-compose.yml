@@ -1,25 +1,4 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: camera_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: camera_ai
-      POSTGRES_USER: camera_user
-      POSTGRES_PASSWORD: camera_password
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - shared-services
-
   ai_core:
     build:
       context: .
@@ -28,29 +7,10 @@ services:
         BUILDKIT_INLINE_CACHE: 1
     container_name: ai_core
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     env_file:
       - ./.env
     environment:
       TZ: Asia/Ho_Chi_Minh
-      DATABASE_URL: postgresql://camera_user:camera_password@postgres:5432/camera_ai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      DATABASE_URL: ${DATABASE_URL:?Run python scripts/start.py to configure the database}
     volumes:
       - ./data:/app/data
-
-    networks:
-      - shared-services
-
-
-networks:
-  shared-services:
-    name: shared-services
-    driver: bridge
-
-volumes:
-  postgres_data:
-    name: yolov26-nhandien-biensoxe_postgres_data
-    external: true

@@ -43,12 +43,8 @@ Biển số chờ duyệt
   }">
 
   {% if plates %}
-  <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:10px;">
-    <p class="text-muted mb-0" style="font-size:13px;">
-      Biển số mới camera tự ghi nhận —
-      <span class="text-success font-weight-medium">Đăng ký</span> để thêm vào danh sách xe quen,
-      hoặc <span class="text-danger font-weight-medium">Từ chối</span> để xóa.
-    </p>
+  <div class="d-flex align-items-center justify-content-end flex-wrap mb-3" style="gap:10px;">
+
 
     <div x-show="selected.length > 0" x-cloak class="d-flex align-items-center" style="gap:10px;">
       <span class="text-muted" style="font-size:13px;">
@@ -72,10 +68,11 @@ Biển số chờ duyệt
                 <input type="checkbox" @change="toggleAll($event)" :checked="selected.length === total && total > 0"
                        style="width:16px;height:16px;cursor:pointer;" title="Chọn tất cả">
               </th>
+              <th style="width:50px;" class="text-center">STT</th>
               <th style="width:110px;">Ảnh</th>
               <th style="width:200px;">Biển số</th>
               <th>Thời gian phát hiện</th>
-              <th class="text-right" style="width:150px;">Hành động</th>
+              <th class="text-right" style="width:250px;">Hành động</th>
             </tr>
           </thead>
 
@@ -88,6 +85,9 @@ Biển số chờ duyệt
               <td>
                 <input type="checkbox" value="{{ p.pending_id }}" x-model="selected"
                        style="width:16px;height:16px;cursor:pointer;">
+              </td>
+              <td class="text-center text-muted font-weight-medium align-middle">
+                {{ loop.index }}
               </td>
 
 
@@ -131,6 +131,12 @@ Biển số chờ duyệt
 
               <td class="text-right">
                 <div class="d-flex justify-content-end" style="gap:6px;">
+                  <button type="button" class="btn btn-sm btn-light border"
+                          onclick="openPendingPlateEdit(this.dataset.id, this.dataset.plate)"
+                          data-id="{{ p.pending_id|e }}" data-plate="{{ (p.plate_norm or '')|e }}"
+                          title="Sửa biển số" aria-label="Sửa biển số">
+                    <i class="bx bx-edit-alt"></i> Sửa
+                  </button>
                   <a href="/admin/pending_plates/{{ p.pending_id }}/register"
                      class="btn btn-sm btn-success font-weight-bold"
                      title="Đăng ký phương tiện">
@@ -154,7 +160,7 @@ Biển số chờ duyệt
           </tbody>
         </table>
       </div>
-
+      {% include "partials/pagination.html" %}
 
       <div id="empty-message" class="py-5 text-center" style="flex-direction:column;align-items:center;gap:8px;">
         <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
@@ -162,12 +168,61 @@ Biển số chờ duyệt
           <i class="bx bx-check-shield text-primary" style="font-size:32px;"></i>
         </div>
         <h6 class="font-weight-bold mb-1 text-dark" style="font-size:15px;">Không có biển số nào chờ duyệt</h6>
-        <p class="text-muted mb-0" style="font-size:13px;max-width:440px;margin:0 auto;line-height:1.6;">
-          Tất cả biển số đã được xét duyệt. Khi camera phát hiện biển số mới chưa có trong danh mục phương tiện, thông tin sẽ tự động hiển thị tại đây.
-        </p>
+
       </div>
     </div>
   </div>
 
 </div>
+
+<div class="modal fade" id="pendingPlateEditModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="pendingPlateEditForm">
+        <div class="modal-header py-2">
+          <h5 class="modal-title">Sửa biển số</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <label for="pendingPlateValue">Biển số</label>
+          <input type="text" id="pendingPlateValue" class="form-control form-control-sm text-uppercase" maxlength="16" required>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingPendingPlateId = null;
+function openPendingPlateEdit(id, plate) {
+  editingPendingPlateId = id;
+  document.getElementById('pendingPlateValue').value = plate || '';
+  $('#pendingPlateEditModal').modal('show');
+}
+document.getElementById('pendingPlateEditForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  const button = this.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    const response = await fetch('/admin/pending_plates/' + encodeURIComponent(editingPendingPlateId), {
+      method: 'PUT', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plate: document.getElementById('pendingPlateValue').value})
+    });
+    const data = await response.json();
+    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể sửa biển số.');
+    window.location.reload();
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+  } finally {
+    button.disabled = false;
+  }
+});
+</script>
 {% endblock %}

@@ -1,0 +1,1864 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản lý công nợ{% endblock %}
+{% block page_title %}Quản lý công nợ{% endblock %}
+
+{% block content %}
+<style>
+  #debtManagement .card { box-shadow: none; }
+  #debtManagement .debt-summary-card { border: 1px solid #d9dee7 !important; border-radius: 4px; }
+  #debtManagement .debt-summary-value { color: #263238 !important; }
+  #debtManagement .nav-tabs .nav-link { color: #59636e; }
+  #debtManagement .nav-tabs .nav-link.active { color: #263238; background: #fff; border-color: #d9dee7 #d9dee7 #fff; }
+  #debtManagement .btn-primary,
+  #debtManagement .btn-success,
+  #debtManagement .btn-danger,
+  #debtManagement .btn-outline-primary,
+  #debtManagement .btn-outline-secondary,
+  #debtManagement .btn-outline-success,
+  #debtManagement .btn-outline-danger {
+    color: #343a40; background: #fff; border-color: #cfd5dc;
+  }
+  #debtManagement .btn-primary:hover,
+  #debtManagement .btn-success:hover,
+  #debtManagement .btn-danger:hover,
+  #debtManagement .btn-outline-primary:hover,
+  #debtManagement .btn-outline-secondary:hover,
+  #debtManagement .btn-outline-success:hover,
+  #debtManagement .btn-outline-danger:hover { color: #212529; background: #f1f3f5; border-color: #adb5bd; }
+  .debt-modal .btn-primary,
+  .debt-modal .btn-success,
+  .debt-modal .btn-danger,
+  .debt-modal .btn-outline-primary,
+  .debt-modal .btn-outline-secondary,
+  .debt-modal .btn-outline-success,
+  .debt-modal .btn-outline-danger { color: #343a40; background: #fff; border-color: #cfd5dc; }
+  .debt-modal .btn-primary:hover,
+  .debt-modal .btn-success:hover,
+  .debt-modal .btn-danger:hover,
+  .debt-modal .btn-outline-primary:hover,
+  .debt-modal .btn-outline-secondary:hover,
+  .debt-modal .btn-outline-success:hover,
+  .debt-modal .btn-outline-danger:hover { color: #212529; background: #f1f3f5; border-color: #adb5bd; }
+  #debtManagement .badge-warning,
+  #debtManagement .badge-success,
+  #debtManagement .badge-primary,
+  #debtManagement .badge-secondary { color: #495057; background: #eef0f2; }
+  #debtManagement .debt-value { color: #343a40 !important; }
+  #debtManagement .debt-kpi { border-left: 3px solid #d9dee7 !important; }
+  #debtManagement .btn-link.text-danger,
+  .debt-modal .btn-link.text-danger { color: #59636e !important; }
+  #debtManagement .alert-success,
+  #debtManagement .alert-danger { color: #343a40; background: #f8f9fa; border-color: #d9dee7; }
+  #debtManagement #personalDebtImportButton { color: #fff; background: #217346; border-color: #217346; }
+  #debtManagement #personalDebtImportButton:hover,
+  #debtManagement #personalDebtImportButton:focus { color: #fff; background: #185c37; border-color: #185c37; }
+  #debtManagement .btn-success,
+  .debt-modal .btn-success { color: #fff !important; background: #28a745 !important; border-color: #28a745 !important; }
+  #debtManagement .btn-success:hover,
+  .debt-modal .btn-success:hover { color: #fff !important; background: #218838 !important; border-color: #1e7e34 !important; }
+  #debtManagement .btn-outline-success,
+  .debt-modal .btn-outline-success { color: #1e7e34 !important; background: #fff !important; border-color: #28a745 !important; }
+  #debtManagement .btn-outline-success:hover,
+  .debt-modal .btn-outline-success:hover { color: #fff !important; background: #28a745 !important; border-color: #28a745 !important; }
+
+  /* Compact, neutral layout for the debt workspace. */
+  #debtManagement { color: #263238; font-size: 13px; }
+  #debtManagement > .row.no-gutters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px !important; margin: 0 0 14px !important; }
+  #debtManagement .debt-summary-card { min-width: 0; min-height: 96px; padding: 13px 16px !important; border-radius: 5px; }
+  #debtManagement .debt-summary-card > div:first-child { color: #66717c !important; font-size: 10px; letter-spacing: .035em; }
+  #debtManagement .debt-summary-value { display: block; margin-top: 5px !important; font-size: 21px; line-height: 1.25; }
+  #debtManagement .debt-summary-card .h6 { font-size: 13px; }
+  #debtManagement > .card { border: 1px solid #d8dee6; border-radius: 5px; overflow: hidden; }
+  #debtManagement > .card > .card-header { padding: 0 14px !important; }
+  #debtManagement .nav-tabs { display: flex; flex-wrap: nowrap; gap: 4px; border-bottom: 1px solid #d8dee6; overflow-x: auto; }
+  #debtManagement .nav-tabs .nav-item { flex: 0 0 auto; }
+  #debtManagement .nav-tabs .nav-link { padding: 11px 12px 10px; border: 0; border-bottom: 2px solid transparent; color: #58636e; white-space: nowrap; }
+  #debtManagement .nav-tabs .nav-link.active { color: #202a33; background: transparent; border-bottom-color: #687583; }
+  #debtManagement { min-width: 0; max-width: 100%; }
+  #debtManagement > .card { min-width: 0; }
+  #debtManagement > .card > .debt-tabs-header { padding: 8px 12px 0 !important; background: #f7f8fa; border-bottom: 1px solid #d8dee6 !important; }
+  #debtManagement .debt-tabs { gap: 3px; border-bottom: 0; overflow-x: auto; overflow-y: hidden; }
+  #debtManagement .debt-tabs .nav-item { margin-bottom: 0; }
+  #debtManagement .debt-tabs .nav-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; color: #626d78; font-size: 12px; font-weight: 500 !important; white-space: nowrap; }
+  #debtManagement .debt-tabs .nav-link:hover { color: #263238; background: #eef1f4; }
+  #debtManagement .debt-tabs .nav-link.active { color: #202a33; background: #fff; border-color: #d8dee6; box-shadow: none; }
+  #debtManagement .debt-tab-count { min-width: 20px; padding: 1px 6px; border: 1px solid #d9dee5; border-radius: 3px; background: #f5f6f8; color: #626d78; font-size: 10px; font-weight: 500; line-height: 1.4; text-align: center; }
+  #debtManagement .tab-content { background: #fff; }
+  #debtManagement .tab-pane > .p-3.border-bottom.bg-light { padding: 12px 14px !important; background: #fff !important; }
+  #debtManagement .form-control { border-color: #cfd6df; border-radius: 4px; }
+  #debtManagement .form-control:focus { border-color: #8795a3; box-shadow: 0 0 0 2px rgba(95, 108, 122, .12); }
+  #debtManagement .table-responsive { width: 100%; max-width: 100%; min-height: 0 !important; }
+  #debtManagement .table { width: 100%; color: #263238; font-size: 12px; }
+  #debtManagement .table thead th { padding: 10px 12px; background: #f7f8fa; border-top: 0; border-bottom: 1px solid #d7dde5; color: #58636e; font-size: 11px; font-weight: 600; letter-spacing: 0; vertical-align: middle; white-space: nowrap; }
+  #debtManagement .table tbody td { padding: 9px 12px; border-top-color: #e8ebef; vertical-align: middle; }
+  #debtManagement .table tbody tr:hover { background: #f8f9fa; }
+  #debtManagement .table tbody td .font-weight-bold.text-dark { color: #263238 !important; }
+  #debtManagement .debt-log-table { min-width: 1120px; table-layout: fixed; }
+  #debtManagement .debt-log-company-name,
+  #debtManagement .debt-log-note { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #debtManagement .debt-log-company-name { max-width: 245px; }
+  #debtManagement .debt-log-note { max-width: 100%; }
+  #debtManagement .debt-log-reference { display: inline-block; max-width: 128px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
+  #debtManagement .debt-log-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #e2e6eb; }
+  #debtManagement .debt-log-toolbar-title { color: #29343e; font-size: 13px; font-weight: 600; }
+  #debtManagement .debt-log-toolbar-meta { color: #74808b; font-size: 11px; white-space: nowrap; }
+  #debtManagement .table code { color: #4c5864 !important; font-size: 11px; }
+  #debtManagement .debt-value { color: #263238 !important; font-variant-numeric: tabular-nums; }
+  #debtManagement .btn-group .btn { padding: 4px 7px; font-size: 11px; }
+  #debtManagement .badge { font-weight: 500; }
+  #debtManagement .debt-kpi { min-width: 0 !important; padding: 10px 12px !important; border: 1px solid #d9dee7 !important; border-left-width: 1px !important; border-radius: 4px; }
+  #debtManagement .debt-kpi strong { font-size: 14px; }
+  .debt-modal .modal-content { border: 1px solid #cfd6df; border-radius: 5px; box-shadow: 0 8px 28px rgba(25, 35, 45, .14); }
+  .debt-modal .modal-header { background: #f6f7f8 !important; border-bottom: 1px solid #dce1e7; }
+  .debt-modal .modal-footer { background: #fff !important; border-top: 1px solid #dce1e7; }
+  .debt-modal .table thead th { background: #f5f6f8; color: #56616d; font-size: 10px; white-space: nowrap; }
+
+  @media (max-width: 1000px) {
+    #debtManagement > .row.no-gutters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 575.98px) {
+    #debtManagement > .row.no-gutters { grid-template-columns: 1fr; gap: 8px !important; }
+    #debtManagement .debt-summary-card { min-height: 0; }
+    #debtManagement > .card > .card-header { padding: 0 8px !important; }
+    #debtManagement .nav-tabs .nav-link { padding: 9px 10px; font-size: 12px; }
+    #debtManagement .debt-log-toolbar { align-items: flex-start; padding: 11px 12px; }
+  #debtManagement .row-due-debt { background-color: #fff8f8 !important; }
+  #debtManagement .row-due-debt:hover { background-color: #fee2e2 !important; }
+  .due-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(220, 38, 38, 0.12);
+  }
+  .due-badge-icon {
+    font-size: 12px;
+    margin-right: 3px;
+    color: #ef4444;
+  }
+</style>
+<div class="container-fluid px-0 w-100" id="debtManagement">
+
+  <!-- BỘ LỌC CHUNG TOÀN HỆ THỐNG CÔNG NỢ -->
+  <div class="card mb-3 debt-global-filter-card" style="border:1px solid #d8dee6; border-radius:5px; background:#fff;">
+    <div class="card-body py-2 px-3">
+      <form method="get" action="/admin/enterprise/debts" id="debtGlobalFilterForm" class="form-row align-items-center">
+        <input type="hidden" name="tab" id="debtFilterTab" value="{{ active_tab or 'companies' }}">
+        <input type="hidden" name="month" id="personalDebtMonth" value="{{ personal_month }}">
+        <input type="hidden" name="due_only" id="globalDueOnly" value="{{ due_only or 0 }}">
+
+        <!-- Chọn kỳ Tháng / Năm -->
+        <div class="col-auto mb-2 mb-md-0">
+          <div class="d-flex align-items-center" style="gap:4px;">
+            <select id="personalDebtMonthPart" class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:115px; cursor:pointer;" aria-label="Tháng" onchange="updatePersonalDebtMonth()">
+              {% for m in range(1, 13) %}
+              <option value="{{ '%02d'|format(m) }}" {% if m == personal_month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+              {% endfor %}
+            </select>
+            <input type="number" id="personalDebtYear" value="{{ personal_month[:4] }}" min="1000" max="9999" required
+                   class="form-control form-control-sm font-weight-bold" style="width:75px;" aria-label="Năm" onchange="updatePersonalDebtMonth()">
+          </div>
+        </div>
+
+        <!-- Tìm kiếm từ khóa -->
+        <div class="col-md-4 col-sm-6 mb-2 mb-md-0">
+          <div class="input-group input-group-sm">
+            <input type="search" id="personalDebtSearch" name="q" class="form-control" value="{{ q or personal_q }}" placeholder="Tìm mã, tên đối tác / khách hàng, MST, SĐT...">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-outline-secondary" title="Tìm kiếm"><i class="bx bx-search"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lọc trạng thái nợ -->
+        <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
+          <select id="personalDebtOnly" name="debt_only" class="form-control form-control-sm" onchange="onPersonalDebtOnlyChange()">
+            <option value="1" {% if (debt_only == 1 or personal_debt_only == 1) and due_only != 1 %}selected{% endif %}>Chỉ đối tượng còn nợ</option>
+            <option value="due_7" {% if due_only == 1 %}selected{% endif %}>⚡ Đến hạn đòi (quá 7 ngày chưa trả)</option>
+            <option value="0" {% if debt_only == 0 and personal_debt_only == 0 and due_only != 1 %}selected{% endif %}>Tất cả đối tượng (kể cả hết nợ)</option>
+          </select>
+        </div>
+
+        {% if q or personal_q or debt_only == 0 or due_only == 1 %}
+        <div class="col-auto mb-2 mb-md-0">
+          <a href="/admin/enterprise/debts?tab={{ active_tab or 'companies' }}&month={{ personal_month }}" class="btn btn-sm btn-link text-muted py-0" style="font-size:12px;">
+            <i class="bx bx-x mr-1"></i>Xóa lọc
+          </a>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- Summary KPI Cards -->
+  <div class="row no-gutters mb-3" style="gap:12px;">
+    <!-- Card 1: Tổng nợ phải thu -->
+    <div class="col card debt-summary-card mb-0 p-3">
+      <div class="text-muted small text-uppercase font-weight-bold">Tổng nợ phải thu hiện tại</div>
+      <div class="h4 mb-0 font-weight-bold debt-summary-value mt-1">{{ total_debt_all }}</div>
+      <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top small" style="font-size:11.5px;">
+        <span><i class="bx bx-buildings mr-1 text-muted"></i>B2B: <strong class="text-dark">{{ total_debt_b2b_fmt }}</strong></span>
+        <span><i class="bx bx-user mr-1 text-muted"></i>Cá nhân: <strong class="text-primary">{{ total_debt_personal_fmt }}</strong></span>
+      </div>
+    </div>
+
+    <!-- Card 2: Đối tác & Khách đang nợ (Chia rõ ràng B2B và Cá nhân) -->
+    <div class="col card debt-summary-card mb-0 p-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="text-muted small text-uppercase font-weight-bold">Đối tác & Khách đang nợ</div>
+        {% if total_due_count > 0 %}
+        <span class="badge badge-danger font-weight-bold" style="font-size:10.5px; padding:3px 7px; border-radius:12px;" title="Có {{ total_due_count }} đối tượng nợ quá 7 ngày chưa phát sinh giao dịch">
+          <i class="bx bxs-bell-ring mr-1"></i>{{ total_due_count }} đến hạn đòi
+        </span>
+        {% endif %}
+      </div>
+      <div class="h4 mb-0 font-weight-bold text-dark mt-1">
+        {{ debt_company_count }} <span class="h6 text-muted font-weight-normal">đối tượng nợ</span>
+      </div>
+      <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top small" style="font-size:11.5px;">
+        <span><i class="bx bx-buildings mr-1 text-muted"></i>B2B: <strong class="text-dark">{{ b2b_debtor_count }}/{{ b2b_total_count }}</strong> đơn vị</span>
+        <span><i class="bx bx-user mr-1 text-muted"></i>Cá nhân: <strong class="text-primary">{{ pers_debtor_count }}/{{ pers_total_count }}</strong> khách</span>
+      </div>
+    </div>
+
+    <!-- Card 3: Tổng nợ phát sinh -->
+    <div class="col card debt-summary-card mb-0 p-3">
+      <div class="text-muted small text-uppercase font-weight-bold">Tổng nợ phát sinh (+)</div>
+      <div class="h4 mb-0 font-weight-bold debt-summary-value mt-1">{{ total_debt_added }}</div>
+      <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top small" style="font-size:11.5px;">
+        <span><i class="bx bx-buildings mr-1 text-muted"></i>B2B: <strong class="text-dark">{{ total_b2b_added_fmt }}</strong></span>
+        <span><i class="bx bx-user mr-1 text-muted"></i>Cá nhân: <strong class="text-primary">{{ total_pers_added_fmt }}</strong></span>
+      </div>
+    </div>
+
+    <!-- Card 4: Đã thu hồi / Thanh toán -->
+    <div class="col card debt-summary-card mb-0 p-3">
+      <div class="text-muted small text-uppercase font-weight-bold">Đã thu hồi / Thanh toán (-)</div>
+      <div class="h4 mb-0 font-weight-bold debt-summary-value mt-1">{{ total_debt_paid }}</div>
+      <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top small" style="font-size:11.5px;">
+        <span><i class="bx bx-buildings mr-1 text-muted"></i>B2B: <strong class="text-dark">{{ total_b2b_paid_fmt }}</strong></span>
+        <span><i class="bx bx-user mr-1 text-muted"></i>Cá nhân: <strong class="text-success">{{ total_pers_paid_fmt }}</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header debt-tabs-header">
+      <ul class="nav nav-tabs debt-tabs" id="debtTabs" role="tablist">
+        <li class="nav-item">
+          <a class="nav-link {% if not active_tab or active_tab == 'companies' %}active{% endif %} font-weight-bold" id="companies-tab" data-toggle="tab" href="#companiesPane" role="tab">
+            <span>Sổ nợ đối tác</span><span class="debt-tab-count">{{ companies_pagination.total }}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_tab == 'logs' %}active{% endif %} font-weight-bold" id="logs-tab" data-toggle="tab" href="#logsPane" role="tab">
+            <span>Nhật ký giao dịch</span><span class="debt-tab-count">{{ log_pagination.total }}</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if active_tab in ('personal-debts', 'individuals', 'personal') %}active{% endif %} font-weight-bold" id="personal-debts-tab" data-toggle="tab" href="#personalDebtsPane" role="tab">
+            <span>Khách hàng cá nhân</span><span class="debt-tab-count">{{ personal_summary.customer_count }}</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="tab-content" id="debtTabsContent">
+      
+      <!-- TAB 1: SỔ NỢ THEO ĐỐI TÁC -->
+      <div class="tab-pane fade {% if not active_tab or active_tab == 'companies' %}show active{% endif %}" id="companiesPane" role="tabpanel">
+        
+        <!-- Toolbar Sổ nợ đối tác -->
+        <div class="p-3 border-bottom bg-light d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div class="text-muted font-weight-medium small d-flex align-items-center flex-wrap" style="gap:6px;">
+            <span>Sổ nợ đối tác doanh nghiệp (B2B)</span>
+            {% if q %}<span class="badge badge-light border ml-1">Tìm: "{{ q }}"</span>{% endif %}
+            {% if b2b_due_count > 0 %}
+            <button type="button" class="btn btn-xs btn-outline-danger font-weight-bold ml-2 due-filter-btn" id="btnFilterDueB2B" onclick="toggleDueFilter('b2b')">
+              <i class="bx bxs-bell-ring mr-1"></i>Đến hạn đòi (≥7 ngày)
+              <span class="badge badge-danger ml-1">{{ b2b_due_count }}</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-light border font-weight-bold d-none" id="btnResetDueB2B" onclick="toggleDueFilter('b2b', false)">
+              <i class="bx bx-show mr-1"></i>Xem tất cả
+            </button>
+            {% endif %}
+          </div>
+          <div class="d-flex align-items-center ml-auto" style="gap:6px;">
+            <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="openAddDebtModal()">
+              <i class="bx bx-plus mr-1"></i>Ghi nợ ngoài (+)
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" onclick="openPayDebtModal()">
+              <i class="bx bx-check mr-1"></i>Thu / Trả nợ (-)
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Companies -->
+        <div class="table-responsive" style="min-height:300px;">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="thead-light">
+              <tr>
+                <th style="width:50px;" class="text-center">STT</th>
+                <th>Đơn vị đối tác / Doanh nghiệp</th>
+                <th style="width:130px;">Mã số thuế</th>
+                <th style="width:120px;">Điện thoại</th>
+                <th style="width:130px;" class="text-center">Biến động cuối</th>
+                <th style="width:90px;" class="text-center">Số GD</th>
+                <th style="width:180px;" class="text-right">Dư nợ hiện tại</th>
+                <th style="width:230px;" class="text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if companies %}
+                {% for c in companies %}
+                <tr class="{% if c.is_due %}row-due-debt{% endif %}" data-is-due="{{ 1 if c.is_due else 0 }}">
+                  <td class="text-center text-muted small align-middle">{{ loop.index }}</td>
+                  <td class="align-middle">
+                    <div class="font-weight-bold text-dark">{{ c.name }}</div>
+                    {% if c.address %}
+                    <div class="text-muted small text-truncate" style="max-width:380px;">{{ c.address }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle">
+                    {% if c.tax_code %}
+                    <code class="text-dark font-weight-bold">{{ c.tax_code }}</code>
+                    {% else %}
+                    <span class="text-muted small">--</span>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle small text-muted">{{ c.phone or '--' }}</td>
+                  <td class="align-middle text-center small text-nowrap">
+                    <span class="text-dark font-weight-500">{{ c.last_log_date_str }}</span>
+                    {% if c.is_opening_date %}
+                    <div class="text-muted" style="font-size:11px; line-height:1.1;">(Số dư đầu kỳ)</div>
+                    {% endif %}
+                    {% if c.is_due %}
+                    <div class="mt-1">
+                      <span class="due-badge" title="{{ c.due_reason }}">
+                        <i class="bx bxs-bell-ring due-badge-icon"></i>Đến hạn đòi{% if c.overdue_days %} ({{ c.overdue_days }}n){% endif %}
+                      </span>
+                    </div>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle text-center small">
+                    <span class="badge badge-light border">{{ c.log_count }}</span>
+                  </td>
+                  <td class="align-middle text-right">
+                    {% if c.current_debt_val > 0 %}
+                    <span class="font-weight-bold debt-value" style="font-size:15px;">{{ c.current_debt_fmt }}</span>
+                    {% elif c.current_debt_val < 0 %}
+                    <span class="font-weight-bold debt-value" style="font-size:15px;">{{ c.current_debt_fmt }}</span>
+                    {% else %}
+                    <span class="text-muted small">0 đ</span>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle text-center">
+                    <div class="btn-group btn-group-sm">
+                      <button type="button" class="btn btn-outline-secondary btn-sm" title="Ghi thêm nợ ngoài"
+                              onclick="openAddDebtModal('{{ c.id }}', '{{ c.name|escape }}')">
+                        <i class="bx bx-plus"></i> Nợ
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" title="Thu nợ / Thanh toán trừ nợ"
+                              onclick="openPayDebtModal('{{ c.id }}', '{{ c.name|escape }}', '{{ c.current_debt_val }}')">
+                        <i class="bx bx-check"></i> Đã trả / Thu
+                      </button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm" title="Xem sổ nợ chi tiết"
+                              onclick="openLedgerModal('{{ c.id }}', '{{ c.name|escape }}')">
+                        <i class="bx bx-list-ul"></i> Sổ nợ
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="8" class="text-center py-5 text-muted">
+                    <i class="bx bx-check-circle" style="font-size:32px; color:#28a745;"></i>
+                    <div class="mt-2">Không có công nợ nào theo điều kiện lọc hiện tại.</div>
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% with pagination=companies_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+      </div>
+
+      <!-- TAB 2: NHẬT KÝ BIẾN ĐỘNG CÔNG NỢ GẦN ĐÂY -->
+      <div class="tab-pane fade {% if active_tab == 'logs' %}show active{% endif %}" id="logsPane" role="tabpanel">
+        <div class="debt-log-toolbar">
+          <div class="debt-log-toolbar-title">Giao dịch công nợ gần đây</div>
+          <div class="debt-log-toolbar-meta">{{ log_pagination.total }} giao dịch</div>
+        </div>
+        <div class="table-responsive" style="min-height:300px;">
+          <table class="table table-hover table-sm mb-0 debt-log-table">
+            <thead class="thead-light">
+              <tr>
+                <th style="width:50px;" class="text-center">STT</th>
+                <th style="width:110px;">Ngày ghi</th>
+                <th style="width:260px;">Đơn vị đối tác</th>
+                <th style="width:140px;">Loại giao dịch</th>
+                <th style="width:160px;" class="text-right">Biến động</th>
+                <th style="width:140px;">Chứng từ</th>
+                <th>Diễn giải / Ghi chú</th>
+                <th style="width:130px;">Người lập</th>
+                <th style="width:90px;" class="text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if recent_logs %}
+                {% for l in recent_logs %}
+                <tr>
+                  <td class="text-center text-muted small align-middle">{{ loop.index }}</td>
+                  <td class="align-middle small font-weight-bold">{{ l.recorded_date_str }}</td>
+                  <td class="align-middle">
+                    <div class="font-weight-bold text-dark debt-log-company-name" title="{{ l.company_name }}">{{ l.company_name }}</div>
+                    {% if l.company_tax_code %}
+                    <code class="small text-muted">{{ l.company_tax_code }}</code>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle">
+                    {% if l.debt_type == 'manual_add' %}
+                    <span class="badge badge-warning">Ghi nợ ngoài</span>
+                    {% elif l.debt_type == 'payment' %}
+                    <span class="badge badge-success">Thu / Trả nợ</span>
+                    {% elif l.debt_type == 'trip_debt' %}
+                    <span class="badge badge-primary">Nợ chuyến hàng</span>
+                    {% elif l.debt_type == 'initial' %}
+                    <span class="badge badge-secondary">Số dư ban đầu</span>
+                    {% else %}
+                    <span class="badge badge-light border">{{ l.type_label }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle text-right">
+                    {% if l.is_increase %}
+                    <span class="font-weight-bold debt-value">+ {{ l.amount_fmt }}</span>
+                    {% else %}
+                    <span class="font-weight-bold debt-value">- {{ l.amount_fmt }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle small text-muted"><span class="debt-log-reference" title="{{ l.reference_doc or '--' }}">{{ l.reference_doc or '--' }}</span></td>
+                  <td class="align-middle small"><span class="debt-log-note" title="{{ l.note or '--' }}">{{ l.note or '--' }}</span></td>
+                  <td class="align-middle small text-muted">{{ l.creator_name or 'Hệ thống' }}</td>
+                  <td class="align-middle text-center">
+                    {% if l.debt_type in ('manual_add', 'payment') %}
+                    <button type="button" class="btn btn-sm btn-link text-primary p-0 mr-2"
+                            onclick="openCompanyDebtLogEdit(this)"
+                            data-log-id="{{ l.id }}" data-amount="{{ l.amount_val|abs }}"
+                            data-date="{{ l.recorded_date }}" data-reference="{{ (l.reference_doc or '')|e }}"
+                            data-note="{{ (l.note or '')|e }}" title="Sửa giao dịch" aria-label="Sửa giao dịch">
+                      <i class="bx bx-edit-alt"></i>
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0" data-bulk-action="delete" data-bulk-url="/admin/enterprise/debts/{{ l.id }}/delete" data-bulk-method="POST" title="Xóa giao dịch"
+                            onclick="confirmDeleteLog('{{ l.id }}', '{{ l.company_name|escape }}', '{{ l.amount_fmt }}')">
+                      <i class="bx bx-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="9" class="text-center py-5 text-muted">
+                    Chưa có nhật ký giao dịch công nợ nào.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% with pagination=log_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+      </div>
+
+      <!-- TAB 3: CÔNG NỢ KHÁCH HÀNG CÁ NHÂN -->
+      <div class="tab-pane fade {% if active_tab in ('personal-debts', 'individuals', 'personal') %}show active{% endif %}" id="personalDebtsPane" role="tabpanel">
+        <!-- Toolbar Sổ nợ khách hàng cá nhân -->
+        <div class="p-3 border-bottom bg-light d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div class="text-muted font-weight-medium small d-flex align-items-center flex-wrap" style="gap:6px;">
+            <span>Sổ nợ khách hàng cá nhân · Kỳ: <strong>Tháng {{ personal_month[5:7] }}/{{ personal_month[:4] }}</strong></span>
+            {% if q or personal_q %}<span class="badge badge-light border ml-1">Tìm: "{{ q or personal_q }}"</span>{% endif %}
+            {% if pers_due_count > 0 %}
+            <button type="button" class="btn btn-xs btn-outline-danger font-weight-bold ml-2 due-filter-btn" id="btnFilterDuePersonal" onclick="toggleDueFilter('personal')">
+              <i class="bx bxs-bell-ring mr-1"></i>Đến hạn đòi (≥7 ngày)
+              <span class="badge badge-danger ml-1" id="badgeDuePersonalCount">{{ pers_due_count }}</span>
+            </button>
+            <button type="button" class="btn btn-xs btn-light border font-weight-bold d-none" id="btnResetDuePersonal" onclick="toggleDueFilter('personal', false)">
+              <i class="bx bx-show mr-1"></i>Xem tất cả
+            </button>
+            {% endif %}
+          </div>
+          <div class="d-flex align-items-center ml-auto" style="gap:6px;">
+            <input type="file" id="personalDebtImportFile" accept=".xlsx,.xlsm,.zip" class="d-none">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="personalDebtImportButton">
+              <i class="bx bx-upload mr-1"></i>Nhập công nợ Excel / ZIP
+            </button>
+            <button type="button" class="btn btn-sm btn-success font-weight-bold" onclick="openPersonalPaymentModal()">
+              <i class="bx bx-check-circle mr-1"></i>Ghi đã trả
+            </button>
+            <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openPersonalCustomerModal()">
+              <i class="bx bx-user-plus mr-1"></i>Thêm khách hàng
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="min-height:280px;">
+          <table class="table table-hover table-sm mb-0">
+            <thead class="thead-light">
+              <tr>
+                <th class="text-center" style="width:50px;">STT</th>
+                <th>Khách hàng cá nhân</th>
+                <th style="width:145px;" class="text-right">Số đầu kỳ</th>
+                <th style="width:145px;" class="text-right">Phát sinh tháng</th>
+                <th style="width:145px;" class="text-right">Đã thanh toán</th>
+                <th style="width:155px;" class="text-right">Còn nợ lại</th>
+                <th style="width:130px;" class="text-center">Biến động cuối</th>
+                <th style="width:235px;" class="text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="personalCustomerBody">
+              {% for c in personal_customers %}
+              <tr class="{% if c.is_due %}row-due-debt{% endif %}" data-is-due="{{ 1 if c.is_due else 0 }}">
+                <td class="text-center text-muted small">{{ loop.index }}</td>
+                <td><strong>{{ c.full_name }}</strong><div class="small text-muted">{{ c.phone or '--' }}{% if c.address %} · {{ c.address }}{% endif %}</div></td>
+                <td class="text-right">{{ c.opening_balance_fmt }}</td>
+                <td class="text-right">{{ c.month_due_fmt }}</td>
+                <td class="text-right">{{ c.month_paid_fmt }}</td>
+                <td class="text-right font-weight-bold debt-value">{{ c.current_balance_fmt }}</td>
+                <td class="text-center small text-nowrap">
+                  <span class="text-dark font-weight-500">{{ c.last_transaction_date_str }}</span>
+                  {% if c.is_opening_date %}
+                  <div class="text-muted" style="font-size:11px; line-height:1.1;">(Số dư đầu kỳ)</div>
+                  {% endif %}
+                  {% if c.is_due %}
+                  <div class="mt-1">
+                    <span class="due-badge" title="{{ c.due_reason }}">
+                      <i class="bx bxs-bell-ring due-badge-icon"></i>Đến hạn đòi{% if c.overdue_days %} ({{ c.overdue_days }}n){% endif %}
+                    </span>
+                  </div>
+                  {% endif %}
+                </td>
+                <td class="text-center text-nowrap">
+                  <button type="button" class="btn btn-xs btn-outline-success font-weight-bold" data-personal-action="pay" data-customer-id="{{ c.id }}" title="Ghi số tiền khách đã trả"><i class="bx bx-check mr-1"></i>Đã trả</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="transaction" data-customer-id="{{ c.id }}" title="Ghi công nợ / thanh toán">Ghi sổ</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="ledger" data-customer-id="{{ c.id }}" title="Xem nhật ký">Sổ</button>
+                  <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="edit" data-customer-id="{{ c.id }}" title="Sửa khách hàng"><i class="bx bx-edit"></i></button>
+                  <button type="button" class="btn btn-xs btn-outline-danger" data-personal-action="delete" data-customer-id="{{ c.id }}" data-bulk-action="delete" data-bulk-url="/admin/enterprise/debts/individuals/customers/{{ c.id }}/delete" data-bulk-method="POST" title="Xóa khách hàng"><i class="bx bx-trash"></i></button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center py-5 text-muted">Chưa có khách hàng cá nhân phù hợp.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="personalCustomerPagination" class="d-flex justify-content-center py-2"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: THÊM / SỬA KHÁCH HÀNG CÁ NHÂN -->
+<div class="modal fade debt-modal" id="personalDebtImportModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2 bg-light">
+        <h6 class="modal-title font-weight-bold">Xem trước nhập công nợ</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="personalDebtImportFilename"></div>
+        <div id="personalDebtImportSummary"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-primary" id="personalDebtImportConfirm">Nhập dữ liệu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade debt-modal" id="personalCustomerModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="personalCustomerForm" method="post" action="/admin/enterprise/debts/individuals/customers">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold" id="personalCustomerModalTitle">Thêm khách hàng cá nhân</h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-sm-12 form-group mb-2">
+              <label class="small font-weight-bold">Họ và tên khách hàng <span class="text-danger">*</span></label>
+              <input name="full_name" id="personalCustomerName" class="form-control form-control-sm" maxlength="255" required placeholder="Nhập họ và tên...">
+              <input type="hidden" name="customer_code" id="personalCustomerCode" value="">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-sm-5 form-group mb-2">
+              <label class="small font-weight-bold">Số điện thoại</label>
+              <input name="phone" id="personalCustomerPhone" class="form-control form-control-sm" maxlength="50">
+            </div>
+            <div class="col-sm-7 form-group mb-2">
+              <label class="small font-weight-bold">Số dư đầu kỳ (đ)</label>
+              <input type="number" step="1" name="opening_balance" id="personalCustomerOpening" class="form-control form-control-sm" value="0">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Địa chỉ</label>
+            <textarea name="address" id="personalCustomerAddress" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu khách hàng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GHI NHẬN TIỀN HÀNG / THANH TOÁN -->
+<div class="modal fade debt-modal" id="personalTransactionModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="personalTransactionForm" method="post" action="/admin/enterprise/debts/individuals/transactions">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold">Ghi sổ công nợ cá nhân</h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Khách hàng <span class="text-danger">*</span></label>
+            <select name="customer_id" id="personalTransactionCustomer" class="form-control form-control-sm" required>
+              <option value="">-- Chọn khách hàng --</option>
+              {% for c in personal_customers %}<option value="{{ c.id }}">{{ c.full_name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="col-sm-7 form-group mb-2">
+              <label class="small font-weight-bold">Số hóa đơn / chứng từ</label>
+              <input name="invoice_number" class="form-control form-control-sm" maxlength="100">
+            </div>
+            <div class="col-sm-5 form-group mb-2">
+              <label class="small font-weight-bold">Ngày giao dịch <span class="text-danger">*</span></label>
+              <input type="date" name="transaction_date" class="form-control form-control-sm" value="{{ today_str }}" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-sm-6 form-group mb-2">
+              <label class="small font-weight-bold">Nợ tiền hàng (đ)</label>
+              <input name="amount_due" class="form-control form-control-sm" inputmode="numeric" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-sm-6 form-group mb-2">
+              <label class="small font-weight-bold">Thanh toán (đ)</label>
+              <input name="amount_paid" class="form-control form-control-sm" inputmode="numeric" placeholder="0" oninput="formatCurrencyInput(this)">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Nguồn nhận / người nộp</label>
+            <input name="received_from" class="form-control form-control-sm" value="Tiền mặt" maxlength="255" placeholder="Tiền mặt, chuyển khoản, người nộp...">
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu giao dịch</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GHI NHẬN ĐÃ TRẢ TIỀN (KHÁCH HÀNG CÁ NHÂN) -->
+<div class="modal fade debt-modal" id="personalPaymentModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="personalPaymentForm">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold text-dark">
+            <i class="bx bx-check-circle text-success mr-1"></i>Ghi nhận khách đã trả tiền
+          </h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Khách hàng <span class="text-danger">*</span></label>
+            <select name="customer_id" id="personalPaymentCustomer" class="form-control form-control-sm" required onchange="onPersonalPaymentCustomerChange(this)">
+              <option value="">-- Chọn khách hàng --</option>
+              {% for c in personal_customers %}
+              <option value="{{ c.id }}" data-debt="{{ c.current_balance_val if c.current_balance_val is defined else c.current_balance }}" data-debt-fmt="{{ c.current_balance_fmt }}">
+                {{ c.full_name }} (Còn nợ: {{ c.current_balance_fmt }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="alert alert-light border py-2 px-3 mb-2 d-flex align-items-center justify-content-between" id="personalPaymentDebtInfo">
+            <div>
+              <span class="text-muted small">Dư nợ hiện tại:</span>
+              <strong id="personalPaymentCurrentDebt" class="text-danger font-weight-bold ml-1">0 đ</strong>
+            </div>
+            <button type="button" class="btn btn-xs btn-outline-primary" id="personalPaymentFillAllBtn" onclick="fillPersonalPaymentAllDebt()" style="display:none;">
+              Trả toàn bộ nợ
+            </button>
+          </div>
+
+          <div class="form-row">
+            <div class="col-sm-7 form-group mb-2">
+              <label class="small font-weight-bold text-success">Số tiền đã trả (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="amount_paid" id="personalPaymentAmountInput" class="form-control form-control-sm font-weight-bold"
+                     inputmode="numeric" placeholder="Ví dụ: 2.000.000" required oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-sm-5 form-group mb-2">
+              <label class="small font-weight-bold">Ngày trả tiền <span class="text-danger">*</span></label>
+              <input type="date" name="transaction_date" id="personalPaymentDateInput" class="form-control form-control-sm" value="{{ today_str }}" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-sm-6 form-group mb-2">
+              <label class="small font-weight-bold">Hình thức / Nguồn thu</label>
+              <input type="text" name="received_from" id="personalPaymentSourceInput" value="Tiền mặt" class="form-control form-control-sm" list="personalPaymentSources" placeholder="Tiền mặt, CK...">
+              <datalist id="personalPaymentSources">
+                <option value="Tiền mặt"></option>
+                <option value="Chuyển khoản"></option>
+                <option value="Ví điện tử"></option>
+              </datalist>
+            </div>
+            <div class="col-sm-6 form-group mb-2">
+              <label class="small font-weight-bold">Số phiếu thu / Mã GD</label>
+              <input type="text" name="invoice_number" id="personalPaymentInvoiceInput" class="form-control form-control-sm" placeholder="VD: PT-01, CK-123...">
+            </div>
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú / Diễn giải</label>
+            <textarea name="note" id="personalPaymentNoteInput" class="form-control form-control-sm" rows="2" placeholder="Ghi rõ nội dung thanh toán..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-success font-weight-bold" id="personalPaymentSubmitBtn">
+            <i class="bx bx-check mr-1"></i>Xác nhận đã trả
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SỔ CHI TIẾT KHÁCH HÀNG CÁ NHÂN -->
+<div class="modal fade debt-modal" id="personalLedgerModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2 bg-light">
+        <div>
+          <h6 class="modal-title font-weight-bold mb-0" id="personalLedgerTitle">Sổ công nợ khách hàng</h6>
+          <small class="text-muted" id="personalLedgerBalance"></small>
+        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="table-responsive" style="max-height:60vh;">
+        <table class="table table-sm table-hover mb-0" data-bulk-select="1">
+          <thead class="thead-light"><tr>
+            <th style="width:45px;">#</th><th style="width:105px;">Ngày</th><th style="width:150px;">Số HĐ / chứng từ</th>
+            <th class="text-right" style="width:150px;">Nợ tiền hàng</th><th class="text-right" style="width:150px;">Thanh toán</th>
+            <th style="width:160px;">Nguồn nhận</th><th>Ghi chú</th><th style="width:90px;">Thao tác</th>
+          </tr></thead>
+          <tbody id="personalLedgerBody"><tr><td colspan="8" class="text-center py-4 text-muted">Chọn khách hàng để xem sổ.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-success font-weight-bold" id="personalLedgerAddPayment">
+          <i class="bx bx-check-circle mr-1"></i>Ghi đã trả
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="personalLedgerAddTransaction">Ghi nợ / phát sinh</button>
+        <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: GHI NỢ NGOÀI (+) -->
+<div class="modal fade debt-modal" id="addDebtModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form method="post" action="/admin/enterprise/debts/add">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold text-dark">
+            <i class="bx bx-plus-circle mr-1"></i>Ghi nhận khoản nợ ngoài (+)
+          </h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Đối tác / Doanh nghiệp <span class="text-danger">*</span></label>
+            <select name="company_id" id="addDebtCompanySelect" class="form-control form-control-sm" required>
+              <option value="">-- Chọn đơn vị --</option>
+              {% for c in all_companies %}
+              <option value="{{ c.id }}">{{ c.name }}{% if c.tax_code %} ({{ c.tax_code }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-7 form-group mb-2">
+              <label class="small font-weight-bold">Số tiền nợ phát sinh (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="amount" class="form-control form-control-sm font-weight-bold text-dark"
+                     placeholder="Ví dụ: 5.000.000" required oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-5 form-group mb-2">
+              <label class="small font-weight-bold">Ngày phát sinh</label>
+              <input type="date" name="recorded_date" class="form-control form-control-sm" value="{{ today_str }}">
+            </div>
+          </div>
+
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số hợp đồng / Hóa đơn / Chứng từ ngoài</label>
+            <input type="text" name="reference_doc" class="form-control form-control-sm" placeholder="VD: HĐ-2026/01, Phiếu XK #88...">
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Lý do phát sinh nợ / Ghi chú</label>
+            <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Ghi rõ nội dung nợ..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-danger font-weight-bold">
+            <i class="bx bx-check mr-1"></i>Lưu ghi nợ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: THU / TRẢ NỢ (-) -->
+<div class="modal fade debt-modal" id="payDebtModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form method="post" action="/admin/enterprise/debts/pay">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold text-dark">
+            <i class="bx bx-check-circle mr-1"></i>Thu hồi / Thanh toán nợ (-)
+          </h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Đối tác / Doanh nghiệp <span class="text-danger">*</span></label>
+            <select name="company_id" id="payDebtCompanySelect" class="form-control form-control-sm" required onchange="onPayCompanyChange(this)">
+              <option value="">-- Chọn đơn vị --</option>
+              {% for c in all_companies %}
+              <option value="{{ c.id }}" data-debt="{{ c.current_debt_val }}" data-debt-fmt="{{ c.current_debt_fmt }}">
+                {{ c.name }} [Dư nợ: {{ c.current_debt_fmt }}]
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="alert alert-light border py-1 px-2 mb-2 small" id="payDebtAlert" style="display:none;">
+            Dư nợ hiện tại: <strong id="payCurrentDebtFmt" class="debt-value">0 đ</strong>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-7 form-group mb-2">
+              <label class="small font-weight-bold">Số tiền thanh toán (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="amount" id="payDebtAmountInput" class="form-control form-control-sm font-weight-bold text-dark"
+                     placeholder="Ví dụ: 5.000.000" required oninput="formatCurrencyInput(this)">
+            </div>
+            <div class="col-md-5 form-group mb-2">
+              <label class="small font-weight-bold">Ngày thu tiền</label>
+              <input type="date" name="recorded_date" class="form-control form-control-sm" value="{{ today_str }}">
+            </div>
+          </div>
+
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số phiếu thu / Ủy nhiệm chi / Mã giao dịch</label>
+            <input type="text" name="reference_doc" class="form-control form-control-sm" placeholder="VD: PT-0012, UNC-VIB-992...">
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú / Diễn giải thanh toán</label>
+            <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Ghi rõ hình thức thanh toán (chuyển khoản, tiền mặt...)..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-success font-weight-bold">
+            <i class="bx bx-check mr-1"></i>Xác nhận thu nợ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: SỔ NỢ CHI TIẾT THEO ĐƠN VỊ -->
+<div class="modal fade debt-modal" id="debtLedgerModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header py-2 bg-light">
+        <div>
+          <h6 class="modal-title font-weight-bold text-dark mb-0" id="ledgerModalTitle">
+            <i class="bx bx-book-content mr-1"></i>Sổ theo dõi công nợ chi tiết
+          </h6>
+          <small class="text-muted" id="ledgerModalSubtitle"></small>
+        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+          <div>
+            <span class="text-muted small">Số dư công nợ hiện tại:</span>
+            <span class="h5 mb-0 ml-1 font-weight-bold debt-value" id="ledgerCurrentDebt">0 đ</span>
+          </div>
+          <div class="d-flex" style="gap:6px;">
+            <button type="button" class="btn btn-xs btn-outline-secondary font-weight-bold" id="ledgerBtnAddDebt">
+              <i class="bx bx-plus mr-1"></i>Ghi thêm nợ
+            </button>
+            <button type="button" class="btn btn-xs btn-outline-secondary font-weight-bold" id="ledgerBtnPayDebt">
+              <i class="bx bx-check mr-1"></i>Thu / Trả nợ
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="max-height: 420px;">
+          <table class="table table-sm table-hover mb-0" id="ledgerTable">
+            <thead class="thead-light">
+              <tr>
+                <th style="width:40px;" class="text-center">#</th>
+                <th style="width:100px;">Ngày</th>
+                <th style="width:130px;">Loại GD</th>
+                <th style="width:140px;" class="text-right">Biến động</th>
+                <th style="width:130px;">Chứng từ</th>
+                <th>Ghi chú / Diễn giải</th>
+                <th style="width:110px;">Người lập</th>
+                <th style="width:85px;" class="text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="ledgerTableBody">
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">
+                  <div class="spinner-border spinner-border-sm text-secondary" role="status"></div> Đang tải sổ nợ...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade debt-modal" id="editCompanyDebtLogModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="editCompanyDebtLogForm">
+        <div class="modal-header py-2 bg-light">
+          <h6 class="modal-title font-weight-bold">Sửa giao dịch công nợ</h6>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editCompanyDebtLogId">
+          <div class="form-row">
+            <div class="form-group col-sm-6">
+              <label for="editCompanyDebtLogDate">Ngày ghi</label>
+              <input type="date" id="editCompanyDebtLogDate" class="form-control form-control-sm" required>
+            </div>
+            <div class="form-group col-sm-6">
+              <label for="editCompanyDebtLogAmount">Số tiền</label>
+              <input type="number" id="editCompanyDebtLogAmount" min="1" step="1" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="editCompanyDebtLogReference">Chứng từ</label>
+            <input type="text" id="editCompanyDebtLogReference" class="form-control form-control-sm" maxlength="255">
+          </div>
+          <div class="form-group mb-0">
+            <label for="editCompanyDebtLogNote">Diễn giải / Ghi chú</label>
+            <textarea id="editCompanyDebtLogNote" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- FORM POST XÓA NHẬT KÝ -->
+<form id="deleteLogForm" method="post" action="" style="display:none;"></form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openCompanyDebtLogEdit(button) {
+  document.getElementById('editCompanyDebtLogId').value = button.dataset.logId || button.dataset.editCompanyDebtLog;
+  document.getElementById('editCompanyDebtLogAmount').value = button.dataset.amount || '0';
+  document.getElementById('editCompanyDebtLogDate').value = button.dataset.date || '';
+  document.getElementById('editCompanyDebtLogReference').value = button.dataset.reference || '';
+  document.getElementById('editCompanyDebtLogNote').value = button.dataset.note || '';
+  $('#editCompanyDebtLogModal').modal('show');
+}
+
+document.getElementById('editCompanyDebtLogForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  const button = this.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    const response = await fetch('/admin/enterprise/debts/' + document.getElementById('editCompanyDebtLogId').value, {
+      method: 'PUT', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        amount: document.getElementById('editCompanyDebtLogAmount').value,
+        recorded_date: document.getElementById('editCompanyDebtLogDate').value,
+        reference_doc: document.getElementById('editCompanyDebtLogReference').value,
+        note: document.getElementById('editCompanyDebtLogNote').value
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể sửa giao dịch.');
+    window.location.reload();
+  } catch (error) {
+    if (window.toastr) toastr.error(error.message);
+    else window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function formatCurrencyInput(el) {
+  let val = el.value.replace(/[^\d]/g, '');
+  if (!val) {
+    el.value = '';
+    return;
+  }
+  el.value = Number(val).toLocaleString('vi-VN');
+}
+
+function openAddDebtModal(companyId, companyName) {
+  if (companyId) {
+    $('#addDebtCompanySelect').val(companyId);
+  }
+  $('#addDebtModal').modal('show');
+}
+
+function openPayDebtModal(companyId, companyName, currentDebt) {
+  if (companyId) {
+    $('#payDebtCompanySelect').val(companyId).trigger('change');
+  }
+  $('#payDebtModal').modal('show');
+}
+
+function onPayCompanyChange(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) {
+    $('#payDebtAlert').hide();
+    return;
+  }
+  const debtFmt = opt.getAttribute('data-debt-fmt') || '0 đ';
+  $('#payCurrentDebtFmt').text(debtFmt);
+  $('#payDebtAlert').show();
+}
+
+let activeLedgerCompanyId = null;
+let activeLedgerCompanyName = '';
+
+function openLedgerModal(companyId, companyName) {
+  activeLedgerCompanyId = companyId;
+  activeLedgerCompanyName = companyName;
+  $('#ledgerModalTitle').html('<i class="bx bx-book-content mr-1"></i>Sổ nợ chi tiết — ' + companyName);
+  $('#ledgerModalSubtitle').text('Mã đơn vị: #' + companyId);
+  $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-secondary" role="status"></div> Đang tải dữ liệu...</td></tr>');
+  $('#debtLedgerModal').modal('show');
+
+  $('#ledgerBtnAddDebt').off('click').on('click', function() {
+    $('#debtLedgerModal').modal('hide');
+    openAddDebtModal(companyId, companyName);
+  });
+
+  $('#ledgerBtnPayDebt').off('click').on('click', function() {
+    $('#debtLedgerModal').modal('hide');
+    openPayDebtModal(companyId, companyName);
+  });
+
+  loadLedgerData(companyId);
+}
+
+function loadLedgerData(companyId) {
+  fetch('/admin/enterprise/debts/' + companyId + '/logs')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.ok) {
+        $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-danger">' + (data.message || 'Lỗi tải dữ liệu') + '</td></tr>');
+        return;
+      }
+      $('#ledgerCurrentDebt').text(data.current_debt_fmt);
+      const logs = data.logs || [];
+      if (logs.length === 0) {
+        $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-muted">Đơn vị này chưa có giao dịch công nợ nào.</td></tr>');
+        return;
+      }
+      let html = '';
+      logs.forEach((l, idx) => {
+        const badgeClass = 'debt-value font-weight-bold';
+        const sign = l.is_increase ? '+ ' : '- ';
+        const editButton = ['manual_add', 'payment'].includes(l.debt_type)
+          ? `<button type="button" class="btn btn-sm btn-link text-primary p-0 mr-2" title="Sửa giao dịch"
+                     data-edit-company-debt-log="${l.id}" data-amount="${Math.abs(Number(l.amount || 0))}"
+                     data-date="${l.recorded_date}" data-reference="${personalEscape(l.reference_doc || '')}"
+                     data-note="${personalEscape(l.note || '')}" onclick="openCompanyDebtLogEdit(this)"><i class="bx bx-edit-alt"></i></button>`
+          : '';
+        html += `
+          <tr>
+            <td class="text-center text-muted small align-middle">${idx + 1}</td>
+            <td class="align-middle small font-weight-bold">${l.recorded_date_str}</td>
+            <td class="align-middle small"><span class="badge badge-light border">${l.type_label}</span></td>
+            <td class="align-middle text-right ${badgeClass}">${sign}${l.amount_fmt}</td>
+            <td class="align-middle small text-muted">${l.reference_doc || '--'}</td>
+            <td class="align-middle small">${l.note || '--'}</td>
+            <td class="align-middle small text-muted">${l.creator_name || 'Hệ thống'}</td>
+            <td class="align-middle text-center">
+              ${editButton}
+              <button type="button" class="btn btn-sm btn-link text-danger p-0" title="Xóa giao dịch này"
+                      data-bulk-action="delete" data-bulk-url="/admin/enterprise/debts/${l.id}/delete" data-bulk-method="POST" onclick="deleteLogFromLedger(${l.id})">
+                <i class="bx bx-trash"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+      $('#ledgerTableBody').html(html);
+    })
+    .catch(err => {
+      $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-danger">Lỗi kết nối máy chủ: ' + err + '</td></tr>');
+    });
+}
+
+function deleteLogFromLedger(logId) {
+  if (!confirm('Bạn có chắc chắn muốn xóa bản ghi công nợ này?')) {
+    return;
+  }
+  fetch('/admin/enterprise/debts/' + logId + '/delete', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.ok) {
+      if (activeLedgerCompanyId) {
+        loadLedgerData(activeLedgerCompanyId);
+      }
+    } else {
+      if (window.toastr) toastr.error(data.message || 'Lỗi khi xóa bản ghi.');
+      else alert(data.message || 'Lỗi khi xóa bản ghi.');
+    }
+  })
+  .catch(err => {
+    if (window.toastr) toastr.error('Lỗi: ' + err);
+    else alert('Lỗi: ' + err);
+  });
+}
+
+function confirmDeleteLog(logId, compName, amountFmt) {
+  if (!confirm('Bạn có chắc muốn xóa giao dịch [' + amountFmt + '] của ' + compName + '?')) {
+    return;
+  }
+  const form = document.getElementById('deleteLogForm');
+  form.action = '/admin/enterprise/debts/' + logId + '/delete';
+  form.submit();
+}
+</script>
+
+<script>
+let personalCustomerCache = {{ personal_customers|tojson }};
+let activePersonalLedgerCustomerId = null;
+let personalDebtSearchTimer = null;
+const PERSONAL_CUSTOMERS_PER_PAGE = 20;
+let personalCustomerPage = 1;
+
+function personalEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function personalMoney(value) {
+  const number = Number(value || 0);
+  return new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0}).format(number) + ' đ';
+}
+
+function personalDate(value) {
+  if (!value) return '--';
+  const parts = String(value).slice(0, 10).split('-');
+  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(value);
+}
+
+function showPersonalDebtNotice(message, kind = 'success') {
+  if (!message) return;
+  if (window.toastr) {
+    if (kind === 'error') toastr.error(message);
+    else if (kind === 'warning') toastr.warning(message);
+    else if (kind === 'info') toastr.info(message);
+    else toastr.success(message);
+  } else {
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: message, type: kind === 'error' ? 'error' : 'success' }
+    }));
+  }
+}
+
+async function personalDebtFetch(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {'X-Requested-With': 'XMLHttpRequest', ...(options.headers || {})}
+  });
+  const text = await response.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (_) {
+    throw new Error(text || `Lỗi máy chủ (${response.status})`);
+  }
+  if (!response.ok || !data.ok) throw new Error(data.message || text || 'Không thể hoàn thành thao tác.');
+  return data;
+}
+
+let personalDebtImportFile = null;
+let importingPersonalDebt = false;
+const personalDebtImportInput = document.getElementById('personalDebtImportFile');
+const personalDebtImportButton = document.getElementById('personalDebtImportButton');
+const personalDebtImportConfirm = document.getElementById('personalDebtImportConfirm');
+
+function personalDebtImportForm(file) {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  return form;
+}
+
+function renderPersonalDebtImportSummary(summary) {
+  const rows = [
+    ['Khách hàng mới', summary.customers_new, summary.customers_total],
+    ['Hóa đơn bán hàng mới', summary.sales_new, summary.sales_total],
+    ['Giao dịch công nợ / thanh toán mới', summary.payments_new, summary.payments_total]
+  ];
+  document.getElementById('personalDebtImportSummary').innerHTML =
+    '<p class="mb-2">Tìm thấy ' + personalEscape(summary.workbook_count || 0) + ' file Excel hợp lệ.</p>' +
+    '<ul class="pl-4 mb-0">' + rows.map(row => '<li>' + personalEscape(row[0]) + ': <strong>' + personalEscape(row[1] || 0) + '</strong> / ' + personalEscape(row[2] || 0) + '</li>').join('') + '</ul>';
+  personalDebtImportConfirm.disabled = !(summary.customers_new || summary.sales_new || summary.payments_new);
+}
+
+personalDebtImportButton.addEventListener('click', () => personalDebtImportInput.click());
+personalDebtImportInput.addEventListener('change', async function () {
+  personalDebtImportFile = this.files && this.files[0] ? this.files[0] : null;
+  if (!personalDebtImportFile) return;
+  personalDebtImportButton.disabled = true;
+  try {
+    const data = await personalDebtFetch('/admin/enterprise/debts/individuals/import/preview', {
+      method: 'POST', body: personalDebtImportForm(personalDebtImportFile)
+    });
+    document.getElementById('personalDebtImportFilename').textContent = personalDebtImportFile.name;
+    renderPersonalDebtImportSummary(data.summary || {});
+    $('#personalDebtImportModal').modal('show');
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+    personalDebtImportFile = null;
+    personalDebtImportInput.value = '';
+  } finally {
+    personalDebtImportButton.disabled = false;
+  }
+});
+
+personalDebtImportConfirm.addEventListener('click', async function () {
+  if (!personalDebtImportFile) return;
+  this.disabled = true;
+  personalDebtImportButton.disabled = true;
+  const originalText = this.textContent;
+  this.textContent = 'Đang nhập...';
+  importingPersonalDebt = true;
+  try {
+    const data = await personalDebtFetch('/admin/enterprise/debts/individuals/import', {
+      method: 'POST', body: personalDebtImportForm(personalDebtImportFile)
+    });
+    $('#personalDebtImportModal').modal('hide');
+    const counts = data.counts || {};
+    showPersonalDebtNotice('Đã nhập ' + (counts.customers_added || 0) + ' khách hàng, ' +
+      (counts.sales_added || 0) + ' hóa đơn và ' + (counts.payments_added || 0) + ' giao dịch công nợ.');
+    await loadPersonalDebtCustomers();
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  } finally {
+    importingPersonalDebt = false;
+    this.disabled = false;
+    this.textContent = originalText;
+    personalDebtImportButton.disabled = false;
+    personalDebtImportFile = null;
+    personalDebtImportInput.value = '';
+  }
+});
+
+$('#personalDebtImportModal').on('hidden.bs.modal', function () {
+  if (!importingPersonalDebt) {
+    personalDebtImportFile = null;
+    personalDebtImportInput.value = '';
+  }
+});
+
+function updatePersonalDebtMonth() {
+  const m = document.getElementById('personalDebtMonthPart').value;
+  const y = (document.getElementById('personalDebtYear').value || '').trim();
+  if (y) {
+    document.getElementById('personalDebtMonth').value = `${y}-${m}`;
+    const form = document.getElementById('debtGlobalFilterForm');
+    if (form) form.submit();
+    else loadPersonalDebtCustomers();
+  }
+}
+
+function onPersonalDebtOnlyChange() {
+  const selVal = document.getElementById('personalDebtOnly').value;
+  const globalDueOnly = document.getElementById('globalDueOnly');
+  if (globalDueOnly) {
+    globalDueOnly.value = selVal === 'due_7' ? '1' : '0';
+  }
+  const activeTab = localStorage.getItem('active_enterprise_debt_tab') || 'companies';
+  if (activeTab === 'personal-debts') {
+    loadPersonalDebtCustomers();
+  } else {
+    const form = document.getElementById('debtGlobalFilterForm');
+    if (form) form.submit();
+  }
+}
+
+function personalDebtQueryString() {
+  const selVal = document.getElementById('personalDebtOnly').value;
+  const isDue7 = selVal === 'due_7';
+  const debtOnly = isDue7 ? '1' : selVal;
+  const params = new URLSearchParams({
+    month: document.getElementById('personalDebtMonth').value,
+    q: document.getElementById('personalDebtSearch').value,
+    debt_only: debtOnly,
+    due_only: isDue7 ? '1' : '0'
+  });
+  return params.toString();
+}
+
+let dueFilterActivePersonal = false;
+let dueFilterActiveB2B = false;
+
+function toggleDueFilter(paneType, forceState = null) {
+  const isPersonal = paneType === 'personal';
+  let currentState = isPersonal ? dueFilterActivePersonal : dueFilterActiveB2B;
+  let nextState = forceState !== null ? forceState : !currentState;
+  if (isPersonal) dueFilterActivePersonal = nextState;
+  else dueFilterActiveB2B = nextState;
+
+  const btnFilter = document.getElementById(isPersonal ? 'btnFilterDuePersonal' : 'btnFilterDueB2B');
+  const btnReset = document.getElementById(isPersonal ? 'btnResetDuePersonal' : 'btnResetDueB2B');
+  const tbody = isPersonal ? document.getElementById('personalCustomerBody') : document.querySelector('#companiesPane tbody');
+
+  if (!tbody) return;
+
+  const rows = tbody.querySelectorAll('tr[data-is-due]');
+  let visibleCount = 0;
+  rows.forEach(r => {
+    const isDue = r.getAttribute('data-is-due') === '1';
+    if (nextState) {
+      if (isDue) {
+        r.style.display = '';
+        visibleCount++;
+      } else {
+        r.style.display = 'none';
+      }
+    } else {
+      r.style.display = '';
+      visibleCount++;
+    }
+  });
+
+  // Re-number STT of visible rows
+  let idx = 1;
+  rows.forEach(r => {
+    if (r.style.display !== 'none') {
+      const firstCol = r.querySelector('td:first-child');
+      if (firstCol && !firstCol.hasAttribute('colspan')) firstCol.textContent = idx++;
+    }
+  });
+
+  // Update button visual states
+  if (btnFilter) {
+    if (nextState) {
+      btnFilter.classList.remove('btn-outline-danger');
+      btnFilter.classList.add('btn-danger', 'text-white');
+    } else {
+      btnFilter.classList.add('btn-outline-danger');
+      btnFilter.classList.remove('btn-danger', 'text-white');
+    }
+  }
+  if (btnReset) {
+    if (nextState) btnReset.classList.remove('d-none');
+    else btnReset.classList.add('d-none');
+  }
+
+  if (window.showNotify) {
+    if (nextState) {
+      window.showNotify(`Đang hiển thị ${visibleCount} đối tượng đến hạn đòi (≥7 ngày)`, 'info');
+    } else {
+      window.showNotify('Đã hiển thị lại toàn bộ danh sách', 'info');
+    }
+  }
+}
+
+function renderPersonalCustomerRows(customers) {
+  const body = document.getElementById('personalCustomerBody');
+  const pagination = document.getElementById('personalCustomerPagination');
+  if (!customers.length) {
+    pagination.innerHTML = '';
+    body.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">Chưa có khách hàng cá nhân phù hợp.</td></tr>';
+    return;
+  }
+  const totalPages = Math.ceil(customers.length / PERSONAL_CUSTOMERS_PER_PAGE);
+  personalCustomerPage = Math.max(1, Math.min(personalCustomerPage, totalPages));
+  const start = (personalCustomerPage - 1) * PERSONAL_CUSTOMERS_PER_PAGE;
+  const visibleCustomers = customers.slice(start, start + PERSONAL_CUSTOMERS_PER_PAGE);
+  if (totalPages > 1) {
+    const firstPage = Math.max(1, personalCustomerPage - 2);
+    const lastPage = Math.min(totalPages, personalCustomerPage + 2);
+    let buttons = '<li class="page-item ' + (personalCustomerPage === 1 ? 'disabled' : '') + '"><button type="button" class="page-link" data-customer-page="' + (personalCustomerPage - 1) + '">Trước</button></li>';
+    for (let page = firstPage; page <= lastPage; page++) {
+      buttons += '<li class="page-item ' + (page === personalCustomerPage ? 'active' : '') + '"><button type="button" class="page-link" data-customer-page="' + page + '">' + page + '</button></li>';
+    }
+    buttons += '<li class="page-item ' + (personalCustomerPage === totalPages ? 'disabled' : '') + '"><button type="button" class="page-link" data-customer-page="' + (personalCustomerPage + 1) + '">Tiếp</button></li>';
+    pagination.innerHTML = '<nav aria-label="Phân trang khách hàng"><ul class="pagination pagination-sm mb-0">' + buttons + '</ul><div class="text-muted small text-center mt-1">Trang ' + personalCustomerPage + ' / ' + totalPages + ' · ' + customers.length + ' khách hàng</div></nav>';
+  } else {
+    pagination.innerHTML = '';
+  }
+  body.innerHTML = visibleCustomers.map((c, index) => {
+    const balance = Number(c.current_balance || 0);
+    const balanceClass = 'debt-value';
+    const contact = [c.phone, c.address].filter(Boolean).join(' · ') || '--';
+    const isDue = Boolean(c.is_due);
+    const rowClass = isDue ? 'row-due-debt' : '';
+    const dueBadge = isDue ? `
+      <div class="mt-1">
+        <span class="due-badge" title="${personalEscape(c.due_reason || '')}">
+          <i class="bx bxs-bell-ring due-badge-icon"></i>Đến hạn đòi${c.overdue_days ? ' (' + c.overdue_days + 'n)' : ''}
+        </span>
+      </div>` : '';
+    const dateStr = c.last_transaction_date_str || (c.last_transaction_date ? personalDate(c.last_transaction_date) : (Number(c.opening_balance || 0) > 0 ? (c.month_start_str || '01/10/2026') : '--'));
+    const isOpening = Boolean(c.is_opening_date || (!c.last_transaction_date && Number(c.opening_balance || 0) > 0));
+    const openingLabel = isOpening ? '<div class="text-muted" style="font-size:11px; line-height:1.1;">(Số dư đầu kỳ)</div>' : '';
+    return `<tr class="${rowClass}" data-is-due="${isDue ? '1' : '0'}">
+      <td class="text-center text-muted small">${start + index + 1}</td>
+      <td><strong>${personalEscape(c.full_name)}</strong><div class="small text-muted">${personalEscape(contact)}</div></td>
+      <td class="text-right">${personalMoney(c.opening_balance)}</td>
+      <td class="text-right">${personalMoney(c.month_due)}</td>
+      <td class="text-right">${personalMoney(c.month_paid)}</td>
+      <td class="text-right font-weight-bold ${balanceClass}">${personalMoney(balance)}</td>
+      <td class="text-center small text-nowrap">
+        <span class="text-dark font-weight-500">${dateStr}</span>
+        ${openingLabel}
+        ${dueBadge}
+      </td>
+      <td class="text-center text-nowrap">
+        <button type="button" class="btn btn-xs btn-outline-success font-weight-bold" data-personal-action="pay" data-customer-id="${c.id}" title="Ghi số tiền khách đã trả"><i class="bx bx-check mr-1"></i>Đã trả</button>
+        <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="transaction" data-customer-id="${c.id}" title="Ghi công nợ / phát sinh">Ghi sổ</button>
+        <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="ledger" data-customer-id="${c.id}" title="Xem sổ chi tiết">Sổ</button>
+        <button type="button" class="btn btn-xs btn-outline-secondary" data-personal-action="edit" data-customer-id="${c.id}" title="Sửa khách hàng"><i class="bx bx-edit"></i></button>
+        <button type="button" class="btn btn-xs btn-outline-danger" data-personal-action="delete" data-customer-id="${c.id}" data-bulk-action="delete" data-bulk-url="/admin/enterprise/debts/individuals/customers/${c.id}/delete" data-bulk-method="POST" title="Xóa khách hàng"><i class="bx bx-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('personalCustomerPagination').addEventListener('click', event => {
+  const button = event.target.closest('[data-customer-page]');
+  if (!button || button.closest('.disabled')) return;
+  personalCustomerPage = Number(button.dataset.customerPage) || 1;
+  renderPersonalCustomerRows(personalCustomerCache);
+});
+
+function renderPersonalCustomerOptions(selectedId = '') {
+  const select = document.getElementById('personalTransactionCustomer');
+  const selected = String(selectedId || select.value || '');
+  select.innerHTML = '<option value="">-- Chọn khách hàng --</option>' + personalCustomerCache.map(c =>
+    `<option value="${c.id}">${personalEscape(c.full_name)}</option>`
+  ).join('');
+  select.value = selected;
+}
+
+async function loadPersonalDebtCustomers() {
+  const body = document.getElementById('personalCustomerBody');
+  personalCustomerPage = 1;
+  body.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm mr-2"></span>Đang tải sổ khách hàng...</td></tr>';
+  try {
+    const data = await personalDebtFetch('/admin/enterprise/debts/individuals?' + personalDebtQueryString());
+    personalCustomerCache = data.customers || [];
+    renderPersonalCustomerRows(personalCustomerCache);
+    renderPersonalCustomerOptions();
+    renderPersonalPaymentCustomerOptions();
+    const personalTab = document.getElementById('personal-debts-tab');
+    const personalTabLabel = personalTab.querySelector('span:not(.debt-tab-count)');
+    const personalTabCount = personalTab.querySelector('.debt-tab-count');
+    if (personalTabLabel) personalTabLabel.textContent = 'Khách hàng cá nhân';
+    if (personalTabCount) personalTabCount.textContent = data.summary.customer_count || 0;
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">${personalEscape(error.message)}</td></tr>`;
+  }
+}
+
+function openPersonalCustomerModal() {
+  const form = document.getElementById('personalCustomerForm');
+  form.reset();
+  form.action = '/admin/enterprise/debts/individuals/customers';
+  delete form.dataset.customerId;
+  document.getElementById('personalCustomerOpening').value = '0';
+  document.getElementById('personalCustomerModalTitle').textContent = 'Thêm khách hàng cá nhân';
+  $('#personalCustomerModal').modal('show');
+}
+
+function editPersonalCustomer(customerId) {
+  const customer = personalCustomerCache.find(c => Number(c.id) === Number(customerId));
+  if (!customer) return;
+  const form = document.getElementById('personalCustomerForm');
+  form.reset();
+  form.action = `/admin/enterprise/debts/individuals/customers/${customer.id}/edit`;
+  form.dataset.customerId = customer.id;
+  document.getElementById('personalCustomerCode').value = customer.customer_code || '';
+  document.getElementById('personalCustomerName').value = customer.full_name || '';
+  document.getElementById('personalCustomerPhone').value = customer.phone || '';
+  document.getElementById('personalCustomerAddress').value = customer.address || '';
+  document.getElementById('personalCustomerOpening').value = Number(customer.opening_balance || 0);
+  document.getElementById('personalCustomerModalTitle').textContent = 'Sửa khách hàng cá nhân';
+  $('#personalCustomerModal').modal('show');
+}
+
+function openPersonalTransactionModal(customerId = '') {
+  const form = document.getElementById('personalTransactionForm');
+  form.reset();
+  delete form.dataset.logId;
+  form.querySelector('[name="customer_id"]').disabled = false;
+  form.querySelector('.modal-title').textContent = 'Ghi sổ công nợ cá nhân';
+  form.querySelector('[type="submit"]').textContent = 'Lưu giao dịch';
+  form.querySelector('[name="transaction_date"]').value = new Date().toISOString().slice(0, 10);
+  renderPersonalCustomerOptions(customerId);
+  $('#personalTransactionModal').modal('show');
+}
+
+function editPersonalDebtLog(button) {
+  const form = document.getElementById('personalTransactionForm');
+  form.reset();
+  form.dataset.logId = button.dataset.editPersonalLog;
+  const customerSelect = form.querySelector('[name="customer_id"]');
+  customerSelect.value = activePersonalLedgerCustomerId;
+  customerSelect.disabled = true;
+  form.querySelector('[name="invoice_number"]').value = button.dataset.invoice || '';
+  form.querySelector('[name="transaction_date"]').value = button.dataset.date || '';
+  form.querySelector('[name="amount_due"]').value = button.dataset.due || '0';
+  form.querySelector('[name="amount_paid"]').value = button.dataset.paid || '0';
+  form.querySelector('[name="received_from"]').value = button.dataset.source || '';
+  form.querySelector('[name="note"]').value = button.dataset.note || '';
+  form.querySelector('.modal-title').textContent = 'Sửa giao dịch công nợ';
+  form.querySelector('[type="submit"]').textContent = 'Lưu thay đổi';
+  $('#personalTransactionModal').modal('show');
+}
+
+function openPersonalPaymentModal(customerId = '') {
+  const form = document.getElementById('personalPaymentForm');
+  form.reset();
+  form.querySelector('[name="transaction_date"]').value = new Date().toISOString().slice(0, 10);
+  renderPersonalPaymentCustomerOptions(customerId);
+  updatePersonalPaymentCustomerDebt(customerId);
+  $('#personalPaymentModal').modal('show');
+  setTimeout(() => {
+    const input = document.getElementById('personalPaymentAmountInput');
+    if (input) input.focus();
+  }, 350);
+}
+
+function renderPersonalPaymentCustomerOptions(selectedId = '') {
+  const select = document.getElementById('personalPaymentCustomer');
+  if (!select) return;
+  const selected = String(selectedId || select.value || '');
+  select.innerHTML = '<option value="">-- Chọn khách hàng --</option>' + personalCustomerCache.map(c =>
+    `<option value="${c.id}" data-debt="${c.current_balance || 0}">${personalEscape(c.full_name)} (Còn nợ: ${personalMoney(c.current_balance)})</option>`
+  ).join('');
+  select.value = selected;
+}
+
+function updatePersonalPaymentCustomerDebt(customerId) {
+  const customer = personalCustomerCache.find(c => Number(c.id) === Number(customerId));
+  const debtEl = document.getElementById('personalPaymentCurrentDebt');
+  const fillBtn = document.getElementById('personalPaymentFillAllBtn');
+  if (!debtEl) return;
+  if (customer) {
+    const debt = Number(customer.current_balance || 0);
+    debtEl.textContent = personalMoney(debt);
+    debtEl.className = debt > 0 ? 'text-danger font-weight-bold ml-1' : (debt < 0 ? 'text-success font-weight-bold ml-1' : 'text-dark font-weight-bold ml-1');
+    if (debt > 0 && fillBtn) {
+      fillBtn.style.display = 'inline-block';
+      fillBtn.dataset.amount = String(debt);
+    } else if (fillBtn) {
+      fillBtn.style.display = 'none';
+      fillBtn.dataset.amount = '0';
+    }
+  } else {
+    debtEl.textContent = '0 đ';
+    debtEl.className = 'text-dark font-weight-bold ml-1';
+    if (fillBtn) fillBtn.style.display = 'none';
+  }
+}
+
+function onPersonalPaymentCustomerChange(sel) {
+  updatePersonalPaymentCustomerDebt(sel.value);
+}
+
+function fillPersonalPaymentAllDebt() {
+  const fillBtn = document.getElementById('personalPaymentFillAllBtn');
+  const amount = Number(fillBtn ? fillBtn.dataset.amount : 0);
+  if (amount > 0) {
+    const input = document.getElementById('personalPaymentAmountInput');
+    input.value = amount.toLocaleString('vi-VN');
+    input.focus();
+  }
+}
+
+async function openPersonalLedger(customerId) {
+  activePersonalLedgerCustomerId = customerId;
+  const body = document.getElementById('personalLedgerBody');
+  body.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm mr-2"></span>Đang tải sổ...</td></tr>';
+  $('#personalLedgerModal').modal('show');
+  try {
+    const data = await personalDebtFetch(`/admin/enterprise/debts/individuals/${customerId}/logs`);
+    const c = data.customer;
+    if (!personalCustomerCache.some(row => Number(row.id) === Number(c.id))) personalCustomerCache.push(c);
+    document.getElementById('personalLedgerTitle').textContent = `Sổ công nợ — ${c.customer_code} · ${c.full_name}`;
+    document.getElementById('personalLedgerBalance').textContent = `Dư đầu kỳ: ${personalMoney(c.opening_balance)} · Còn nợ: ${personalMoney(c.current_balance)}`;
+    let rowsHtml = '';
+    const openingBal = Number(c.opening_balance || 0);
+    if (openingBal > 0) {
+      rowsHtml += `<tr class="table-light font-weight-bold" style="background:#f8f9fa;">
+        <td class="text-center text-muted">0</td>
+        <td>${c.month_start_str || '01/10/2026'}</td>
+        <td><span class="badge badge-secondary">ĐẦU KỲ</span></td>
+        <td class="text-right text-danger">${personalMoney(openingBal)}</td>
+        <td class="text-right text-muted">--</td>
+        <td class="text-muted">Hệ thống</td>
+        <td class="text-muted"><i class="bx bx-info-circle mr-1"></i>Số dư nợ đầu kỳ chuyển sang</td>
+        <td class="text-center text-muted">--</td>
+      </tr>`;
+    }
+    if (data.logs && data.logs.length) {
+      rowsHtml += data.logs.map((l, index) => `<tr>
+        <td>${index + 1}</td><td>${personalDate(l.transaction_date)}</td><td>${personalEscape(l.invoice_number || '--')}</td>
+        <td class="text-right">${personalMoney(l.amount_due)}</td><td class="text-right">${personalMoney(l.amount_paid)}</td>
+        <td>${personalEscape(l.received_from || '--')}</td><td>${personalEscape(l.note || '--')}</td>
+        <td class="text-center text-nowrap">${l.is_editable ? `<button type="button" class="btn btn-sm btn-link text-primary p-0 mr-2" data-edit-personal-log="${l.id}" data-invoice="${personalEscape(l.invoice_number || '')}" data-date="${l.transaction_date || ''}" data-due="${Number(l.amount_due || 0)}" data-paid="${Number(l.amount_paid || 0)}" data-source="${personalEscape(l.received_from || '')}" data-note="${personalEscape(l.note || '')}" title="Sửa giao dịch"><i class="bx bx-edit-alt"></i></button>` : ''}<button type="button" class="btn btn-sm btn-link text-danger p-0" data-delete-personal-log="${l.id}" data-bulk-action="delete" data-bulk-url="/admin/enterprise/debts/individuals/transactions/${l.id}/delete" data-bulk-method="POST" title="Xóa giao dịch"><i class="bx bx-trash"></i></button></td>
+      </tr>`).join('');
+    } else if (!openingBal) {
+      rowsHtml = '<tr><td colspan="8" class="text-center py-4 text-muted">Chưa có giao dịch.</td></tr>';
+    }
+    body.innerHTML = rowsHtml;
+    document.getElementById('personalLedgerAddTransaction').onclick = () => {
+      $('#personalLedgerModal').modal('hide');
+      openPersonalTransactionModal(customerId);
+    };
+    const ledgerPayBtn = document.getElementById('personalLedgerAddPayment');
+    if (ledgerPayBtn) {
+      ledgerPayBtn.onclick = () => {
+        $('#personalLedgerModal').modal('hide');
+        openPersonalPaymentModal(customerId);
+      };
+    }
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">${personalEscape(error.message)}</td></tr>`;
+  }
+}
+
+async function deletePersonalCustomer(customerId, name) {
+  if (!confirm(`Xóa khách hàng ${name}? Khách hàng đã có giao dịch sẽ không thể xóa.`)) return;
+  try {
+    const data = await personalDebtFetch(`/admin/enterprise/debts/individuals/customers/${customerId}/delete`, {method: 'POST'});
+    showPersonalDebtNotice(data.message);
+    await loadPersonalDebtCustomers();
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  }
+}
+
+document.getElementById('personalCustomerForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    const data = await personalDebtFetch(form.action, {method: 'POST', body: new FormData(form)});
+    $('#personalCustomerModal').modal('hide');
+    showPersonalDebtNotice(data.message);
+    await loadPersonalDebtCustomers();
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  }
+});
+
+document.getElementById('personalTransactionForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    const logId = form.dataset.logId;
+    const options = logId
+      ? {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))}
+      : {method: 'POST', body: new FormData(form)};
+    const data = await personalDebtFetch(logId ? `/admin/enterprise/debts/individuals/transactions/${logId}` : form.action, options);
+    $('#personalTransactionModal').modal('hide');
+    delete form.dataset.logId;
+    form.querySelector('[name="customer_id"]').disabled = false;
+    showPersonalDebtNotice(data.message);
+    await loadPersonalDebtCustomers();
+    if (activePersonalLedgerCustomerId && Number(activePersonalLedgerCustomerId) === Number(form.querySelector('[name="customer_id"]').value)) {
+      await openPersonalLedger(activePersonalLedgerCustomerId);
+    }
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  }
+});
+
+document.getElementById('personalPaymentForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = document.getElementById('personalPaymentSubmitBtn');
+  if (button) button.disabled = true;
+  try {
+    const formData = new FormData(form);
+    formData.append('amount_due', '0');
+    const data = await personalDebtFetch('/admin/enterprise/debts/individuals/transactions', {
+      method: 'POST',
+      body: formData
+    });
+    $('#personalPaymentModal').modal('hide');
+    showPersonalDebtNotice(data.message || 'Đã ghi nhận số tiền đã trả.');
+    await loadPersonalDebtCustomers();
+    const custId = formData.get('customer_id');
+    if (activePersonalLedgerCustomerId && Number(activePersonalLedgerCustomerId) === Number(custId)) {
+      await openPersonalLedger(activePersonalLedgerCustomerId);
+    }
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+document.getElementById('personalCustomerBody').addEventListener('click', event => {
+  const button = event.target.closest('[data-personal-action]');
+  if (!button) return;
+  const customerId = Number(button.dataset.customerId);
+  const customer = personalCustomerCache.find(c => Number(c.id) === customerId);
+  if (!customer) return;
+  if (button.dataset.personalAction === 'pay') openPersonalPaymentModal(customerId);
+  if (button.dataset.personalAction === 'transaction') openPersonalTransactionModal(customerId);
+  if (button.dataset.personalAction === 'ledger') openPersonalLedger(customerId);
+  if (button.dataset.personalAction === 'edit') editPersonalCustomer(customerId);
+  if (button.dataset.personalAction === 'delete') deletePersonalCustomer(customerId, customer.full_name);
+});
+
+document.getElementById('personalLedgerBody').addEventListener('click', async event => {
+  const editButton = event.target.closest('[data-edit-personal-log]');
+  if (editButton) {
+    editPersonalDebtLog(editButton);
+    return;
+  }
+  const button = event.target.closest('[data-delete-personal-log]');
+  if (!button) return;
+  if (!confirm('Xóa giao dịch này khỏi sổ công nợ?')) return;
+  try {
+    const data = await personalDebtFetch(`/admin/enterprise/debts/individuals/transactions/${button.dataset.deletePersonalLog}/delete`, {method: 'POST'});
+    showPersonalDebtNotice(data.message);
+    await openPersonalLedger(activePersonalLedgerCustomerId);
+    await loadPersonalDebtCustomers();
+  } catch (error) {
+    showPersonalDebtNotice(error.message, 'error');
+  }
+});
+
+document.getElementById('personalDebtMonthPart').addEventListener('change', updatePersonalDebtMonth);
+document.getElementById('personalDebtYear').addEventListener('change', updatePersonalDebtMonth);
+document.getElementById('personalDebtOnly').addEventListener('change', onPersonalDebtOnlyChange);
+document.getElementById('personalDebtSearch').addEventListener('input', () => {
+  const activeTab = localStorage.getItem('active_enterprise_debt_tab') || 'companies';
+  if (activeTab === 'personal-debts') {
+    clearTimeout(personalDebtSearchTimer);
+    personalDebtSearchTimer = setTimeout(loadPersonalDebtCustomers, 250);
+  }
+});
+
+// Tab persistence: Remember active tab across reload / navigation
+(function initDebtTabPersistence() {
+  const url = new URL(window.location);
+  let activeTabName = url.searchParams.get('tab');
+  if (!activeTabName && window.location.hash) {
+    const hash = window.location.hash;
+    if (hash === '#personalDebtsPane' || hash === '#personal-debts' || hash === '#personal') activeTabName = 'personal-debts';
+    else if (hash === '#logsPane' || hash === '#logs') activeTabName = 'logs';
+    else if (hash === '#companiesPane' || hash === '#companies') activeTabName = 'companies';
+  }
+  if (!activeTabName) {
+    activeTabName = localStorage.getItem('active_enterprise_debt_tab');
+  }
+
+  function getTabSelector(name) {
+    if (name === 'personal-debts' || name === 'individuals' || name === 'personal') return '#personal-debts-tab';
+    if (name === 'logs') return '#logs-tab';
+    return '#companies-tab';
+  }
+
+  if (activeTabName) {
+    const targetSelector = getTabSelector(activeTabName);
+    if (!$(targetSelector).hasClass('active')) {
+      $(targetSelector).tab('show');
+    }
+    const filterTab = document.getElementById('debtFilterTab');
+    if (filterTab) filterTab.value = activeTabName;
+  }
+
+  // When user switches tab, remember in localStorage and sync with URL
+  $('#debtTabs a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+    const target = $(e.target).attr('href');
+    let name = 'companies';
+    if (target === '#personalDebtsPane') name = 'personal-debts';
+    else if (target === '#logsPane') name = 'logs';
+
+    localStorage.setItem('active_enterprise_debt_tab', name);
+    const filterTab = document.getElementById('debtFilterTab');
+    if (filterTab) filterTab.value = name;
+
+    const currentUrl = new URL(window.location);
+    if (currentUrl.searchParams.get('tab') !== name) {
+      currentUrl.searchParams.set('tab', name);
+      window.history.replaceState(null, '', currentUrl.toString());
+    }
+  });
+})();
+</script>
+{% endblock %}

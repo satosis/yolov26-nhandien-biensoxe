@@ -21,9 +21,24 @@ from backend.services import config as cfg
 cfg.setup_logging("frontend.log")
 
 from frontend.notifications import InquiryNotification, manager
-from frontend.routers.auth_router import router as auth_router
+from frontend.modules.auth import router as auth_router
+from frontend.modules.invoices import router as input_invoices_router, companies_router
+from frontend.modules.enterprise import enterprise_router
+from frontend.modules.payroll import router as staff_payroll_router
+from frontend.modules.staff import staff_router
+from frontend.modules.service_accounts import router as service_accounts_router, alias_router as service_accounts_alias_router
+from frontend.modules.transport import (
+    trips_router as cargo_trips_router,
+    catalog_router,
+    transport_catalog_router,
+    contracts_router,
+    report_router as vehicle_monthly_report_router,
+)
+from frontend.modules.zalo import router as zalo_inbox_router
+
 from frontend.routers.cameras_router import router as cameras_router
-from frontend.routers.cargo_trips_router import router as cargo_trips_router
+from frontend.routers.administrative_divisions_router import router as administrative_divisions_router
+from frontend.routers.api_keys_router import router as api_keys_router, alias_router as api_keys_alias_router
 from frontend.routers.cms_router import router as cms_router
 from frontend.routers.detection_router import router as detection_router
 from frontend.routers.door_providers_router import router as door_providers_router
@@ -97,20 +112,39 @@ app.mount("/known_faces", StaticFiles(directory=cfg.KNOWN_FACES_DIR), name="know
 app.mount("/snapshots", StaticFiles(directory=cfg.SNAPSHOT_DIR), name="snapshots")
 app.mount("/data/recordings", StaticFiles(directory=cfg.RECORDING_DIR), name="recordings")
 
+UPLOAD_DIR = Path(cfg.BASE_DIR) / "upload"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/upload", StaticFiles(directory=UPLOAD_DIR), name="upload")
+
 ADMIN_ROUTERS = [
+    administrative_divisions_router,
     detection_router,
     cameras_router,
     vehicles_router,
+    vehicle_monthly_report_router,
+    staff_payroll_router,
+    input_invoices_router,
+    service_accounts_router,
+    service_accounts_alias_router,
+    api_keys_router,
+    api_keys_alias_router,
     cargo_trips_router,
+    contracts_router,
+    catalog_router,
+    transport_catalog_router,
     strangers_router,
     pending_plates_router,
     parking_router,
     recordings_router,
     sites_router,
+    companies_router,
+    enterprise_router,
+    staff_router,
     providers_router,
     door_providers_router,
     rolling_doors_router,
     telegram_router,
+    zalo_inbox_router,
     rbac_router,
     users_router,
     system_router,

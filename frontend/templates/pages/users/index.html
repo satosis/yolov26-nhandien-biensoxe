@@ -1,0 +1,1072 @@
+{% extends "layout.html" %}
+{% block title %}Người dùng — Parking Camera{% endblock %}
+{% block page_title %}Người dùng{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <button class="btn btn-light btn-sm font-weight-bold" onclick="cleanAiCache()">
+    <i class="bx bx-refresh mr-1"></i> Dọn dẹp AI
+  </button>
+  <a href="/admin/users/add" class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm mới
+  </a>
+</div>
+{% endblock %}
+{% block content %}
+
+{% if error_msg %}<script>
+document.addEventListener('DOMContentLoaded', () => {
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:{{ error_msg|tojson }},type:'error'}}));
+  const usersUrl = new URL(window.location.href);
+  usersUrl.searchParams.delete('error');
+  window.history.replaceState(null, '', usersUrl.pathname + usersUrl.search + usersUrl.hash);
+});
+</script>{% endif %}
+
+
+<!-- Bulk action toolbar -->
+<div id="bulk-actions-bar" class="alert alert-info py-2 px-3 d-none align-items-center justify-content-between mb-3 shadow-sm">
+  <div class="d-flex align-items-center">
+    <i class="bx bx-check-square mr-2 font-size-18 text-primary"></i>
+    <span>Đã chọn <strong id="selected-count">0</strong> người dùng</span>
+  </div>
+  <div class="d-flex" style="gap:8px;">
+    <button type="button" class="btn btn-sm btn-light" onclick="clearAllSelections()">Bỏ chọn</button>
+    <button type="button" class="btn btn-sm btn-danger font-weight-bold" onclick="confirmBulkDelete()">
+      <i class="bx bx-trash mr-1"></i> Xóa đã chọn
+    </button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="cx-overflow-x-auto">
+      <table class="table-cinema">
+        <thead>
+          <tr>
+            <th style="width:40px;" class="text-center">
+              <input type="checkbox" id="check-all-users" style="cursor:pointer; width:16px; height:16px;" onchange="toggleSelectAllUsers(this)" title="Chọn tất cả">
+            </th>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:200px;">TÀI KHOẢN</th>
+            <th>HỌ VÀ TÊN</th>
+            <th style="width:170px;">CHỨC VỤ / VAI TRÒ</th>
+            <th style="width:180px;">XÁC MINH (KYC)</th>
+            <th style="width:140px;" class="text-right">HÀNH ĐỘNG</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in all_users %}
+          <tr id="user-row-{{ u.id }}">
+            <td class="text-center align-middle">
+              {% if u.username != 'admin' %}
+              <input type="checkbox" class="user-select-cb" value="{{ u.id }}" style="cursor:pointer; width:16px; height:16px;" onchange="onUserSelectionChange()">
+              {% endif %}
+            </td>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (page - 1) * 20 + loop.index if page else loop.index }}
+            </td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ u.username }}</div>
+              {% if u.phone %}
+              <div class="small text-muted font-size-11"><i class="bx bx-phone mr-1"></i>{{ u.phone }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              <div class="text-dark font-weight-medium">
+                {{ u.full_name or '—' }}
+                {% if u.gender == 'nữ' %}
+                <span class="badge ml-1" style="font-size:10.5px; background:#fce7f3; color:#be185d; border-radius:4px; padding:2px 6px;">Nữ</span>
+                {% elif u.gender == 'nam' %}
+                <span class="badge ml-1" style="font-size:10.5px; background:#e0e7ff; color:#3730a3; border-radius:4px; padding:2px 6px;">Nam</span>
+                {% endif %}
+              </div>
+              {% if u.company_ids %}
+              <div class="mt-1 d-flex flex-wrap" style="gap:4px;">
+                {% for cid in u.company_ids %}
+                  {% if cid in companies_map %}
+                  <span class="badge badge-soft-info border text-primary" style="font-size:11px; font-weight:500;" title="{{ companies_map[cid].address or '' }}">
+                    <i class="bx bx-buildings mr-1"></i>{{ companies_map[cid].name }}
+                  </span>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {% if u.username == 'admin' %}
+              <span class="badge badge-pill badge-danger font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                <i class="bx bx-shield-quarter mr-1"></i>Admin
+              </span>
+              {% elif u.job_title %}
+                {% if 'giám đốc' in u.job_title|lower %}
+                <span class="badge badge-pill font-weight-bold" style="font-size:11px; padding:4px 8px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">
+                  <i class="bx bx-crown mr-1"></i>{{ u.job_title }}
+                </span>
+                {% elif 'lái xe' in u.job_title|lower or 'tài xế' in u.job_title|lower %}
+                <span class="badge badge-pill badge-info font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                  <i class="bx bx-car mr-1"></i>{{ u.job_title }}
+                </span>
+                {% elif 'kế toán' in u.job_title|lower %}
+                <span class="badge badge-pill badge-success font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                  <i class="bx bx-calculator mr-1"></i>{{ u.job_title }}
+                </span>
+                {% else %}
+                <span class="badge badge-pill badge-primary font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                  <i class="bx bx-briefcase mr-1"></i>{{ u.job_title }}
+                </span>
+                {% endif %}
+              {% elif u.role and u.role|lower == 'admin' %}
+              <span class="badge badge-pill badge-danger font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                <i class="bx bx-shield-quarter mr-1"></i>Admin
+              </span>
+              {% else %}
+              <span class="badge badge-pill badge-light text-muted font-weight-bold" style="font-size:11px; padding:4px 8px; border:1px solid #e2e8f0;">
+                {{ u.role or 'Nhân viên' }}
+              </span>
+              {% endif %}
+              {% if u.department %}
+              <div class="small text-muted font-size-11 mt-1">{{ u.department }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {% set kl = u.kyc_level or 0 %}
+              {% if kl == 4 %}
+              <span class="text-success d-flex align-items-center" style="gap:6px;" title="Đã xác minh danh tính">
+                <span>🛡️</span>
+                <span class="small font-weight-bold text-uppercase">Đã xác minh</span>
+              </span>
+              {% elif kl == 3 %}
+              <span class="text-primary d-flex align-items-center" style="gap:6px;" title="Đang chờ admin duyệt KYC">
+                <span>⏳</span>
+                <span class="small font-weight-bold text-uppercase">Đang chờ duyệt</span>
+              </span>
+              {% elif kl == -1 %}
+              <span class="text-danger d-flex align-items-center" style="gap:6px;" title="Bị từ chối KYC">
+                <span>❌</span>
+                <span class="small font-weight-bold text-uppercase">Đã từ chối</span>
+              </span>
+              {% elif u.has_face %}
+              <span class="text-warning d-flex align-items-center" style="gap:6px;" title="Đã đăng ký khuôn mặt (Level {{ kl }})">
+                <span>📸</span>
+                <span class="small font-weight-bold text-uppercase">Có khuôn mặt</span>
+              </span>
+              {% else %}
+              <span class="text-muted d-flex align-items-center" style="gap:6px;" title="Chưa đăng ký khuôn mặt">
+                <span style="opacity:.6;">👤</span>
+                <span class="small font-weight-bold text-uppercase" style="opacity:.7;">Chưa xác minh</span>
+              </span>
+              {% endif %}
+            </td>
+            <td class="text-right align-middle">
+              <div class="d-flex justify-content-end" style="gap:6px;">
+                <button onclick="openFaceModal('{{ u.id }}', '{{ u.username }}')"
+                        class="btn btn-sm btn-light" title="Đăng ký khuôn mặt"><i class="bx bx-camera"></i></button>
+                <a href="/admin/users/{{ u.id }}/edit"
+                   class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></a>
+                {% if u.username != 'admin' %}
+                <button type="button" class="btn btn-sm btn-danger"
+                        @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                          detail: {
+                            title: 'Xóa người dùng',
+                            message: 'Bạn chắc chắn muốn xóa người dùng {{ u.username }}?',
+                            confirmText: 'Xác nhận xóa',
+                            confirmUrl: '/admin/users/{{ u.id }}',
+                            confirmMethod: 'DELETE',
+                            reload: true
+                          }
+                        }))" title="Xóa"><i class="bx bx-trash"></i></button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not all_users %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">Chưa có người dùng nào.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+
+
+<div id="face-modal" onclick="closeFaceModal()"
+  style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:none;align-items:center;justify-content:center;padding:16px;"
+  class="d-flex">
+  <div class="position-absolute" style="top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.45);"></div>
+  <div onclick="event.stopPropagation()"
+    class="bg-white rounded shadow-lg position-relative"
+    style="width:100%;max-width:460px;overflow:hidden;z-index:1060;">
+
+    <button onclick="closeFaceModal()"
+      class="btn btn-sm btn-light position-absolute rounded-circle"
+      style="top:12px;right:12px;width:32px;height:32px;z-index:10;padding:0;line-height:1;">✕</button>
+
+    <div class="px-4 pt-4 pb-3 text-center border-bottom">
+      <h5 class="font-weight-bold text-dark mb-1">Xác minh khuôn mặt</h5>
+      <p class="small text-muted font-weight-bold text-uppercase mb-0 tracking-wider">
+        Người dùng: <span id="face-modal-username" class="text-primary"></span>
+      </p>
+    </div>
+
+    <div class="px-4 py-4 d-flex flex-column align-items-center" style="max-height:75vh;overflow-y:auto;background:#f8f9fa;">
+
+
+      <div class="position-relative mb-4 mt-2"
+        style="width:256px;height:256px;min-height:256px;min-width:256px;flex-shrink:0;">
+
+        <svg class="position-absolute" style="top:0;left:0;width:100%;height:100%;transform:rotate(-90deg) scale(1.08);pointer-events:none;">
+          <circle cx="128" cy="128" r="124" fill="none" stroke="#e2e8f0" stroke-width="4"></circle>
+          <circle id="kyc-progress-circle" cx="128" cy="128" r="124" fill="none" stroke="#6366f1" stroke-width="5"
+            stroke-dasharray="779" stroke-dashoffset="779" stroke-linecap="round"
+            style="transition:stroke-dashoffset .5s;"></circle>
+        </svg>
+
+        <div id="video-ring"
+          class="position-absolute rounded-circle overflow-hidden border border-white"
+          style="top:0;left:0;right:0;bottom:0;background:#f1f5f9;box-shadow:inset 0 2px 8px rgba(0,0,0,.08);border-width:4px!important;transition:border-color .3s;">
+          <video id="webcam-video" autoplay playsinline class="w-100 h-100" style="object-fit:cover;transform:scaleX(-1);"></video>
+          <canvas id="capture-canvas" class="d-none"></canvas>
+          <img id="face-preview" class="position-absolute d-none" style="top:0;left:0;width:100%;height:100%;object-fit:cover;z-index:20;transform:scaleX(-1);">
+          <div id="capture-flash"
+            class="position-absolute bg-white" style="top:0;left:0;right:0;bottom:0;z-index:40;opacity:0;pointer-events:none;transition:opacity .15s;"></div>
+
+
+          <div id="camera-start-overlay" onclick="startKYC()"
+            class="position-absolute d-flex flex-column align-items-center justify-content-center"
+            style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.85);backdrop-filter:blur(4px);z-index:30;cursor:pointer;">
+            <div class="rounded-circle d-flex align-items-center justify-content-center mb-3 shadow"
+              style="width:64px;height:64px;background:linear-gradient(135deg,#6366f1,#207a6d);">
+              <svg xmlns="http://www.w3.org/2000/svg" style="width:32px;height:32px;margin-left:6px;" fill="white" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+            <p class="small font-weight-bold text-uppercase text-dark mb-0" style="letter-spacing:.15em;">CHẠM BẮT ĐẦU</p>
+            <p id="camera-help-text" class="small text-danger text-center mt-2 mb-0 d-none" style="max-width:180px;line-height:1.35;">
+              Trình duyệt đã chặn quyền camera. Hãy bật quyền camera cho trang này rồi bấm thử lại.
+            </p>
+            <button id="camera-retry-btn" type="button" onclick="event.stopPropagation(); startKYC();"
+              class="btn btn-sm btn-primary mt-3 d-none">
+              Thử lại
+            </button>
+            <button id="camera-upload-btn" type="button" onclick="event.stopPropagation(); document.getElementById('camera-file-input').click();"
+              class="btn btn-sm btn-outline-primary mt-2">
+              Tải ảnh thay thế
+            </button>
+            <input id="camera-file-input" type="file" accept="image/*" class="d-none" onchange="handleFallbackUpload(event)">
+          </div>
+
+
+          <div id="camera-loading"
+            class="position-absolute d-none flex-column align-items-center justify-content-center"
+            style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.92);backdrop-filter:blur(4px);z-index:30;">
+            <div class="spinner-border text-primary mb-2" style="width:2rem;height:2rem;" role="status"></div>
+            <p class="small font-weight-bold text-uppercase text-primary mb-0" style="letter-spacing:.1em;">Đang tải AI...</p>
+          </div>
+
+
+          <div id="success-overlay"
+            class="position-absolute d-none align-items-center justify-content-center"
+            style="top:0;left:0;right:0;bottom:0;background:rgba(16,185,129,.9);backdrop-filter:blur(4px);z-index:30;">
+            <span class="text-white font-weight-bold" style="font-size:3rem;">✓</span>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="w-100 text-center d-flex flex-column align-items-center mb-4" style="gap:8px;min-height:60px;">
+        <span id="kyc-step-count"
+          class="badge badge-pill badge-primary px-3 py-2 text-uppercase font-weight-bold" style="letter-spacing:.1em;">Bước 0/5</span>
+        <span id="kyc-instruction" class="text-dark font-weight-bold mt-1" style="font-size:1.1rem;">Sẵn sàng để xác minh</span>
+      </div>
+
+
+      <div class="w-100 rounded overflow-hidden mb-2" style="max-width:240px;height:12px;background:#e2e8f0;box-shadow:inset 0 1px 3px rgba(0,0,0,.1);">
+        <div id="hold-bar" class="h-100 rounded" style="width:0%;background:linear-gradient(to right,#6366f1,#207a6d);transition:width .1s linear;"></div>
+      </div>
+      <p id="kyc-status-text" class="text-muted small text-center mb-0" style="min-height:20px;"></p>
+
+
+      <div id="kyc-preview-section" class="w-100 mt-4 mb-2 d-none card border">
+        <div class="card-body p-3">
+          <div class="d-flex align-items-center justify-content-center border-bottom pb-2 mb-3" style="gap:8px;">
+            <div class="rounded p-1" style="background:rgba(99,102,241,.1);">
+              <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px;color:#6366f1;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p class="small font-weight-bold text-uppercase text-dark mb-0" style="letter-spacing:.1em;">Bộ sưu tập khuôn mặt</p>
+          </div>
+
+          <div class="d-flex align-items-start justify-content-center flex-wrap" style="gap:16px;" id="kyc-preview-grid">
+            {% set angles = [('front', 'Trực diện'), ('left', 'Trái'), ('right', 'Phải'), ('up', 'Lên'), ('down', 'Xuống')] %}
+            {% for id, label in angles %}
+            <div class="d-flex flex-column align-items-center" style="gap:8px;" id="preview-container-{{ id }}">
+              <div class="kyc-slot position-relative overflow-hidden d-flex align-items-center justify-content-center"
+                id="slot-{{ id }}"
+                style="width:76px;height:76px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:16px;transition:all .3s cubic-bezier(0.4, 0, 0.2, 1); cursor:default;">
+
+
+                <img id="preview-img-{{ id }}" class="position-absolute w-100 h-100 d-none" style="object-fit:cover;top:0;left:0;opacity:0;transition:opacity .5s;z-index:5;" onload="this.classList.remove('opacity-0');this.style.opacity='1';">
+
+
+                <div id="preview-fb-{{ id }}" class="d-flex flex-column align-items-center justify-content-center text-muted" style="z-index:1; opacity:0.5;">
+                  <svg xmlns="http://www.w3.org/2000/svg" style="width:28px;height:28px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+
+
+                <div id="loading-overlay-{{ id }}" class="position-absolute d-none align-items-center justify-content-center" style="top:0;left:0;right:0;bottom:0;background:rgba(255,255,255,.6);backdrop-filter:blur(2px);z-index:10;">
+                  <div class="spinner-border text-primary" role="status" style="width:1.2rem;height:1.2rem;border-width:0.15em;"></div>
+                </div>
+
+
+                <button id="preview-del-{{ id }}" onclick="deleteKycFace('{{ id }}')"
+                  class="btn d-none position-absolute p-0 d-flex align-items-center justify-content-center"
+                  style="top:4px;right:4px;width:22px;height:22px;z-index:20;background:rgba(239,68,68,0.9);color:white;border-radius:6px;border:none;box-shadow:0 2px 5px rgba(239,68,68,0.3);backdrop-filter:blur(2px);transition:all 0.2s;"
+                  onmouseover="this.style.transform='scale(1.1)';this.style.background='#dc2626';" onmouseout="this.style.transform='scale(1)';this.style.background='rgba(239,68,68,0.9)';">
+                  <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+
+
+                <div id="success-badge-{{ id }}" class="d-none position-absolute d-flex align-items-center justify-content-center text-white"
+                  style="bottom:4px;left:4px;width:22px;height:22px;background:#10b981;border-radius:6px;box-shadow:0 2px 5px rgba(16,185,129,0.3);transform:scale(0);transition:transform .4s cubic-bezier(0.34, 1.56, 0.64, 1);z-index:15;">
+                  <svg xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                </div>
+              </div>
+
+              <span class="font-weight-bold text-muted text-uppercase" style="font-size:11px;letter-spacing:.05em;transition:color .3s;" id="label-{{ id }}">{{ label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+  let currentUserId = null;
+  let stream = null;
+  let currentStep = 0;
+  let kycRunning = false;
+  let detectInterval = null;
+  let holdStart = 0;
+  const HOLD_TIME = 1000;
+  let modelsLoaded = false;
+  let dirHistory = [];
+  const HISTORY_SIZE = 3;
+
+  let baselineYaw = null;
+  let baselineAsym = null;
+  let baselinePR = null;
+  let uploadFailures = 0;
+
+  const kycSteps = [
+    { id: 'front', instruction: 'Nhìn thẳng vào camera' },
+    { id: 'left', instruction: 'Quay đầu sang trái' },
+    { id: 'right', instruction: 'Quay đầu sang phải' },
+    { id: 'up', instruction: 'Ngước đầu lên trên' },
+    { id: 'down', instruction: 'Cúi đầu xuống dưới' }
+  ];
+
+  function setCircleProgress(pct) {
+    const circle = document.getElementById('kyc-progress-circle');
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (pct / 100) * circumference;
+    circle.style.strokeDashoffset = offset;
+  }
+
+  function loadModels() {
+    if (modelsLoaded) return Promise.resolve({ ok: true });
+    if (!window.faceapi) {
+      console.error('Face model library unavailable');
+      return Promise.resolve({ ok: false, message: 'Không tải được thư viện nhận diện khuôn mặt.' });
+    }
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    return Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+    ]).then(
+      () => {
+        modelsLoaded = true;
+        return { ok: true };
+      },
+      (error) => {
+        console.error('Face model load failed:', error && error.name || 'UnknownError');
+        return { ok: false, message: 'Không tải được mô hình nhận diện khuôn mặt.' };
+      },
+    );
+  }
+
+  async function saveKycFace(file, angle) {
+    if (!file) {
+      console.error('KYC image encoding failed');
+      return { ok: false, message: 'Không tạo được ảnh khuôn mặt.' };
+    }
+    const formData = new FormData();
+    formData.append('file', file, angle + '.jpg');
+    formData.append('angle', angle);
+    formData.append('target_user_id', String(currentUserId));
+    const result = await apiRequest('/kyc/upload-face', { method: 'POST', body: formData });
+    if (result.ok) return result;
+    const messages = {
+      invalid_angle: 'Góc chụp không hợp lệ.',
+      invalid_image: 'Ảnh không hợp lệ.',
+      no_face_detected: 'Không phát hiện khuôn mặt trong ảnh.',
+      duplicate_face: 'Khuôn mặt đã được dùng cho tài khoản khác.',
+      forbidden: 'Bạn không có quyền lưu ảnh cho người dùng này.',
+      'Disk write failed': 'Không thể lưu ảnh. Vui lòng thử lại.',
+    };
+    return { ...result, message: messages[result.message] || result.message || 'Không thể lưu ảnh.' };
+  }
+
+  function showKycStartupError(result) {
+    document.getElementById('camera-loading').classList.remove('d-flex');
+    document.getElementById('camera-loading').classList.add('d-none');
+    document.getElementById('camera-start-overlay').classList.remove('d-none');
+    document.getElementById('camera-start-overlay').classList.add('d-flex');
+    document.getElementById('camera-retry-btn').classList.remove('d-none');
+    if (result.code === 'permission_denied') {
+      document.getElementById('camera-help-text').classList.remove('d-none');
+    }
+    document.getElementById('kyc-status-text').textContent = result.message;
+  }
+
+  function reportSavedPreviewFailure(angle) {
+    console.error('Saved KYC face preview failed to load:', angle);
+    const message = 'Đã lưu ảnh nhưng không tải được ảnh xem trước.';
+    document.getElementById('kyc-status-text').textContent = `❌ ${message}`;
+    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: message, type: 'error' } }));
+  }
+
+  async function startKYC() {
+    if (kycRunning) return;
+    document.getElementById('camera-start-overlay').classList.remove('d-flex');
+    document.getElementById('camera-start-overlay').classList.add('d-none');
+    document.getElementById('camera-loading').classList.remove('d-none');
+    document.getElementById('camera-loading').classList.add('d-flex');
+    document.getElementById('camera-retry-btn').classList.add('d-none');
+    document.getElementById('camera-help-text').classList.add('d-none');
+    document.getElementById('kyc-status-text').textContent = '';
+
+    const models = await loadModels();
+    if (!models.ok) {
+      showKycStartupError(models);
+      return;
+    }
+    const camera = await cameraRequest({ video: { width: 640, height: 480, facingMode: 'user' } });
+    if (!camera.ok) {
+      showKycStartupError(camera);
+      return;
+    }
+    stream = camera.stream;
+    const video = document.getElementById('webcam-video');
+    video.srcObject = stream;
+    const cameraReady = await new Promise((resolve) => {
+      let settled = false;
+      const finish = (ready, reason) => {
+        if (settled) return;
+        settled = true;
+        if (!ready) console.error('KYC camera video unavailable:', reason);
+        clearTimeout(timeout);
+        video.onloadedmetadata = null;
+        video.onerror = null;
+        resolve(ready);
+      };
+      const timeout = setTimeout(() => finish(false, 'metadata_timeout'), 8000);
+      video.onloadedmetadata = () => finish(true);
+      video.onerror = () => finish(false, 'video_error');
+      if (video.readyState >= 1) finish(true);
+    });
+    if (!cameraReady) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+      showKycStartupError({ message: 'Camera không trả hình ảnh. Vui lòng thử lại.' });
+      return;
+    }
+
+    document.getElementById('camera-loading').classList.remove('d-flex');
+    document.getElementById('camera-loading').classList.add('d-none');
+    kycRunning = true;
+    uploadFailures = 0;
+    currentStep = findNextIncompleteStep(0);
+    runStep();
+  }
+
+  async function handleFallbackUpload(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+
+      document.getElementById('camera-start-overlay').classList.remove('d-flex');
+      document.getElementById('camera-start-overlay').classList.add('d-none');
+      document.getElementById('camera-loading').classList.remove('d-none');
+      document.getElementById('camera-loading').classList.add('d-flex');
+      document.getElementById('camera-help-text').classList.add('d-none');
+      document.getElementById('camera-retry-btn').classList.add('d-none');
+      document.getElementById('kyc-status-text').textContent = 'Đang tải ảnh lên...';
+
+      const step = kycSteps[currentStep || 0];
+      const data = await saveKycFace(file, step.id);
+      event.target.value = '';
+
+      document.getElementById('camera-loading').classList.remove('d-flex');
+      document.getElementById('camera-loading').classList.add('d-none');
+      document.getElementById('camera-start-overlay').classList.remove('d-none');
+      document.getElementById('camera-start-overlay').classList.add('d-flex');
+      if (!data.ok) {
+        document.getElementById('kyc-status-text').textContent = '❌ ' + data.message;
+        return;
+      }
+      document.getElementById('kyc-status-text').textContent = 'Đã lưu ảnh cho bước này.';
+      document.getElementById('success-overlay').classList.remove('d-none');
+      document.getElementById('success-overlay').classList.add('d-flex');
+      setCircleProgress(((currentStep + 1) / kycSteps.length) * 100);
+
+      const img = document.getElementById(`preview-img-${step.id}`);
+      const fallback = document.getElementById(`preview-fb-${step.id}`);
+      const delBtn = document.getElementById(`preview-del-${step.id}`);
+      const badge = document.getElementById(`success-badge-${step.id}`);
+
+      if (img) {
+        img.onload = () => {
+          img.classList.remove('d-none');
+          setTimeout(() => { img.style.opacity = '1'; }, 10);
+          if (fallback) fallback.classList.add('d-none');
+          if (delBtn) delBtn.classList.remove('d-none');
+          if (badge) { badge.classList.remove('d-none'); setTimeout(() => badge.style.transform = 'scale(1)', 10); }
+          document.getElementById('kyc-preview-section').classList.remove('d-none');
+        };
+        img.onerror = () => reportSavedPreviewFailure(step.id);
+        img.src = `/known_faces/${currentUserId}/${step.id}.jpg?t=${Date.now()}`;
+      }
+
+      setTimeout(() => {
+        document.getElementById('success-overlay').classList.remove('d-flex');
+        document.getElementById('success-overlay').classList.add('d-none');
+        currentStep = findNextIncompleteStep(currentStep + 1);
+        if (currentStep >= kycSteps.length) {
+          kycComplete();
+        } else if (kycRunning) {
+          runStep();
+        } else {
+          document.getElementById('kyc-step-count').textContent = 'Bước ' + (currentStep + 1) + '/5';
+          document.getElementById('kyc-instruction').textContent = 'Tải ảnh cho góc tiếp theo';
+        }
+      }, 800);
+  }
+
+  function estimateHeadPose(landmarks) {
+    const jaw = landmarks.getJawOutline();
+    const nose = landmarks.getNose();
+    const faceLeft = jaw[0];
+    const faceRight = jaw[16];
+    const chin = jaw[8];
+    const noseTip = nose[3] || nose[6] || landmarks.positions[30];
+
+    const faceW = Math.max(20, Math.abs(faceRight.x - faceLeft.x));
+    const faceCX = (faceLeft.x + faceRight.x) / 2;
+    const yaw = (noseTip.x - faceCX) / faceW;
+
+    const dLeftJaw = Math.hypot(noseTip.x - faceRight.x, noseTip.y - faceRight.y);
+    const dRightJaw = Math.hypot(noseTip.x - faceLeft.x, noseTip.y - faceLeft.y);
+    const asymYaw = (dRightJaw - dLeftJaw) / (dRightJaw + dLeftJaw + 0.001);
+
+    const brows = [...landmarks.getLeftEyeBrow(), ...landmarks.getRightEyeBrow()];
+    const browCenterY = brows.reduce((s, p) => s + p.y, 0) / brows.length;
+    const noseToBrow = Math.max(1, noseTip.y - browCenterY);
+    const noseToChin = Math.max(1, chin.y - noseTip.y);
+    const pitchRatio = noseToBrow / (noseToChin + 0.001);
+
+    dirHistory.push({ yaw, asymYaw, pitchRatio });
+    if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
+
+    const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
+    const avgAsym = dirHistory.reduce((s, d) => s + d.asymYaw, 0) / dirHistory.length;
+    const avgPR = dirHistory.reduce((s, d) => s + d.pitchRatio, 0) / dirHistory.length;
+
+    return { yaw: avgYaw, asymYaw: avgAsym, pitchRatio: avgPR };
+  }
+
+  function openFaceModal(userId, username) {
+    currentUserId = userId;
+    document.getElementById('face-modal-username').textContent = username;
+    document.getElementById('face-modal').style.display = 'flex';
+    currentStep = 0;
+    kycRunning = false;
+    holdStart = 0;
+    baselineYaw = null;
+    baselineAsym = null;
+    baselinePR = null;
+    document.getElementById('camera-start-overlay').classList.remove('d-none');
+    document.getElementById('camera-start-overlay').classList.add('d-flex');
+    document.getElementById('camera-loading').classList.remove('d-flex');
+    document.getElementById('camera-loading').classList.add('d-none');
+    document.getElementById('camera-retry-btn').classList.add('d-none');
+    document.getElementById('camera-help-text').classList.add('d-none');
+    document.getElementById('face-preview').classList.add('d-none');
+    document.getElementById('success-overlay').classList.remove('d-flex');
+    document.getElementById('success-overlay').classList.add('d-none');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,1)';
+    document.getElementById('kyc-instruction').textContent = 'Đang tải dữ liệu...';
+    document.getElementById('kyc-step-count').textContent = '...';
+    document.getElementById('kyc-status-text').textContent = '';
+    setCircleProgress(0);
+
+    window.findNextIncompleteStep = function(startIndex) {
+      for (let i = startIndex; i < kycSteps.length; i++) {
+        const badge = document.getElementById(`success-badge-${kycSteps[i].id}`);
+        if (badge && badge.classList.contains('d-none')) {
+          return i;
+        }
+      }
+      return kycSteps.length;
+    };
+
+    const angles = ['front', 'left', 'right', 'up', 'down'];
+    document.getElementById('kyc-preview-section').classList.add('d-none');
+
+    let loadedFaces = new Set();
+    let promises = angles.map((angle, idx) => {
+      return new Promise(resolve => {
+        const img = document.getElementById(`preview-img-${angle}`);
+        const fallback = document.getElementById(`preview-fb-${angle}`);
+        const delBtn = document.getElementById(`preview-del-${angle}`);
+        const slot = document.getElementById(`slot-${angle}`);
+        const badge = document.getElementById(`success-badge-${angle}`);
+        const label = document.getElementById(`label-${angle}`);
+
+        img.classList.add('d-none');
+        img.style.opacity = '0';
+        fallback.classList.remove('d-none');
+        if (delBtn) delBtn.classList.add('d-none');
+        if (badge) { badge.classList.add('d-none'); badge.style.transform = 'scale(0)'; }
+        if (slot) {
+          slot.style.borderColor = '#dee2e6';
+          slot.style.boxShadow = 'none';
+          slot.style.background = '#f8f9fa';
+        }
+        if (label) label.style.color = '';
+
+        img.onload = () => {
+          loadedFaces.add(angle);
+          img.classList.remove('d-none');
+          setTimeout(() => { img.style.opacity = '1'; }, 10);
+          fallback.classList.add('d-none');
+          if (delBtn) delBtn.classList.remove('d-none');
+          if (badge) { badge.classList.remove('d-none'); setTimeout(() => badge.style.transform = 'scale(1)', 10); }
+          document.getElementById('kyc-preview-section').classList.remove('d-none');
+          resolve();
+        };
+        img.onerror = () => resolve();
+        img.src = `/known_faces/${userId}/${angle}.jpg?t=${Date.now()}`;
+      });
+    });
+
+    Promise.all(promises).then(() => {
+        let nextStep = 0;
+        for (let i=0; i<angles.length; i++) {
+            if (!loadedFaces.has(angles[i])) { nextStep = i; break; }
+            if (i === angles.length - 1) nextStep = 5;
+        }
+        currentStep = nextStep;
+
+        if (currentStep < kycSteps.length) {
+            document.getElementById('kyc-step-count').textContent = `Bước ${currentStep + 1}/5`;
+            document.getElementById('kyc-instruction').textContent = 'Nhấn bắt đầu hoặc tải ảnh';
+
+            angles.forEach((a, i) => {
+                const s = document.getElementById(`slot-${a}`);
+                const l = document.getElementById(`label-${a}`);
+                if (i === currentStep && s) {
+                    s.style.borderColor = '#3b82f6';
+                    s.style.boxShadow = '0 0 0 4px rgba(59,130,246,0.15)';
+                    s.style.background = '#eff6ff';
+                    if (l) l.style.color = '#3b82f6';
+                }
+            });
+        } else {
+            document.getElementById('kyc-step-count').textContent = 'Hoàn tất';
+            document.getElementById('kyc-instruction').textContent = 'Đã có đủ 5 góc mặt';
+        }
+    });
+  }
+
+  async function deleteKycFace(angle) {
+    const result = await Swal.fire({
+      title: 'Xoá ảnh góc chụp?',
+      text: "Hành động này không thể hoàn tác!",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#9ca3af',
+      confirmButtonText: 'Xoá ngay',
+      cancelButtonText: 'Hủy bỏ',
+    });
+
+    if (!result.isConfirmed) return;
+
+    const response = await apiRequest(`/kyc/face/${angle}/delete?target_user_id=${currentUserId}`, { method: 'POST' });
+    if (response.ok) {
+        openFaceModal(currentUserId, document.getElementById('face-modal-username').textContent);
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi máy chủ',
+            text: response.message || 'Không thể xoá ảnh.',
+        });
+    }
+  }
+
+  function runStep() {
+    if (currentStep >= kycSteps.length) { kycComplete(); return; }
+    const step = kycSteps[currentStep];
+
+    document.getElementById('kyc-instruction').textContent = step.instruction;
+    document.getElementById('kyc-step-count').textContent = `Bước ${currentStep + 1}/${kycSteps.length}`;
+    setCircleProgress((currentStep / kycSteps.length) * 100);
+
+    const angles = ['front', 'left', 'right', 'up', 'down'];
+    angles.forEach(a => {
+        const s = document.getElementById(`slot-${a}`);
+        const l = document.getElementById(`label-${a}`);
+        if (a === step.id) {
+            if (s) {
+                s.style.borderColor = '#3b82f6';
+                s.style.boxShadow = '0 0 0 4px rgba(59,130,246,0.15)';
+                s.style.background = '#eff6ff';
+            }
+            if (l) l.style.color = '#3b82f6';
+        } else {
+            if (s) {
+                s.style.borderColor = '#e2e8f0';
+                s.style.boxShadow = 'none';
+                s.style.background = '#f8fafc';
+            }
+            if (l) l.style.color = '';
+        }
+    });
+
+    document.getElementById('face-preview').classList.add('d-none');
+    document.getElementById('success-overlay').classList.remove('d-flex');
+    document.getElementById('success-overlay').classList.add('d-none');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = 'rgba(255,255,255,1)';
+    document.getElementById('kyc-status-text').textContent = '';
+
+    holdStart = 0;
+    dirHistory = [];
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = setInterval(() => detectFace(step.id), 250);
+  }
+
+  async function detectFace(expectedDir) {
+    if (!kycRunning) return;
+    const video = document.getElementById('webcam-video');
+    if (video.readyState < 2) return;
+
+    const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
+      .withFaceLandmarks(true);
+
+    const ring = document.getElementById('video-ring');
+    const bar = document.getElementById('hold-bar');
+    const status = document.getElementById('kyc-status-text');
+
+    if (!detection) {
+      ring.style.borderColor = 'rgba(239,68,68,0.5)';
+      ring.style.boxShadow = 'none';
+      bar.style.width = '0%';
+      holdStart = 0;
+      status.textContent = '❌ Không phát hiện khuôn mặt';
+      return;
+    }
+
+    const pose = estimateHeadPose(detection.landmarks);
+
+    let isCorrect = false;
+    const dYaw = baselineYaw !== null ? pose.yaw - baselineYaw : 0;
+    const dAsym = baselineAsym !== null ? pose.asymYaw - baselineAsym : 0;
+    const dPR = baselinePR !== null ? pose.pitchRatio - baselinePR : 0;
+
+    if (expectedDir === 'front') {
+        isCorrect = (Math.abs(pose.yaw) < 0.07 && Math.abs(pose.asymYaw) < 0.12 && pose.pitchRatio >= 0.90 && pose.pitchRatio <= 1.95);
+        if (isCorrect) {
+            baselineYaw = pose.yaw;
+            baselineAsym = pose.asymYaw;
+            baselinePR = pose.pitchRatio;
+        }
+    } else if (expectedDir === 'left') {
+        isCorrect = (pose.yaw > 0.07 || pose.asymYaw > 0.12 || dYaw > 0.05 || dAsym > 0.08);
+    } else if (expectedDir === 'right') {
+        isCorrect = (pose.yaw < -0.07 || pose.asymYaw < -0.12 || dYaw < -0.05 || dAsym < -0.08);
+    } else if (expectedDir === 'up') {
+        isCorrect = (pose.pitchRatio < 0.95 || dPR < -0.20);
+    } else if (expectedDir === 'down') {
+        isCorrect = (pose.pitchRatio > 1.85 || dPR > 0.25);
+    }
+
+    if (isCorrect) {
+      ring.style.borderColor = 'rgba(16,185,129,0.8)';
+      ring.style.boxShadow = '0 0 20px rgba(16,185,129,0.3)';
+
+      if (holdStart === 0) holdStart = Date.now();
+      const elapsed = Date.now() - holdStart;
+      const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
+      bar.style.width = pct + '%';
+      const remainingSec = Math.max(1, Math.ceil((HOLD_TIME - elapsed) / 1000));
+      status.textContent = `✅ Giữ yên... ${remainingSec}s`;
+
+      if (elapsed >= HOLD_TIME) {
+        clearInterval(detectInterval);
+        autoCaptureAndUpload();
+      }
+    } else {
+      ring.style.borderColor = 'rgba(255,255,255,0.8)';
+      ring.style.boxShadow = 'none';
+      bar.style.width = '0%';
+      holdStart = 0;
+      status.textContent = '';
+    }
+  }
+
+  async function autoCaptureAndUpload() {
+    const video = document.getElementById('webcam-video');
+    const ring = document.getElementById('video-ring');
+    const canvas = document.getElementById('capture-canvas');
+    const flash = document.getElementById('capture-flash');
+    const step = kycSteps[currentStep];
+    const loadingOverlay = document.getElementById(`loading-overlay-${step.id}`);
+
+    if (loadingOverlay) loadingOverlay.classList.remove('d-none');
+    flash.style.opacity = '1';
+    setTimeout(() => flash.style.opacity = '0', 150);
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang lưu...';
+    document.getElementById('hold-bar').style.width = '100%';
+
+    canvas.toBlob(async (blob) => {
+      const data = await saveKycFace(blob, step.id);
+      if (!kycRunning) return;
+      if (!data.ok) {
+        if (loadingOverlay) loadingOverlay.classList.add('d-none');
+        uploadFailures += 1;
+        document.getElementById('kyc-status-text').textContent = '❌ ' + data.message;
+        if (uploadFailures < 3) {
+          setTimeout(() => { if (kycRunning) runStep(); }, 3000);
+        } else {
+          kycRunning = false;
+          if (stream) stream.getTracks().forEach(track => track.stop());
+          stream = null;
+          document.getElementById('camera-start-overlay').classList.remove('d-none');
+          document.getElementById('camera-start-overlay').classList.add('d-flex');
+          document.getElementById('camera-retry-btn').classList.remove('d-none');
+          document.getElementById('kyc-status-text').textContent += ' Hãy thử lại hoặc tải ảnh thay thế.';
+        }
+        return;
+      }
+      uploadFailures = 0;
+
+        document.getElementById('success-overlay').classList.remove('d-none');
+        document.getElementById('video-ring').style.borderColor = 'rgba(16,185,129,0.8)';
+        setCircleProgress(((currentStep + 1) / kycSteps.length) * 100);
+
+        const img = document.getElementById(`preview-img-${step.id}`);
+        const fallback = document.getElementById(`preview-fb-${step.id}`);
+        const delBtn = document.getElementById(`preview-del-${step.id}`);
+        const badge = document.getElementById(`success-badge-${step.id}`);
+
+        if (img) {
+            img.onload = () => {
+                img.classList.remove('d-none');
+                setTimeout(() => { img.style.opacity = '1'; }, 10);
+                if (fallback) fallback.classList.add('d-none');
+                if (delBtn) delBtn.classList.remove('d-none');
+                if (badge) { badge.classList.remove('d-none'); setTimeout(() => badge.style.transform = 'scale(1)', 10); }
+                document.getElementById('kyc-preview-section').classList.remove('d-none');
+            };
+            img.onerror = () => reportSavedPreviewFailure(step.id);
+            img.src = `/known_faces/${currentUserId}/${step.id}.jpg?t=${Date.now()}`;
+        }
+
+        setTimeout(() => {
+          if (loadingOverlay) loadingOverlay.classList.add('d-none');
+          currentStep++;
+          runStep();
+          document.getElementById('success-overlay').classList.add('d-none');
+        }, 800);
+    }, 'image/jpeg', 0.95);
+  }
+
+  function kycComplete() {
+    if (detectInterval) clearInterval(detectInterval);
+    document.getElementById('kyc-instruction').textContent = '🎉 Hoàn tất xác minh!';
+    document.getElementById('kyc-step-count').textContent = '5/5 bước hoàn thành';
+    document.getElementById('kyc-status-text').textContent = 'Đang tải lại trang...';
+    document.getElementById('video-ring').style.borderColor = 'rgba(16,185,129,0.8)';
+    setCircleProgress(100);
+    setTimeout(() => { closeFaceModal(); window.location.reload(); }, 1500);
+  }
+
+  function closeFaceModal() {
+    kycRunning = false;
+    if (detectInterval) clearInterval(detectInterval);
+
+    const video = document.getElementById('webcam-video');
+    if (video) video.srcObject = null;
+
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
+      stream = null;
+    }
+
+    document.getElementById('face-modal').style.display = 'none';
+  }
+
+  async function cleanAiCache() {
+    const { value: confirm } = await Swal.fire({
+      title: 'Làm sạch bộ nhớ AI?',
+      text: 'Hành động này sẽ làm mới dữ liệu khuôn mặt và bộ nhớ nhận diện biển số để cập nhật trạng thái mới nhất.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#004b41',
+      cancelButtonColor: '#9ca3af',
+      confirmButtonText: 'Đồng ý',
+      cancelButtonText: 'Hủy',
+    });
+
+    if (!confirm) return;
+
+    const data = await apiRequest('/kyc/clean-cache', { method: 'POST' });
+
+    if (data.ok) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Thành công',
+        text: data.message,
+      });
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Không thể làm sạch bộ nhớ AI',
+        text: data.message || 'Vui lòng thử lại.',
+      });
+    }
+  }
+
+  window.addEventListener('click', function(e) {
+    const modal = document.getElementById('face-modal');
+    if (e.target === modal) {
+      closeFaceModal();
+    }
+  });
+
+  function initCompanyTomSelect(el) {
+    if (!el || el.tomselect) return;
+    try {
+      new TomSelect(el, {
+        plugins: ['remove_button'],
+        placeholder: el.getAttribute('placeholder') || '— Chọn một hoặc nhiều công ty —',
+        persist: false,
+        create: false,
+        maxItems: null,
+      });
+    } catch (err) {
+      console.warn('TomSelect init error:', err);
+    }
+  }
+
+  function toggleSelectAllUsers(master) {
+    const cbs = document.querySelectorAll('.user-select-cb');
+    cbs.forEach(cb => cb.checked = master.checked);
+    onUserSelectionChange();
+  }
+
+  function onUserSelectionChange() {
+    const checked = document.querySelectorAll('.user-select-cb:checked');
+    const count = checked.length;
+    const bar = document.getElementById('bulk-actions-bar');
+    const countEl = document.getElementById('selected-count');
+    const master = document.getElementById('check-all-users');
+    
+    if (countEl) countEl.textContent = count;
+    if (bar) {
+      if (count > 0) {
+        bar.classList.remove('d-none');
+        bar.classList.add('d-flex');
+      } else {
+        bar.classList.add('d-none');
+        bar.classList.remove('d-flex');
+      }
+    }
+
+    const allCbs = document.querySelectorAll('.user-select-cb');
+    if (master && allCbs.length > 0) {
+      master.checked = (count === allCbs.length);
+      master.indeterminate = (count > 0 && count < allCbs.length);
+    }
+  }
+
+  function clearAllSelections() {
+    const master = document.getElementById('check-all-users');
+    if (master) {
+      master.checked = false;
+      master.indeterminate = false;
+    }
+    document.querySelectorAll('.user-select-cb').forEach(cb => cb.checked = false);
+    onUserSelectionChange();
+  }
+
+  async function confirmBulkDelete() {
+    const selected = Array.from(document.querySelectorAll('.user-select-cb:checked')).map(cb => parseInt(cb.value));
+    if (selected.length === 0) return;
+
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${selected.length} người dùng đã chọn? Thao tác này không thể hoàn tác.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/admin/users/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selected })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (window.toastr) {
+          toastr.success(data.message || `Đã xóa ${data.count} người dùng.`);
+        } else {
+          alert(data.message || `Đã xóa ${data.count} người dùng.`);
+        }
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        if (window.toastr) {
+          toastr.error(data.message || 'Lỗi khi xóa người dùng.');
+        } else {
+          alert(data.message || 'Lỗi khi xóa người dùng.');
+        }
+      }
+    } catch (err) {
+      if (window.toastr) toastr.error('Lỗi mạng hoặc máy chủ không phản hồi: ' + err);
+      else alert('Lỗi mạng hoặc máy chủ không phản hồi: ' + err);
+    }
+  }
+</script>
+{% endblock %}

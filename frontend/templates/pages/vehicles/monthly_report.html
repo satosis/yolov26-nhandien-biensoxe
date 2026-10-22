@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+{% block title %}Thống kê vận tải theo tháng{% endblock %}
+{% block page_title %}Thống kê vận tải theo tháng{% endblock %}
+{% block head %}
+{{ super() }}
+<style>
+  .monthly-report-filter .card-body { padding: 12px 14px; }
+  .monthly-report-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+  .monthly-report-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+  .monthly-report-field { min-width: 150px; }
+  .monthly-report-field--month { min-width: 190px; }
+  .monthly-report-month-controls { display: flex; gap: 6px; }
+  .monthly-report-month-controls select { flex: 1 1 auto; }
+  .monthly-report-month-controls input { flex: 0 0 76px; }
+  .monthly-report-field--vehicle { width: 165px; }
+  .monthly-report-field .form-control { width: 100%; height: 28px !important; min-height: 28px; max-height: 28px; font-size: 12px; padding: 2px 8px; line-height: 22px; }
+  .monthly-report-hint { margin: 10px 0 0; line-height: 1.5; }
+  @media (max-width: 767px) {
+  }
+  @media (max-width: 480px) {
+    .monthly-report-fields { width: 100%; }
+    .monthly-report-field { flex: 1 1 130px; min-width: 0; }
+  }
+</style>
+{% endblock %}
+{% block page_back_button %}
+<a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>
+{% endblock %}
+{% block content %}
+<div class="card monthly-report-filter mb-3">
+  <div class="card-body">
+    <form method="get" action="/admin/vehicles/monthly-report" class="monthly-report-form">
+      <div class="monthly-report-fields">
+        <div class="monthly-report-field monthly-report-field--month">
+          <input type="hidden" name="month" value="{{ month }}">
+          <div class="monthly-report-month-controls">
+            <select id="report-month-part" name="report_month_part" class="form-control form-control-sm" aria-label="Tháng"
+                    onchange="const f=this.form; f.elements['month'].value=f.elements['report_year'].value+'-'+this.value; f.submit()">
+              {% for m in range(1, 13) %}<option value="{{ '%02d'|format(m) }}" {% if m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>{% endfor %}
+            </select>
+            <input id="report-year" type="number" name="report_year" value="{{ month[:4] }}"
+                   class="form-control form-control-sm" aria-label="Năm" required
+                   onchange="const f=this.form; f.elements['month'].value=this.value+'-'+f.elements['report_month_part'].value; f.submit()">
+          </div></div>
+        <div class="monthly-report-field monthly-report-field--vehicle">
+          <select id="report-vehicle" name="vehicle_id" class="form-control form-control-sm" aria-label="Xe" onchange="this.form.submit()">
+            <option value="" {% if vehicle_id is none %}selected{% endif %}>Tất cả xe</option>
+            {% for v in vehicle_options %}<option value="{{ v.id }}" {% if v.id == vehicle_id %}selected{% endif %}>{{ v.plate_number }}</option>{% endfor %}
+          </select></div>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="card mb-3">
+  <div class="card-header font-weight-bold">Doanh thu, chi phí và lợi nhuận theo xe</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0" data-bulk-select="1" style="font-size:11px;white-space:nowrap;">
+      <thead class="thead-light"><tr>
+        <th style="width:45px;" class="text-center">STT</th>
+        <th>Biển số</th><th>Loại xe</th><th class="text-right">Số chuyến</th>
+        <th class="text-right">Doanh thu có VAT</th><th class="text-right">Doanh thu chưa VAT</th><th class="text-right">Dầu</th>
+        <th class="text-right">Sửa chữa</th><th class="text-right">Cầu đường</th>
+        <th class="text-right">Khấu hao</th>
+        <th class="text-right">Lương tháng</th><th class="text-right">Tiền ăn</th><th class="text-right">Lương chuyến</th>
+        <th class="text-right">Chi phí chuyến</th><th class="text-right">Xe thuê ngoài</th><th class="text-right">Chi khác</th>
+        <th class="text-right">Tổng chi</th><th class="text-right">Lợi nhuận tạm tính</th>
+        <th class="text-right">Tỷ suất LN</th><th>Dữ liệu</th>
+      </tr></thead>
+      <tbody>
+        {% for r in report_rows %}
+        <tr>
+          <td class="text-center text-muted font-weight-medium align-middle">{{ (report_pagination.page - 1) * report_pagination.per_page + loop.index if report_pagination else loop.index }}</td>
+          <td><a href="/admin/vehicles/cargo?vehicle_id={{ r.id }}&amp;month={{ month }}">{{ r.plate_number }}</a></td>
+          <td>{{ r.vehicle_type or '—' }}</td>
+          <td class="text-right">{{ r.trip_count }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.revenue)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.revenue_net)|replace(',', '.') }}</td>
+          <td class="text-right" title="{{ 'Ước tính từ chuyến hàng' if r.fuel_is_estimate else 'Chi phí đổ dầu thực tế' }}">{% if r.fuel_is_estimate and r.estimated_fuel %}~{% endif %}{{ "{:,.0f}".format(r.fuel_cost)|replace(',', '.') if r.fuel_entries or r.estimated_fuel else '—' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.repair)|replace(',', '.') if r.repair_entries else '—' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.toll)|replace(',', '.') if r.toll_entries else '—' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.depreciation)|replace(',', '.') if r.depreciation is not none else '—' }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.base_salary)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.meal_allowance)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.trip_wage)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.trip_other_cost)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.outsourced_freight)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.other)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:,.0f}".format(r.total_cost)|replace(',', '.') }}</td>
+          <td class="text-right font-weight-bold {{ 'text-danger' if r.profit < 0 else 'text-success' }}">{{ "{:,.0f}".format(r.profit)|replace(',', '.') }}</td>
+          <td class="text-right">{{ "{:.1%}".format(r.profit_margin) if r.profit_margin is not none else '—' }}</td>
+          <td>{% if r.incomplete %}<span class="badge badge-warning">Cần bổ sung</span>{% else %}<span class="badge badge-success">Đã có dầu &amp; KH</span>{% endif %}</td>
+        </tr>
+        {% else %}<tr><td colspan="20" class="text-center text-muted py-3">Chưa có dữ liệu phát sinh cho xe trong tháng này.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% with pagination=report_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+</div>
+
+{% if selected_vehicle %}
+<div class="card mb-3">
+  <div class="card-header font-weight-bold">Chi tiết chuyến hàng — {{ selected_vehicle.plate_number }} — {{ month[5:7] }}/{{ month[:4] }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0" data-bulk-select="1" style="font-size:11px;white-space:nowrap;">
+      <thead><tr><th style="width:45px;" class="text-center">STT</th><th>Ngày</th><th>Chứng từ</th><th>Khách hàng</th><th>Tuyến đường</th><th>Hàng hóa</th><th class="text-right">Km</th><th class="text-right">Cước có VAT</th><th class="text-right">Cước vận chuyển</th><th class="text-right">Lương chuyến</th><th class="text-right">Chi phí chuyến</th><th>Thanh toán</th><th></th></tr></thead>
+      <tbody>{% for t in trip_rows %}<tr>
+        <td class="text-center text-muted font-weight-medium align-middle">{{ (trip_pagination.page - 1) * trip_pagination.per_page + loop.index if trip_pagination else loop.index }}</td>
+        <td>{{ t.invoice_date.strftime('%d/%m/%Y') if t.invoice_date else '—' }}</td>
+        <td>{{ t.document_number or '—' }}</td><td>{{ t.company_name or '—' }}</td>
+        <td style="min-width:300px;white-space:normal;">{{ t.origin or '—' }} → {{ t.destination or '—' }}</td>
+        <td>{{ t.cargo_description or '—' }}</td><td class="text-right">{{ t.distance_km if t.distance_km is not none else '—' }}</td>
+        <td class="text-right">{{ "{:,.0f}".format(t.invoice_total)|replace(',', '.') if t.invoice_total is not none else '—' }}</td>
+        <td class="text-right">{{ "{:,.0f}".format(t.freight_revenue)|replace(',', '.') if t.freight_revenue is not none else '—' }}</td>
+        <td class="text-right">{{ "{:,.0f}".format(t.trip_wage)|replace(',', '.') if t.trip_wage is not none else '—' }}</td>
+        <td class="text-right">{{ "{:,.0f}".format(t.trip_other_cost)|replace(',', '.') if t.trip_other_cost is not none else '—' }}</td>
+        <td>{{ 'Còn nợ' if t.payment_status == 'debt' else ('Đã trả' if t.payment_status == 'paid' else 'Chưa đối soát') }}</td>
+        <td><a href="/admin/vehicles/cargo/{% if t.record_type == 'invoice' %}invoices/{{ t.id }}{% else %}{{ t.id }}{% endif %}/edit" class="btn btn-light btn-sm">Sửa</a></td>
+      </tr>{% else %}<tr><td colspan="13" class="text-center text-muted py-3">Xe chưa có chuyến trong tháng này.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% with pagination=trip_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+</div>
+{% endif %}
+
+{% if vehicle_id is none %}
+<div class="card mb-3">
+  <div class="card-header font-weight-bold">Công nợ khách hàng theo hóa đơn tháng {{ month[5:7] }}/{{ month[:4] }} · Còn nợ: {{ "{:,.0f}".format(total_debt)|replace(',', '.') }} đ</div>
+  <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:11px;">
+    <thead><tr><th style="width:45px;" class="text-center">STT</th><th>MST</th><th>Khách hàng</th><th class="text-right">Số chuyến</th><th class="text-right">Tổng hóa đơn gồm VAT</th><th class="text-right">Đã thanh toán</th><th class="text-right">Còn nợ</th></tr></thead>
+    <tbody>{% for d in receivable_rows %}<tr>
+      <td class="text-center text-muted font-weight-medium align-middle">{{ (receivable_pagination.page - 1) * receivable_pagination.per_page + loop.index if receivable_pagination else loop.index }}</td>
+      <td>{{ d.tax_code }}</td><td>{{ d.company_name }}</td>
+      <td class="text-right">{{ d.trip_count }}</td>
+      <td class="text-right">{{ "{:,.0f}".format(d.invoice_total)|replace(',', '.') }}</td>
+      <td class="text-right">{{ "{:,.0f}".format(d.paid_amount)|replace(',', '.') }}</td>
+      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(d.outstanding)|replace(',', '.') }}</td>
+    </tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-3">Chưa có chuyến hàng đã ghi trạng thái thanh toán trong tháng.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% with pagination=receivable_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-header font-weight-bold">Sổ quỹ tiền mặt · Lịch sử tổng số tiền đã trả tháng {{ month[5:7] }}/{{ month[:4] }}</div>
+  <div class="card-body py-2 small">
+    Tổng đã thanh toán: <strong>{{ "{:,.0f}".format(cash_in)|replace(',', '.') }} đ</strong>.
+  </div>
+  <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:11px;">
+    <thead><tr><th>Ngày hóa đơn</th><th>Đơn vị</th><th>Biển số</th><th>Dịch vụ</th><th>Hình thức</th><th class="text-right">Thu (đ)</th><th class="text-right">Chi (đ)</th><th class="text-right font-weight-bold">Tồn (đ)</th></tr></thead>
+    <tbody>{% for c in cash_rows %}<tr>
+      <td>{{ c.invoice_date.strftime('%d/%m/%Y') }}</td><td>{{ c.company_name }}</td><td>{{ c.plate_number }}</td><td>{{ c.service_name }}</td><td>{{ c.payment_method or '—' }}</td>
+      <td class="text-right">{{ "{:,.0f}".format(c.paid_amount)|replace(',', '.') }}</td>
+      <td class="text-right text-muted">—</td>
+      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(c.running_paid_total)|replace(',', '.') }}</td>
+    </tr>{% else %}<tr><td colspan="8" class="text-center text-muted py-3">Chưa có khoản đã thanh toán trong tháng.</td></tr>{% endfor %}
+    {% if cash_rows and cash_pagination.page == cash_pagination.total_pages %}<tr class="table-success font-weight-bold"><td colspan="5">TỔNG CỘNG</td><td class="text-right">{{ "{:,.0f}".format(cash_in)|replace(',', '.') }}</td><td>—</td><td class="text-right">{{ "{:,.0f}".format(cash_in)|replace(',', '.') }}</td></tr>{% endif %}</tbody>
+  </table></div>
+  {% with pagination=cash_pagination %}{% include "partials/pagination.html" %}{% endwith %}
+</div>
+{% endif %}
+
+{% endblock %}

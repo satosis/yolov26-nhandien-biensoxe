@@ -1,15 +1,20 @@
 import json
 from html import escape
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, Query
 from starlette.responses import HTMLResponse
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 from backend.services.database import db
 
 router = APIRouter(prefix="/sites")
 
 
-def _sites_list_html(request: Request, user: dict) -> str:
-    sites = db.select("sites", order_by="site_name")
+def _sites_list_html(request: Request, user: dict, page: int = 1) -> str:
+    offset = (max(1, page) - 1) * 20
+    sites = db.execute_query(
+        "SELECT * FROM sites ORDER BY site_name LIMIT %s OFFSET %s",
+        (20, offset), fetchall=True,
+    ) or []
     rows = []
     for s in sites:
         name = escape(str(s.get("site_name") or ""), quote=True)
@@ -24,7 +29,7 @@ def _sites_list_html(request: Request, user: dict) -> str:
       <td class="text-muted" style="font-size:13px;">{address}</td>
       <td class="text-muted" style="font-size:13px;">🅿️ {s.get('total_slots') or 0} chỗ</td>
       <td class="text-center">
-        <form hx-post="/admin/sites/{s['id']}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
+        <form hx-post="/admin/sites/{s['id']}/toggle?page={page}" hx-target="#sites-list" hx-swap="innerHTML">
           <button type="submit" class="btn btn-sm {btn_cls} d-inline-flex align-items-center" style="gap:6px;">
             <span class="rounded-circle" style="width:8px;height:8px;display:inline-block;background:{dot_bg};"></span>
             {active_txt}
@@ -33,14 +38,14 @@ def _sites_list_html(request: Request, user: dict) -> str:
       </td>
       <td class="text-right">
         <div class="d-flex justify-content-end" style="gap:6px;">
-          <button class="btn btn-sm btn-light" title="Sửa" hx-get="/admin/sites/{s['id']}/edit" hx-target="#site-{s['id']}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
+          <button class="btn btn-sm btn-light" title="Sửa" hx-get="/admin/sites/{s['id']}/edit?page={page}" hx-target="#site-{s['id']}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
           <button class="btn btn-sm btn-danger" title="Xóa"
                   @click="window.dispatchEvent(new CustomEvent('show-confirm', {{
                     detail: {{
                       title: 'Xóa địa điểm',
                       message: {delete_message},
                       confirmText: 'Xác nhận xóa',
-                      confirmUrl: '/admin/sites/{s['id']}',
+                      confirmUrl: '/admin/sites/{s['id']}?page={page}',
                       confirmMethod: 'DELETE',
                       confirmTarget: '#site-{s['id']}'
                     }}
@@ -52,10 +57,24 @@ def _sites_list_html(request: Request, user: dict) -> str:
 
 
 @router.get("")
-async def sites_page(request: Request, user: dict = Depends(require_menu("sites"))):
+async def sites_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("sites")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "sites"
-    ctx["site_list"] = db.select("sites", order_by="site_name")
+    count_row = db.execute_query("SELECT COUNT(*) AS total FROM sites", fetch=True) or {}
+    total_sites = int(count_row.get("total") or 0)
+    page_data = paginate_counts(total_sites, page=page, per_page=20, base_url="/admin/sites")
+    ctx["site_list"] = db.execute_query(
+        "SELECT * FROM sites ORDER BY site_name LIMIT %s OFFSET %s",
+        (page_data["per_page"], (page_data["page"] - 1) * page_data["per_page"]),
+        fetchall=True,
+    ) or []
+    ctx.update(page=page_data["page"], total_pages=page_data["total_pages"],
+               total=page_data["total"], page_base_url=page_data["page_base_url"])
+    ctx["total_sites"] = total_sites
     return templates.TemplateResponse("pages/sites.html", {"request": request, **ctx})
 
 
@@ -68,6 +87,7 @@ async def create_site(
     description: str = Form(""),
     total_slots: int = Form(0),
     is_active: str = Form("on"),
+    page: int = Query(1, ge=1),
 ):
     active = is_active in ("on", "true", "1", "yes")
     site_id = db.insert("sites", {
@@ -79,14 +99,14 @@ async def create_site(
     }, returning="id")
     if not site_id:
         return HTMLResponse("Không thể thêm địa điểm.", status_code=500)
-    html = _sites_list_html(request, user)
-    resp = HTMLResponse(html)
+    resp = HTMLResponse("")
+    resp.headers["HX-Redirect"] = "/admin/sites?page=1"
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã thêm {site_name}", "type": "success"}})
     return resp
 
 
 @router.get("/{site_id}/edit")
-async def edit_site_form(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
+async def edit_site_form(site_id: int, request: Request, page: int = Query(1, ge=1), user: dict = Depends(require_menu("sites"))):
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:
         return HTMLResponse('<div class="px-5 py-4 text-status-red text-sm">Không tìm thấy địa điểm.</div>', status_code=404)
@@ -95,7 +115,7 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
     address = escape(str(site.get("address") or ""), quote=True)
     html = f'''<tr id="site-{site_id}">
   <td colspan="5" class="p-3 bg-light border-top border-bottom">
-    <form hx-post="/admin/sites/{site_id}/edit" hx-target="#sites-list" hx-swap="innerHTML">
+    <form hx-post="/admin/sites/{site_id}/edit?page={page}" hx-target="#sites-list" hx-swap="innerHTML">
       <div class="row">
         <div class="col-md-6 mb-2">
           <label class="font-weight-bold" style="font-size:12px;">Tên địa điểm *</label>
@@ -120,7 +140,7 @@ async def edit_site_form(site_id: int, request: Request, user: dict = Depends(re
       </div>
       <div class="d-flex mt-2" style="gap:8px;">
         <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
-        <button type="button" class="btn btn-light btn-sm" hx-get="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML">Hủy</button>
+        <button type="button" class="btn btn-light btn-sm" hx-get="/admin/sites?page={page}" hx-target="#sites-list" hx-swap="innerHTML">Hủy</button>
       </div>
     </form>
   </td>
@@ -138,6 +158,7 @@ async def update_site(
     description: str = Form(""),
     total_slots: int = Form(0),
     is_active: str = Form(None),
+    page: int = Query(1, ge=1),
 ):
     active = is_active in ("on", "true", "1", "yes")
     updated = db.update("sites", {
@@ -149,30 +170,31 @@ async def update_site(
     }, {"id": site_id})
     if not updated:
         return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
-    html = _sites_list_html(request, user)
+    html = _sites_list_html(request, user, page)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": f"Đã cập nhật {site_name}", "type": "success"}})
     return resp
 
 
 @router.delete("/{site_id}")
-async def delete_site(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
+async def delete_site(site_id: int, request: Request, page: int = Query(1, ge=1), user: dict = Depends(require_menu("sites"))):
     if not db.delete("sites", {"id": site_id}):
         return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
     resp = HTMLResponse("")
+    resp.headers["HX-Redirect"] = f"/admin/sites?page={page}"
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": "Đã xóa địa điểm", "type": "success"}})
     return resp
 
 
 @router.post("/{site_id}/toggle")
-async def toggle_site_status(site_id: int, request: Request, user: dict = Depends(require_menu("sites"))):
+async def toggle_site_status(site_id: int, request: Request, page: int = Query(1, ge=1), user: dict = Depends(require_menu("sites"))):
     site = db.select("sites", conditions={"id": site_id}, fetchall=False)
     if not site:
         return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
     new_status = not site.get("is_active", False)
     db.update("sites", {"is_active": new_status}, {"id": site_id})
     msg = f"Đã {'bật' if new_status else 'tắt'} {site['site_name']}"
-    html = _sites_list_html(request, user)
+    html = _sites_list_html(request, user, page)
     resp = HTMLResponse(html)
     resp.headers["HX-Trigger"] = json.dumps({"showToast": {"msg": msg, "type": "success" if new_status else "info"}})
     return resp

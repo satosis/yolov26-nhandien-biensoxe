@@ -1,8 +1,9 @@
 import logging
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from typing import List
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate
 from backend.services.database import db
 from frontend.menu_registry import ALL_MENUS, MENU_GROUPS
 from frontend.routers.users_router import get_all_users
@@ -12,19 +13,31 @@ router = APIRouter(prefix="/rbac")
 
 
 @router.get("")
-async def rbac_page(request: Request, user: dict = Depends(require_menu("rbac"))):
+async def rbac_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("rbac")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "rbac"
-    roles = db.select("roles", order_by="id ASC")
+    all_roles = db.select("roles", order_by="id ASC") or []
     all_users = get_all_users()
     role_user_counts = {}
     for u in all_users:
         rname = u.get("role", "")
         role_user_counts[rname] = role_user_counts.get(rname, 0) + 1
-    for r in roles:
+    for r in all_roles:
         r["user_count"] = role_user_counts.get(r["role_name"], 0)
 
-    ctx["roles"] = roles
+    page_data = paginate(
+        all_roles,
+        page=page,
+        per_page=20,
+        base_url="/admin/rbac",
+    )
+    ctx["roles"] = page_data["items"]
+    ctx["pagination"] = page_data
+    ctx["total_roles"] = len(all_roles)
     ctx["all_menus"] = ALL_MENUS
     ctx["menu_groups"] = MENU_GROUPS
     return templates.TemplateResponse("pages/rbac.html", {"request": request, **ctx})

@@ -1,0 +1,264 @@
+{% extends "layout.html" %}
+{% block title %}Bảng lương nhân sự — Tháng {{ month[5:7] }}/{{ month[:4] }}{% endblock %}
+{% block page_title %}Lương nhân sự{% endblock %}
+
+
+{% block page_actions %}
+<a href="/admin/transport/payroll/export?month={{ month }}" class="btn btn-success btn-sm font-weight-bold">
+  <i class="bx bx-download mr-1"></i> Xuất Excel theo mẫu
+</a>
+{% endblock %}
+
+{% block content %}
+<style>
+  .payroll-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+  .payroll-month-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .payroll-stat-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .payroll-stat-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  .payroll-table {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .payroll-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .payroll-table td {
+    padding: 11px 12px;
+    vertical-align: middle !important;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .payroll-table tbody tr:hover {
+    background-color: #f8fafc;
+  }
+  .payroll-money {
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+
+<!-- THANH LỌC THỜI GIAN -->
+<div class="payroll-filter-bar mb-3 shadow-sm">
+  <form method="get" action="/admin/transport/payroll" class="payroll-month-form"
+        onsubmit="const mp=document.getElementById('payroll-month-part').value; const yr=(document.getElementById('payroll-year').value || '').trim(); this.elements['month'].value = yr + '-' + mp;">
+    <input type="hidden" name="month" value="{{ month }}">
+    <span class="text-muted font-size-13 mr-1">Kỳ lương:</span>
+    <select id="payroll-month-part" class="form-control form-control-sm" style="width:auto; min-width:110px;" onchange="this.form.requestSubmit()">
+      {% for m in range(1, 13) %}
+      <option value="{{ '%02d'|format(m) }}" {% if m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+      {% endfor %}
+    </select>
+    <input id="payroll-year" type="number" value="{{ month[:4] }}" min="1000" max="9999" required
+           class="form-control form-control-sm" style="width:70px;" onchange="this.form.requestSubmit()">
+  </form>
+
+  <div class="text-muted font-size-12">
+    Bảng lương chính thức công ty · Tháng {{ month[5:7] }}/{{ month[:4] }}
+  </div>
+</div>
+
+<!-- THỐNG KÊ TỔNG QUAN QUỸ LƯƠNG -->
+<div class="row mb-3">
+  <div class="col-6 col-md-3 mb-2 mb-md-0">
+    <div class="payroll-stat-card shadow-sm">
+      <div class="payroll-stat-icon bg-soft-primary text-primary">
+        <i class="bx bx-group"></i>
+      </div>
+      <div>
+        <div class="text-muted font-size-11 text-uppercase font-weight-bold">Tổng nhân sự</div>
+        <div class="font-size-16 font-weight-bold text-dark">{{ rows|length }} người</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3 mb-2 mb-md-0">
+    <div class="payroll-stat-card shadow-sm">
+      <div class="payroll-stat-icon bg-soft-info text-info">
+        <i class="bx bx-calendar-check"></i>
+      </div>
+      <div>
+        <div class="text-muted font-size-11 text-uppercase font-weight-bold">Tổng ngày công</div>
+        <div class="font-size-16 font-weight-bold text-dark">{{ total_days }} công</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3 mb-2 mb-md-0">
+    <div class="payroll-stat-card shadow-sm">
+      <div class="payroll-stat-icon bg-soft-warning text-warning">
+        <i class="bx bx-wallet-alt"></i>
+      </div>
+      <div>
+        <div class="text-muted font-size-11 text-uppercase font-weight-bold">Tổng quỹ lương (Gross)</div>
+        <div class="font-size-16 font-weight-bold text-dark payroll-money">{{ "{:,.0f}".format(total_gross)|replace(',', '.') }} đ</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3 mb-2 mb-md-0">
+    <div class="payroll-stat-card shadow-sm" style="background:#f0fdf4; border-color:#bbf7d0;">
+      <div class="payroll-stat-icon text-success" style="background:#dcfce7;">
+        <i class="bx bx-check-double"></i>
+      </div>
+      <div>
+        <div class="font-size-11 text-uppercase font-weight-bold" style="color:#166534;">Tổng thực lĩnh (Net)</div>
+        <div class="font-size-16 font-weight-bold text-success payroll-money">{{ "{:,.0f}".format(total_net)|replace(',', '.') }} đ</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DANH SÁCH BẢNG LƯƠNG NHÂN SỰ -->
+<div class="card shadow-sm mb-3">
+  <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+    <div class="font-weight-bold" style="color:#1e293b; font-size:13px;">
+      <i class="bx bx-list-ul text-primary mr-1 font-size-16"></i> Danh sách lương nhân sự — Tháng {{ month[5:7] }}/{{ month[:4] }}
+    </div>
+    <span class="badge badge-light border text-muted">{{ rows|length }} bản ghi</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 payroll-table">
+      <thead>
+        <tr>
+          <th style="width:38px; text-align:center;">STT</th>
+          <th>Nhân sự</th>
+          <th>Chức vụ</th>
+          <th class="text-right">Công TT / Chuẩn</th>
+          <th class="text-right">Lương + Phụ cấp</th>
+          <th class="text-right">Lương chuyến</th>
+          <th class="text-right">Thưởng + Tăng ca</th>
+          <th class="text-right font-weight-bold">Tổng lương (Gross)</th>
+          <th class="text-right">BH trừ lương</th>
+          <th class="text-right">Tạm ứng</th>
+          <th class="text-right">Thuế + Trừ khác</th>
+          <th class="text-right font-weight-bold">Thực lĩnh</th>
+          <th class="text-center" style="width:130px;">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in rows %}
+        <tr>
+          <td class="text-center text-muted">{{ loop.index }}</td>
+          <td>
+            <div class="font-weight-bold text-dark" style="font-size:13px;">{{ p.full_name }}</div>
+            <div class="text-muted font-size-11">{{ p.department or 'Chưa phân bộ phận' }}</div>
+          </td>
+          <td>
+            <span class="badge badge-light border font-weight-bold text-dark px-2 py-1">
+              {{ p.job_title or '—' }}
+            </span>
+          </td>
+          <td class="text-right font-weight-bold">
+            {{ p.work_days }} <span class="text-muted font-weight-normal font-size-11">/ {{ p.standard_days }}</span>
+          </td>
+          <td class="text-right payroll-money">
+            {{ "{:,.0f}".format(p.fixed_pay)|replace(',', '.') }}
+          </td>
+          <td class="text-right payroll-money">
+            {{ "{:,.0f}".format(p.trip_wage)|replace(',', '.') }}
+          </td>
+          <td class="text-right payroll-money">
+            {{ "{:,.0f}".format(p.bonus_amount + p.overtime_pay)|replace(',', '.') }}
+          </td>
+          <td class="text-right font-weight-bold text-dark payroll-money">
+            {{ "{:,.0f}".format(p.gross_pay)|replace(',', '.') }}
+          </td>
+          <td class="text-right text-danger payroll-money">
+            {{ "{:,.0f}".format(p.employee_insurance)|replace(',', '.') }}
+          </td>
+          <td class="text-right text-danger payroll-money">
+            {{ "{:,.0f}".format(p.advance_amount)|replace(',', '.') }}
+          </td>
+          <td class="text-right text-danger payroll-money">
+            {{ "{:,.0f}".format(p.tax_deduction + p.other_deduction + p.union_fee)|replace(',', '.') }}
+          </td>
+          <td class="text-right font-weight-bold text-success font-size-13 payroll-money">
+            {{ "{:,.0f}".format(p.net_pay)|replace(',', '.') }} đ
+          </td>
+          <td class="text-center">
+            <a href="/admin/transport/payroll/{{ p.user_id }}?month={{ month }}"
+               class="btn btn-primary btn-sm font-weight-bold px-2 py-1"
+               style="font-size:11px;"
+               title="Xem chi tiết phiếu lương và tính lương">
+              <i class="bx bx-edit mr-1"></i>Chi tiết lương
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="13" class="text-center text-muted py-4">
+            <i class="bx bx-info-circle font-size-22 d-block mb-1"></i>
+            Chưa có hồ sơ lương nhân sự trong tháng này.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if rows %}
+      <tfoot>
+        <tr class="font-weight-bold" style="background:#f8fafc; border-top:2px solid #e2e8f0;">
+          <td colspan="4" class="text-uppercase" style="letter-spacing:.04em;">Tổng cộng</td>
+          <td class="text-right payroll-money">{{ "{:,.0f}".format(total_fixed)|replace(',', '.') }}</td>
+          <td class="text-right payroll-money">{{ "{:,.0f}".format(total_trip_wage)|replace(',', '.') }}</td>
+          <td class="text-right payroll-money">{{ "{:,.0f}".format(rows|sum(attribute='bonus_amount') + rows|sum(attribute='overtime_pay'))|replace(',', '.') }}</td>
+          <td class="text-right text-dark font-size-13 payroll-money">{{ "{:,.0f}".format(total_gross)|replace(',', '.') }}</td>
+          <td class="text-right text-danger payroll-money">{{ "{:,.0f}".format(total_insurance)|replace(',', '.') }}</td>
+          <td class="text-right text-danger payroll-money">{{ "{:,.0f}".format(total_advance)|replace(',', '.') }}</td>
+          <td class="text-right text-danger payroll-money">{{ "{:,.0f}".format(rows|sum(attribute='tax_deduction') + rows|sum(attribute='other_deduction') + rows|sum(attribute='union_fee'))|replace(',', '.') }}</td>
+          <td class="text-right text-success font-size-14 payroll-money">{{ "{:,.0f}".format(total_net)|replace(',', '.') }} đ</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+  {% include "partials/pagination.html" %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if saved %}
+<script>
+window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu bảng lương nhân sự.', type:'success'}}));
+const url = new URL(window.location.href);
+url.searchParams.delete('saved');
+window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+</script>
+{% endif %}
+{% endblock %}

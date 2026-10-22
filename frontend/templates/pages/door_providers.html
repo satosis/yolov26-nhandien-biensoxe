@@ -63,6 +63,7 @@
         <table class="table-cinema">
           <thead>
             <tr>
+              <th style="width:50px;text-align:center;">STT</th>
               <th style="width:60px;text-align:center;">AVATAR</th>
               <th style="width:200px;">TÊN NCC</th>
               <th style="width:140px;">LOẠI</th>
@@ -76,6 +77,9 @@
             {% for p in providers %}
             {% set badge = conn_badges.get(p.connection_type, ('🔧 '+p.connection_type, 'secondary')) %}
             <tr>
+              <td style="text-align:center;" class="text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
               <td style="text-align:center;">
                 {% if p.logo_url %}
                   <div class="rounded-circle border d-flex align-items-center justify-content-center mx-auto overflow-hidden p-1" style="width:40px;height:40px;background:#f8f9fa;">
@@ -108,7 +112,7 @@
                 <div class="d-flex justify-content-end" style="gap:6px;">
                   <button onclick="document.getElementById('edit-door-form-{{ p.provider_key }}').style.display = document.getElementById('edit-door-form-{{ p.provider_key }}').style.display === 'none' ? 'table-row' : 'none'"
                           class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
-                  <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                  <button data-bulk-action="delete" data-bulk-url="/admin/door_providers/{{ p.provider_key }}" data-bulk-method="DELETE" @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa nhà cung cấp',
                               message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
@@ -125,7 +129,7 @@
 
 
             <tr id="edit-door-form-{{ p.provider_key }}" style="display:none;">
-              <td colspan="6" class="p-4" style="background:#f8f9fa;">
+              <td colspan="7" class="p-4" style="background:#f8f9fa;">
                 <form method="POST" action="/admin/door_providers" class="d-flex flex-column" style="gap:12px;">
                   <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
                   <div class="row">
@@ -172,13 +176,14 @@
             {% endfor %}
             {% if not providers %}
             <tr>
-              <td colspan="6" class="py-5 text-center text-muted" style="font-size:13px;">Chưa có nhà cung cấp nào.</td>
+              <td colspan="7" class="py-5 text-center text-muted" style="font-size:13px;">Chưa có nhà cung cấp nào.</td>
             </tr>
             {% endif %}
           </tbody>
         </table>
       </div>
     </div>
+    {% include "partials/pagination.html" %}
   </div>
 
 </div>

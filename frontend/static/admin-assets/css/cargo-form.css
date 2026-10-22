@@ -1,0 +1,215 @@
+.cargo-form {
+    --cargo-control-height: 28px;
+    --cargo-control-font-size: 11.5px;
+}
+
+.cargo-form label {
+    min-height: 16px;
+    margin-bottom: 4px !important;
+    font-size: 12px !important;
+    line-height: 16px;
+}
+
+.cargo-form .form-control:not(.ts-wrapper) {
+    height: var(--cargo-control-height) !important;
+    min-height: var(--cargo-control-height) !important;
+    padding: 2px 8px !important;
+    border: 1px solid #ced4da;
+    border-radius: .25rem;
+    font-size: var(--cargo-control-font-size) !important;
+    line-height: 22px;
+}
+
+.cargo-form .form-control:not(.ts-wrapper):focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .25);
+}
+
+.cargo-form textarea.cargo-long-text.form-control {
+    height: auto !important;
+    min-height: 58px !important;
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.cargo-form .cargo-route-segments .form-control:not(.ts-wrapper) {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 7px 10px !important;
+    font-size: 13px !important;
+}
+
+.cargo-form .cargo-route-segments textarea.cargo-long-text.form-control {
+    height: auto !important;
+    min-height: 58px !important;
+}
+
+.cargo-route-card {
+    padding: 14px;
+    border: 1px solid #dbe3ed;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.cargo-route-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 10px 12px;
+    border: 1px solid #dbe3ed;
+    border-radius: 6px;
+    background: #eef3f9;
+}
+
+.cargo-route-summary .ml-3 {
+    margin-left: 0 !important;
+}
+
+.cargo-form .ts-wrapper.form-control {
+    height: var(--cargo-control-height) !important;
+    min-height: var(--cargo-control-height) !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.cargo-form .ts-wrapper .ts-control {
+    height: var(--cargo-control-height) !important;
+    min-height: var(--cargo-control-height) !important;
+    padding: 3px 8px !important;
+    border: 1px solid #ced4da !important;
+    border-radius: .25rem !important;
+    background: #fff !important;
+    color: #495057 !important;
+    font-size: var(--cargo-control-font-size) !important;
+    line-height: 20px !important;
+    display: flex !important;
+    align-items: center !important;
+    box-shadow: none !important;
+}
+
+.cargo-form .ts-wrapper.focus .ts-control {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 .2rem rgba(0, 123, 255, .25) !important;
+}
+
+.cargo-form .ts-wrapper .ts-control > .item,
+.cargo-form .ts-wrapper .ts-control > input {
+    padding: 0 !important;
+    margin: 0 !important;
+    color: #495057 !important;
+    font-size: var(--cargo-control-font-size) !important;
+    line-height: 20px !important;
+}
+
+.cargo-form .ts-wrapper.plugin-clear_button .ts-control {
+    padding-right: 32px !important;
+}
+
+.cargo-form .ts-wrapper.plugin-clear_button .clear-button {
+    display: none;
+    right: 8px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    color: #6c757d;
+    font-size: 16px;
+    line-height: 18px;
+    text-align: center;
+}
+
+.cargo-form .ts-wrapper.plugin-clear_button.has-items .clear-button {
+    display: block;
+    opacity: 1;
+}
+
+.cargo-form .ts-wrapper.plugin-clear_button .clear-button:hover,
+.cargo-form .ts-wrapper.plugin-clear_button .clear-button:focus-visible {
+    color: #495057;
+    background: #e9edf3 !important;
+}
+
+.cargo-form .btn-group {
+    height: var(--cargo-control-height) !important;
+}
+
+.cargo-form .cargo-field-action,
+.cargo-form .btn-group > .btn {
+    height: var(--cargo-control-height) !important;
+    min-height: var(--cargo-control-height) !important;
+    font-size: var(--cargo-control-font-size) !important;
+}
+
+.cargo-form .cargo-field-action {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    padding: 3px 8px !important;
+}
+
+.cargo-form .cargo-field-label-row {
+    min-height: 16px;
+    margin-bottom: 4px !important;
+}
+
+.cargo-form .cargo-field-label-row label {
+    margin-bottom: 0 !important;
+}
+
+.cargo-form .cargo-field-output {
+    background-color: #f8fafc;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.cargo-form .cargo-fuel-section {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 12px;
+}
+
+.cargo-form .cargo-fuel-heading {
+    margin-bottom: 12px;
+    color: #6c757d;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+}
+
+.cargo-form .cargo-fuel-calc {
+    height: 16px !important;
+    padding: 0 !important;
+    font-size: 11px !important;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.cargo-form .cargo-company-edit {
+    height: auto !important;
+    padding: 0 !important;
+    font-size: 11.5px !important;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+#qr-card-box #trip-qr-img {
+    display: block;
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    max-height: none !important;
+    object-fit: contain;
+    border-radius: 8px;
+    margin: 0 auto;
+}
+
+@media (max-width: 575px) {
+    .cargo-form {
+        padding-bottom: 40px;
+    }
+}

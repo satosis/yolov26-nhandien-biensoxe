@@ -1,0 +1,60 @@
+{% set pager = pagination if pagination is defined and pagination else none %}
+{% set current_page = pager.page if pager else page|default(1) %}
+{% set pages_total = pager.total_pages if pager else total_pages|default(1) %}
+{% set record_total = pager.total if pager else total|default(0) %}
+{% set base_url = pager.page_base_url if pager else page_base_url|default('') %}
+{% set page_size = pager.per_page if pager else per_page|default(20) %}
+{% set page_param = pager.page_param if pager and pager.page_param is defined else 'page' %}
+{% if pages_total > 1 %}
+{% set raw_base = base_url or '' %}
+{% if raw_base.endswith('page=') %}
+  {% set clean_base = raw_base[:-5] %}
+{% elif raw_base.endswith('&page') or raw_base.endswith('?page') %}
+  {% set clean_base = raw_base[:-5] %}
+{% else %}
+  {% set clean_base = raw_base %}
+{% endif %}
+{% set glue = '&' if '?' in clean_base else '?' %}
+{% set base = clean_base ~ ('' if clean_base.endswith(('?', '&')) else glue) %}
+
+<nav class="d-flex flex-column align-items-center mt-3 mb-2" aria-label="Phân trang">
+  <ul class="pagination pagination-sm mb-1" style="gap:2px;">
+    {% if current_page > 1 %}
+    <li class="page-item"><a class="page-link shadow-none" href="{{ base }}{{ page_param }}={{ current_page - 1 }}" aria-label="Trang trước">&laquo; Trước</a></li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link shadow-none">&laquo; Trước</span></li>
+    {% endif %}
+
+    {% set start_page = [1, current_page - 2] | max %}
+    {% set end_page = [pages_total, current_page + 2] | min %}
+    {% if start_page > 1 %}
+    <li class="page-item"><a class="page-link shadow-none" href="{{ base }}{{ page_param }}=1">1</a></li>
+    {% if start_page > 2 %}<li class="page-item disabled"><span class="page-link shadow-none">...</span></li>{% endif %}
+    {% endif %}
+
+    {% for p in range(start_page, end_page + 1) %}
+    {% if p == current_page %}
+    <li class="page-item active"><span class="page-link shadow-none font-weight-bold">{{ p }}</span></li>
+    {% else %}
+    <li class="page-item"><a class="page-link shadow-none" href="{{ base }}{{ page_param }}={{ p }}">{{ p }}</a></li>
+    {% endif %}
+    {% endfor %}
+
+    {% if end_page < pages_total %}
+    {% if end_page < pages_total - 1 %}<li class="page-item disabled"><span class="page-link shadow-none">...</span></li>{% endif %}
+    <li class="page-item"><a class="page-link shadow-none" href="{{ base }}{{ page_param }}={{ pages_total }}">{{ pages_total }}</a></li>
+    {% endif %}
+
+    {% if current_page < pages_total %}
+    <li class="page-item"><a class="page-link shadow-none" href="{{ base }}{{ page_param }}={{ current_page + 1 }}" aria-label="Trang sau">Tiếp &raquo;</a></li>
+    {% else %}
+    <li class="page-item disabled"><span class="page-link shadow-none">Tiếp &raquo;</span></li>
+    {% endif %}
+  </ul>
+  {% if record_total %}
+  <div class="text-muted small" style="font-size:12px;">
+    Trang <strong>{{ current_page }}</strong> / <strong>{{ pages_total }}</strong> · Tổng <strong>{{ record_total }}</strong> bản ghi ({{ page_size }} / trang)
+  </div>
+  {% endif %}
+</nav>
+{% endif %}

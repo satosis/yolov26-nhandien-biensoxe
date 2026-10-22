@@ -1,0 +1,76 @@
+<input type="hidden" name="route_segments" :value="routeSegmentsPayload()">
+<div class="cargo-route-segments mb-3 border-top pt-3">
+  <style>
+    .cargo-route-segments input.form-control,
+    .cargo-route-segments select.form-control { height: 30px; min-height: 30px; padding-top: 4px; padding-bottom: 4px; }
+  </style>
+  <div class="d-flex align-items-center justify-content-end mb-2" x-show="!extraSegments.length">
+    <button type="button" class="btn btn-outline-primary btn-sm" @click="addSegment()">
+      <i class="bx bx-plus mr-1"></i> Thêm đoạn đường
+    </button>
+  </div>
+  <div x-show="extraSegments.length" style="display:none;">
+    <template x-for="(segment, index) in extraSegments" :key="index">
+      <div class="cargo-route-card mb-3 bg-white">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <strong class="font-size-13" x-text="'Đoạn ' + (index + 2)"></strong>
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <button type="button" class="btn btn-outline-danger btn-sm" @click="removeSegment(index)" :aria-label="'Xóa đoạn ' + (index + 2)">
+              <i class="bx bx-trash"></i>
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" x-show="index === extraSegments.length - 1" @click="addSegment()">
+              <i class="bx bx-plus mr-1"></i> Thêm đoạn đường
+            </button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-12 text-muted">Loại hàng hóa</label>
+            <select class="form-control" x-model="segment.cargo_description">
+              <option value="">— Chọn loại hàng hóa —</option>
+              {% for cargo_type in cargo_types %}<option value="{{ cargo_type }}">{{ cargo_type }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-12 text-muted">Khối lượng (tấn)</label>
+            <input type="number" min="0" step="0.001" class="form-control" x-model="segment.cargo_weight_tons">
+          </div>
+          <div class="col-12 col-lg-6 mb-3">
+            <label class="font-size-12 text-muted">Điểm lấy hàng *</label>
+            <textarea class="form-control cargo-long-text" rows="2" x-model="segment.origin" maxlength="500" required
+                      @input="routeSegmentChanged(segment)" @change="calculateSegmentDistance(index, true)"></textarea>
+          </div>
+          <div class="col-12 col-lg-6 mb-3">
+            <label class="font-size-12 text-muted">Điểm giao hàng *</label>
+            <textarea class="form-control cargo-long-text" rows="2" x-model="segment.destination" maxlength="500" required
+                      @input="routeSegmentChanged(segment)" @change="calculateSegmentDistance(index, true)"></textarea>
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-size-12 text-muted">Nội dung hóa đơn *</label>
+            <textarea class="form-control cargo-long-text" rows="2" maxlength="4000" required x-model="segment.description"></textarea>
+          </div>
+          <div class="col-12 col-md-6 mb-2">
+            <label class="font-size-12 text-muted">Quãng đường (km)</label>
+            <div class="input-group">
+              <input type="number" class="form-control" min="0" max="100000" step="0.1" inputmode="decimal"
+                     x-model="segment.distance_km" @input="segment.distanceError = ''; syncRouteTotals()">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-primary" @click="calculateSegmentDistance(index)"
+                        :disabled="segment.calculating" title="Tính quãng đường theo Google Maps">
+                  <i class="bx bx-map mr-1"></i><span x-text="segment.calculating ? 'Đang tính...' : 'Tính km'"></span>
+                </button>
+              </div>
+            </div>
+            <small class="text-danger d-block mt-1" x-show="segment.distanceError" x-text="segment.distanceError"></small>
+          </div>
+          <div class="col-12 col-md-6 mb-2">
+            <label class="font-size-12 text-muted">Cước (₫) *</label>
+            <input type="text" class="form-control" inputmode="numeric" required
+                   x-init="$el.value = segment.amount ? Number(segment.amount).toLocaleString('vi-VN') : ''"
+                   @input="formatSegmentAmount($event, segment)">
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
