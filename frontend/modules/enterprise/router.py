@@ -1991,6 +1991,9 @@ async def enterprise_sales_update_api(
         if item_error:
             return JSONResponse({"ok": False, "message": item_error}, status_code=400)
         total_amount = sum((item["line_total"] for item in items), Decimal("0"))
+        paid_amount = Decimal(str(data.get("paid_amount") or "0")) if "paid_amount" in data else None
+        if paid_amount is not None and (not paid_amount.is_finite() or paid_amount < 0):
+            paid_amount = Decimal("0")
     except (ValueError, TypeError, ArithmeticError):
         return JSONResponse({"ok": False, "message": "Thông tin hóa đơn không hợp lệ."}, status_code=400)
     except Exception:
@@ -2017,6 +2020,9 @@ async def enterprise_sales_update_api(
         "items": items,
         "total_amount": total_amount,
     }
+    if paid_amount is not None:
+        values["paid_amount"] = paid_amount
+        values["payment_source"] = str(data.get("payment_source") or ("Tiền mặt" if paid_amount > 0 else "")).strip()[:255]
     try:
         updated = sales_service.update_sale(company_id, sale_id, values)
     except ValueError as exc:
@@ -2285,10 +2291,6 @@ async def enterprise_sales_invoice_pdf(
     sale["old_debt_fmt"] = _fmt_money_num(old_debt)
     sale["grand_total_fmt"] = _fmt_money_num(grand_total)
 
-    has_weigh_info = any(
-        bool(item.get("weigh_code") or item.get("gross_weight") is not None or item.get("tare_weight") is not None)
-        for item in items
-    )
     for item in items:
         item["quantity_display"] = f"{Decimal(str(item['quantity'])).normalize():f}"
         item["gross_weight_display"] = (
@@ -2302,8 +2304,7 @@ async def enterprise_sales_invoice_pdf(
         item["unit_price_fmt"] = _fmt_money_num(item["unit_price"])
         item["line_total_fmt"] = _fmt_money_num(item["line_total"])
 
-    pad_count = max(0, 3 - len(items))
-    pad_rows = [None] * pad_count
+    pad_rows = []
 
     html = templates.env.get_template("pages/enterprise/sales_invoice_pdf.html").render(
         sale=sale,
@@ -2312,8 +2313,8 @@ async def enterprise_sales_invoice_pdf(
         sale_date_day_month=sale_date_day_month,
         prev_date_day_month=prev_date_day_month,
         payments=payments,
-        has_weigh_info=has_weigh_info,
-        summary_colspan=7 if has_weigh_info else 5,
+        has_weigh_info=False,
+        summary_colspan=5,
     )
     from frontend.modules.transport.contract import _find_browser_exe, render_pdf_from_html
     if not _find_browser_exe():

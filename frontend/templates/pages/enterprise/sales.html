@@ -219,7 +219,7 @@
           <div class="form-row mt-3 align-items-end">
             <div class="form-group col-md-4 mb-2" id="salePaidGroup">
               <label for="salePaid">Thanh toán lần này (đ)</label>
-              <input type="number" min="0" step="1" class="form-control form-control-sm" id="salePaid" value="0">
+              <input type="text" inputmode="numeric" class="form-control form-control-sm" id="salePaid" value="0" placeholder="0">
             </div>
             <div class="form-group col-md-4 mb-2" id="salePaymentSourceGroup">
               <label for="salePaymentSource">Nguồn nhận</label>
@@ -261,7 +261,7 @@
         <div class="modal-body">
           <div class="small text-muted mb-2" id="paymentSaleLabel"></div>
           <label for="paymentAmount">Số tiền (đ)</label>
-          <input type="number" min="1" step="1" class="form-control form-control-sm mb-2" id="paymentAmount" required>
+          <input type="text" inputmode="numeric" class="form-control form-control-sm mb-2" id="paymentAmount" placeholder="0" required>
           <label for="paymentSource">Nguồn nhận</label>
           <input class="form-control form-control-sm mb-2" id="paymentSource" value="Tiền mặt" placeholder="Tiền mặt, chuyển khoản...">
           <label for="paymentNote">Ghi chú</label>
@@ -320,6 +320,35 @@
   }
   function money(value) {
     return new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + ' đ';
+  }
+  function parseVND(val) {
+    if (val == null) return 0;
+    const str = String(val).replace(/\D/g, '');
+    return str ? parseInt(str, 10) : 0;
+  }
+  function formatVND(val) {
+    if (val == null || val === '') return '';
+    const num = typeof val === 'number' ? val : parseVND(val);
+    if (!num && num !== 0) return '';
+    return new Intl.NumberFormat('vi-VN').format(num);
+  }
+  function attachVNDInput(input, onChange) {
+    if (!input) return;
+    input.setAttribute('type', 'text');
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'off');
+    input.addEventListener('input', function () {
+      const raw = this.value;
+      const digits = raw.replace(/\D/g, '');
+      if (!digits) {
+        this.value = '';
+      } else {
+        this.value = new Intl.NumberFormat('vi-VN').format(parseInt(digits, 10));
+      }
+      if (typeof onChange === 'function') {
+        onChange();
+      }
+    });
   }
   function notify(message, isError) {
     if (!message) return;
@@ -461,8 +490,8 @@
       '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-gross" placeholder="Tổng kg"></td>' +
       '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-tare" placeholder="Bì kg"></td>' +
       '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-quantity" placeholder="1"></td>' +
-      '<td><input type="number" min="0" step="1" class="form-control form-control-sm sale-item-price" placeholder="0"></td>' +
-      '<td><input type="number" min="0" step="1000" class="form-control form-control-sm text-right font-weight-bold sale-item-total-input" placeholder="0"></td>' +
+      '<td><input type="text" inputmode="numeric" class="form-control form-control-sm sale-item-price" placeholder="0"></td>' +
+      '<td><input type="text" inputmode="numeric" class="form-control form-control-sm text-right font-weight-bold sale-item-total-input" placeholder="0"></td>' +
       '<td class="align-middle"><button type="button" class="btn btn-sm btn-light border js-remove-sale-item" aria-label="Xóa dòng">×</button></td>';
     if (item) {
       tr.querySelector('.sale-item-name').value = item.product_name || '';
@@ -477,10 +506,10 @@
         tr.querySelector('.sale-item-quantity').value = item.quantity;
       }
       if (item.unit_price != null && item.unit_price !== '') {
-        tr.querySelector('.sale-item-price').value = item.unit_price;
+        tr.querySelector('.sale-item-price').value = formatVND(item.unit_price);
       }
       const totalVal = item.line_total != null ? item.line_total : (Number(item.quantity || 0) * Number(item.unit_price || 0));
-      tr.querySelector('.sale-item-total-input').value = totalVal || '';
+      tr.querySelector('.sale-item-total-input').value = totalVal ? formatVND(totalVal) : '';
     }
     document.getElementById('saleItemRows').appendChild(tr);
 
@@ -503,10 +532,10 @@
 
     function syncFromQtyOrPrice() {
       const qty = parseFloat(qtyInput.value) || 0;
-      const price = parseFloat(priceInput.value) || 0;
+      const price = parseVND(priceInput.value);
       if (qty > 0 && price > 0) {
         const raw = qty * price;
-        totalInput.value = Math.ceil(raw / 1000) * 1000;
+        totalInput.value = formatVND(Math.ceil(raw / 1000) * 1000);
         delete totalInput.dataset.manual;
       } else if (!totalInput.dataset.manual && (qty === 0 || price === 0)) {
         totalInput.value = '';
@@ -516,14 +545,14 @@
 
     function syncFromTotal() {
       totalInput.dataset.manual = 'true';
-      const totalVal = parseFloat(totalInput.value) || 0;
+      const totalVal = parseVND(totalInput.value);
       let qty = parseFloat(qtyInput.value) || 0;
       if (qty <= 0) {
         qty = 1;
         qtyInput.value = 1;
       }
       if (totalVal > 0) {
-        priceInput.value = Math.round(totalVal / qty);
+        priceInput.value = formatVND(Math.round(totalVal / qty));
       } else {
         priceInput.value = '';
       }
@@ -533,18 +562,18 @@
     grossInput.addEventListener('input', syncWeighQuantity);
     tareInput.addEventListener('input', syncWeighQuantity);
     qtyInput.addEventListener('input', syncFromQtyOrPrice);
-    priceInput.addEventListener('input', syncFromQtyOrPrice);
-    totalInput.addEventListener('input', syncFromTotal);
+    attachVNDInput(priceInput, syncFromQtyOrPrice);
+    attachVNDInput(totalInput, syncFromTotal);
     tr.querySelectorAll('input').forEach(input => input.addEventListener('input', calculateTotal));
     calculateTotal();
   }
   function lineTotal(row) {
     const totalInput = row.querySelector('.sale-item-total-input');
     if (totalInput && totalInput.value !== '') {
-      return Number(totalInput.value) || 0;
+      return parseVND(totalInput.value);
     }
     const quantity = Number(row.querySelector('.sale-item-quantity')?.value || 0);
-    const price = Number(row.querySelector('.sale-item-price')?.value || 0);
+    const price = parseVND(row.querySelector('.sale-item-price')?.value);
     const raw = quantity * price;
     return raw > 0 ? Math.ceil(raw / 1000) * 1000 : 0;
   }
@@ -608,7 +637,7 @@
     document.getElementById('saleTotalPreview').textContent = money(total);
 
     const paidInput = document.getElementById('salePaid');
-    const paid = Number(paidInput ? paidInput.value : 0) || 0;
+    const paid = parseVND(paidInput ? paidInput.value : 0);
     const excessNote = document.getElementById('salePaidExcessNote');
     if (excessNote) {
       if (paid > total) {
@@ -645,6 +674,7 @@
     document.getElementById('saleModalTitle').textContent = 'Tạo hóa đơn bán hàng';
     updateSaveButtons('Lưu hóa đơn', false);
     setCustomerLocked(false);
+    document.getElementById('salePaid').value = '0';
     document.getElementById('salePaid').disabled = false;
     document.getElementById('salePaymentSource').disabled = false;
     document.getElementById('salePaidGroup').classList.remove('d-none');
@@ -677,12 +707,13 @@
       document.getElementById('saleAddress').value = sale.customer_address || '';
       document.getElementById('saleCarrier').value = sale.carrier || '';
       document.getElementById('saleNote').value = sale.note || '';
-      document.getElementById('salePaid').value = sale.paid_on_sale || '0';
-      document.getElementById('salePaymentSource').value = sale.payment_source || '';
-      document.getElementById('salePaid').disabled = true;
-      document.getElementById('salePaymentSource').disabled = true;
-      document.getElementById('salePaidGroup').classList.add('d-none');
-      document.getElementById('salePaymentSourceGroup').classList.add('d-none');
+      const paidVal = sale.paid_total != null ? sale.paid_total : (sale.paid_on_sale || 0);
+      document.getElementById('salePaid').value = formatVND(paidVal);
+      document.getElementById('salePaymentSource').value = sale.payment_source || 'Tiền mặt';
+      document.getElementById('salePaid').disabled = false;
+      document.getElementById('salePaymentSource').disabled = false;
+      document.getElementById('salePaidGroup').classList.remove('d-none');
+      document.getElementById('salePaymentSourceGroup').classList.remove('d-none');
       document.getElementById('saleItemRows').innerHTML = '';
       (data.items || []).forEach(item => addItemRow(item));
       if (!data.items || !data.items.length) addItemRow();
@@ -692,7 +723,7 @@
       notify(error.message, true);
     }
   }
-  document.getElementById('salePaid').addEventListener('input', calculateTotal);
+  attachVNDInput(document.getElementById('salePaid'), calculateTotal);
   document.getElementById('saleCustomer').addEventListener('change', function () {
     const customer = customers.find(item => String(item.id) === this.value);
     document.getElementById('salePhone').value = customer ? (customer.phone || '') : '';
@@ -771,16 +802,16 @@
         const gross = (row.querySelector('.sale-item-gross')?.value || '').trim() || null;
         const tare = (row.querySelector('.sale-item-tare')?.value || '').trim() || null;
         const qty = (row.querySelector('.sale-item-quantity')?.value || '').trim();
-        const price = (row.querySelector('.sale-item-price')?.value || '').trim();
-        const total = (row.querySelector('.sale-item-total-input')?.value || '').trim();
+        const price = parseVND(row.querySelector('.sale-item-price')?.value);
+        const total = parseVND(row.querySelector('.sale-item-total-input')?.value);
         return {
           product_name: name,
           unit: unit,
           gross_weight: gross,
           tare_weight: tare,
-          quantity: qty || (total && Number(total) > 0 ? '1' : ''),
-          unit_price: price || (total && Number(total) > 0 ? total : '0'),
-          line_total: total
+          quantity: qty || (total > 0 ? '1' : ''),
+          unit_price: price > 0 ? String(price) : (total > 0 ? String(total) : '0'),
+          line_total: total > 0 ? String(total) : ''
         };
       })
       .filter(item => item.product_name !== '' || (item.line_total && Number(item.line_total) > 0) || (item.quantity && Number(item.quantity) > 0));
@@ -829,7 +860,7 @@
       customer_address: document.getElementById('saleAddress').value.trim(),
       carrier: document.getElementById('saleCarrier').value.trim(),
       note: document.getElementById('saleNote').value.trim(),
-      paid_amount: document.getElementById('salePaid').value || 0,
+      paid_amount: parseVND(document.getElementById('salePaid').value),
       payment_source: document.getElementById('salePaymentSource').value.trim() || 'Tiền mặt',
       items: items
     };
@@ -945,12 +976,13 @@
     if (!paymentSale) return;
     const remaining = Math.max(0, Number(paymentSale.total_amount) - Number(paymentSale.paid_total));
     document.getElementById('paymentSaleLabel').textContent = (paymentSale.display_invoice_number || paymentSale.invoice_number) + ' · Còn nợ ' + money(remaining);
-    document.getElementById('paymentAmount').value = remaining;
+    document.getElementById('paymentAmount').value = formatVND(remaining);
     document.getElementById('paymentAmount').removeAttribute('max');
     document.getElementById('paymentSource').value = 'Tiền mặt';
     document.getElementById('paymentNote').value = '';
     $('#salePaymentModal').modal('show');
   });
+  attachVNDInput(document.getElementById('paymentAmount'));
   document.getElementById('salePaymentForm').addEventListener('submit', async function (event) {
     event.preventDefault();
     if (!paymentSale) return;
@@ -959,7 +991,7 @@
     try {
       const data = await requestJson(apiUrl + '/' + paymentSale.id + '/payments', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({amount:document.getElementById('paymentAmount').value,
+        body:JSON.stringify({amount:parseVND(document.getElementById('paymentAmount').value),
           source:document.getElementById('paymentSource').value.trim() || 'Tiền mặt',
           note:document.getElementById('paymentNote').value.trim()})
       });

@@ -406,17 +406,6 @@ def update_sale(company_id: int, sale_id: int, values: dict) -> bool:
             if not sale:
                 return False
 
-            cursor.execute(
-                """SELECT COALESCE(SUM(amount_paid), 0) AS paid_total
-                     FROM public.personal_debt_logs
-                    WHERE (sale_id = %s)
-                       OR (company_id = %s AND customer_id = %s AND NULLIF(invoice_number, '') IS NOT NULL AND invoice_number = %s)""",
-                (sale_id, company_id, sale["customer_id"], sale["invoice_number"] or ""),
-            )
-            paid_total = Decimal(str(cursor.fetchone()["paid_total"] or 0))
-            if values["total_amount"] < paid_total:
-                raise ValueError("Tổng hóa đơn không thể thấp hơn số đã thanh toán.")
-
             old_invoice_number = sale.get("invoice_number") or ""
             old_source = sale.get("source_invoice_number") or old_invoice_number
             new_invoice_number = (values.get("invoice_number") or "").strip()
@@ -426,19 +415,27 @@ def update_sale(company_id: int, sale_id: int, values: dict) -> bool:
             elif not new_invoice_number:
                 new_invoice_number = old_invoice_number or get_next_sale_stt(company_id)
 
+            update_cols = [
+                "invoice_number = %s", "source_invoice_number = %s",
+                "sale_date = %s", "customer_phone = %s", "customer_address = %s",
+                "carrier = %s", "note = %s", "total_amount = %s", "status = %s"
+            ]
+            sale_params = [
+                new_invoice_number, new_invoice_number,
+                values["sale_date"], values["customer_phone"],
+                values["customer_address"], values["carrier"],
+                values["note"], values["total_amount"], new_status
+            ]
+            if "paid_amount" in values:
+                update_cols.extend(["paid_on_sale = %s", "payment_source = %s"])
+                sale_params.extend([values["paid_amount"], values["payment_source"]])
+            sale_params.extend([company_id, sale_id])
+
             cursor.execute(
-                """UPDATE public.personal_sales
-                      SET invoice_number = %s, source_invoice_number = %s,
-                          sale_date = %s, customer_phone = %s, customer_address = %s,
-                          carrier = %s, note = %s, total_amount = %s, status = %s
+                f"""UPDATE public.personal_sales
+                      SET {', '.join(update_cols)}
                     WHERE company_id = %s AND id = %s""",
-                (
-                    new_invoice_number, new_invoice_number,
-                    values["sale_date"], values["customer_phone"],
-                    values["customer_address"], values["carrier"],
-                    values["note"], values["total_amount"], new_status,
-                    company_id, sale_id,
-                ),
+                tuple(sale_params),
             )
             cursor.execute("DELETE FROM public.personal_sale_items WHERE sale_id = %s", (sale_id,))
             cursor.executemany(
@@ -462,13 +459,33 @@ def update_sale(company_id: int, sale_id: int, values: dict) -> bool:
             )
             debt_entry = cursor.fetchone()
             if debt_entry:
+                debt_cols = [
+                    "sale_id = %s", "invoice_number = %s", "transaction_date = %s",
+                    "amount_due = %s", "note = %s"
+                ]
+                debt_params = [
+                    sale_id, new_invoice_number, values["sale_date"],
+                    values["total_amount"], values["note"]
+                ]
+                if "paid_amount" in values:
+                    debt_cols.extend(["amount_paid = %s", "received_from = %s"])
+                    debt_params.extend([values["paid_amount"], values["payment_source"]])
+                debt_params.extend([company_id, debt_entry["id"]])
                 cursor.execute(
-                    """UPDATE public.personal_debt_logs
-                          SET sale_id = %s, invoice_number = %s, transaction_date = %s, amount_due = %s, note = %s
+                    f"""UPDATE public.personal_debt_logs
+                          SET {', '.join(debt_cols)}
                         WHERE company_id = %s AND id = %s""",
+                    tuple(debt_params),
+                )
+            elif "paid_amount" in values:
+                cursor.execute(
+                    """INSERT INTO public.personal_debt_logs (
+                        company_id, customer_id, sale_id, invoice_number, transaction_date,
+                        amount_due, amount_paid, received_from, note
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
-                        sale_id, new_invoice_number, values["sale_date"], values["total_amount"], values["note"],
-                        company_id, debt_entry["id"],
+                        company_id, sale["customer_id"], sale_id, new_invoice_number, values["sale_date"],
+                        values["total_amount"], values["paid_amount"], values["payment_source"], values["note"],
                     ),
                 )
             if new_invoice_number != old_invoice_number:
