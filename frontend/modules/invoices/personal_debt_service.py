@@ -27,7 +27,7 @@ def list_customers(
     cte = """
         WITH balances AS (
             SELECT c.id, c.company_id, c.customer_code, c.full_name, c.phone, c.address,
-                   c.opening_balance, c.created_at,
+                   c.opening_balance, c.opening_balance_date, c.created_at,
                    COALESCE(SUM(l.amount_due), 0) AS amount_due_all,
                    COALESCE(SUM(l.amount_paid), 0) AS amount_paid_all,
                    COALESCE(SUM(l.amount_due) FILTER (
@@ -57,7 +57,7 @@ def list_customers(
 
     rows = db._execute_query(
         cte + f"""
-        SELECT id, customer_code, full_name, phone, address, opening_balance,
+        SELECT id, customer_code, full_name, phone, address, opening_balance, opening_balance_date,
                month_due, month_paid, current_balance, log_count, last_transaction_date, created_at
         FROM customer_summary
         WHERE {' AND '.join(filters)}
@@ -92,15 +92,16 @@ def create_customer(
     address: str,
     opening_balance: Decimal,
     user_id: int | None,
+    opening_balance_date: date | None = None,
 ) -> dict | None:
     return db._execute_query(
         """
         INSERT INTO public.personal_debt_customers
-            (company_id, customer_code, full_name, phone, address, opening_balance, created_by)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-        RETURNING id, customer_code, full_name, phone, address, opening_balance
+            (company_id, customer_code, full_name, phone, address, opening_balance, opening_balance_date, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id, customer_code, full_name, phone, address, opening_balance, opening_balance_date
         """,
-        (company_id, customer_code, full_name, phone, address, opening_balance, user_id),
+        (company_id, customer_code, full_name, phone, address, opening_balance, opening_balance_date, user_id),
         fetch=True,
         commit=True,
     )
@@ -114,16 +115,17 @@ def update_customer(
     phone: str,
     address: str,
     opening_balance: Decimal,
+    opening_balance_date: date | None = None,
 ) -> dict | None:
     return db._execute_query(
         """
         UPDATE public.personal_debt_customers
         SET customer_code = %s, full_name = %s, phone = %s, address = %s,
-            opening_balance = %s, updated_at = NOW()
+            opening_balance = %s, opening_balance_date = %s, updated_at = NOW()
         WHERE company_id = %s AND id = %s
-        RETURNING id, customer_code, full_name, phone, address, opening_balance
+        RETURNING id, customer_code, full_name, phone, address, opening_balance, opening_balance_date
         """,
-        (customer_code, full_name, phone, address, opening_balance, company_id, customer_id),
+        (customer_code, full_name, phone, address, opening_balance, opening_balance_date, company_id, customer_id),
         fetch=True,
         commit=True,
     )
@@ -187,13 +189,13 @@ def add_transaction(
 def get_customer_logs(company_id: int, customer_id: int) -> tuple[dict | None, list[dict]]:
     customer = db._execute_query(
         """
-        SELECT c.id, c.customer_code, c.full_name, c.phone, c.address, c.opening_balance,
+        SELECT c.id, c.customer_code, c.full_name, c.phone, c.address, c.opening_balance, c.opening_balance_date,
                c.opening_balance + COALESCE(SUM(l.amount_due - l.amount_paid), 0) AS current_balance
         FROM public.personal_debt_customers c
         LEFT JOIN public.personal_debt_logs l
           ON l.customer_id = c.id AND l.company_id = c.company_id
         WHERE c.company_id = %s AND c.id = %s
-        GROUP BY c.id
+        GROUP BY c.id, c.opening_balance_date
         """,
         (company_id, customer_id),
         fetch=True,

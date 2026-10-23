@@ -2,14 +2,15 @@
 -- PostgreSQL database dump
 --
 
-\restrict dHnjGcJd18dF46bhmP90wZW5aisGs2AoPHaivXRO1i8WBi55MlEWQMgPKasZPGf
+\restrict Gs1RHaxJaitabgTapTg1ByCe1oVhl0iZnfB1qxUag4p6Nh99UI1Omg8edZIb4GZ
 
 -- Dumped from database version 15.19
--- Dumped by pg_dump version 15.19
+-- Dumped by pg_dump version 18.3
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
 SELECT pg_catalog.set_config('search_path', '', false);
@@ -457,7 +458,7 @@ CREATE SEQUENCE public.admin_seeds_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.admin_seeds_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.admin_seeds_id_seq OWNER TO postgres;
 
 --
 -- Name: admin_seeds_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -502,7 +503,7 @@ CREATE SEQUENCE public.administrative_commune_mappings_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.administrative_commune_mappings_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.administrative_commune_mappings_id_seq OWNER TO postgres;
 
 --
 -- Name: administrative_commune_mappings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -737,7 +738,7 @@ CREATE SEQUENCE public.camera_providers_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.camera_providers_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.camera_providers_id_seq OWNER TO postgres;
 
 --
 -- Name: camera_status_log; Type: TABLE; Schema: public; Owner: postgres
@@ -768,7 +769,7 @@ CREATE SEQUENCE public.camera_status_log_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.camera_status_log_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.camera_status_log_id_seq OWNER TO postgres;
 
 --
 -- Name: camera_status_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -838,7 +839,7 @@ CREATE SEQUENCE public.cameras_asset_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.cameras_asset_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.cameras_asset_id_seq OWNER TO postgres;
 
 --
 -- Name: cameras_asset_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -860,7 +861,7 @@ CREATE SEQUENCE public.cameras_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.cameras_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.cameras_id_seq OWNER TO postgres;
 
 --
 -- Name: cameras_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -898,7 +899,7 @@ CREATE SEQUENCE public.cargo_catalog_items_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.cargo_catalog_items_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.cargo_catalog_items_id_seq OWNER TO postgres;
 
 --
 -- Name: cargo_catalog_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -969,7 +970,7 @@ CREATE SEQUENCE public.cargo_invoice_bill_number_seq
     CACHE 1;
 
 
-ALTER TABLE public.cargo_invoice_bill_number_seq OWNER TO postgres;
+ALTER SEQUENCE public.cargo_invoice_bill_number_seq OWNER TO postgres;
 
 --
 -- Name: cargo_invoice_bill_number_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -991,7 +992,7 @@ CREATE SEQUENCE public.cargo_trips_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.cargo_trips_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.cargo_trips_id_seq OWNER TO postgres;
 
 --
 -- Name: cargo_trips_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1029,7 +1030,7 @@ CREATE SEQUENCE public.company_bank_accounts_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.company_bank_accounts_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.company_bank_accounts_id_seq OWNER TO postgres;
 
 --
 -- Name: company_bank_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1066,7 +1067,7 @@ CREATE SEQUENCE public.company_debt_accounts_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.company_debt_accounts_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.company_debt_accounts_id_seq OWNER TO postgres;
 
 --
 -- Name: company_debt_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1108,7 +1109,7 @@ CREATE SEQUENCE public.company_debt_logs_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.company_debt_logs_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.company_debt_logs_id_seq OWNER TO postgres;
 
 --
 -- Name: company_debt_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1150,7 +1151,7 @@ CREATE SEQUENCE public.door_providers_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.door_providers_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.door_providers_id_seq OWNER TO postgres;
 
 --
 -- Name: enterprise_asset_assignments; Type: TABLE; Schema: public; Owner: postgres
@@ -1190,7 +1191,7 @@ CREATE SEQUENCE public.enterprise_asset_assignments_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.enterprise_asset_assignments_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.enterprise_asset_assignments_id_seq OWNER TO postgres;
 
 --
 -- Name: enterprise_asset_assignments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1236,7 +1237,7 @@ CREATE SEQUENCE public.enterprise_assets_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.enterprise_assets_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.enterprise_assets_id_seq OWNER TO postgres;
 
 --
 -- Name: enterprise_assets_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1276,7 +1277,7 @@ CREATE SEQUENCE public.enterprise_departments_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.enterprise_departments_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.enterprise_departments_id_seq OWNER TO postgres;
 
 --
 -- Name: enterprise_departments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1323,7 +1324,7 @@ CREATE SEQUENCE public.enterprise_internal_advances_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.enterprise_internal_advances_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.enterprise_internal_advances_id_seq OWNER TO postgres;
 
 --
 -- Name: enterprise_internal_advances_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1364,7 +1365,7 @@ CREATE SEQUENCE public.inquiries_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.inquiries_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.inquiries_id_seq OWNER TO postgres;
 
 --
 -- Name: inquiries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1480,7 +1481,7 @@ CREATE SEQUENCE public.kyc_documents_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.kyc_documents_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.kyc_documents_id_seq OWNER TO postgres;
 
 --
 -- Name: kyc_documents_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1518,7 +1519,7 @@ CREATE SEQUENCE public.legal_hold_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.legal_hold_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.legal_hold_id_seq OWNER TO postgres;
 
 --
 -- Name: legal_hold_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1554,7 +1555,7 @@ CREATE SEQUENCE public.monthly_reports_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.monthly_reports_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.monthly_reports_id_seq OWNER TO postgres;
 
 --
 -- Name: monthly_reports_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1597,7 +1598,7 @@ CREATE SEQUENCE public.news_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.news_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.news_id_seq OWNER TO postgres;
 
 --
 -- Name: news_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1639,7 +1640,7 @@ CREATE SEQUENCE public.ocr_training_samples_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.ocr_training_samples_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.ocr_training_samples_id_seq OWNER TO postgres;
 
 --
 -- Name: ocr_training_samples_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1684,7 +1685,7 @@ CREATE SEQUENCE public.pending_plates_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.pending_plates_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.pending_plates_id_seq OWNER TO postgres;
 
 --
 -- Name: pending_plates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1707,7 +1708,8 @@ CREATE TABLE public.personal_debt_customers (
     opening_balance numeric(15,2) DEFAULT 0 NOT NULL,
     created_by integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    opening_balance_date date
 );
 
 
@@ -1725,7 +1727,7 @@ CREATE SEQUENCE public.personal_debt_customers_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.personal_debt_customers_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.personal_debt_customers_id_seq OWNER TO postgres;
 
 --
 -- Name: personal_debt_customers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1771,7 +1773,7 @@ CREATE SEQUENCE public.personal_debt_logs_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.personal_debt_logs_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.personal_debt_logs_id_seq OWNER TO postgres;
 
 --
 -- Name: personal_debt_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1813,7 +1815,7 @@ CREATE SEQUENCE public.personal_sale_items_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.personal_sale_items_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.personal_sale_items_id_seq OWNER TO postgres;
 
 --
 -- Name: personal_sale_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1864,7 +1866,7 @@ CREATE SEQUENCE public.personal_sales_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.personal_sales_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.personal_sales_id_seq OWNER TO postgres;
 
 --
 -- Name: personal_sales_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1905,7 +1907,7 @@ CREATE SEQUENCE public.plate_events_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.plate_events_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.plate_events_id_seq OWNER TO postgres;
 
 --
 -- Name: plate_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1953,7 +1955,7 @@ CREATE SEQUENCE public.plate_whitelist_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.plate_whitelist_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.plate_whitelist_id_seq OWNER TO postgres;
 
 --
 -- Name: plate_whitelist_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -1996,7 +1998,7 @@ CREATE SEQUENCE public.projects_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.projects_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.projects_id_seq OWNER TO postgres;
 
 --
 -- Name: projects_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2032,7 +2034,7 @@ CREATE SEQUENCE public.roles_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.roles_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.roles_id_seq OWNER TO postgres;
 
 --
 -- Name: roles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2076,7 +2078,7 @@ CREATE SEQUENCE public.rolling_doors_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.rolling_doors_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.rolling_doors_id_seq OWNER TO postgres;
 
 --
 -- Name: rolling_doors_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2116,7 +2118,7 @@ CREATE SEQUENCE public.sites_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.sites_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.sites_id_seq OWNER TO postgres;
 
 --
 -- Name: sites_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2159,7 +2161,7 @@ CREATE SEQUENCE public.staff_attendance_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.staff_attendance_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.staff_attendance_id_seq OWNER TO postgres;
 
 --
 -- Name: staff_attendance_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2204,7 +2206,7 @@ CREATE SEQUENCE public.staff_contracts_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.staff_contracts_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.staff_contracts_id_seq OWNER TO postgres;
 
 --
 -- Name: staff_contracts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2248,7 +2250,7 @@ CREATE SEQUENCE public.staff_leave_requests_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.staff_leave_requests_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.staff_leave_requests_id_seq OWNER TO postgres;
 
 --
 -- Name: staff_leave_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2289,7 +2291,7 @@ CREATE SEQUENCE public.staff_licenses_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.staff_licenses_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.staff_licenses_id_seq OWNER TO postgres;
 
 --
 -- Name: staff_licenses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2396,7 +2398,7 @@ CREATE SEQUENCE public.staff_work_history_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.staff_work_history_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.staff_work_history_id_seq OWNER TO postgres;
 
 --
 -- Name: staff_work_history_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2441,7 +2443,7 @@ CREATE SEQUENCE public.stranger_logs_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.stranger_logs_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.stranger_logs_id_seq OWNER TO postgres;
 
 --
 -- Name: stranger_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2480,7 +2482,7 @@ CREATE SEQUENCE public.telegram_bots_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.telegram_bots_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.telegram_bots_id_seq OWNER TO postgres;
 
 --
 -- Name: telegram_bots_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2577,7 +2579,7 @@ CREATE SEQUENCE public.transport_contracts_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.transport_contracts_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.transport_contracts_id_seq OWNER TO postgres;
 
 --
 -- Name: transport_contracts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2695,7 +2697,7 @@ CREATE SEQUENCE public.transport_input_invoices_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.transport_input_invoices_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.transport_input_invoices_id_seq OWNER TO postgres;
 
 --
 -- Name: transport_input_invoices_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2777,7 +2779,7 @@ CREATE SEQUENCE public.transport_service_accounts_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.transport_service_accounts_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.transport_service_accounts_id_seq OWNER TO postgres;
 
 --
 -- Name: transport_service_accounts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2835,7 +2837,7 @@ CREATE SEQUENCE public.users_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.users_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
 
 --
 -- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2922,7 +2924,7 @@ CREATE SEQUENCE public.vehicle_sessions_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.vehicle_sessions_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.vehicle_sessions_id_seq OWNER TO postgres;
 
 --
 -- Name: vehicle_sessions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -2966,7 +2968,7 @@ CREATE SEQUENCE public.video_recordings_id_seq
     CACHE 1;
 
 
-ALTER TABLE public.video_recordings_id_seq OWNER TO postgres;
+ALTER SEQUENCE public.video_recordings_id_seq OWNER TO postgres;
 
 --
 -- Name: video_recordings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
@@ -17705,275 +17707,12 @@ COPY public.pending_plates (id, pending_id, event_id, plate_raw, plate_norm, fir
 -- Data for Name: personal_debt_customers; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.personal_debt_customers (id, company_id, customer_code, full_name, phone, address, opening_balance, created_by, created_at, updated_at) FROM stdin;
-2	52	hien	C Hiện			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-3	52	do	C Đô			180991000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-4	52	huongdai	C Đại Hướng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-5	52	nampt	C Nam PT			54976000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-6	52	dienchuyen	B Diễn Chuyên			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-7	52	cuongthach	C Cường Thạch			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-8	52	tanlun	C Tân lùn			-3672000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-9	52	mendo	Cty Mendo			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-10	52	huytuan	C Huy Sơn Tây			40231000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-11	52	nhat	C Nhất			156360000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-12	52	khulinh	C Khu Linh			425267000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-13	52	bban	B Bạn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-15	52	dangvu	B Đảng Vụ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-16	52	hunghuong	C Hùng Hương Trạm Cân			67035000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-17	52	vinhhg	B Vinh HG			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-18	52	btinh	Cty TBH			9825000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-19	52	hungdlo	B Hưng Đlô			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-20	52	tulangson	C Tư Lạng Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-21	52	vumau	B Vụ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-22	52	thangvyen	B Thắng Vĩnh Yên			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-23	52	lylanh	C Lý Lành			152931000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-24	52	trongyl	C Trọng YL			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-25	52	hoangyl	C Hoàng YL			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-26	52	anhuong	C An Hương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-28	52	huonghung	C Hướng Hùng YL			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-29	52	thudung	C Thu Dũng			71539000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-30	52	my	C Mỹ Thanh Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-31	52	tuongmo	C Tưởng Mơ			54768000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-32	52	trinhdlo	C Trình Đông Lỗ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-33	52	hanhcanh	C Hành Cảnh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-34	52	duylamxuong	C Duy LN			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-35	52	trungyl	C Trung YL			570000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-36	52	dunglinh	Cty Dũng Linh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-37	52	hientt	C Hiển Tứ Trưng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-38	52	quanmen	C Quân Mến			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-39	52	phongtinh	C Phong Ván Be			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-40	52	tanhuyen	C Tân Huyền			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-41	52	dongluyen	C Đông Luyến			10000000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-42	52	but	B Bút			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-43	52	ngocmoda	C Ngọc Mỏ Đá			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-44	52	binhtham	A Bình Thắm			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-45	52	quoccuong	Zalo Quốc Cường			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-46	52	hunganh	C Hùng Anh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-47	52	binhyb	C Bình YB			72697000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-48	52	vuongle	C Vượng Lê			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-49	52	luc	C Lực			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-50	52	thiyb	C Thi YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-51	52	tuantq	C Tuân TQ			43650000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-52	52	att	Cty ATT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-53	52	lytu	C Lý Tú			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-55	52	thanhhong	B Thành Hồng			29050000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-56	52	thongyb	C Thông YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-57	52	thangthanhson	B Thắng Thanh Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-58	52	thangloc	C Thắng Lộc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-59	52	sonmaua	B Sơn Mậu A			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-60	52	huyenvu	C Huyền Vũ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-61	52	hoahatay	B Hoà Hà Tây			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-63	52	nhungthang	C Nhung Thắng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-64	52	vuhoang	C Vũ Hoàng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-65	52	huongthang	C Hương Thắng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-66	52	hanhtrung	C Hạnh Trung			41539000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-67	52	duongmanh	B Mạnh ĐH			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-68	52	cuongdung	C Cường Dung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-69	52	btao	B Tạo			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-70	52	manhhatson	Zalo Mạnh Hà TS			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-71	52	binhhoa	C Bình Hoa			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-72	52	manhvp	zalo Mạnh Vĩnh Phúc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-73	52	thanhthang	Cty Thành Thắng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-74	52	hungthanhba	C Hùng Thanh Ba			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-75	52	truongtan	C Trường Tấn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-76	52	ngavoi	B Ngà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-77	52	tuanhang	C Tuấn Hằng mậu a			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-78	52	caolong	ZL Cao Long			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-79	52	namdung	C Nam Dung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-80	52	miennv	Zalo Miên NV			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-81	52	quandaidong	C Quân Đại Đồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-82	52	truongtson	C Trường Thanh Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-84	52	thanghan	B Thắng Hân			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-85	52	thuanbx	C Thuận BX			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-86	52	thangbaolac	Thắng Bảo Lạc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-87	52	hoangnam	C Nam chợ Vàng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-83	52	nhanhyb	C Nhanh YB			232192000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-62	52	thanglangson	B Thắng Lạng Sơn			20000000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 15:47:56.897202+00
-88	52	tuongtrungha	B Tưởng Trung Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-89	52	thanhthanh	Thanh Thành			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-90	52	cuongha	C Cường Hà			8009000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-91	52	tanthang	C Tấn Thắng YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-92	52	halaocai	B Hà Lào Cai			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-93	52	hungsang	C Hưng Lan			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-94	52	huypt	C Huy Phú Thọ			14807000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-95	52	bduong	Bác Đương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-96	52	tanhuong	Tấn Hương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-97	52	zin	C Zin Huế			431335000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-98	52	bienthuy	C Biên Thuỳ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-99	52	dungthao	C Dũng Thảo T.Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-100	52	hueanh	B Huệ Anh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-101	52	khanhbomtec	C Khanh Bom Téc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-102	52	thanhhuyentq	C Thành Huyền TQ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-103	52	tuyencaodai	C Tuyên Cao Đại			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-104	52	hoantan	C Hoàn Tần TQ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-105	52	duoc	C Được TN			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-106	52	teo	Cty Đá Mỹ Lung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-107	52	trungduong	B Trung Dương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-108	52	halam	B Hà Lâm			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-109	52	vinhnguyen	Zalo Vinh Nguyễn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-110	52	thungat	C Thư Ngát			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-111	52	manhnguyen	Zalo Mạnh Nguyễn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-112	52	quyetdinh	Zalo Quyết Định			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-113	52	thuongthiet	C Thường Thiết LC			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-114	52	phongmai	C Phong Mai			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-115	52	luanhuong	C Luân Hương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-116	52	huongtuansla	C Hương Tuấn Sơn La			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-117	52	vantuan	C Vân Tuấn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-118	52	quocphi	Zalo Quốc Phi			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-119	52	huudaidong	C Hữu đại đồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-120	52	huongquyen	C Hương Quyền			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-122	52	cuongmai	C Cường Mai YL			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-123	52	hoplucphat	Cty Hợp Lực Phát			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-124	52	tuanvp	C Tuấn VP			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-125	52	phuongngoc	C Phương Ngọc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-126	52	giangvan	C Giang Vân ĐH			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-127	52	haihoi	C Hải Hội			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-128	52	mayduan	C Mây Duẩn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-129	52	duchg	C Đức Hà Giang			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-130	52	manhhc	C Mạnh Hương Canh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-131	52	dongdlo	C Đông Đông Lỗ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-132	52	sulamthao	C Sự Lâm Thao			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-133	52	concamkhe	C Côn Cẩm Khê			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-134	52	khoaphuong	C Khoa Phượng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-135	52	truongviettri	C Trường Việt trì			293000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-136	52	truongsinh	C Trường Sinh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-137	52	simhoangxa	C Sim Hoàng xá			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-138	52	cuongoanh	Cường oanh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-139	52	trinhnguyen	Zalo Trình Nguyễn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-140	52	daoquocchi	Zalo Đào quốc chí			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-141	52	mua	C Mùa Trung Nguyên			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-143	52	thamdong	C Thắm Đồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-144	52	thomhoi	C Thơm Hợi			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-145	52	manhthang	Zalo Mạnh Thắng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-146	52	thongdaidong	C Thông Đại Đồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-147	52	cuongloan	C Cường loan			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-148	52	maivtri	C Mai Việt Trì			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-149	52	thothu	B Thọ Thu			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-150	52	trungnguyen	A Trung Lào Cai			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-151	52	tienly	C Tiến Lý			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-152	52	nguyendoanh	ZL Nguyễn Doanh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-153	52	hangkhoa	C Hằng Khoa TS			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-154	52	trungnghean	B Trung Nghệ An			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-155	52	zoan	B Roan Cổ Đô			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-156	52	huanmaua	Zalo Lương Huân			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-157	52	quynuong	B Quý Nương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-158	52	huonghopcot	C Hương Hộp cột			262174000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-159	52	mta	Cty MTA			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-160	52	huongkhanhlc	C Hương Khanh LC			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-161	52	namdunglinh	C Nam Dũng Linh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-162	52	phuongthanhson	B Phương thanh sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-163	52	haidaidong	C Hải Đại Đồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-164	52	nguyenhien	C Nguyễn Hiền			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-165	52	HNA	Zalo Hà Ngọc Anh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-166	52	huylienpt	Cty Huy Liên PT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-167	52	phanan	C Phan An			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-168	52	nguyensang	Cty Trường Biện			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-169	52	tamtuanlc	C Tâm Tuấn LC			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-170	52	manhtrungha	C Mạnh Trung Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-171	52	andoan	An Doan TT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-172	52	khuyenanh	C Khuyên Anh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-173	52	tuandoanhung	C Tuấn Đoan Hùng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-174	52	ban	Zalo Ng Văn Bản			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-175	52	chunguyen	C Nguyên LX			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-176	52	toanyl	C Toàn YL			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-177	52	anphatloc	C An Phát Lộc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-178	52	minhluong	C Lực Lượng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-179	52	manhtt	C Mạnh Thổ Tang			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-180	52	letuyen	C Lê Tuyến			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-181	52	thanhviettri	B Thành Việt Trì			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-182	52	tuyb	C Tư YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-183	52	minhhuyen	C Minh Huyền			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-184	52	ctyphuha	Cty Phú Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-185	52	phuckhuc	C Phúc Khúc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-186	52	letuan	C Lê Tuấn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-187	52	tuanhatq	C Tuấn Hà TQ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-188	52	doduyen	C Đỗ Duyến			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-189	52	quangtrung	Cơ khí Quang Trung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-190	52	vanminh	Cơ khí Văn Minh			14280000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-191	52	thiencamkhe	C Thiên Cẩm Khê			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-192	52	duyvinh	Zalo Duy Vĩnh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-193	52	tiendinh	C Tiến Định			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-194	52	manhtson	C Mạnh Thanh Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-195	52	dathong	C Đạt Hồng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-196	52	thuanvan	Zalo Thuấn Vân			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-197	52	baonam	Cơ khí Bảo Nam			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-198	52	quangkhai	Zalo Quang Khải			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-199	52	toanmelinh	B Toàn Mê Linh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-200	52	thaodoanhung	C Thảo Đoan Hùng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-201	52	dieptrungha	B Điệp Trung Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-202	52	kienpt	C Kiên PT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-203	52	khachle	Khách lẻ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-204	52	vinhmelinh	C Vinh Mê Linh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-205	52	sonpt	C Sơn PT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-206	52	ducthanhson	A Đức thanh sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-207	52	tuanthanhson	C Tuấn thanh sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-208	52	xuanthanhson	B Xuân thanh sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-209	52	luongduyen	C Lượng Duyên			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-210	52	quantq	C Quân TQ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-211	52	netma	Cty NETMA			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-212	52	luuthu	C Lưu Thư			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-213	52	huancokhi	A Huân Cơ khí			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-214	52	tuyenrupi	C Tuyến RUPI			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-215	52	tuantrinh	C Tuân Trình			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-216	52	oanhcanh	C Oanh Cảnh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-217	52	mdchung	ZL MD Thanh Chung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-218	52	vudaivy	C Vũ Đại Vỹ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-219	52	thanhhatq	C Thành Hà TQ			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-220	52	nguyenhoi	C Nguyên Hợi			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-221	52	tecon88	Cty TECON88			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-222	52	thaihoang	Cty Thái Hoàng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-223	52	hungluyen	C Hưng Luyến			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-224	52	vanthang	Cty Vạn Thắng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-225	52	vietphap	Cty Việt Pháp (C Linh)			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-226	52	phuloc	Cty Phú Lộc (A Kiên)			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-227	52	anhtai	Zalo Anh Tài			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-228	52	nghialinh	C Nghĩa Linh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-229	52	hieuvu	B Hiệu TT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-230	52	tinhtrang	C Tính Trang			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-231	52	ANP	Cty ANP			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-232	52	ductrung	Đức Trung			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-233	52	phamngocha	ZL Phạm Ngọc Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-234	52	luudoan	ZL Lưu Đoàn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-235	52	hongtran	A Hồng Trân			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-236	52	so1phuongnam	Cty Số 1 Phương Nam			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-237	52	vanveo	Chú Văn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-238	52	manhcokhi	C Mạnh cơ khí			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-239	52	chienhang	C Chiến Hằng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-240	52	haitrungha	B Hải Trung Hà			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-241	52	trantiendung	Cty CNC PT (A Dũng)			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-242	52	phandinhquy	ZL Phan Đình Quý			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-243	52	ngahoi	C Nga Hội			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-244	52	ngathai	C Nga Thái			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-245	52	huanyen	C Huân Yến			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-246	52	dinhtancuong	C Đinh Tấn Cường			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-247	52	hoangngoc	Cty ASMC			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-248	52	quyhanh	C Quý Hạnh YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-249	52	kiencaodai	C Kiên Cao Đại			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-250	52	tientrang	Gala Tiên Trang			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-251	52	truongbien	Cty Trường Biện			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-252	52	khoimaua	C Khôi Mậu A			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-253	52	mamlac	C Mậm Lạc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-254	52	lamlamthao	A Lâm Lâm Thao			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-255	52	suchiemhoa	C Sự Chiêm Hoá			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-256	52	kiemsong	Zalo Kiếm Sống			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-257	52	diepanhung	Cty An Hưng			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-258	52	thaotho	B Thảo Thọ TT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-259	52	hungmayxuc	C Hưng Máy Xúc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-260	52	hathuhuong	Zalo Hà Thu Hương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-261	52	hiensla	A Hiển Sơn La			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-262	52	dangthanhnhan	Zalo Đặng Thanh Nhàn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-263	52	hoangthanhson	C Hoàng Thanh Sơn			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-264	52	hungnguyen	C Hưng Đồng Lạc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-265	52	minhnga	C Minh Nga VT			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-266	52	longdlac	C Long Đồng Lạc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-267	52	tuantn	C Tuấn TN			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-268	52	ductrungyb	C Đức Trung YB			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-269	52	lequyet	Zalo Lê Quyết			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-270	52	dailammoc	ZL Đại Lâm Mộc			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-271	52	donguyen	ZL Đô Nguyên			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-272	52	10thuong	ZL Mười Thương			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-273	52	dungminh	C Dung Minh			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
-274	52	chiendao	C Chiến Đào			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00
+COPY public.personal_debt_customers (id, company_id, customer_code, full_name, phone, address, opening_balance, created_by, created_at, updated_at, opening_balance_date) FROM stdin;
+40	52	tanhuyen	C Tân Huyền			5444000.00	1	2026-10-22 07:02:02.858813+00	2026-10-23 00:53:49.836789+00	\N
+17	52	vinhhg	B Vinh HG			0.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00	\N
+83	52	nhanhyb	C Nhanh YB			232192000.00	1	2026-10-22 07:02:02.858813+00	2026-10-22 07:02:02.858813+00	\N
+279	52	chien	C Hiện			-159145000.00	1	2026-10-23 01:59:05.423755+00	2026-10-23 01:59:05.423755+00	\N
+232	52	ductrung	Đức Trung			73430000.00	1	2026-10-22 07:02:02.858813+00	2026-10-23 00:57:20.267438+00	2026-09-30
 \.
 
 
@@ -17982,10 +17721,8 @@ COPY public.personal_debt_customers (id, company_id, customer_code, full_name, p
 --
 
 COPY public.personal_debt_logs (id, company_id, customer_id, invoice_number, transaction_date, amount_due, amount_paid, received_from, note, created_by, created_at, import_key, sale_id) FROM stdin;
-73	52	83	3026	2026-10-17	68843000.00	100000000.00	Tiền mặt		\N	2026-10-22 10:59:50.852256+00	\N	\N
-59	52	40	3027	2026-02-25	0.00	7056000.00		lấy ống 273 : 420kgx16,8đ	1	2026-10-22 07:02:02.858813+00	43606ded0acaedd5a90bb753f62e57f454f3bb0b0e48fa3574bd4548afe7ffca	\N
 60	52	17	3027	2026-02-25	0.00	66486000.00	Cty Phương Nam	hết nợ	1	2026-10-22 07:02:02.858813+00	f7d939b4c08911e352ad3bd74378954957c601c23d770c5511195ff3003ba6a3	\N
-79	52	232	3027	2026-10-22	17640000.00	0.00	Tiền mặt	Giá ko vat	1	2026-10-22 15:56:05.45056+00	\N	68
+84	52	232	3027	2026-10-22	16586000.00	0.00	Tiền mặt		1	2026-10-23 00:43:34.305512+00	\N	73
 \.
 
 
@@ -17994,8 +17731,8 @@ COPY public.personal_debt_logs (id, company_id, customer_id, invoice_number, tra
 --
 
 COPY public.personal_sale_items (id, sale_id, product_name, unit, quantity, unit_price, line_total, created_at, weigh_code, gross_weight, tare_weight) FROM stdin;
-195	68	Nhám 5ly 6m 2T	Kg	770.000	16500.00	12705000.00	2026-10-22 15:59:39.253717+00		875.000	105.000
-196	68	Nhám 8ly 3m 1T	Kg	282.000	17500.00	4935000.00	2026-10-22 15:59:39.253717+00		320.000	38.000
+208	73	Nhám 5ly 6m 2T	Kg	704.000	16500.00	11616000.00	2026-10-23 00:43:34.305512+00		808.000	104.000
+209	73	Nhám 8ly 3m 1T	Kg	284.000	17500.00	4970000.00	2026-10-23 00:43:34.305512+00		326.000	42.000
 \.
 
 
@@ -18004,7 +17741,7 @@ COPY public.personal_sale_items (id, sale_id, product_name, unit, quantity, unit
 --
 
 COPY public.personal_sales (id, company_id, customer_id, invoice_number, sale_date, customer_code, customer_name, customer_phone, customer_address, carrier, note, total_amount, paid_on_sale, payment_source, created_by, source_invoice_number, source_key, created_at, updated_at, status) FROM stdin;
-68	52	232	3027	2026-10-22	ductrung	Đức Trung				Giá ko vat	17640000.00	0.00	Tiền mặt	1	3027	\N	2026-10-22 15:56:05.45056+00	2026-10-22 15:56:05.45056+00	delivered
+73	52	232	3027	2026-10-22	ductrung	Đức Trung					16586000.00	0.00	Tiền mặt	1	3027	\N	2026-10-23 00:43:34.305512+00	2026-10-23 00:43:34.305512+00	delivered
 \.
 
 
@@ -18550,28 +18287,28 @@ SELECT pg_catalog.setval('public.pending_plates_id_seq', 52, true);
 -- Name: personal_debt_customers_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.personal_debt_customers_id_seq', 277, true);
+SELECT pg_catalog.setval('public.personal_debt_customers_id_seq', 279, true);
 
 
 --
 -- Name: personal_debt_logs_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.personal_debt_logs_id_seq', 79, true);
+SELECT pg_catalog.setval('public.personal_debt_logs_id_seq', 84, true);
 
 
 --
 -- Name: personal_sale_items_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.personal_sale_items_id_seq', 196, true);
+SELECT pg_catalog.setval('public.personal_sale_items_id_seq', 209, true);
 
 
 --
 -- Name: personal_sales_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.personal_sales_id_seq', 68, true);
+SELECT pg_catalog.setval('public.personal_sales_id_seq', 73, true);
 
 
 --
@@ -20557,5 +20294,5 @@ ALTER TABLE ONLY public.zalo_trip_requests
 -- PostgreSQL database dump complete
 --
 
-\unrestrict dHnjGcJd18dF46bhmP90wZW5aisGs2AoPHaivXRO1i8WBi55MlEWQMgPKasZPGf
+\unrestrict Gs1RHaxJaitabgTapTg1ByCe1oVhl0iZnfB1qxUag4p6Nh99UI1Omg8edZIb4GZ
 

@@ -8,6 +8,7 @@ import mimetypes
 from pathlib import Path
 import re
 from typing import Optional
+import unicodedata
 import urllib.parse
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -101,12 +102,38 @@ def _personal_month_range(value: str | None = None) -> tuple[str, date, date]:
     return month_start.strftime("%Y-%m"), month_start, month_end
 
 
+def _parse_opening_balance(val: str) -> Decimal:
+    if not val:
+        return Decimal("0")
+    s = str(val).strip().replace(" ", "").replace(",", "")
+    is_neg = s.startswith("-")
+    clean_digits = re.sub(r"[^\d]", "", s)
+    if not clean_digits:
+        return Decimal("0")
+    d = Decimal(clean_digits)
+    return -d if is_neg else d
+
+
+def _parse_date_optional(val: str) -> date | None:
+    if not val:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
 def _personal_row_json(row: dict) -> dict:
     result = dict(row)
     for key in ("opening_balance", "month_due", "month_paid", "current_balance", "amount_due", "amount_paid"):
         if key in result and result[key] is not None:
             result[key] = float(Decimal(str(result[key])))
-    for key in ("last_transaction_date", "transaction_date", "created_at"):
+    for key in ("last_transaction_date", "transaction_date", "created_at", "opening_balance_date"):
         value = result.get(key)
         if value and hasattr(value, "isoformat"):
             result[key] = value.isoformat()
@@ -976,7 +1003,11 @@ async def enterprise_debts_page(
             customer["last_transaction_date_str"] = value.strftime("%d/%m/%Y") if hasattr(value, "strftime") else str(value)
             customer["is_opening_date"] = False
         else:
-            if op_bal > 0:
+            if customer.get("opening_balance_date"):
+                ob_d = customer["opening_balance_date"]
+                customer["last_transaction_date_str"] = ob_d.strftime("%d/%m/%Y") if hasattr(ob_d, "strftime") else str(ob_d)
+                customer["is_opening_date"] = True
+            elif op_bal > 0:
                 customer["last_transaction_date_str"] = month_start_str
                 customer["is_opening_date"] = True
             else:
@@ -1471,7 +1502,11 @@ async def personal_debt_customers_api(
             customer["last_transaction_date_str"] = value.strftime("%d/%m/%Y") if hasattr(value, "strftime") else str(value)
             customer["is_opening_date"] = False
         else:
-            if op_bal > 0:
+            if customer.get("opening_balance_date"):
+                ob_d = customer["opening_balance_date"]
+                customer["last_transaction_date_str"] = ob_d.strftime("%d/%m/%Y") if hasattr(ob_d, "strftime") else str(ob_d)
+                customer["is_opening_date"] = True
+            elif op_bal > 0:
                 customer["last_transaction_date_str"] = month_start_str
                 customer["is_opening_date"] = True
             else:
@@ -1536,6 +1571,7 @@ async def personal_debt_customer_create(
     phone: str = Form(""),
     address: str = Form(""),
     opening_balance: str = Form("0"),
+    opening_balance_date: str = Form(""),
     user: dict = Depends(require_menu("debts")),
 ):
     company_id = _personal_debt_company_id(request, user)
@@ -1558,11 +1594,10 @@ async def personal_debt_customer_create(
             code = f"{base_code}_{idx}"
             idx += 1
     try:
-        opening = Decimal(opening_balance.strip() or "0")
-        if not opening.is_finite():
-            raise ValueError("Số dư không hợp lệ")
+        opening = _parse_opening_balance(opening_balance)
+        ob_date = _parse_date_optional(opening_balance_date)
         customer = personal_debt_service.create_customer(
-            company_id, code, name, phone.strip(), address.strip(), opening, user.get("id")
+            company_id, code, name, phone.strip(), address.strip(), opening, user.get("id"), ob_date
         )
     except Exception as exc:
         logger.exception("Could not create personal debt customer")
@@ -1580,6 +1615,7 @@ async def personal_debt_customer_edit(
     phone: str = Form(""),
     address: str = Form(""),
     opening_balance: str = Form("0"),
+    opening_balance_date: str = Form(""),
     user: dict = Depends(require_menu("debts")),
 ):
     company_id = _personal_debt_company_id(request, user)
@@ -1587,11 +1623,10 @@ async def personal_debt_customer_edit(
     if not company_id or not code or not name:
         return JSONResponse({"ok": False, "message": "Vui lòng nhập mã và tên khách hàng."}, status_code=400)
     try:
-        opening = Decimal(opening_balance.strip() or "0")
-        if not opening.is_finite():
-            raise ValueError("Số dư không hợp lệ")
+        opening = _parse_opening_balance(opening_balance)
+        ob_date = _parse_date_optional(opening_balance_date)
         customer = personal_debt_service.update_customer(
-            company_id, customer_id, code, name, phone.strip(), address.strip(), opening
+            company_id, customer_id, code, name, phone.strip(), address.strip(), opening, ob_date
         )
     except Exception as exc:
         logger.exception("Could not update personal debt customer")
@@ -2217,7 +2252,10 @@ async def enterprise_sales_invoice_pdf(
         company_id, sale.get("customer_id"), sale_date, sale["invoice_number"]
     )
     if last_date:
-        prev_date_day_month = last_date.strftime("%d/%m")
+        if last_date.year != sale_date.year:
+            prev_date_day_month = last_date.strftime("%d/%m/%Y")
+        else:
+            prev_date_day_month = last_date.strftime("%d/%m")
     else:
         prev_date = sale_date - timedelta(days=1)
         prev_date_day_month = prev_date.strftime("%d/%m")

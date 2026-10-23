@@ -842,7 +842,8 @@ def get_sale_previous_debt(company_id: int, customer_id: int | None, sale_date, 
         row = db._execute_query(
             """
             SELECT c.opening_balance + COALESCE(SUM(l.amount_due - l.amount_paid), 0) AS old_debt,
-                   MAX(l.transaction_date) AS last_date
+                   MAX(l.transaction_date) AS last_date,
+                   c.opening_balance_date
             FROM public.personal_debt_customers c
             LEFT JOIN public.personal_debt_logs l
               ON l.company_id = c.company_id AND l.customer_id = c.id
@@ -851,7 +852,7 @@ def get_sale_previous_debt(company_id: int, customer_id: int | None, sale_date, 
                   OR (l.transaction_date = %s AND l.id < %s)
               )
             WHERE c.company_id = %s AND c.id = %s
-            GROUP BY c.id, c.opening_balance
+            GROUP BY c.id, c.opening_balance, c.opening_balance_date
             """,
             (sale_date, sale_date, log_id, company_id, customer_id),
             fetch=True, commit=False
@@ -860,7 +861,8 @@ def get_sale_previous_debt(company_id: int, customer_id: int | None, sale_date, 
         row = db._execute_query(
             """
             SELECT c.opening_balance + COALESCE(SUM(l.amount_due - l.amount_paid), 0) AS old_debt,
-                   MAX(l.transaction_date) AS last_date
+                   MAX(l.transaction_date) AS last_date,
+                   c.opening_balance_date
             FROM public.personal_debt_customers c
             LEFT JOIN public.personal_debt_logs l
               ON l.company_id = c.company_id AND l.customer_id = c.id
@@ -869,13 +871,18 @@ def get_sale_previous_debt(company_id: int, customer_id: int | None, sale_date, 
                   OR (l.transaction_date = %s AND l.invoice_number != %s)
               )
             WHERE c.company_id = %s AND c.id = %s
-            GROUP BY c.id, c.opening_balance
+            GROUP BY c.id, c.opening_balance, c.opening_balance_date
             """,
             (sale_date, sale_date, invoice_number, company_id, customer_id),
             fetch=True, commit=False
         )
     if row and row.get("old_debt") is not None:
-        return Decimal(str(row["old_debt"])), row.get("last_date")
+        last_dt = row.get("last_date")
+        ob_dt = row.get("opening_balance_date")
+        effective_date = last_dt or ob_dt
+        if last_dt and ob_dt:
+            effective_date = max(last_dt, ob_dt)
+        return Decimal(str(row["old_debt"])), effective_date
     return Decimal("0"), None
 
 

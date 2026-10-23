@@ -285,11 +285,11 @@
         </tr>
         {% endfor %}
 
-        <tr>
-          <td colspan="{{ summary_colspan }}" class="summary-label">
+        <tr style="font-weight: bold;">
+          <td colspan="{{ summary_colspan }}" class="summary-label" style="font-weight: bold;">
             Cộng tiền hàng ngày {{ sale_date_day_month }}
           </td>
-          <td class="summary-val">{{ sale.invoice_total_fmt }}</td>
+          <td class="summary-val" style="font-weight: bold;">{{ sale.invoice_total_fmt }}</td>
         </tr>
         <tr>
           <td colspan="{{ summary_colspan }}" class="summary-label">
