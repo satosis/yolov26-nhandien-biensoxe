@@ -184,8 +184,11 @@
           </div>
 
           <div class="d-flex align-items-center justify-content-between mb-1">
-            <strong class="small">Mặt hàng</strong>
-            <button type="button" class="btn btn-sm btn-light border" id="addSaleItem">+ Thêm dòng</button>
+            <strong class="small">Mặt hàng & Khoản phát sinh</strong>
+            <div>
+              <button type="button" class="btn btn-sm btn-light border mr-1" id="addSaleItem">+ Thêm hàng hóa</button>
+              <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold" id="addSaleSurcharge">+ Thêm phát sinh (cước xe, sơn...)</button>
+            </div>
           </div>
           <div class="table-responsive border rounded">
             <table class="table table-sm mb-0">
@@ -482,30 +485,31 @@
       rows.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">' + escapeHtml(error.message) + '</td></tr>';
     }
   }
-  function addItemRow(item) {
+  function addItemRow(item, isSurcharge = false) {
+    const isSurch = isSurcharge || Boolean(item && Number(item.quantity || 0) <= 0 && Number(item.line_total || 0) > 0);
     const tr = document.createElement('tr');
     tr.innerHTML = '<td class="text-center text-muted align-middle sale-item-stt"></td>' +
-      '<td><input class="form-control form-control-sm sale-item-name" maxlength="255" placeholder="Tên hàng..."></td>' +
-      '<td><input class="form-control form-control-sm sale-item-unit" maxlength="80" value="Kg"></td>' +
+      '<td><input class="form-control form-control-sm sale-item-name" maxlength="255" placeholder="' + (isSurch ? 'Khoản phát sinh (cước xe, sơn, v.v.)...' : 'Tên hàng...') + '"></td>' +
+      '<td><input class="form-control form-control-sm sale-item-unit" maxlength="80" value="' + (isSurch ? '' : 'Kg') + '" placeholder="ĐVT"></td>' +
       '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-gross" placeholder="Tổng kg"></td>' +
       '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-tare" placeholder="Bì kg"></td>' +
-      '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-quantity" placeholder="1"></td>' +
+      '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-quantity" placeholder="0"></td>' +
       '<td><input type="text" inputmode="numeric" class="form-control form-control-sm sale-item-price" placeholder="0"></td>' +
       '<td><input type="text" inputmode="numeric" class="form-control form-control-sm text-right font-weight-bold sale-item-total-input" placeholder="0"></td>' +
       '<td class="align-middle"><button type="button" class="btn btn-sm btn-light border js-remove-sale-item" aria-label="Xóa dòng">×</button></td>';
     if (item) {
       tr.querySelector('.sale-item-name').value = item.product_name || '';
-      tr.querySelector('.sale-item-unit').value = item.unit != null && item.unit !== '' ? item.unit : 'Kg';
-      if (item.gross_weight != null && item.gross_weight !== '') {
+      tr.querySelector('.sale-item-unit').value = item.unit != null ? item.unit : '';
+      if (item.gross_weight != null && item.gross_weight !== '' && Number(item.gross_weight) > 0) {
         tr.querySelector('.sale-item-gross').value = item.gross_weight;
       }
-      if (item.tare_weight != null && item.tare_weight !== '') {
+      if (item.tare_weight != null && item.tare_weight !== '' && Number(item.tare_weight) > 0) {
         tr.querySelector('.sale-item-tare').value = item.tare_weight;
       }
-      if (item.quantity != null && item.quantity !== '') {
+      if (item.quantity != null && item.quantity !== '' && Number(item.quantity) > 0) {
         tr.querySelector('.sale-item-quantity').value = item.quantity;
       }
-      if (item.unit_price != null && item.unit_price !== '') {
+      if (item.unit_price != null && item.unit_price !== '' && Number(item.unit_price) > 0) {
         tr.querySelector('.sale-item-price').value = formatVND(item.unit_price);
       }
       const totalVal = item.line_total != null ? item.line_total : (Number(item.quantity || 0) * Number(item.unit_price || 0));
@@ -546,14 +550,10 @@
     function syncFromTotal() {
       totalInput.dataset.manual = 'true';
       const totalVal = parseVND(totalInput.value);
-      let qty = parseFloat(qtyInput.value) || 0;
-      if (qty <= 0) {
-        qty = 1;
-        qtyInput.value = 1;
-      }
-      if (totalVal > 0) {
+      const qty = parseFloat(qtyInput.value) || 0;
+      if (qty > 0 && totalVal > 0) {
         priceInput.value = formatVND(Math.round(totalVal / qty));
-      } else {
+      } else if (qty <= 0) {
         priceInput.value = '';
       }
       calculateTotal();
@@ -565,6 +565,9 @@
     attachVNDInput(priceInput, syncFromQtyOrPrice);
     attachVNDInput(totalInput, syncFromTotal);
     tr.querySelectorAll('input').forEach(input => input.addEventListener('input', calculateTotal));
+    if (isSurch) {
+      setTimeout(() => tr.querySelector('.sale-item-total-input').focus(), 50);
+    }
     calculateTotal();
   }
   function lineTotal(row) {
@@ -589,12 +592,22 @@
     let hasGross = false;
     let hasTare = false;
     let mainUnit = 'kg';
+    let sttCounter = 0;
 
-    document.querySelectorAll('#saleItemRows tr').forEach((row, idx) => {
-      const sttCell = row.querySelector('.sale-item-stt');
-      if (sttCell) sttCell.textContent = idx + 1;
-
+    document.querySelectorAll('#saleItemRows tr').forEach(row => {
       const qty = Number(row.querySelector('.sale-item-quantity')?.value || 0);
+      const val = lineTotal(row);
+      const isSurch = qty <= 0 && val > 0;
+      const sttCell = row.querySelector('.sale-item-stt');
+      if (sttCell) {
+        if (!isSurch) {
+          sttCounter++;
+          sttCell.textContent = sttCounter;
+        } else {
+          sttCell.textContent = '—';
+        }
+      }
+
       totalQty += qty;
 
       const u = (row.querySelector('.sale-item-unit')?.value || '').trim();
@@ -611,8 +624,7 @@
         hasTare = true;
       }
 
-      const value = lineTotal(row);
-      total += value;
+      total += val;
     });
 
     const qtyFormatted = formatQty(totalQty);
@@ -778,6 +790,10 @@
     $('#saleModal').modal('show');
   });
   document.getElementById('addSaleItem').addEventListener('click', () => addItemRow());
+  const addSaleSurchargeBtn = document.getElementById('addSaleSurcharge');
+  if (addSaleSurchargeBtn) {
+    addSaleSurchargeBtn.addEventListener('click', () => addItemRow(null, true));
+  }
   document.getElementById('saleItemRows').addEventListener('click', function (event) {
     const button = event.target.closest('.js-remove-sale-item');
     if (!button) return;
@@ -798,7 +814,7 @@
     const items = Array.from(document.querySelectorAll('#saleItemRows tr'))
       .map(row => {
         const name = (row.querySelector('.sale-item-name')?.value || '').trim();
-        const unit = (row.querySelector('.sale-item-unit')?.value || '').trim() || 'Kg';
+        const unit = (row.querySelector('.sale-item-unit')?.value || '').trim();
         const gross = (row.querySelector('.sale-item-gross')?.value || '').trim() || null;
         const tare = (row.querySelector('.sale-item-tare')?.value || '').trim() || null;
         const qty = (row.querySelector('.sale-item-quantity')?.value || '').trim();
@@ -809,9 +825,9 @@
           unit: unit,
           gross_weight: gross,
           tare_weight: tare,
-          quantity: qty || (total > 0 ? '1' : ''),
-          unit_price: price > 0 ? String(price) : (total > 0 ? String(total) : '0'),
-          line_total: total > 0 ? String(total) : ''
+          quantity: qty || '0',
+          unit_price: price > 0 ? String(price) : '0',
+          line_total: total > 0 ? String(total) : '0'
         };
       })
       .filter(item => item.product_name !== '' || (item.line_total && Number(item.line_total) > 0) || (item.quantity && Number(item.quantity) > 0));

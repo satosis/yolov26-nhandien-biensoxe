@@ -258,12 +258,18 @@
         </tr>
       </thead>
       <tbody>
+        {% set ns = namespace(stt=0) %}
         {% for item in items %}
         <tr>
-          <td class="center">{{ loop.index }}</td>
+          <td class="center">
+            {% if not item.is_surcharge %}
+              {% set ns.stt = ns.stt + 1 %}
+              {{ ns.stt }}
+            {% endif %}
+          </td>
           {% if has_weigh_info %}
           <td class="left">{{ item.product_name }}</td>
-          <td class="center">{{ item.unit }}</td>
+          <td class="center">{{ item.unit if not item.is_surcharge else '' }}</td>
           <td class="right">{{ item.gross_weight_display or '' }}</td>
           <td class="right">{{ item.tare_weight_display or '' }}</td>
           <td class="right">{{ item.quantity_display }}</td>
@@ -271,7 +277,7 @@
           <td class="right">{{ item.line_total_fmt }}</td>
           {% else %}
           <td class="left">{{ item.product_name }}</td>
-          <td class="center">{{ item.unit }}</td>
+          <td class="center">{{ item.unit if not item.is_surcharge else '' }}</td>
           <td class="right">{{ item.quantity_display }}</td>
           <td class="right">{{ item.unit_price_fmt }}</td>
           <td class="right">{{ item.line_total_fmt }}</td>

@@ -103,7 +103,7 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
             if not name:
                 return None, "Tên mặt hàng là bắt buộc."
 
-            unit = str(row.get("unit") or "Kg").strip() or "Kg"
+            unit = str(row.get("unit") or "").strip()
             weigh_code = str(row.get("weigh_code") or "").strip()[:100]
 
             gross_weight = None
@@ -129,31 +129,37 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
                 quantity = Decimal(str(raw_quantity))
             elif gross_weight is not None and (gross_weight - (tare_weight or Decimal("0"))) > 0:
                 quantity = gross_weight - (tare_weight or Decimal("0"))
-            elif custom_total is not None and custom_total > 0:
-                quantity = Decimal("1")
             else:
-                quantity = Decimal("1") if (raw_unit_price and Decimal(str(raw_unit_price)) > 0) else Decimal("0")
+                quantity = Decimal("0")
 
             unit_price = Decimal(str(row.get("unit_price") or "0"))
-            if unit_price <= 0 and custom_total is not None and custom_total > 0 and quantity > 0:
+            if quantity > 0 and unit_price <= 0 and custom_total is not None and custom_total > 0:
                 unit_price = (custom_total / quantity).quantize(Decimal("0.01"))
+            elif quantity <= 0:
+                unit_price = Decimal("0")
 
-            if not name or not quantity.is_finite() or quantity <= 0:
-                return None, "Tên mặt hàng và số lượng lớn hơn 0 là bắt buộc."
+            if custom_total is not None and custom_total >= 0:
+                line_total = custom_total.to_integral_value(rounding=ROUND_CEILING)
+            elif quantity > 0 and unit_price > 0:
+                raw_total = quantity * unit_price
+                line_total = (raw_total / Decimal("1000")).to_integral_value(rounding=ROUND_CEILING) * Decimal("1000")
+            else:
+                line_total = Decimal("0")
+
+            if not name:
+                return None, "Tên mặt hàng/khoản phát sinh là bắt buộc."
+            if line_total <= 0 and (quantity <= 0 or unit_price <= 0):
+                return None, f"Mục '{name}' cần có số lượng và đơn giá, hoặc thành tiền lớn hơn 0."
+            if not quantity.is_finite() or quantity < 0:
+                return None, "Số lượng không hợp lệ."
             if not unit_price.is_finite() or unit_price < 0:
                 return None, "Đơn giá không hợp lệ."
             if quantity.quantize(Decimal("0.001")) != quantity or unit_price.quantize(Decimal("0.01")) != unit_price:
                 return None, "Số lượng tối đa 3 chữ số thập phân, đơn giá tối đa 2 chữ số thập phân."
 
-            if custom_total is not None and custom_total >= 0:
-                line_total = custom_total.to_integral_value(rounding=ROUND_CEILING)
-            else:
-                raw_total = quantity * unit_price
-                line_total = (raw_total / Decimal("1000")).to_integral_value(rounding=ROUND_CEILING) * Decimal("1000")
-
             normalized.append({
                 "product_name": name[:255],
-                "unit": unit[:80],
+                "unit": unit[:80] if quantity > 0 else (unit[:80] or ""),
                 "weigh_code": weigh_code,
                 "gross_weight": gross_weight,
                 "tare_weight": tare_weight,

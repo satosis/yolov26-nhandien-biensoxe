@@ -2292,17 +2292,22 @@ async def enterprise_sales_invoice_pdf(
     sale["grand_total_fmt"] = _fmt_money_num(grand_total)
 
     for item in items:
-        item["quantity_display"] = f"{Decimal(str(item['quantity'])).normalize():f}"
+        qty_num = Decimal(str(item.get('quantity') or 0))
+        price_num = Decimal(str(item.get('unit_price') or 0))
+        item["quantity_display"] = (
+            f"{qty_num.normalize():f}" if qty_num > 0 else ""
+        )
         item["gross_weight_display"] = (
             f"{Decimal(str(item['gross_weight'])).normalize():f}"
-            if item.get("gross_weight") is not None else ""
+            if item.get("gross_weight") is not None and Decimal(str(item['gross_weight'])) > 0 else ""
         )
         item["tare_weight_display"] = (
             f"{Decimal(str(item['tare_weight'])).normalize():f}"
-            if item.get("tare_weight") is not None else ""
+            if item.get("tare_weight") is not None and Decimal(str(item['tare_weight'])) > 0 else ""
         )
-        item["unit_price_fmt"] = _fmt_money_num(item["unit_price"])
+        item["unit_price_fmt"] = _fmt_money_num(price_num) if price_num > 0 else ""
         item["line_total_fmt"] = _fmt_money_num(item["line_total"])
+        item["is_surcharge"] = bool(qty_num <= 0 and price_num <= 0 and Decimal(str(item.get("line_total") or 0)) > 0)
 
     pad_rows = []
 
