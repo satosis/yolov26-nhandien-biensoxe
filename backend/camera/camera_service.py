@@ -295,7 +295,3 @@ def get_imou_api_keys() -> dict:
         if not app_secret:
             app_secret = res.get('IMOU_APP_SECRET', '')
     return {'app_id': app_id, 'app_secret': app_secret}
-
-
-def update_imou_api_keys(app_id: str, app_secret: str) -> bool:
-    return set_many_app_settings({'IMOU_APP_ID': app_id, 'IMOU_APP_SECRET': app_secret})

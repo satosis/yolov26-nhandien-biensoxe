@@ -5,16 +5,18 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 from urllib.parse import quote, urlencode
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from frontend.deps import get_menu_context, require_menu, templates
 from frontend.pagination import paginate
 from frontend.modules.payroll.staff_payroll import (
     get_staff_payroll_item,
+    get_timesheet_matrix,
     payroll_rows,
     save_month,
     save_profile,
+    save_timesheet_matrix,
     staff_members,
     update_staff_job_title,
 )
@@ -53,6 +55,7 @@ def _whole_money(form, key: str) -> Decimal:
 async def staff_payroll_page(
     request: Request,
     month: str | None = None,
+    tab: str = Query("payroll"),
     page: int = Query(1, ge=1),
     user: dict = Depends(require_menu("vehicles")),
 ):
@@ -69,7 +72,7 @@ async def staff_payroll_page(
         page=page,
         per_page=20,
         base_url="/admin/transport/payroll",
-        extra_params={"month": month},
+        extra_params={"month": month, "tab": tab},
     )
     total_gross = sum((Decimal(r["gross_pay"]) for r in rows), Decimal(0))
     total_net = sum((Decimal(r["net_pay"]) for r in rows), Decimal(0))
@@ -78,12 +81,15 @@ async def staff_payroll_page(
     total_advance = sum((Decimal(r["advance_amount"]) for r in rows), Decimal(0))
     total_fixed = sum((Decimal(r["fixed_pay"]) for r in rows), Decimal(0))
     total_trip_wage = sum((Decimal(r["trip_wage"]) for r in rows), Decimal(0))
+    timesheet_matrix = get_timesheet_matrix(month, active_cid)
     ctx.update(
         current_menu="payroll",
         transport_section="staff_payroll",
         month=month,
+        active_tab=tab,
         staff=staff_members(active_cid),
         rows=paginated["items"],
+        timesheet=timesheet_matrix,
         page=paginated["page"],
         total_pages=paginated["total_pages"],
         total=paginated["total"],
@@ -99,6 +105,81 @@ async def staff_payroll_page(
         saved_job=request.query_params.get("saved_job") == "1",
     )
     return templates.TemplateResponse("pages/staff_payroll.html", {"request": request, **ctx})
+
+
+@router.post("/timesheet/save")
+async def save_payroll_timesheet(
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    month = data.get("month") or date.today().strftime("%Y-%m")
+    updates = data.get("updates") or []
+    ctx = get_menu_context(request, user)
+    active_cid = ctx.get("active_company_id")
+    save_timesheet_matrix(month, active_cid, updates)
+    return JSONResponse({"ok": True, "message": "Đã lưu bảng chấm công và tự động đồng bộ sang bảng lương."})
+
+
+@router.post("/timesheet/quick-fill")
+async def quick_fill_payroll_timesheet(
+    request: Request,
+    month: str = Form(...),
+    mode: str = Form("weekdays"),
+    user: dict = Depends(require_menu("vehicles")),
+):
+    ctx = get_menu_context(request, user)
+    active_cid = ctx.get("active_company_id")
+    ts = get_timesheet_matrix(month, active_cid)
+    updates = []
+    days_info = ts.get("days_info", [])
+    for row in ts.get("rows", []):
+        details = {}
+        work_count = 0
+        for d in days_info:
+            day_num = d["day"]
+            is_sun = d["is_sunday"]
+            if mode == "weekdays":
+                hc = "x" if not is_sun else ""
+            elif mode == "26days":
+                if not is_sun and work_count < 26:
+                    hc = "x"
+                    work_count += 1
+                else:
+                    hc = ""
+            else:
+                hc = "x"
+            details[str(day_num)] = {"hc": hc, "ot": 0}
+        updates.append({
+            "user_id": row["user_id"],
+            "standard_days": 26,
+            "daily_details": details,
+            "note": row.get("att_note") or "",
+        })
+    save_timesheet_matrix(month, active_cid, updates)
+    return RedirectResponse(f"/admin/transport/payroll?tab=timesheet&month={quote(month)}&saved=1", status_code=303)
+
+
+@router.get("/export")
+async def export_staff_payroll(request: Request, month: str,
+                               user: dict = Depends(require_menu("vehicles"))):
+    try:
+        start, end_date = month_bounds(month)
+        ctx = get_menu_context(request, user)
+        active_cid = ctx.get("active_company_id") or request.session.get("active_company_id")
+        content = build_staff_payroll_workbook(start, payroll_rows(start, active_cid))
+    except ValueError as exc:
+        return HTMLResponse(str(exc), status_code=422)
+    filename = f"6_Bang_luong_DLX_T{start.month}_{start.year}.xlsx"
+    return Response(
+        content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                 "Cache-Control": "no-store"},
+    )
 
 
 @router.get("/{staff_id}")
@@ -236,20 +317,3 @@ async def save_staff_payroll(request: Request, staff_id: int,
         return HTMLResponse(str(exc), status_code=422)
     return RedirectResponse(f"/admin/transport/payroll/{staff_id}?month={quote(month)}&saved=1", status_code=303)
 
-
-@router.get("/export")
-async def export_staff_payroll(request: Request, month: str,
-                               _: dict = Depends(require_menu("vehicles"))):
-    try:
-        start, _ = month_bounds(month)
-        active_cid = request.session.get("active_company_id")
-        content = build_staff_payroll_workbook(start, payroll_rows(start, active_cid))
-    except ValueError as exc:
-        return HTMLResponse(str(exc), status_code=422)
-    filename = f"6_Bang_luong_DLX_T{start.month}_{start.year}.xlsx"
-    return Response(
-        content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"',
-                 "Cache-Control": "no-store"},
-    )

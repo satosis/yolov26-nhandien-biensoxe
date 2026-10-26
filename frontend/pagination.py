@@ -6,7 +6,7 @@ import math
 from typing import Any, Sequence
 from urllib.parse import urlencode
 
-DEFAULT_PER_PAGE = 20
+DEFAULT_PER_PAGE = 100
 
 
 def build_page_base_url(base_url: str = "", extra_params: dict[str, Any] | None = None) -> str:

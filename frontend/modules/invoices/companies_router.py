@@ -22,6 +22,7 @@ from frontend.modules.invoices.companies import (
     get_company,
     get_company_bank_accounts,
     list_bank_names,
+    list_business_activities,
     list_companies_page,
     normalize_tax_code,
     refresh_company_from_tax,
@@ -156,12 +157,12 @@ async def companies_management_page(
     active_cid = ctx.get("active_company_id")
 
     paginated = paginate_counts(
-        count_companies(q, debt_only=debt, seller_company_id=active_cid), page=page, per_page=20,
+        count_companies(q, debt_only=debt, seller_company_id=active_cid), page=page, per_page=100,
         base_url="/admin/companies",
         extra_params={"back": back, "q": q.strip(), "debt": "true" if debt else None},
     )
     companies = list_companies_page(
-        q, limit=20, offset=(paginated["page"] - 1) * 20,
+        q, limit=100, offset=(paginated["page"] - 1) * 100,
         debt_only=debt, seller_company_id=active_cid,
     )
     company_ids = [company["id"] for company in companies]
@@ -207,6 +208,7 @@ async def companies_management_page(
 @router.get("/catalog/companies/add")
 async def add_company_page(
     request: Request,
+    tax_code: str = Query(""),
     back: str = Query(""),
     message: str = Query(""),
     error: str = Query(""),
@@ -217,12 +219,14 @@ async def add_company_page(
         back_url=back or "/admin/transport/catalog?tab=companies",
         message=message,
         error=error,
+        tax_code=tax_code.strip(),
     )
     ctx["users_list"] = db._execute_query(
         "SELECT id, username, full_name, email, phone, bank_account, bank_name FROM public.users ORDER BY COALESCE(full_name, username) ASC",
         fetchall=True, commit=False,
     ) or []
     ctx["bank_names"] = list_bank_names()
+    ctx["business_activities"] = list_business_activities()
     return templates.TemplateResponse("pages/companies/add.html", {"request": request, **ctx})
 
 
@@ -297,6 +301,7 @@ async def edit_company_page(
     ) or []
     ctx["bank_names"] = list_bank_names()
     ctx["bank_accounts"] = get_company_bank_accounts(company_id)
+    ctx["business_activities"] = list_business_activities()
     return templates.TemplateResponse("pages/companies/edit.html", {"request": request, **ctx})
 
 
@@ -875,7 +880,7 @@ async def export_company_contract(
         if view == "html" or (download or format or "").lower() == "html":
             return HTMLResponse(f"""
                 <!DOCTYPE html><html><head><meta charset="utf-8"><title>Thông báo</title>
-                <style>body{{font-family:system-ui,-apple-system,sans-serif;background:#f8fafc;padding:50px;text-align:center;}}
+                <style>body{{font-family:"Times New Roman",Times,serif;background:#f8fafc;padding:50px;text-align:center;}}
                 .box{{max-width:500px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);border-top:4px solid #ef4444;}}
                 h3{{color:#ef4444;margin-top:0;}}p{{color:#475569;font-size:15px;line-height:1.6;}}
                 button{{background:#475569;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-weight:600;}}</style>

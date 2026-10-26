@@ -4,6 +4,13 @@
 {% block page_title %}Chấm công & Quản lý nghỉ phép{% endblock %}
 
 {% block content %}
+<style>
+  .table { font-size: 15px; }
+  .table th { font-size: 14.5px; font-weight: 700; background: #f1f5f9; color: #1e293b; padding: 11px 8px; }
+  .table td { font-size: 15px; padding: 10px 8px; vertical-align: middle !important; }
+  .table input { font-size: 14.5px; height: 34px; }
+  .nav-pills .nav-link { font-size: 14.5px; }
+</style>
 <div class="container-fluid px-0 w-100">
 
   <!-- Sub Navigation & Filters -->
@@ -13,13 +20,13 @@
         <!-- Tabs -->
         <ul class="nav nav-pills" style="gap:4px;">
           <li class="nav-item">
-            <a class="nav-link py-1 px-3 btn-sm {{ 'active font-weight-bold' if active_tab == 'sheet' else 'text-dark' }}"
+            <a class="nav-link py-2 px-3 {{ 'active font-weight-bold shadow-sm' if active_tab == 'sheet' else 'text-dark border bg-white' }}"
                href="/admin/enterprise/attendance?tab=sheet&month={{ selected_month }}">
               <i class="bx bx-table mr-1"></i>Bảng chấm công tháng
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link py-1 px-3 btn-sm {{ 'active font-weight-bold' if active_tab == 'requests' else 'text-dark' }}"
+            <a class="nav-link py-2 px-3 {{ 'active font-weight-bold shadow-sm' if active_tab == 'requests' else 'text-dark border bg-white' }}"
                href="/admin/enterprise/attendance?tab=requests&month={{ selected_month }}">
               <i class="bx bx-receipt mr-1"></i>Đơn xin nghỉ & Công tác ({{ leave_pagination.total }})
             </a>
@@ -28,17 +35,20 @@
 
         <!-- Month Filter Toolbar -->
         <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+          <a href="/admin/transport/payroll?tab=timesheet&month={{ selected_month }}" class="btn btn-sm btn-primary font-weight-bold shadow-sm mr-1" style="font-size:14px; padding:6px 14px;">
+            <i class="bx bx-calendar-check mr-1"></i>Bảng chấm công chi tiết (BCC)
+          </a>
           {% if active_tab == 'sheet' %}
           <form method="post" action="/admin/enterprise/attendance/quick-fill" class="d-inline"
                 onsubmit="return confirm('Điền nhanh 26 ngày công chuẩn cho tất cả nhân sự trong tháng {{ selected_month }}?')">
             <input type="hidden" name="month" value="{{ selected_month }}">
             <input type="hidden" name="standard_days" value="26">
-            <button type="submit" class="btn btn-sm btn-light border">
-              <i class="bx bx-check-double mr-1"></i>Điền nhanh 26 công
+            <button type="submit" class="btn btn-sm btn-light border font-weight-bold shadow-sm" style="font-size:13.5px; padding:6px 12px;">
+              <i class="bx bx-check-double mr-1 text-success"></i>Điền nhanh 26 công
             </button>
           </form>
           {% else %}
-          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="$('#addLeaveModal').modal('show')">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold shadow-sm" onclick="$('#addLeaveModal').modal('show')" style="font-size:14px; padding:6px 14px;">
             <i class="bx bx-plus mr-1"></i>Tạo đơn nghỉ phép
           </button>
           {% endif %}
@@ -95,7 +105,7 @@
             </td>
             <td>
               <div class="font-weight-bold text-dark">{{ s.full_name or s.username }}</div>
-              <div class="small text-muted font-monospace">@{{ s.username }}{% if s.phone %} · {{ s.phone }}{% endif %}</div>
+              <div class="small text-muted ">@{{ s.username }}{% if s.phone %} · {{ s.phone }}{% endif %}</div>
             </td>
             <td>
               <div class="text-dark">{{ s.job_title or '--' }}</div>
@@ -181,7 +191,7 @@
             </td>
             <td>
               <div class="font-weight-bold text-dark">{{ r.full_name or r.username }}</div>
-              <div class="small text-muted font-monospace">@{{ r.username }}</div>
+              <div class="small text-muted ">@{{ r.username }}</div>
             </td>
             <td>
               <span class="badge badge-light border text-dark">{{ r.leave_type }}</span>

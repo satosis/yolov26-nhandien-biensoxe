@@ -13,7 +13,7 @@
   .monthly-report-month-controls select { flex: 1 1 auto; }
   .monthly-report-month-controls input { flex: 0 0 76px; }
   .monthly-report-field--vehicle { width: 165px; }
-  .monthly-report-field .form-control { width: 100%; height: 28px !important; min-height: 28px; max-height: 28px; font-size: 12px; padding: 2px 8px; line-height: 22px; }
+  .monthly-report-field .form-control { width: 100%; height: 32px !important; min-height: 32px; font-size: 12.5px; padding: 4px 8px; border-radius: 6px; }
   .monthly-report-hint { margin: 10px 0 0; line-height: 1.5; }
   @media (max-width: 767px) {
   }
@@ -25,6 +25,13 @@
 {% endblock %}
 {% block page_back_button %}
 <a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>
+{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <a href="/admin/vehicles/monthly-report/export?month={{ month }}{% if vehicle_id %}&amp;vehicle_id={{ vehicle_id }}{% endif %}" class="btn btn-sm btn-success font-weight-bold">
+    <i class="bx bx-download mr-1"></i> Xuất Excel theo mẫu
+  </a>
+</div>
 {% endblock %}
 {% block content %}
 <div class="card monthly-report-filter mb-3">
@@ -72,21 +79,21 @@
           <td class="text-center text-muted font-weight-medium align-middle">{{ (report_pagination.page - 1) * report_pagination.per_page + loop.index if report_pagination else loop.index }}</td>
           <td><a href="/admin/vehicles/cargo?vehicle_id={{ r.id }}&amp;month={{ month }}">{{ r.plate_number }}</a></td>
           <td>{{ r.vehicle_type or '—' }}</td>
-          <td class="text-right">{{ r.trip_count }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.revenue)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.revenue_net)|replace(',', '.') }}</td>
-          <td class="text-right" title="{{ 'Ước tính từ chuyến hàng' if r.fuel_is_estimate else 'Chi phí đổ dầu thực tế' }}">{% if r.fuel_is_estimate and r.estimated_fuel %}~{% endif %}{{ "{:,.0f}".format(r.fuel_cost)|replace(',', '.') if r.fuel_entries or r.estimated_fuel else '—' }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.repair)|replace(',', '.') if r.repair_entries else '—' }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.toll)|replace(',', '.') if r.toll_entries else '—' }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.depreciation)|replace(',', '.') if r.depreciation is not none else '—' }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.base_salary)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.meal_allowance)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.trip_wage)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.trip_other_cost)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.outsourced_freight)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.other)|replace(',', '.') }}</td>
-          <td class="text-right">{{ "{:,.0f}".format(r.total_cost)|replace(',', '.') }}</td>
-          <td class="text-right font-weight-bold {{ 'text-danger' if r.profit < 0 else 'text-success' }}">{{ "{:,.0f}".format(r.profit)|replace(',', '.') }}</td>
+          <td class="text-right">{{ r.trip_count|format_number('0') }}</td>
+          <td class="text-right">{{ r.revenue|format_number }}</td>
+          <td class="text-right">{{ r.revenue_net|format_number }}</td>
+          <td class="text-right" title="{{ 'Ước tính từ chuyến hàng' if r.fuel_is_estimate else 'Chi phí đổ dầu thực tế' }}">{% if r.fuel_is_estimate and r.estimated_fuel %}~{% endif %}{{ r.fuel_cost|format_number('—') if r.fuel_entries or r.estimated_fuel else '—' }}</td>
+          <td class="text-right">{{ r.repair|format_number('—') if r.repair_entries else '—' }}</td>
+          <td class="text-right">{{ r.toll|format_number('—') if r.toll_entries else '—' }}</td>
+          <td class="text-right">{{ r.depreciation|format_number('—') if r.depreciation is not none else '—' }}</td>
+          <td class="text-right">{{ r.base_salary|format_number }}</td>
+          <td class="text-right">{{ r.meal_allowance|format_number }}</td>
+          <td class="text-right">{{ r.trip_wage|format_number }}</td>
+          <td class="text-right">{{ r.trip_other_cost|format_number }}</td>
+          <td class="text-right">{{ r.outsourced_freight|format_number }}</td>
+          <td class="text-right">{{ r.other|format_number }}</td>
+          <td class="text-right">{{ r.total_cost|format_number }}</td>
+          <td class="text-right font-weight-bold {{ 'text-danger' if r.profit < 0 else 'text-success' }}">{{ r.profit|format_number }}</td>
           <td class="text-right">{{ "{:.1%}".format(r.profit_margin) if r.profit_margin is not none else '—' }}</td>
           <td>{% if r.incomplete %}<span class="badge badge-warning">Cần bổ sung</span>{% else %}<span class="badge badge-success">Đã có dầu &amp; KH</span>{% endif %}</td>
         </tr>
@@ -108,11 +115,11 @@
         <td>{{ t.invoice_date.strftime('%d/%m/%Y') if t.invoice_date else '—' }}</td>
         <td>{{ t.document_number or '—' }}</td><td>{{ t.company_name or '—' }}</td>
         <td style="min-width:300px;white-space:normal;">{{ t.origin or '—' }} → {{ t.destination or '—' }}</td>
-        <td>{{ t.cargo_description or '—' }}</td><td class="text-right">{{ t.distance_km if t.distance_km is not none else '—' }}</td>
-        <td class="text-right">{{ "{:,.0f}".format(t.invoice_total)|replace(',', '.') if t.invoice_total is not none else '—' }}</td>
-        <td class="text-right">{{ "{:,.0f}".format(t.freight_revenue)|replace(',', '.') if t.freight_revenue is not none else '—' }}</td>
-        <td class="text-right">{{ "{:,.0f}".format(t.trip_wage)|replace(',', '.') if t.trip_wage is not none else '—' }}</td>
-        <td class="text-right">{{ "{:,.0f}".format(t.trip_other_cost)|replace(',', '.') if t.trip_other_cost is not none else '—' }}</td>
+        <td>{{ t.cargo_description or '—' }}</td><td class="text-right">{{ t.distance_km|format_number('—') if t.distance_km is not none else '—' }}</td>
+        <td class="text-right">{{ t.invoice_total|format_number('—') if t.invoice_total is not none else '—' }}</td>
+        <td class="text-right">{{ t.freight_revenue|format_number('—') if t.freight_revenue is not none else '—' }}</td>
+        <td class="text-right">{{ t.trip_wage|format_number('—') if t.trip_wage is not none else '—' }}</td>
+        <td class="text-right">{{ t.trip_other_cost|format_number('—') if t.trip_other_cost is not none else '—' }}</td>
         <td>{{ 'Còn nợ' if t.payment_status == 'debt' else ('Đã trả' if t.payment_status == 'paid' else 'Chưa đối soát') }}</td>
         <td><a href="/admin/vehicles/cargo/{% if t.record_type == 'invoice' %}invoices/{{ t.id }}{% else %}{{ t.id }}{% endif %}/edit" class="btn btn-light btn-sm">Sửa</a></td>
       </tr>{% else %}<tr><td colspan="13" class="text-center text-muted py-3">Xe chưa có chuyến trong tháng này.</td></tr>{% endfor %}</tbody>
@@ -124,16 +131,16 @@
 
 {% if vehicle_id is none %}
 <div class="card mb-3">
-  <div class="card-header font-weight-bold">Công nợ khách hàng theo hóa đơn tháng {{ month[5:7] }}/{{ month[:4] }} · Còn nợ: {{ "{:,.0f}".format(total_debt)|replace(',', '.') }} đ</div>
+  <div class="card-header font-weight-bold">Công nợ khách hàng theo hóa đơn tháng {{ month[5:7] }}/{{ month[:4] }} · Còn nợ: {{ total_debt|format_currency }}</div>
   <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:11px;">
     <thead><tr><th style="width:45px;" class="text-center">STT</th><th>MST</th><th>Khách hàng</th><th class="text-right">Số chuyến</th><th class="text-right">Tổng hóa đơn gồm VAT</th><th class="text-right">Đã thanh toán</th><th class="text-right">Còn nợ</th></tr></thead>
     <tbody>{% for d in receivable_rows %}<tr>
       <td class="text-center text-muted font-weight-medium align-middle">{{ (receivable_pagination.page - 1) * receivable_pagination.per_page + loop.index if receivable_pagination else loop.index }}</td>
       <td>{{ d.tax_code }}</td><td>{{ d.company_name }}</td>
-      <td class="text-right">{{ d.trip_count }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(d.invoice_total)|replace(',', '.') }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(d.paid_amount)|replace(',', '.') }}</td>
-      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(d.outstanding)|replace(',', '.') }}</td>
+      <td class="text-right">{{ d.trip_count|format_number('0') }}</td>
+      <td class="text-right">{{ d.invoice_total|format_number }}</td>
+      <td class="text-right">{{ d.paid_amount|format_number }}</td>
+      <td class="text-right font-weight-bold">{{ d.outstanding|format_number }}</td>
     </tr>{% else %}<tr><td colspan="7" class="text-center text-muted py-3">Chưa có chuyến hàng đã ghi trạng thái thanh toán trong tháng.</td></tr>{% endfor %}</tbody>
   </table></div>
   {% with pagination=receivable_pagination %}{% include "partials/pagination.html" %}{% endwith %}
@@ -142,17 +149,17 @@
 <div class="card mb-3">
   <div class="card-header font-weight-bold">Sổ quỹ tiền mặt · Lịch sử tổng số tiền đã trả tháng {{ month[5:7] }}/{{ month[:4] }}</div>
   <div class="card-body py-2 small">
-    Tổng đã thanh toán: <strong>{{ "{:,.0f}".format(cash_in)|replace(',', '.') }} đ</strong>.
+    Tổng đã thanh toán: <strong>{{ cash_in|format_currency }}</strong>.
   </div>
   <div class="table-responsive"><table class="table table-sm mb-0" style="font-size:11px;">
     <thead><tr><th>Ngày hóa đơn</th><th>Đơn vị</th><th>Biển số</th><th>Dịch vụ</th><th>Hình thức</th><th class="text-right">Thu (đ)</th><th class="text-right">Chi (đ)</th><th class="text-right font-weight-bold">Tồn (đ)</th></tr></thead>
     <tbody>{% for c in cash_rows %}<tr>
       <td>{{ c.invoice_date.strftime('%d/%m/%Y') }}</td><td>{{ c.company_name }}</td><td>{{ c.plate_number }}</td><td>{{ c.service_name }}</td><td>{{ c.payment_method or '—' }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(c.paid_amount)|replace(',', '.') }}</td>
+      <td class="text-right">{{ c.paid_amount|format_number }}</td>
       <td class="text-right text-muted">—</td>
-      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(c.running_paid_total)|replace(',', '.') }}</td>
+      <td class="text-right font-weight-bold">{{ c.running_paid_total|format_number }}</td>
     </tr>{% else %}<tr><td colspan="8" class="text-center text-muted py-3">Chưa có khoản đã thanh toán trong tháng.</td></tr>{% endfor %}
-    {% if cash_rows and cash_pagination.page == cash_pagination.total_pages %}<tr class="table-success font-weight-bold"><td colspan="5">TỔNG CỘNG</td><td class="text-right">{{ "{:,.0f}".format(cash_in)|replace(',', '.') }}</td><td>—</td><td class="text-right">{{ "{:,.0f}".format(cash_in)|replace(',', '.') }}</td></tr>{% endif %}</tbody>
+    {% if cash_rows and cash_pagination.page == cash_pagination.total_pages %}<tr class="table-success font-weight-bold"><td colspan="5">TỔNG CỘNG</td><td class="text-right">{{ cash_in|format_number }}</td><td>—</td><td class="text-right">{{ cash_in|format_number }}</td></tr>{% endif %}</tbody>
   </table></div>
   {% with pagination=cash_pagination %}{% include "partials/pagination.html" %}{% endwith %}
 </div>

@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const syncPurchasePrice = () => {
     const digits = (display.value || '').replace(/\D/g, '');
     hidden.value = digits;
-    display.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+    display.value = digits ? formatNumber(digits) : '';
   };
   display?.addEventListener('input', syncPurchasePrice);
   display?.form?.addEventListener('submit', syncPurchasePrice);

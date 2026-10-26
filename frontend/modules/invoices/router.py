@@ -18,11 +18,19 @@ from frontend.modules.invoices.gmail_sync import (
     build_gmail_oauth_url,
     exchange_gmail_code_for_tokens,
     get_connected_gmail_email,
+    get_company_by_enterprise_email,
     get_gmail_refresh_token,
     get_google_client_id,
     save_gmail_tokens,
     sync_invoices_from_gmail_api,
     sync_invoices_from_imap,
+)
+from frontend.modules.invoices.saveinvoice_sync import (
+    get_saveinvoice_config,
+    import_saveinvoice_invoices,
+    list_saveinvoice_accounts,
+    preview_saveinvoice_invoices,
+    refresh_saveinvoice_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,6 +60,32 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
     ctx = get_menu_context(request, user)
     active_company = ctx.get("active_company")
     active_cid = ctx.get("active_company_id")
+
+    # Kiểm tra doanh nghiệp khớp theo Email đã liên kết Gmail
+    connected_email = get_connected_gmail_email()
+    email_comp = get_company_by_enterprise_email(connected_email) if connected_email else None
+
+    # Support company filter: specific company id or 'all'
+    company_filter = str(request.query_params.get("company_id") or "").strip()
+    if company_filter == "all":
+        target_cid = None
+    elif company_filter.isdigit():
+        target_cid = int(company_filter)
+    else:
+        # Nếu chưa lọc thủ công và công ty hiện tại chưa có hóa đơn,
+        # tự động chọn công ty khớp với Email liên kết Gmail của doanh nghiệp
+        if email_comp and (not active_cid or active_cid != email_comp["id"]):
+            curr_stats = invoice_list_stats(start, end, buyer_company_id=active_cid) if active_cid else {}
+            if not curr_stats.get("total") or int(curr_stats.get("total")) == 0:
+                target_cid = email_comp["id"]
+                active_cid = email_comp["id"]
+                active_company = email_comp
+                request.session["active_company_id"] = email_comp["id"]
+            else:
+                target_cid = active_cid
+        else:
+            target_cid = active_cid
+
     if active_company:
         buyer = {
             "name": active_company.get("name", ""),
@@ -60,17 +94,47 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
         }
     else:
         buyer = {}
+    q = str(request.query_params.get("q") or "").strip()
     page = int(request.query_params.get("page", 1) or 1)
-    stats = invoice_list_stats(start, end, buyer_company_id=active_cid)
+    stats = invoice_list_stats(start, end, buyer_company_id=target_cid, q=q)
+
+    # Detect if another company has invoices if current target_cid has none
+    other_company_info = None
+    if target_cid and (not stats.get("total") or int(stats.get("total")) == 0) and not q:
+        other_row = db._execute_query("""
+            SELECT c.id, c.name, COUNT(i.id) as count, COALESCE(SUM(i.total), 0) as total_amount
+            FROM public.transport_input_invoices i
+            JOIN public.invoice_companies c ON c.id = i.buyer_company_id
+            WHERE i.invoice_date >= %s AND i.invoice_date < %s AND i.buyer_company_id <> %s
+            GROUP BY c.id, c.name
+            ORDER BY count DESC
+            LIMIT 1
+        """, (start, end, target_cid), fetch=True, commit=False)
+        if other_row:
+            other_company_info = other_row
+
+    extra_params = {"month": month}
+    if company_filter:
+        extra_params["company_id"] = company_filter
+    if q:
+        extra_params["q"] = q
+    raw_per_page = request.query_params.get("per_page")
+    try:
+        per_page = int(raw_per_page) if raw_per_page and int(raw_per_page) > 0 else 100
+    except Exception:
+        per_page = 100
+    if raw_per_page and raw_per_page != "100":
+        extra_params["per_page"] = str(per_page)
     paginated = paginate_counts(
-        int(stats.get("total") or 0), page=page, per_page=20,
+        int(stats.get("total") or 0), page=page, per_page=per_page,
         base_url="/admin/transport/input-invoices",
-        extra_params={"month": month},
+        extra_params=extra_params,
     )
     rows = list_invoices(
-        start, end, buyer_company_id=active_cid,
+        start, end, buyer_company_id=target_cid,
         limit=paginated["per_page"],
         offset=(paginated["page"] - 1) * paginated["per_page"],
+        q=q,
     )
     companies = list_companies()
     values = form if form is not None else edit or {}
@@ -97,6 +161,9 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
                total=paginated["total"],
                per_page=paginated["per_page"],
                page_base_url=paginated["page_base_url"],
+               stats=stats,
+               total_subtotal=stats.get("total_subtotal") or 0,
+               total_vat=stats.get("total_vat") or 0,
                total_amount=stats.get("total_amount") or 0,
                buyer=buyer, companies=companies, edit=edit, error=error, values=values,
                today=date.today().isoformat(),
@@ -108,7 +175,12 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
                gmail_is_connected=gmail_connected,
                gmail_oauth_url=gmail_oauth_url,
                gmail_error=request.query_params.get("gmail_error"),
-               show_form=show_form)
+               show_form=show_form,
+               company_filter=company_filter,
+               q=q,
+               target_company_id=target_cid,
+               matched_company=email_comp,
+               other_company_info=other_company_info)
     return templates.TemplateResponse("pages/input_invoices.html", {"request": request, **ctx})
 
 
@@ -255,7 +327,7 @@ async def delete_input_invoice(invoice_id: int, month: str = Form(...),
 # ---------------------------------------------------------------------------
 
 @router.get("/gmail/status")
-async def gmail_status_api(request: Request, _: dict = Depends(require_menu("vehicles"))):
+async def gmail_status_api(request: Request, user: dict = Depends(require_menu("vehicles"))):
     client_id = get_google_client_id()
     refresh_token = get_gmail_refresh_token()
     connected_email = get_connected_gmail_email()
@@ -267,10 +339,18 @@ async def gmail_status_api(request: Request, _: dict = Depends(require_menu("veh
             auth_url = build_gmail_oauth_url(redirect_uri)
         except Exception:
             pass
+
+    ctx = get_menu_context(request, user)
+    user_comps = ctx.get("user_companies") or []
+    matched_c = get_company_by_enterprise_email(connected_email) if connected_email else None
+
     return JSONResponse({
         "client_id_configured": bool(client_id),
         "connected": bool(refresh_token),
         "email": connected_email,
+        "matched_company": matched_c,
+        "active_company_id": ctx.get("active_company_id"),
+        "user_companies": [{"id": c["id"], "name": c["name"], "tax_code": c.get("tax_code") or ""} for c in user_comps],
         "auth_url": auth_url,
         "redirect_uri": redirect_uri,
         "enable_url": "https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=686766750544",
@@ -307,6 +387,12 @@ async def gmail_oauth_callback(
     try:
         res = await exchange_gmail_code_for_tokens(code, redirect_uri)
         email_str = res.get("email", "")
+        # Tự động gán và chọn công ty làm việc theo Email doanh nghiệp đã liên kết
+        matched_c = get_company_by_enterprise_email(email_str) if email_str else None
+        if matched_c:
+            request.session["active_company_id"] = matched_c["id"]
+            logger.info("Gmail OAuth: Tự động chuyển công ty %s (id: %s) theo email %s",
+                        matched_c["name"], matched_c["id"], email_str)
         return RedirectResponse(f"/admin/transport/input-invoices?gmail_connected=1&email={quote(email_str)}", status_code=303)
     except Exception as exc:
         logger.error("Gmail OAuth callback failed: %s", exc)
@@ -324,14 +410,21 @@ async def gmail_sync_api(
     request: Request,
     max_messages: int = Form(40),
     keyword: str = Form(""),
+    target_company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    active_cid = request.session.get("active_company_id")
+    connected_email = get_connected_gmail_email()
+    matched_comp = get_company_by_enterprise_email(connected_email) if connected_email else None
+    buyer_company_id = target_company_id or (matched_comp["id"] if matched_comp else None) or request.session.get("active_company_id")
+
+    if matched_comp and not target_company_id:
+        request.session["active_company_id"] = matched_comp["id"]
+
     try:
         res = await sync_invoices_from_gmail_api(
             max_messages=max_messages,
             search_query=keyword,
-            buyer_company_id=active_cid,
+            buyer_company_id=buyer_company_id,
         )
         return JSONResponse(res)
     except Exception as exc:
@@ -346,18 +439,116 @@ async def imap_sync_api(
     app_password: str = Form(...),
     max_messages: int = Form(30),
     keyword: str = Form(""),
+    target_company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    active_cid = request.session.get("active_company_id")
+    matched_comp = get_company_by_enterprise_email(email_address) if email_address else None
+    buyer_company_id = target_company_id or (matched_comp["id"] if matched_comp else None) or request.session.get("active_company_id")
+
+    if matched_comp and not target_company_id:
+        request.session["active_company_id"] = matched_comp["id"]
+
     try:
         res = sync_invoices_from_imap(
             email_address=email_address,
             app_password=app_password,
             max_messages=max_messages,
             search_keyword=keyword,
-            buyer_company_id=active_cid,
+            buyer_company_id=buyer_company_id,
         )
         return JSONResponse(res)
     except Exception as exc:
         logger.error("IMAP sync failed: %s", exc)
         return JSONResponse({"ok": False, "message": str(exc)}, status_code=400)
+
+
+# ---------------------------------------------------------------------------
+# SaveInvoice (Tổng cục Thuế) Synchronization Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/saveinvoice/status")
+async def saveinvoice_status_api(request: Request, user: dict = Depends(require_menu("vehicles"))):
+    ctx = get_menu_context(request, user)
+    active_company = ctx.get("active_company") or {}
+    active_tax = (active_company.get("tax_code") or "").strip()
+    active_name = active_company.get("name") or ""
+    active_cid = ctx.get("active_company_id")
+
+    cfg = get_saveinvoice_config()
+    accounts = list_saveinvoice_accounts(target_tax=active_tax)
+
+    # Resolve target account matching the active company
+    matched_acc = next((a for a in accounts if a["tax_code"].strip() == active_tax), None) if active_tax else None
+    if not matched_acc and accounts:
+        matched_acc = next((a for a in accounts if a["is_target"]), accounts[0])
+
+    target_acc_id = matched_acc["account_id"] if matched_acc else ""
+    target_tax_code = active_tax or (matched_acc["tax_code"] if matched_acc else "")
+
+    return JSONResponse({
+        "ok": True,
+        "username": cfg["username"],
+        "active_company_id": active_cid,
+        "active_company_name": active_name,
+        "active_tax_code": active_tax,
+        "target_tax_code": target_tax_code,
+        "target_account_id": target_acc_id,
+        "has_session": bool(cfg["access_token"]),
+        "accounts": accounts,
+    })
+
+
+@router.post("/saveinvoice/preview")
+async def saveinvoice_preview_api(
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    ctx = get_menu_context(request, user)
+    active_company = ctx.get("active_company") or {}
+    active_tax = (active_company.get("tax_code") or "").strip()
+    active_cid = ctx.get("active_company_id")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    account_id = body.get("account_id")
+    month = body.get("month")
+    limit = int(body.get("limit") or 50)
+    res = preview_saveinvoice_invoices(
+        account_id=account_id,
+        month=month,
+        limit=limit,
+        buyer_company_id=active_cid,
+        buyer_tax_code=active_tax,
+    )
+    return JSONResponse(res)
+
+
+@router.post("/saveinvoice/import")
+async def saveinvoice_import_api(
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    ctx = get_menu_context(request, user)
+    active_cid = ctx.get("active_company_id") or request.session.get("active_company_id")
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    invoice_ids = body.get("invoice_ids") or []
+    account_id = body.get("account_id")
+    res = import_saveinvoice_invoices(
+        invoice_ids=invoice_ids,
+        account_id=account_id,
+        buyer_company_id=active_cid,
+    )
+    return JSONResponse(res)
+
+
+@router.post("/saveinvoice/refresh")
+async def saveinvoice_refresh_api(user: dict = Depends(require_menu("vehicles"))):
+    success = refresh_saveinvoice_tokens()
+    return JSONResponse({"ok": success, "message": "Làm mới phiên thành công" if success else "Không thể làm mới phiên SaveInvoice."})
+

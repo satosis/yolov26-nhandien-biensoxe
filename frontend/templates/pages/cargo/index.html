@@ -1,8 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}Hóa đơn vận chuyển{% if vehicle %} — {{ vehicle.plate_number }}{% endif %}{% if company %} — {{ company.name }}{% endif %}{% endblock %}
-{% block head %}<link href="/static/admin-assets/css/cargo-history.css?v=8" rel="stylesheet">{% endblock %}
+{% block head %}<link href="/static/admin-assets/css/cargo-history.css?v=20261025-unified-1" rel="stylesheet">{% endblock %}
 {% block page_title %}
-Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badge-success font-monospace ml-1" style="font-size:14px;vertical-align:middle;">{{ vehicle.plate_number }}</span>{% if vehicle.owner_name %} <span class="text-muted ml-1 font-weight-normal" style="font-size:14px;">({{ vehicle.owner_name }})</span>{% endif %}{% endif %}
+Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badge-success ml-1" style="font-size:14px;vertical-align:middle;">{{ vehicle.plate_number }}</span>{% if vehicle.owner_name %} <span class="text-muted ml-1 font-weight-normal" style="font-size:14px;">({{ vehicle.owner_name }})</span>{% endif %}{% endif %}
 {% endblock %}
 {% block page_back_button %}{% endblock %}
 {% block page_actions %}
@@ -32,6 +32,11 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
              class="d-none" @change="$el.closest('form').submit(); scanning = true">
     </label>
   </form>
+
+  <a href="/admin/vehicles/cargo/add?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}{% endif %}"
+     class="btn btn-success btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Tạo đơn hàng mới
+  </a>
 
   <a href="/admin/vehicles/cargo/invoices/add?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}{% endif %}"
      class="btn btn-primary btn-sm font-weight-bold">
@@ -409,17 +414,17 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
               <td class="text-center text-muted font-weight-medium align-middle" style="width:50px;">
                 {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else ( (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) ) }}
               </td>
-              <td data-label="Ngày / Số HĐ" class="font-weight-bold" style="font-family:monospace;white-space:nowrap;">
+              <td data-label="Ngày / Số HĐ" class="font-weight-bold" style="white-space:nowrap;">
                 {% if not vehicle and t.plate_number %}
                   <div class="mb-1">
-                    <span class="badge badge-primary font-monospace" style="font-size:11px; font-weight:600; letter-spacing:0.5px;">{{ t.plate_number }}</span>
+                    <span class="badge badge-primary " style="font-size:11px; font-weight:600; letter-spacing:0.5px;">{{ t.plate_number }}</span>
                   </div>
                 {% endif %}
                 {% if t.invoice_date %}
                   <div>{{ t.invoice_date[8:10] }}/{{ t.invoice_date[5:7] }}/{{ t.invoice_date[:4] }}</div>
                 {% else %}<div>—</div>{% endif %}
                 {% if t.document_number %}
-                  <div class="mt-1"><span class="badge badge-light border text-primary" style="font-family:monospace; font-size:11px; letter-spacing:0.5px;">HĐ {{ t.document_number }}</span></div>
+                  <div class="mt-1"><span class="badge badge-light border text-primary" style=" font-size:11px; letter-spacing:0.5px;">HĐ {{ t.document_number }}</span></div>
                 {% endif %}
               </td>
               <td data-label="Đơn vị" class="cargo-text">
@@ -557,12 +562,12 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
                       <strong x-text="invoice.buyer || '\u2014'"></strong>
                       <small class="d-block text-muted" style="white-space:pre-wrap;" x-text="invoice.description || ''"></small>
                     </td>
-                    <td x-text="invoice.is_crane_by_shift ? ((invoice.invoice_plates || []).join(', ') || '\u2014') : ((invoice.target_vehicles || []).join(', ') || '\u2014')"></td>
+                    <td x-text="((invoice.target_vehicles && invoice.target_vehicles.length) ? invoice.target_vehicles.join(', ') : ((invoice.invoice_plates || []).join(', ') || '\u2014'))"></td>
                     <td style="min-width:200px;" x-text="invoice.is_crane_by_shift ? '\u2014' : ((invoice.origin || '\u2014') + ' \u2192 ' + (invoice.destination || '\u2014'))"></td>
                     <td class="text-right text-nowrap" x-text="formatBkavMoney(invoice.gross)"></td>
                     <td>
                       <span x-show="!invoice.already_imported && invoice.unavailable_reason" class="text-warning" x-text="invoice.unavailable_reason"></span>
-                      <span x-show="!invoice.already_imported && !invoice.unavailable_reason && !invoice.is_crane_by_shift" class="text-success">&#272;&#227; gh&#233;p &#273;&#432;&#7907;c xe/tuy&#7871;n</span>
+                      <span x-show="!invoice.already_imported && !invoice.unavailable_reason" class="text-success" x-text="invoice.is_crane_by_shift ? 'Đã ghép được xe (ca cẩu)' : 'Đã ghép được xe/tuyến'"></span>
                     </td>
                   </tr>
                 </template>
@@ -639,7 +644,7 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
               </div>
               <div class="d-flex justify-content-between mb-1">
                 <span class="text-muted">Số tài khoản:</span>
-                <strong class="font-monospace text-primary font-weight-bold font-size-13" x-text="qrDetails.account_no"></strong>
+                <strong class="text-primary font-weight-bold font-size-13" x-text="qrDetails.account_no"></strong>
               </div>
               <div class="d-flex justify-content-between mb-1">
                 <span class="text-muted">Chủ tài khoản:</span>
@@ -647,7 +652,7 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
               </div>
               <div class="d-flex justify-content-between mb-1">
                 <span class="text-muted">Số tiền:</span>
-                <strong class="text-success font-size-14" x-text="(qrDetails.amount ? Number(qrDetails.amount).toLocaleString('vi-VN') + ' đ' : '0 đ')"></strong>
+                <strong class="text-success font-size-14" x-text="formatCurrency(qrDetails.amount)"></strong>
               </div>
               <div class="d-flex justify-content-between align-items-start border-top pt-2 mt-2">
                 <span class="text-muted mr-2" style="white-space:nowrap;">Nội dung:</span>

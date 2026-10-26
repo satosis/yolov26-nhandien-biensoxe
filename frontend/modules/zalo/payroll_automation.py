@@ -133,11 +133,24 @@ def create_advance_from_message(item: dict, company_id: int | None = None) -> tu
     parsed = parse_salary_advance(str(item.get("text") or ""))
     if parsed is None:
         raise ValueError("Tin nhắn không phải yêu cầu tạm ứng lương.")
-    if not company_id:
-        raise ValueError("Cần chọn công ty đang làm việc để xác định nhân sự tạm ứng.")
+    cid = company_id or item.get("company_id")
+    if not cid and item.get("group_name"):
+        try:
+            from frontend.modules.invoices.companies import find_company_by_name
+            matched = find_company_by_name(item["group_name"])
+            if matched:
+                cid = matched["id"]
+        except Exception:
+            pass
+    if not cid:
+        raise ValueError("Nhóm Zalo không khớp 100% với tên công ty nào trong hệ thống để xác định nhân sự tạm ứng.")
+    members = staff_members(cid)
+    if not members:
+        raise ValueError("Công ty chưa có nhân sự nào trong hệ thống.")
     recipient, amount = parsed
-    member = match_staff(recipient, staff_members(company_id))
+    member = match_staff(recipient, members)
     month = month_from_message(item)
     request_id = str(uuid5(NAMESPACE_URL, f"zalo-salary-advance:{item['id']}"))
-    payment = create_staff_salary_advance(member["id"], month, amount, request_id, company_id, None)
+    payment = create_staff_salary_advance(member["id"], month, amount, request_id, cid, None)
     return member, payment
+

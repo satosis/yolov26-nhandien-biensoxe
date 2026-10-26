@@ -125,31 +125,58 @@ def save_invoice(values, invoice_id=None, attachment=None):
             return row[0]
 
 
-def invoice_list_stats(start, end, buyer_company_id=None) -> dict:
+def invoice_list_stats(start, end, buyer_company_id=None, q=None) -> dict:
     params = [start, end]
     buyer_filter = ""
     if buyer_company_id:
         buyer_filter = " AND (buyer_company_id = %s OR buyer_company_id IS NULL)"
         params.append(buyer_company_id)
+    search_filter = ""
+    if q and str(q).strip():
+        term = f"%{str(q).strip()}%"
+        search_filter = """ AND (
+            invoice_number ILIKE %s OR
+            serial ILIKE %s OR
+            seller_name ILIKE %s OR
+            seller_tax_code ILIKE %s OR
+            note ILIKE %s OR
+            items::text ILIKE %s
+        )"""
+        params.extend([term, term, term, term, term, term])
     return db._execute_query(
-        f"""SELECT COUNT(*) AS total, COALESCE(SUM(total), 0) AS total_amount
+        f"""SELECT COUNT(*) AS total,
+                   COALESCE(SUM(subtotal), 0) AS total_subtotal,
+                   COALESCE(SUM(vat_amount), 0) AS total_vat,
+                   COALESCE(SUM(total), 0) AS total_amount
               FROM public.transport_input_invoices
-             WHERE invoice_date >= %s AND invoice_date < %s{buyer_filter}""",
+             WHERE invoice_date >= %s AND invoice_date < %s{buyer_filter}{search_filter}""",
         tuple(params), fetch=True, commit=False,
-    ) or {"total": 0, "total_amount": 0}
+    ) or {"total": 0, "total_subtotal": 0, "total_vat": 0, "total_amount": 0}
 
 
-def list_invoices(start, end, buyer_company_id=None, limit=None, offset=None):
+def list_invoices(start, end, buyer_company_id=None, limit=None, offset=None, q=None):
     params = [start, end]
     buyer_filter = ""
     if buyer_company_id:
         buyer_filter = " AND (buyer_company_id = %s OR buyer_company_id IS NULL)"
         params.append(buyer_company_id)
+    search_filter = ""
+    if q and str(q).strip():
+        term = f"%{str(q).strip()}%"
+        search_filter = """ AND (
+            invoice_number ILIKE %s OR
+            serial ILIKE %s OR
+            seller_name ILIKE %s OR
+            seller_tax_code ILIKE %s OR
+            note ILIKE %s OR
+            items::text ILIKE %s
+        )"""
+        params.extend([term, term, term, term, term, term])
     query = f"""
             SELECT id, invoice_date, serial, invoice_number, seller_name, seller_tax_code,
                    buyer_name, subtotal, vat_percent, vat_amount, total, source_filename
             FROM public.transport_input_invoices
-            WHERE invoice_date >= %s AND invoice_date < %s{buyer_filter}
+            WHERE invoice_date >= %s AND invoice_date < %s{buyer_filter}{search_filter}
             ORDER BY invoice_date DESC, id DESC
         """
     if limit is not None:

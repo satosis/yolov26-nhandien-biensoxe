@@ -61,7 +61,7 @@
             <td>
               <div class="font-weight-bold text-dark">{{ a.full_name or a.username }}</div>
               {% if a.bank_account %}
-              <div class="small text-muted font-monospace" style="font-size:11px;">
+              <div class="small text-muted " style="font-size:11px;">
                 {{ a.bank_account }} · {{ a.bank_name or '' }}
               </div>
               {% endif %}
@@ -72,13 +72,13 @@
             <td class="small text-dark font-weight-medium">
               {{ a.advance_date.strftime('%d/%m/%Y') }}
             </td>
-            <td class="text-right font-weight-bold font-monospace text-dark">
+            <td class="text-right font-weight-bold text-dark">
               {{ a.amount_fmt }}
             </td>
-            <td class="text-right font-monospace text-muted">
+            <td class="text-right text-muted">
               {{ a.settled_amount_fmt }}
             </td>
-            <td class="text-right font-weight-bold font-monospace text-danger">
+            <td class="text-right font-weight-bold text-danger">
               {{ a.remaining_fmt }}
             </td>
             <td class="small text-muted">
@@ -176,13 +176,13 @@
           </div>
           <div class="form-group mb-2">
             <label class="small font-weight-bold">Số tiền tạm ứng (đ) <span class="text-danger">*</span></label>
-            <input type="text" name="amount" class="form-control form-control-sm font-weight-bold font-monospace"
+            <input type="text" name="amount" class="form-control form-control-sm font-weight-bold "
                    placeholder="VD: 2.000.000" oninput="formatCurrencyInput(this)" required>
           </div>
           <div class="form-row">
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Số tài khoản chuyển khoản</label>
-              <input type="text" name="bank_account" id="adv-bank-acc" class="form-control form-control-sm font-monospace" placeholder="Số TK...">
+              <input type="text" name="bank_account" id="adv-bank-acc" class="form-control form-control-sm " placeholder="Số TK...">
             </div>
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Ngân hàng</label>
@@ -217,12 +217,12 @@
         <div class="modal-body">
           <div class="alert alert-light border small py-2 mb-3">
             Nhân sự: <strong id="settle-user-name">--</strong><br>
-            Số tiền đã tạm ứng: <strong id="settle-adv-amount" class="font-monospace">--</strong>
+            Số tiền đã tạm ứng: <strong id="settle-adv-amount" class="">--</strong>
           </div>
           <div class="form-group mb-2">
             <label class="small font-weight-bold">Số tiền thực tế quyết toán (chứng từ/hóa đơn) <span class="text-danger">*</span></label>
             <input type="text" name="settled_amount" id="settle-amount-input"
-                   class="form-control form-control-sm font-weight-bold font-monospace"
+                   class="form-control form-control-sm font-weight-bold "
                    placeholder="Nhập số tiền thực tế..." oninput="formatCurrencyInput(this)" required>
           </div>
           <div class="form-group mb-2">
@@ -264,14 +264,8 @@ function openSettleModal(advId, userName, advFmt, rawAmount) {
   document.getElementById('settle-user-name').textContent = userName;
   document.getElementById('settle-adv-amount').textContent = advFmt;
   const amtInput = document.getElementById('settle-amount-input');
-  amtInput.value = new Intl.NumberFormat('vi-VN').format(parseInt(rawAmount || 0, 10));
+  amtInput.value = formatNumber(rawAmount || 0);
   $('#settleModal').modal('show');
-}
-
-function formatCurrencyInput(input) {
-  let val = input.value.replace(/\D/g, '');
-  if (!val) { input.value = ''; return; }
-  input.value = new Intl.NumberFormat('vi-VN').format(parseInt(val, 10));
 }
 </script>
 {% endblock %}

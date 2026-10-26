@@ -15,7 +15,7 @@
   <link href="/static/vendor/fonts-inter/index.css" rel="stylesheet">
   <link rel="stylesheet" href="/static/vendor/toastr/toastr.min.css" />
   <link rel="stylesheet" href="/static/admin/css/tom-select.css?v=opatix">
-  <link href="/static/admin-assets/css/admin-custom.css?v=20261022-bulk-actions-1" rel="stylesheet" type="text/css" />
+  <link href="/static/admin-assets/css/admin-custom.css?v=20261025-unified-ui-1" rel="stylesheet" type="text/css" />
 
   <script src="/static/admin/js/htmx.min.js?v=2.1"></script>
   <script src="/static/admin/js/api-client.js?v=1.1"></script>
@@ -31,6 +31,93 @@
     .hidden{display:none!important}
     #toast-container { z-index: 999999 !important; }
   </style>
+  <script>
+    // Global formatNumber & formatCurrency helpers (available everywhere)
+    window.formatNumber = function(value, defaultVal = '0') {
+      if (value === null || value === undefined || value === '') return defaultVal;
+      if (typeof value === 'number') {
+        if (isNaN(value)) return defaultVal;
+        return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value);
+      }
+      let clean = String(value).trim();
+      if (!clean) return defaultVal;
+      // Handle Vietnamese formatting: 1.000.000 or 1.000.000,50
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes('.') && !clean.includes(',')) {
+        const parts = clean.split('.');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/\./g, '');
+        }
+      } else if (clean.includes(',')) {
+        const parts = clean.split(',');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/,/g, '');
+        } else {
+          clean = clean.replace(',', '.');
+        }
+      }
+      const cleanNum = clean.replace(/[^\d.-]/g, '');
+      const num = Number(cleanNum);
+      if (isNaN(num)) return defaultVal;
+      return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(num);
+    };
+
+    window.formatCurrency = function(value, symbol = 'đ', defaultVal = '0 đ') {
+      if (value === null || value === undefined || value === '') return defaultVal;
+      const formatted = window.formatNumber(value, null);
+      if (formatted === null) return defaultVal;
+      return formatted + (symbol ? ' ' + symbol : '');
+    };
+
+    window.parseNumber = function(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number') return isNaN(value) ? 0 : value;
+      let clean = String(value).trim();
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes('.') && !clean.includes(',')) {
+        const parts = clean.split('.');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/\./g, '');
+        }
+      } else if (clean.includes(',')) {
+        const parts = clean.split(',');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/,/g, '');
+        } else {
+          clean = clean.replace(',', '.');
+        }
+      }
+      const cleanNum = clean.replace(/[^\d.-]/g, '');
+      return parseFloat(cleanNum) || 0;
+    };
+
+    window.formatCurrencyInput = function(el) {
+      if (!el) return;
+      const cursor = el.selectionStart;
+      const prevLen = el.value.length;
+      const raw = el.value.replace(/[^\d-]/g, '');
+      if (!raw || raw === '-') {
+        el.value = raw;
+        return;
+      }
+      const isNeg = raw.startsWith('-');
+      const digits = raw.replace(/-/g, '');
+      const num = parseInt(digits, 10);
+      if (isNaN(num)) {
+        el.value = '';
+        return;
+      }
+      const formatted = (isNeg ? '-' : '') + new Intl.NumberFormat('vi-VN').format(num);
+      el.value = formatted;
+      const diff = formatted.length - prevLen;
+      if (cursor !== null) {
+        el.setSelectionRange(Math.max(0, cursor + diff), Math.max(0, cursor + diff));
+      }
+    };
+    window.formatNumberInput = window.formatCurrencyInput;
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body>

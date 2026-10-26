@@ -14,7 +14,7 @@ import urllib.parse
 import unicodedata
 from functools import lru_cache
 from datetime import datetime, date
-from uuid import UUID
+from uuid import UUID, uuid4
 from typing import Any, Optional
 from fastapi import APIRouter, Request, Depends, Form, Query, File, UploadFile, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -92,6 +92,9 @@ from frontend.modules.zalo.trip_requests import (
     confirm_invoice_not_created, get_trip_request,
     register_trip_request, send_invoice_notice, send_saved_invoice_to_zalo,
 )
+from frontend.modules.transport.vehicle_matching import (
+    resolve_vehicle_from_identifier,
+)
 from backend.services.database import db
 from backend.ai.handwriting_ocr import extract_trip_candidates_from_document
 from backend.services.google_maps import (
@@ -112,7 +115,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/vehicles")
 from frontend.modules.transport.catalog_router import catalog_router
 
-PER_PAGE = 20
+PER_PAGE = 100
 SCAN_REVIEW_TTL = 30 * 60
 SCAN_REVIEW_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_scan_reviews"
 OCR_SAMPLE_DIR = Path(__file__).parent.parent / ".runtime" / "cargo_ocr_samples"
@@ -180,76 +183,6 @@ def _load_scan_review(token: str) -> dict | None:
 def _delete_scan_review(token: str):
     _SCAN_REVIEWS.pop(token, None)
     _scan_review_path(token).unlink(missing_ok=True)
-
-
-def get_cargo_trips(vehicle_id: int | None = None, limit: int = 50, offset: int = 0,
-                    company_id: int | None = None,
-                    payment_status: str | None = None,
-                    start: date | None = None, end: date | None = None,
-                    seller_company_id: int | None = None) -> list[dict]:
-    where_clauses = []
-    params: list = []
-    if vehicle_id is not None:
-        where_clauses.append("trip.vehicle_id = %s")
-        params.append(vehicle_id)
-    if company_id is not None:
-        where_clauses.append("trip.company_id = %s")
-        params.append(company_id)
-    if seller_company_id is not None:
-        where_clauses.append("trip.seller_company_id = %s")
-        params.append(seller_company_id)
-    if start is not None and end is not None:
-        where_clauses.append("trip.invoice_date >= %s AND trip.invoice_date < %s")
-        params.extend((start, end))
-    if payment_status:
-        where_clauses.append("trip.payment_status = %s")
-        params.append(payment_status)
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    params.extend([limit, offset])
-    query = f"""
-        SELECT trip.*,
-               COALESCE(trip.plate_number, v.plate_number, '') AS plate_number,
-               company.name AS company_name,
-               seller_company.name AS seller_company_name
-        FROM cargo_trips AS trip
-        LEFT JOIN plate_whitelist AS v ON v.id = trip.vehicle_id
-        LEFT JOIN invoice_companies AS company ON company.id = trip.company_id
-        LEFT JOIN invoice_companies AS seller_company ON seller_company.id = trip.seller_company_id
-        {where_sql}
-        ORDER BY trip.invoice_date DESC NULLS LAST, trip.departure_time DESC
-        LIMIT %s OFFSET %s
-    """
-    return db._execute_query(query, tuple(params), fetchall=True, commit=False) or []
-
-
-def count_cargo_trips(vehicle_id: int | None = None,
-                      company_id: int | None = None,
-                      payment_status: str | None = None,
-                      start: date | None = None, end: date | None = None,
-                      seller_company_id: int | None = None) -> int:
-    where_clauses = []
-    params: list = []
-    if vehicle_id is not None:
-        where_clauses.append("vehicle_id = %s")
-        params.append(vehicle_id)
-    if company_id is not None:
-        where_clauses.append("company_id = %s")
-        params.append(company_id)
-    if seller_company_id is not None:
-        where_clauses.append("seller_company_id = %s")
-        params.append(seller_company_id)
-    if start is not None and end is not None:
-        where_clauses.append("invoice_date >= %s AND invoice_date < %s")
-        params.extend((start, end))
-    if payment_status:
-        where_clauses.append("payment_status = %s")
-        params.append(payment_status)
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    row = db._execute_query(
-        f"SELECT COUNT(*) FROM cargo_trips {where_sql}",
-        tuple(params), fetch=True, commit=False
-    )
-    return row["count"] if row else 0
 
 
 def _history_conditions(alias: str, *, invoice: bool = False, vehicle_id=None,
@@ -358,6 +291,8 @@ def get_cargo_history_groups(*, limit: int, offset: int, **filters) -> list[dict
         lines = lines_by_guid.get(guid, [])
         distance_values = [Decimal(str(line["distance_km"])) for line in lines if line.get("distance_km") is not None]
         fuel_values = [Decimal(str(line["fuel_cost_total"])) for line in lines if line.get("fuel_cost_total") is not None]
+        route_lines = [l for l in lines if l.get("origin") and l.get("destination")]
+        plates = list(dict.fromkeys(line["plate_number"] for line in lines if line.get("plate_number")))
         entry = {
             "id": guid, "invoice_guid": guid, "selection_key": f"invoice:{guid}",
             "invoice_lines": lines, "invoice_date": invoice["invoice_date"],
@@ -369,8 +304,9 @@ def get_cargo_history_groups(*, limit: int, offset: int, **filters) -> list[dict
             "payment_status": invoice["payment_status"], "debt_amount": invoice["debt_amount"],
             "fuel_cost_total": sum(fuel_values, Decimal(0)) if fuel_values else None,
             "distance_km": sum(distance_values, Decimal(0)) if distance_values else None,
-            "plate_number": "", "origin": lines[0]["origin"] if lines else "",
-            "destination": lines[-1]["destination"] if lines else "",
+            "plate_number": ", ".join(plates),
+            "origin": route_lines[0]["origin"] if route_lines else (lines[0]["origin"] if lines else ""),
+            "destination": route_lines[-1]["destination"] if route_lines else (lines[-1]["destination"] if lines else ""),
             "fuel_price_per_liter": None,
         }
         by_key[("invoice", guid)] = entry
@@ -640,26 +576,6 @@ def delete_cargo_trip(trip_id: int, vehicle_id: int | None = None) -> bool:
         except Exception as exc:
             logger.warning("Could not adjust debt on trip delete: %s", exc)
     return deleted
-
-
-def bulk_delete_cargo_trips(trip_ids: list[int], vehicle_id: int | None = None) -> int:
-    valid_ids = [int(i) for i in dict.fromkeys(trip_ids) if str(i).isdigit()]
-    if not valid_ids:
-        return 0
-    placeholders = ", ".join(["%s"] * len(valid_ids))
-    if vehicle_id is not None:
-        where_sql = f"vehicle_id = %s AND id IN ({placeholders})"
-        params = [vehicle_id] + valid_ids
-    else:
-        where_sql = f"id IN ({placeholders})"
-        params = valid_ids
-    rows = db._execute_query(
-        f"DELETE FROM public.cargo_trips WHERE {where_sql} RETURNING id",
-        tuple(params),
-        fetchall=True,
-        commit=True,
-    )
-    return len(rows) if rows else 0
 
 
 def add_reviewed_cargo_trips(vehicle_id: int, plate_number: str, trips: list[dict], seller_company_id: int | None = None) -> bool:
@@ -945,7 +861,7 @@ def _trip_form_error(message: str, back_url: str) -> HTMLResponse:
     return HTMLResponse(
         "<!doctype html><html lang='vi'><meta charset='utf-8'>"
         "<title>Dữ liệu chuyến hàng không hợp lệ</title>"
-        "<body style='font:16px system-ui;max-width:40rem;margin:3rem auto;padding:1rem'>"
+        "<body style='font-family:\"Times New Roman\",Times,serif;font-size:16px;max-width:40rem;margin:3rem auto;padding:1rem'>"
         "<h1>Chưa lưu chuyến hàng</h1>"
         f"<p>{escape(message)}</p>"
         "<button type='button' onclick='history.back()'>Quay lại sửa</button> "
@@ -1288,20 +1204,6 @@ def _bkav_sync_context(request: Request, user: dict, payload: BkavSyncInput):
     return vehicle, seller_id, buyer, start, end, seller_tax
 
 
-def _extract_address_provinces(text: str) -> list[str]:
-    provinces = []
-    m = re.findall(r"(?:tỉnh|thành phố|tp)\s+([^,;\n]+)", text, re.I)
-    for p in m:
-        clean = p.strip()
-        if clean and clean not in provinces:
-            provinces.append(clean)
-    known = ["Phú Thọ", "Vĩnh Phúc", "Hà Nội", "Bắc Ninh", "Lào Cai", "Lạng Sơn", "Nghệ An", "Hải Phòng", "Hưng Yên"]
-    for k in known:
-        if k.lower() in text.lower() and k not in provinces:
-            provinces.append(k)
-    return provinces
-
-
 async def _fill_bkav_google_distances(invoices: list[dict]) -> None:
     """Fill missing BKAV route distances using only the configured Google Maps APIs."""
     route_segments = [segment for invoice in invoices for segment in (invoice.get("segments") or [])]
@@ -1316,47 +1218,42 @@ async def _fill_bkav_google_distances(invoices: list[dict]) -> None:
     if not unique_routes:
         return
 
-    semaphore = asyncio.Semaphore(4)
-    async def fetch_route(origin: str, destination: str):
-        async with semaphore:
-            start, end = origin, destination
+    distances: dict[tuple[str, str], float | None] = {}
+    for key, (origin, destination) in unique_routes.items():
+        start, end = origin, destination
+        dist = None
+        try:
             if _is_maps_url(start):
                 location = await _resolve_location(start)
                 coordinates = _coordinates(location) if location else None
-                if coordinates is None:
-                    return None
-                start = {"lat": coordinates[0], "lon": coordinates[1]}
+                if coordinates is not None:
+                    start = {"lat": coordinates[0], "lon": coordinates[1]}
             if _is_maps_url(end):
                 location = await _resolve_location(end)
                 coordinates = _coordinates(location) if location else None
-                if coordinates is None:
-                    return None
-                end = {"lat": coordinates[0], "lon": coordinates[1]}
+                if coordinates is not None:
+                    end = {"lat": coordinates[0], "lon": coordinates[1]}
             for api in (_gmaps_routes_distance, _gmaps_directions_distance):
                 try:
                     distance, _ = await api(start, end)
                     if distance is not None and math.isfinite(float(distance)) and float(distance) > 0:
-                        return round(float(distance), 2)
+                        dist = round(float(distance), 2)
+                        break
                 except Exception:
-                    logger.debug("Google Maps distance lookup failed for BKAV route", exc_info=True)
-            return None
+                    pass
+        except Exception:
+            pass
+        distances[key] = dist
 
-    keys = list(unique_routes)
-    results = await asyncio.gather(*(fetch_route(*unique_routes[key]) for key in keys))
-    distances = dict(zip(keys, results))
-    unresolved = []
     for segment in route_segments:
         if segment.get("distance_km") not in (None, ""):
             continue
-        key = (str(segment.get("origin") or "").strip().casefold(),
-               str(segment.get("destination") or "").strip().casefold())
-        distance = distances.get(key)
-        if distance is None:
-            unresolved.append(f"{segment.get('origin', '')} -> {segment.get('destination', '')}")
-        else:
-            segment["distance_km"] = distance
-    if unresolved:
-        raise ValueError("Google Maps không tính được quãng đường: " + "; ".join(unresolved[:3]))
+        origin = str(segment.get("origin") or "").strip()
+        destination = str(segment.get("destination") or "").strip()
+        if not origin or not destination or segment.get("is_crane"):
+            continue
+        key = (origin.casefold(), destination.casefold())
+        segment["distance_km"] = distances.get(key)
 
 
 @router.post("/cargo/bkav/preview", include_in_schema=False)
@@ -1774,8 +1671,8 @@ async def calculate_distance_by_address(origin: str = Query(...), destination: s
 
 
 class InvoiceLocationsInput(BaseModel):
-    origin: str
-    destination: str
+    origin: str = ""
+    destination: str = ""
     via_points: list[str] = []
 
 
@@ -1848,6 +1745,69 @@ async def get_fuel_price_api(target_date: str = Query(None)):
     return JSONResponse({"ok": False, "message": "Không tìm thấy giá dầu.", "price": None}, status_code=404)
 
 
+@router.get("/api/next-invoice-number")
+async def get_next_invoice_number_api(request: Request, user: dict = Depends(require_menu("vehicles"))):
+    ctx = get_menu_context(request, user)
+    seller_id = ctx.get("active_company_id")
+    number, serial = _get_next_invoice_number_and_serial(seller_id)
+    return JSONResponse({"ok": True, "invoice_number": number, "invoice_serial": serial})
+
+
+def _find_vehicle_by_nickname(nickname: str, all_vehicles: list[dict], db_instance=None) -> dict | None:
+    if not nickname:
+        return None
+    nick_folded = _remove_accents(nickname).casefold().strip()
+
+    # 1. Match plate numbers directly
+    clean_nick = re.sub(r"[^0-9A-Za-z]", "", nick_folded)
+    for v in all_vehicles:
+        clean_plate = re.sub(r"[^0-9A-Za-z]", "", (v.get("plate_number") or "").casefold())
+        if clean_nick and (clean_nick in clean_plate or clean_plate.endswith(clean_nick)):
+            return v
+
+    # 2. Match family / driver nickname terms
+    # "bố" / "bo" -> Xe Nguyễn Kim Quyết (19H-147.98)
+    if nick_folded in {"bo", "xe bo", "quyet", "kim quyet", "chu quyet", "bac quyet"}:
+        for v in all_vehicles:
+            owner = _remove_accents(v.get("owner_name") or "").casefold()
+            if "quyet" in owner:
+                return v
+
+    # "chú lợi" / "loi" -> Xe Nguyễn Văn Lợi (19H-209.07)
+    if nick_folded in {"loi", "van loi", "chu loi", "anh loi", "xe chu loi"}:
+        for v in all_vehicles:
+            owner = _remove_accents(v.get("owner_name") or "").casefold()
+            if "loi" in owner:
+                return v
+
+    # 3. Match against owner_name or note
+    for v in all_vehicles:
+        owner = _remove_accents(v.get("owner_name") or "").casefold()
+        note = _remove_accents(v.get("note") or "").casefold()
+        if nick_folded in owner or nick_folded in note:
+            return v
+
+    # 4. Check transport_drivers table
+    try:
+        mgr = db_instance or db
+        drivers = mgr._execute_query(
+            "SELECT vehicle_id, full_name, driver_code FROM public.transport_drivers WHERE vehicle_id IS NOT NULL",
+            fetchall=True
+        )
+        for d in drivers or []:
+            fname = _remove_accents(d.get("full_name") or "").casefold()
+            dcode = _remove_accents(d.get("driver_code") or "").casefold()
+            if nick_folded in fname or nick_folded in dcode or fname.split()[-1] in nick_folded:
+                vid = d.get("vehicle_id")
+                matched = next((v for v in all_vehicles if v["id"] == vid), None)
+                if matched:
+                    return matched
+    except Exception:
+        pass
+
+    return None
+
+
 @router.get("/cargo/add")
 @router.get("/{vehicle_id}/cargo/add")
 async def add_cargo_trip_page(
@@ -1871,16 +1831,12 @@ async def add_cargo_trip_page(
         if v_param and str(v_param).isdigit():
             vehicle_id = int(v_param)
     if draft and draft.get("vehicle_nickname"):
-        linked_user = db._execute_query(
-            "SELECT full_name FROM public.users WHERE lower(nickname) = lower(%s) LIMIT 2",
-            (draft["vehicle_nickname"],), fetchall=True, commit=False,
-        ) or []
-        vehicles = [v for v in all_vehicles if any(v.get("owner_name") == row["full_name"] for row in linked_user)]
-        if len(linked_user) == 1 and len(vehicles) == 1:
-            vehicle_id = vehicles[0]["id"]
+        matched_v = _find_vehicle_by_nickname(draft["vehicle_nickname"], all_vehicles, db)
+        if matched_v:
+            vehicle_id = matched_v["id"]
             draft["vehicle_id"] = vehicle_id
         else:
-            draft["missing"].append("Chọn xe: không xác định được xe chú " + draft["vehicle_nickname"])
+            draft["missing"].append("Chọn xe: không xác định được xe " + draft["vehicle_nickname"])
 
     vehicle = None
     if vehicle_id:
@@ -1905,7 +1861,12 @@ async def add_cargo_trip_page(
         draft["company_id"] = buyers[0]["id"] if len(buyers) == 1 else None
         if not draft["company_id"]:
             draft["missing"].append("Đơn vị mua theo MST " + draft["tax_code"])
-    ctx["seller_company_id"] = get_default_seller_company_id(vehicle_id=vehicle_id, trip=None, current_user=user)
+    draft_seller_id = draft.get("seller_company_id") if draft else None
+    if draft_seller_id:
+        ctx["seller_company_id"] = draft_seller_id
+        request.session["active_company_id"] = draft_seller_id
+    else:
+        ctx["seller_company_id"] = get_default_seller_company_id(vehicle_id=vehicle_id, trip=None, current_user=user)
     ctx["vat_percent"] = "8"
     ctx["service_presets"] = [item["name"] for item in list_catalog_items("service")]
     ctx["service_name"] = (draft.get("service") or "") if draft else DEFAULT_SERVICE_NAME
@@ -1980,6 +1941,8 @@ async def create_cargo_trip(
         if not zalo_payment_confirmed:
             return _trip_form_error("Xác nhận trạng thái thanh toán trước khi lưu chuyến từ Zalo.", back_url)
         missing_fields = []
+        if not draft.get("company_id") and not company_id:
+            missing_fields.append("đơn vị khách hàng (bên mua)")
         if not (origin or "").strip():
             missing_fields.append("điểm lấy hàng")
         if not (destination or "").strip():
@@ -2015,8 +1978,8 @@ async def create_cargo_trip(
     })
     if error:
         return _trip_form_error(error, back_url)
-    trip_fields["company_id"] = company_id
-    trip_fields["seller_company_id"] = request.session.get("active_company_id") or seller_company_id
+    trip_fields["company_id"] = company_id or (draft.get("company_id") if draft else None)
+    trip_fields["seller_company_id"] = (draft.get("seller_company_id") if draft else None) or seller_company_id or request.session.get("active_company_id")
     trip_fields["service_name"] = service_name.strip()
     trip_fields["route_segments"] = segments
 
@@ -2697,30 +2660,36 @@ async def generate_and_save_trip_qr_endpoint(
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
-def _bkav_edit_decimal(value: str | None, label: str, *, money: bool = False,
-                       required: bool = False, places: str = "0.01") -> Decimal | None:
-    raw = str(value or "").strip()
-    if not raw:
-        if required:
-            raise ValueError(f"Nhập {label}.")
-        return None
-    if money:
-        if not re.fullmatch(r"(?:[0-9]+|[0-9]{1,3}(?:[., ][0-9]{3})+)", raw):
-            raise ValueError(f"{label} phải là số tiền nguyên.")
-        raw = re.sub(r"[., ]", "", raw)
-    else:
-        if not re.fullmatch(r"[0-9]+(?:[.,][0-9]+)?", raw):
-            raise ValueError(f"{label} không hợp lệ.")
-        raw = raw.replace(",", ".")
+def ensure_bkav_history_schema():
+    pass
+
+
+def _get_next_invoice_number_and_serial(seller_company_id: int | None = None) -> tuple[str, str]:
     try:
-        number = Decimal(raw)
-    except InvalidOperation as exc:
-        raise ValueError(f"{label} không hợp lệ.") from exc
-    if not number.is_finite() or number < 0:
-        raise ValueError(f"{label} không hợp lệ.")
-    if money and number > Decimal("9999999999999999"):
-        raise ValueError(f"{label} vượt giới hạn.")
-    return number if money else number.quantize(Decimal(places), rounding=ROUND_HALF_UP)
+        row = db._execute_query("""
+            SELECT invoice_serial, MAX(invoice_number) as max_num
+            FROM public.bkav_invoices
+            WHERE (%s IS NULL OR seller_company_id = %s)
+              AND invoice_number IS NOT NULL
+            GROUP BY invoice_serial
+            ORDER BY MAX(invoice_number) DESC
+            LIMIT 1
+        """, (seller_company_id, seller_company_id), fetch=True)
+        if not row and seller_company_id is not None:
+            row = db._execute_query("""
+                SELECT invoice_serial, MAX(invoice_number) as max_num
+                FROM public.bkav_invoices
+                WHERE invoice_number IS NOT NULL
+                GROUP BY invoice_serial
+                ORDER BY MAX(invoice_number) DESC
+                LIMIT 1
+            """, fetch=True)
+        serial = (row.get("invoice_serial") if row else None) or "C26TAA"
+        next_num = ((row.get("max_num") or 0) + 1) if row else 1
+        return str(next_num).zfill(8), serial
+    except Exception:
+        logger.exception("Failed to compute next invoice number")
+        return "00000001", "C26TAA"
 
 
 def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None = None,
@@ -2754,15 +2723,18 @@ def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None 
                               if invoice else None)
 
     if values is not None:
-        ctx["form_values"] = values
+        ctx["form_values"] = dict(values)
+        if not ctx["form_values"].get("invoice_number"):
+            next_num, next_serial = _get_next_invoice_number_and_serial(ctx.get("active_company_id"))
+            ctx["form_values"]["invoice_number"] = next_num
+            if not ctx["form_values"].get("invoice_serial"):
+                ctx["form_values"]["invoice_serial"] = next_serial
     else:
-        default_number = ""
-        default_serial = ""
         if invoice:
             default_number = str(invoice["invoice_number"]).zfill(8)
             default_serial = invoice.get("invoice_serial") or ""
         else:
-            default_number, default_serial = "", ""
+            default_number, default_serial = _get_next_invoice_number_and_serial(ctx.get("active_company_id"))
 
         ctx["form_values"] = {
             "invoice_date": (invoice["invoice_date"].isoformat() if invoice and hasattr(invoice["invoice_date"], "isoformat")
@@ -2792,7 +2764,7 @@ def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None 
             continue
         line = dict(source_line)
         plate = str(line.get("plate_number") or "").strip()
-        if crane_invoice and not line.get("vehicle_id") and plate:
+        if not line.get("vehicle_id") and plate:
             linked_vehicle = vehicle_by_plate.get(re.sub(r"[^A-Z0-9]", "", plate.upper()))
             if linked_vehicle:
                 line["vehicle_id"] = linked_vehicle["id"]
@@ -2826,7 +2798,7 @@ async def _invoice_payload_from_form(form: dict, request: Request, user: dict,
         if isinstance(raw_lines, list) and any(isinstance(line, dict) and not line.get("fuel_price_per_liter")
                                                and (line.get("fuel_liters") or line.get("distance_km"))
                                                for line in raw_lines):
-            default_price = await run_in_threadpool(_fuel_price_for_date, form.get("invoice_date"))
+            default_price = _fuel_price_for_date(form.get("invoice_date"))
     except (TypeError, json.JSONDecodeError):
         pass
     return parse_invoice_form(form, vehicles=vehicles, buyer=buyer,
@@ -2842,39 +2814,150 @@ async def add_invoice_page(request: Request, user: dict = Depends(require_menu("
 @router.post("/cargo/invoices/add")
 async def create_invoice(request: Request, user: dict = Depends(require_menu("vehicles"))):
     form = dict(await request.form())
-    try:
-        payload = await _invoice_payload_from_form(form, request, user)
-        buyer = get_company(payload["buyer_company_id"])
-        if not buyer:
-            raise ValueError("Không tìm thấy đơn vị khách hàng.")
-        content = build_saved_invoice_workbook(payload, payload["lines"], buyer)
-    except ValueError as exc:
-        return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=422)
-    filename = f"Hoa_don_van_chuyen_{int(payload['invoice_number']):08d}.xlsx"
-    return Response(
-        content=content,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"',
-                 "Cache-Control": "no-store"},
+    headers = getattr(request, "headers", None) or {}
+    accept = headers.get("Accept", "") if hasattr(headers, "get") else ""
+    if form.get("action") == "export" or "application/vnd.openxmlformats" in accept:
+        try:
+            payload = await _invoice_payload_from_form(form, request, user)
+            buyer = get_company(payload["buyer_company_id"])
+            if not buyer:
+                raise ValueError("Không tìm thấy đơn vị khách hàng.")
+            content = build_saved_invoice_workbook(payload, payload["lines"], buyer)
+        except ValueError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=422)
+        filename = f"Hoa_don_van_chuyen_{int(payload['invoice_number']):08d}.xlsx"
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                     "Cache-Control": "no-store"},
+        )
+    return await save_invoice_to_db(request, user=user)
+
+
+@router.post("/cargo/invoices/save")
+@router.post("/cargo/invoices/{invoice_guid}/save")
+async def save_invoice_to_db(request: Request, invoice_guid: Optional[UUID] = None, user: dict = Depends(require_menu("vehicles"))):
+    """Save invoice form data to the database (bkav_invoices + bkav_invoice_lines).
+    If invoice_guid exists, update the existing invoice header and replace line items.
+    """
+    form = dict(await request.form())
+    payload = await _invoice_payload_from_form(form, request, user)
+    existing_guid = str(invoice_guid or form.get("invoice_guid") or "").strip()
+    
+    with db._get_connection() as conn:
+        with conn.cursor() as cursor:
+            is_update = False
+            guid = None
+            if existing_guid:
+                cursor.execute("SELECT seller_company_id, entry_origin FROM public.bkav_invoices WHERE invoice_guid = %s", (existing_guid,))
+                if cursor.fetchone():
+                    is_update = True
+                    guid = existing_guid
+                    cursor.execute("""
+                        UPDATE public.bkav_invoices
+                        SET buyer_company_id = %s, invoice_date = %s, invoice_number = %s,
+                            invoice_serial = %s, buyer_tax_code = %s, service_name = %s,
+                            vat_rate = %s, payment_method = %s, payment_status = %s,
+                            debt_amount = %s, subtotal = %s, gross = %s, line_count = %s,
+                            entry_origin = CASE WHEN entry_origin = 'manual' THEN 'manual' ELSE 'edited' END
+                        WHERE invoice_guid = %s
+                    """, (payload["buyer_company_id"], payload["invoice_date"],
+                          payload["invoice_number"], payload["invoice_serial"],
+                          payload["buyer_tax_code"], payload["service_name"],
+                          str(payload["vat_rate"]), payload["payment_method"],
+                          payload["payment_status"], str(payload["debt_amount"]),
+                          str(payload["subtotal"]), str(payload["gross"]),
+                          payload["line_count"], guid))
+                    cursor.execute("DELETE FROM public.bkav_invoice_lines WHERE invoice_guid = %s", (guid,))
+            
+            if not is_update:
+                guid = existing_guid or str(uuid4())
+                cursor.execute("""
+                    INSERT INTO public.bkav_invoices
+                        (invoice_guid, seller_company_id, buyer_company_id, invoice_date,
+                         invoice_number, invoice_serial, buyer_tax_code, service_name,
+                         vat_rate, payment_method, payment_status, debt_amount,
+                         subtotal, gross, line_count, entry_origin)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'manual')
+                """, (guid, payload["seller_company_id"], payload["buyer_company_id"],
+                      payload["invoice_date"], payload["invoice_number"],
+                      payload["invoice_serial"], payload["buyer_tax_code"],
+                      payload["service_name"], str(payload["vat_rate"]),
+                      payload["payment_method"], payload["payment_status"],
+                      str(payload["debt_amount"]), str(payload["subtotal"]),
+                      str(payload["gross"]), payload["line_count"]))
+
+            for line in payload["lines"]:
+                cursor.execute("""
+                    INSERT INTO public.bkav_invoice_lines
+                        (invoice_guid, line_number, vehicle_id,
+                         cargo_description, cargo_weight_tons, description, origin,
+                         destination, distance_km, via_points, amount, tax_amount,
+                         fuel_liters, fuel_price_per_liter, fuel_cost_total)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (guid, line["line_number"], line["vehicle_id"],
+                      line.get("cargo_description"),
+                      str(line["cargo_weight_tons"]) if line.get("cargo_weight_tons") is not None else None,
+                      line["description"], line["origin"], line["destination"],
+                      str(line["distance_km"]) if line.get("distance_km") is not None else None,
+                      Json(line.get("via_points") or []),
+                      str(line["amount"]),
+                      str(line["tax_amount"]) if line.get("tax_amount") is not None else None,
+                      str(line["fuel_liters"]) if line.get("fuel_liters") is not None else None,
+                      str(line["fuel_price_per_liter"]) if line.get("fuel_price_per_liter") is not None else None,
+                      str(line["fuel_cost_total"]) if line.get("fuel_cost_total") is not None else None))
+        conn.commit()
+    headers = getattr(request, "headers", None) or {}
+    is_ajax = bool(
+        hasattr(headers, "get")
+        and (
+            headers.get("X-Requested-With") == "XMLHttpRequest"
+            or "application/json" in headers.get("Accept", "")
+        )
     )
+    if is_ajax:
+        return JSONResponse({"ok": True, "invoice_guid": guid,
+                             "redirect": f"/admin/vehicles/cargo/invoices/{guid}/edit?saved=1"})
+    return RedirectResponse(f"/admin/vehicles/cargo/invoices/{guid}/edit?saved=1", status_code=303)
+
+
+async def update_bkav_invoice(invoice_guid: UUID, request: Request, user: dict = Depends(require_menu("vehicles"))):
+    return await save_invoice_to_db(request, invoice_guid=invoice_guid, user=user)
 
 
 @router.post("/cargo/invoices/push-bkav")
 async def push_invoice_form_to_bkav(request: Request, user: dict = Depends(require_menu("vehicles"))):
     form = dict(await request.form())
+    guid_str = str(form.get("invoice_guid") or "").strip()
+    is_new = not bool(guid_str)
     try:
-        payload = await _invoice_payload_from_form(form, request, user)
-        buyer = get_company(payload["buyer_company_id"])
-        seller = get_company(payload["seller_company_id"])
-        if not buyer or not seller:
-            raise ValueError("Thiếu thông tin đơn vị mua hoặc đơn vị xuất hóa đơn.")
-        result = await run_in_threadpool(push_form_invoice_to_bkav, payload, buyer, seller)
+        if guid_str:
+            target_guid = UUID(guid_str)
+            save_res = await save_invoice_to_db(request, invoice_guid=target_guid, user=user)
+            if hasattr(save_res, "status_code") and save_res.status_code >= 400:
+                return save_res
+        else:
+            save_res = await save_invoice_to_db(request, user=user)
+            if hasattr(save_res, "status_code") and save_res.status_code >= 400:
+                return save_res
+            save_data = json.loads(save_res.body.decode("utf-8")) if hasattr(save_res, "body") else {}
+            target_guid = UUID(str(save_data.get("invoice_guid")))
+
+        push_res = await push_saved_invoice_to_bkav_endpoint(target_guid, request, user=user)
+        if is_new and hasattr(push_res, "body"):
+            try:
+                body_data = json.loads(push_res.body.decode("utf-8"))
+                body_data["redirect"] = f"/admin/vehicles/cargo/invoices/{target_guid}/edit"
+                return JSONResponse(body_data, status_code=push_res.status_code)
+            except Exception:
+                pass
+        return push_res
     except (ValueError, BkavUncertainError) as exc:
         return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=422)
-    except Exception:
-        logger.exception("BKAV direct invoice push failed")
-        return JSONResponse({"ok": False, "error": "Không thể hoàn tất gửi BKAV. Hãy kiểm tra trạng thái hóa đơn trên BKAV."}, status_code=502)
-    return {"ok": True, **result, "message": "Đã đồng bộ hóa đơn trực tiếp sang BKAV."}
+    except Exception as exc:
+        logger.exception("BKAV invoice push failed: %s", exc)
+        return JSONResponse({"ok": False, "error": f"Không thể hoàn tất gửi BKAV: {str(exc)[:200]}"}, status_code=502)
 
 
 @router.get("/cargo/bkav/{invoice_guid}/edit", include_in_schema=False)
@@ -2939,7 +3022,7 @@ async def push_saved_invoice_to_bkav_endpoint(
                         from frontend.modules.zalo.trip_requests import send_saved_invoice_to_zalo
                         z_ok, z_msg = await send_saved_invoice_to_zalo(str(invoice_guid), image_path=str(png_path))
                         if z_ok:
-                            notice += " Đã gửi ảnh hóa đơn vào nhóm Zalo Đại Lộ Xanh."
+                            notice += f" {z_msg}"
                     except Exception as z_err:
                         logger.warning("Auto-send Zalo notice failed for %s: %s", invoice_guid, z_err)
             except Exception as img_err:

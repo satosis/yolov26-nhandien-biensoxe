@@ -69,7 +69,7 @@
     const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
     const digits = input.value.replace(/\D/g, '');
     segment.amount = digits ? Number(digits) : '';
-    input.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+    input.value = digits ? formatNumber(digits) : '';
     let cursor = 0;
     let digitCount = 0;
     while (cursor < input.value.length && digitCount < digitsBeforeCursor) {
@@ -151,7 +151,7 @@
   },
   syncDebtInput() {
     const el = document.getElementById('add-debt-amount');
-    if (el) el.value = this.debtAmount ? Number(this.debtAmount).toLocaleString('vi-VN') : '';
+    if (el) el.value = this.debtAmount ? formatNumber(this.debtAmount) : '';
   },
   resetDebtToInvoice() {
     this.debtAmount = this.invoiceTotal;
@@ -164,7 +164,7 @@
     const digits = input.value.replace(/\D/g, '');
     this.debtAmount = digits ? Number(digits) : 0;
     this.debtManuallyEdited = true;
-    input.value = digits ? this.debtAmount.toLocaleString('vi-VN') : '';
+    input.value = digits ? formatNumber(this.debtAmount) : '';
     let cursor = 0;
     let digitCount = 0;
     while (cursor < input.value.length && digitCount < digitsBeforeCursor) {
@@ -184,7 +184,7 @@
     const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
     const digits = input.value.replace(/\D/g, '');
     this.firstLegRevenue = digits ? Number(digits) : 0;
-    input.value = digits ? this.firstLegRevenue.toLocaleString('vi-VN') : '';
+    input.value = digits ? formatNumber(this.firstLegRevenue) : '';
     this.syncRouteTotals();
     let cursor = 0;
     let digitCount = 0;
@@ -595,7 +595,7 @@
     const price = Number(json.price);
     if (json.ok && json.price != null && Number.isFinite(price) && price > 0) {
       this.fuelPrice = price;
-      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + price.toLocaleString('vi-VN') + ' ₫/lít', type:'info'}}));
+      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', type:'info'}}));
     } else {
       this.showRequestError(json, 'Không lấy được giá dầu.', silent);
     }
@@ -661,7 +661,7 @@
                    value="{{ document_number or '' }}"
                    maxlength="20"
                    class="form-control font-weight-bold text-primary"
-                   style="height:38px; font-family:monospace; letter-spacing:1px;"
+                   style="height:38px;  letter-spacing:1px;"
                    @blur="if ($el.value.trim() && /^\d+$/.test($el.value.trim())) { $el.value = $el.value.trim().padStart(8, '0'); }">
           </div>
           <div class="col-12 col-md-4 mb-3">
@@ -738,7 +738,7 @@
             <div class="row no-gutters" style="gap:0;">
               <div class="col-6 pr-2">
                  <label class="font-size-13 text-muted" x-text="extraSegments.length ? 'Cước đoạn 1 (₫)' : 'Cước vận chuyển (₫)'"></label>
-                <input type="text" inputmode="numeric" x-init="$el.value = firstLegRevenue ? Number(firstLegRevenue).toLocaleString('vi-VN') : ''"
+                <input type="text" inputmode="numeric" x-init="$el.value = firstLegRevenue ? formatNumber(firstLegRevenue) : ''"
                        @input="formatRevenueInput($event)"
                        class="form-control" style="height:38px;">
                 <input type="hidden" name="freight_revenue" :value="revenue">
@@ -746,9 +746,9 @@
               <div class="col-6 pl-2">
                 <label class="font-size-13 text-muted">Lợi nhuận dự tính</label>
                 <div class="form-control cargo-field-output d-flex align-items-center font-weight-bold"
-                     style="font-family:monospace;height:38px;"
+                     style="height:38px;"
                      :class="profit >= 0 ? 'text-success' : 'text-danger'"
-                     x-text="profit.toLocaleString('vi-VN') + ' ₫'"></div>
+                     x-text="formatCurrency(profit, '₫')"></div>
               </div>
             </div>
           </div>
@@ -796,10 +796,10 @@
                 </button>
               </div>
               <input type="text" id="add-debt-amount" inputmode="numeric"
-                     x-init="$el.value = debtAmount ? Number(debtAmount).toLocaleString('vi-VN') : ''"
+                     x-init="$el.value = debtAmount ? formatNumber(debtAmount) : ''"
                      @input="formatDebtInput($event)"
                      class="form-control text-danger font-weight-bold"
-                     style="font-family:monospace;font-size:15px;height:38px;">
+                     style="font-size:15px;height:38px;">
               <input type="hidden" name="debt_amount" :value="debtAmount">
             </div>
           </div>

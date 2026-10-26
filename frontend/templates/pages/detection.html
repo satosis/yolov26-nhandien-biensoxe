@@ -559,7 +559,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
   align-items: center;
 }
 .cam-hud-clock {
-  font-family: 'JetBrains Mono', Consolas, monospace;
   color: #cbd5e1;
   font-size: 11px;
 }
@@ -918,8 +917,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     let videoSyncEpoch = 0;
     let videoSyncLastTime = -Infinity;
     let videoSyncViewEpoch = 0;
+    let videoSyncTimer = null;
+    let videoSyncStreamId = '';
     let videoEventRevision = 0;
-    let videoSyncDetectionPass = 0;
     const videoFrameCanvas = document.createElement('canvas');
     let detectionActiveTab = localStorage.getItem('detection_tab') || 'rtsp';
     const resultsDiv = document.getElementById('detection-results');
@@ -946,7 +946,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     let webcamFrameSize = [640, 360];
 
     let rtspActive = false;
-    const rtspCaptureCanvas = document.createElement('canvas');
     let rtspProcessing = false;
     let rtspDetectionLoop = null;
     let rtspLastResults = [];
@@ -1270,12 +1269,13 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     }
 
     async function sendFrame(blob, source = 'webcam', fields = {}) {
-      if (!blob || blob.size === 0) {
+      const sourceFrameOnly = source === 'rtsp' && Number(fields.camera_id) > 0;
+      if ((!blob || blob.size === 0) && !sourceFrameOnly) {
         console.error('Detection frame encoding returned an empty image');
         return { error: "Ảnh không hợp lệ", results: [] };
       }
       const fd = new FormData();
-      fd.append('file', blob, 'frame.jpg');
+      if (blob && blob.size > 0) fd.append('file', blob, 'frame.jpg');
       fd.append('source', source);
       Object.entries(fields).forEach(([name, value]) => fd.append(name, String(value)));
       const result = await apiRequest('/admin/detection/api/detect', { method: 'POST', body: fd });
@@ -1393,20 +1393,21 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       }
 
       rtspProcessing = true;
-      rtspFrameSize = captureLiveFrame(el, rtspCaptureCanvas) || rtspFrameSize;
-
-      rtspCaptureCanvas.toBlob(async (blob) => {
-        if (!rtspActive) { rtspProcessing = false; return; }
-        const data = await sendFrame(blob, 'rtsp', { stream_id: rtspStreamId });
-        rtspProcessing = false;
+      try {
+        const data = await sendFrame(null, 'rtsp', {
+          stream_id: rtspStreamId, camera_id: Number(rtspCamera?.value || 0),
+        });
         if (!rtspActive) return;
         if (data.error) {
           renderResults(data);
           return;
         }
+        if (Array.isArray(data.frame_size)) rtspFrameSize = data.frame_size;
         rtspLastResults = data.results;
         renderResults(data);
-      }, 'image/jpeg', 0.88);
+      } finally {
+        rtspProcessing = false;
+      }
     };
 
     const drawRtspOverlay = () => {
@@ -1722,18 +1723,23 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       videoSyncPending = false;
       videoSyncEpoch++;
       videoSyncViewEpoch++;
+      if (videoSyncTimer) {
+        clearInterval(videoSyncTimer);
+        videoSyncTimer = null;
+      }
     }
 
     function startVideoSync() {
       stopVideoSync();
       videoSyncActive = true;
       videoSyncLastTime = -Infinity;
-      videoSyncDetectionPass = 0;
+      videoSyncStreamId = `${liveClientId}:video:${Date.now()}`;
       videoJobProgress.classList.add('d-none');
       setVideoMessage('Video phát liên tục, nhận diện chạy song song và ưu tiên khung hình mới nhất.');
       updateVideoControls();
       renderVideoEvents();
       scheduleVideoFrame(true);
+      videoSyncTimer = setInterval(() => scheduleVideoFrame(), 120);
     }
 
     function cropVideoFrame(box) {
@@ -1776,86 +1782,64 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       const candidateText = result.valid_format === true
         ? (typeof result.ocr_text === 'string' ? result.ocr_text.trim()
           : typeof result.text === 'string' ? result.text.trim() : '') : '';
-      const validText = result.valid_format === true && candidateText;
-      let event = videoEvents
-        .filter(item => item.type === 'plate' && timestamp >= Number(item.end_time)
-          && timestamp - Number(item.end_time) <= 8)
-        .map(item => ({ item, score: plateBoxSimilarity(item.bbox, result.bbox) }))
-        .filter(match => match.score > 0)
-        .sort((a, b) => b.score - a.score)[0]?.item;
-      const rawCrop = cropVideoFrame(result.bbox);
-      const processedCrop = result.crop_preview || rawCrop;
+      const trackKey = result.track_id != null
+        ? `${result.stream_id || videoSyncStreamId}:${result.track_id}` : '';
+      let event = trackKey
+        ? videoEvents.find(item => item.type === 'plate' && item.track_key === trackKey)
+        : videoEvents
+          .filter(item => item.type === 'plate' && timestamp >= Number(item.end_time)
+            && timestamp - Number(item.end_time) <= 8)
+          .map(item => ({ item, score: plateBoxSimilarity(item.bbox, result.bbox) }))
+          .filter(match => match.score > 0)
+          .sort((a, b) => b.score - a.score)[0]?.item;
       if (!event) {
-        event = { id: `sync-${timestamp.toFixed(1)}-${index}`, type: 'plate', text: '', status: 'unreadable',
+        event = { id: trackKey || `sync-${timestamp.toFixed(1)}-${index}`, track_key: trackKey,
+          type: 'plate', text: '', status: 'unreadable',
           ocr_confidence: 0, bbox: result.bbox, start_time: timestamp, end_time: timestamp,
           crop_time: timestamp, crop_data: '', original_crop_data: '', best_sharpness: -1,
-          observations: 0, plate_votes: {} };
+          observations: 0 };
         videoEvents.push(event);
       }
       event.revision = ++videoEventRevision;
       event.bbox = result.bbox;
-      event.end_time = Math.max(Number(event.end_time) || timestamp, timestamp);
-      event.observations = (Number(event.observations) || 0) + 1;
-      const sharpness = Number(result.quality?.sharpness);
-      if (processedCrop && (Number.isFinite(sharpness) ? sharpness : 0) >= event.best_sharpness) {
-        event.best_sharpness = Number.isFinite(sharpness) ? sharpness : 0;
-        event.crop_time = timestamp;
-        event.crop_data = processedCrop;
-        event.original_crop_data = rawCrop;
-      }
+      const sourceStart = Number(result.start_time);
+      const sourceEnd = Number(result.end_time);
+      if (Number.isFinite(sourceStart)) event.start_time = Math.min(Number(event.start_time), sourceStart);
+      if (Number.isFinite(sourceEnd)) event.end_time = Math.max(Number(event.end_time), sourceEnd);
+      event.observations = Math.max(Number(event.observations) || 0, Number(result.observations) || 0);
 
-      if (validText) {
-        const confidence = Number(result.ocr_confidence) || 0;
-        const key = result.text.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        if (key && confidence >= 50) {
-          const vote = event.plate_votes[key] || (event.plate_votes[key] = { count: 0, confidence: 0, text: result.text });
-          vote.count += 1;
-          vote.confidence += confidence;
-          vote.text = result.text;
-        }
-        const votes = Object.values(event.plate_votes);
-        const winner = votes.sort((a, b) => b.count - a.count || b.confidence - a.confidence)[0];
-        const voteCount = votes.reduce((sum, vote) => sum + vote.count, 0);
-        if (winner) {
-          const averageConfidence = winner.confidence / winner.count;
-          event.text = winner.text;
-          event.ocr_confidence = averageConfidence;
-          event.status = (winner.count >= 2 && winner.count / voteCount >= .6 && averageConfidence >= 65)
-            || result.recognition_status === 'recognized' ? 'recognized' : 'uncertain';
-        } else if (result.recognition_status === 'recognized') {
-          event.text = result.text;
-          event.ocr_confidence = confidence;
-          event.status = 'recognized';
-        } else {
-          event.text = result.text;
-          event.ocr_confidence = confidence;
-          event.status = 'uncertain';
-        }
-      } else if (!Object.keys(event.plate_votes).length && event.status !== 'recognized') {
-        // Keep malformed raw OCR out of the plate-number title. The crop stays
-        // available for inspection, while invalid strings are treated as unreadable.
-        event.text = '';
-        event.ocr_confidence = 0;
-        event.status = 'unreadable';
+      // The server owns temporal voting. Count observations there once per
+      // source frame; never vote again on repeated active-track snapshots here.
+      event.text = candidateText;
+      event.ocr_confidence = Number(result.ocr_confidence) || 0;
+      event.status = result.recognition_status || (candidateText ? 'uncertain' : 'unreadable');
+
+      if (result.crop_preview || result.crop_original) {
+        event.crop_time = Number.isFinite(Number(result.best_crop_time)) ? Number(result.best_crop_time) : timestamp;
+        event.crop_data = result.crop_preview || result.crop_original;
+        event.original_crop_data = result.crop_original || result.crop_preview;
+        event.best_sharpness = Number(result.quality?.sharpness) || 0;
       }
     }
 
     async function analyzeVideoFrame(timestamp, epoch, viewEpoch) {
       try {
+        const streamId = videoSyncStreamId;
         videoFrameCanvas.width = videoPlayer.videoWidth;
         videoFrameCanvas.height = videoPlayer.videoHeight;
         videoFrameCanvas.getContext('2d', { alpha: false }).drawImage(videoPlayer, 0, 0);
         const blob = await new Promise(resolve => videoFrameCanvas.toBlob(resolve, 'image/jpeg', .95));
-        if (!videoSyncActive || epoch !== videoSyncEpoch) return;
-        // Alternate source views during playback instead of running the same
-        // heavy detector twice per frame. A paused frame gets both views.
-        const pass = videoSyncDetectionPass++;
-        const previewView = videoPlayer.paused ? 'both' : (pass % 2 === 0 ? 'full' : 'center');
-        // Quick OCR keeps playback responsive; periodically run the complete
-        // multi-variant reader on the native frame for a careful plate read.
-        const previewOcr = videoPlayer.paused || pass % 3 === 2 ? 'full' : 'quick';
+        if (!videoSyncActive || epoch !== videoSyncEpoch || viewEpoch !== videoSyncViewEpoch) return;
+        // Search the full frame every time so vehicles near either edge are
+        // not missed by a center-only pass.
+        const previewView = 'full';
+        // Use bounded reads during playback and flush the full track pipeline
+        // when paused.
+        const previewOcr = videoPlayer.paused ? 'full' : 'quick';
         const data = await sendFrame(blob, 'video_preview', {
           preview_view: previewView, preview_ocr: previewOcr,
+          stream_id: streamId, video_time: timestamp,
+          finish_tracks: videoPlayer.paused,
         });
         if (!videoSyncActive || epoch !== videoSyncEpoch) return;
         // A seek supersedes the frame being processed, without starting a
@@ -1908,7 +1892,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     function scheduleVideoFrame(force = false) {
       if (!videoSyncActive || detectionActiveTab !== 'video' || videoPlayer.seeking || !videoPlayer.videoWidth || videoPlayer.readyState < 2) return;
       const timestamp = videoPlayer.currentTime;
-      if (!Number.isFinite(timestamp) || (!force && Math.abs(timestamp - videoSyncLastTime) < .5)) return;
+      if (!Number.isFinite(timestamp) || (!force && Math.abs(timestamp - videoSyncLastTime) < .15)) return;
       if (videoSyncBusy) {
         videoSyncPending = true;
         return;
@@ -2343,6 +2327,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       videoPlayer.addEventListener('seeking', () => {
         if (!videoSyncActive) return;
         videoSyncViewEpoch++;
+        videoSyncStreamId = `${liveClientId}:video:${Date.now()}:${videoSyncViewEpoch}`;
         videoSyncPending = true;
         videoOverlay.classList.add('d-none');
       });

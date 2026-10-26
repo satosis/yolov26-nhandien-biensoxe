@@ -4,17 +4,27 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from frontend.modules.invoices.export import is_crane_by_shift_service, parse_vat_percent
 
 
+def _fold(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
+
 MAX_LINES = 20
 
 
 def _decimal(value, label: str, *, required: bool = False, places: str = "0.01") -> Decimal | None:
-    raw = str(value or "").strip().replace(",", ".")
+    if value is None:
+        if required:
+            raise ValueError(f"Nhập {label}.")
+        return None
+    raw = str(value).strip().replace(",", ".")
     if not raw:
         if required:
             raise ValueError(f"Nhập {label}.")
@@ -32,7 +42,11 @@ def _decimal(value, label: str, *, required: bool = False, places: str = "0.01")
 
 
 def _money(value, label: str, *, required: bool = False) -> Decimal | None:
-    raw = str(value or "").strip()
+    if value is None:
+        if required:
+            raise ValueError(f"Nhập {label}.")
+        return None
+    raw = str(value).strip()
     if not raw:
         if required:
             raise ValueError(f"Nhập {label}.")
@@ -75,11 +89,11 @@ def parse_invoice_form(form: dict, *, vehicles: list[dict], buyer: dict,
     lines = []
     for number, item in enumerate(raw_lines, 1):
         if not isinstance(item, dict):
-            raise ValueError(f"D\u00f2ng {number} kh\u00f4ng h\u1ee3p l\u1ec7.")
+            raise ValueError(f"Dòng {number} không hợp lệ.")
         try:
             vehicle = by_id[int(item.get("vehicle_id"))]
         except (TypeError, ValueError, KeyError) as exc:
-            raise ValueError(f"Ch\u1ecdn xe cho d\u00f2ng {number}.") from exc
+            raise ValueError(f"Chọn xe cho dòng {number}.") from exc
         description = str(item.get("description") or "").strip()
         origin = str(item.get("origin") or "").strip()
         destination = str(item.get("destination") or "").strip()
@@ -90,11 +104,12 @@ def parse_invoice_form(form: dict, *, vehicles: list[dict], buyer: dict,
             raise ValueError(f"Điểm ghé dòng {number} không hợp lệ.")
         via_points = [point.strip() for point in via_points]
         cargo = str(item.get("cargo_description") or "").strip()
+        is_line_crane = crane_by_shift or (not origin and not destination and any(m in _fold(description) for m in ("theo ca", "ca cau", "tai cho", "tai xuong")))
         if (not description or len(description) > 4000
-                or (not crane_by_shift and (not origin or not destination))
+                or (not is_line_crane and (not origin or not destination))
                 or len(origin) > 500 or len(destination) > 500):
             raise ValueError(f"Dòng {number} cần đủ nội dung hóa đơn" +
-                             ("." if crane_by_shift else ", điểm lấy và điểm giao."))
+                             ("." if is_line_crane else ", điểm lấy và điểm giao."))
         if len(cargo) > 255:
             raise ValueError(f"Loại hàng hóa dòng {number} quá dài.")
         weight = _decimal(item.get("cargo_weight_tons"), f"khối lượng dòng {number}", places="0.001")
@@ -103,24 +118,24 @@ def parse_invoice_form(form: dict, *, vehicles: list[dict], buyer: dict,
         amount = _money(item.get("amount"), f"cước dòng {number}", required=True)
         if amount <= 0:
             raise ValueError(f"Cước dòng {number} phải lớn hơn 0.")
-        distance = (None if crane_by_shift else
-                    _decimal(item.get("distance_km"), f"quãng đường dòng {number}", required=True))
+        distance = (None if is_line_crane and not item.get("distance_km") else
+                    _decimal(item.get("distance_km"), f"quãng đường dòng {number}", required=False))
         if distance is not None and distance > Decimal("100000"):
             raise ValueError(f"Quãng đường dòng {number} vượt giới hạn.")
-        liters = (None if crane_by_shift else
+        liters = (None if is_line_crane and not item.get("fuel_liters") else
                   _decimal(item.get("fuel_liters"), f"số lít dầu dòng {number}"))
         if liters is None and distance is not None and vehicle.get("fuel_consumption") is not None:
             liters = (distance * Decimal(str(vehicle["fuel_consumption"])) / 100).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP)
         if liters is not None and liters > Decimal("999999999"):
             raise ValueError(f"Số lít dầu dòng {number} vượt giới hạn.")
-        price = (None if crane_by_shift else
+        price = (None if is_line_crane and not item.get("fuel_price_per_liter") else
                  _money(item.get("fuel_price_per_liter"), f"giá dầu dòng {number}"))
-        if price is None:
-            price = default_fuel_price
+        if price is None and not is_line_crane and default_fuel_price is not None:
+            price = Decimal(str(default_fuel_price))
         if price is not None and (not price.is_finite() or price < 0 or price != price.to_integral_value()):
             raise ValueError(f"Giá dầu dòng {number} phải là số nguyên đồng.")
-        if liters and not price:
+        if liters and not price and not is_line_crane:
             raise ValueError(f"Nhập giá dầu dòng {number}.")
         fuel_cost = (liters * price).quantize(Decimal("0.01")) if liters is not None and price is not None else None
         if fuel_cost is not None and fuel_cost >= Decimal("10000000000000000"):

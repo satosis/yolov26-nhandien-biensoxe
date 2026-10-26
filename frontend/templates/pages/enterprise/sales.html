@@ -3,13 +3,109 @@
 {% block title %}Lịch sử bán hàng{% endblock %}
 {% block page_title %}Lịch sử bán hàng{% endblock %}
 
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/debts">
+    <i class="bx bx-user mr-1"></i>Khách hàng &amp; công nợ
+  </a>
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/suppliers">
+    <i class="bx bx-cart mr-1"></i>Sổ nhập hàng &amp; NCC
+  </a>
+  <button type="button" class="btn btn-sm btn-light border font-weight-medium" id="salesImportButton">
+    <i class="bx bx-upload mr-1"></i>Nhập Excel / ZIP
+  </button>
+  <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="addSaleButton">
+    <i class="bx bx-plus mr-1"></i>+ Thêm hóa đơn
+  </button>
+</div>
+{% endblock %}
+
 {% block content %}
 <style>
-  #salesPage .card { box-shadow: none; }
-  #salesPage .card-header, #salesPage thead th { background: #f6f7f8; }
-  #salesPage .table thead th { white-space: nowrap; color: #454b52; }
-  #salesPage .sale-summary { font-size: 13px; }
-  #salesPage .sale-total { font-weight: 600; white-space: nowrap; }
+  #salesPage .card { box-shadow: none; border: 1px solid #e2e8f0; border-radius: 6px; }
+  #salesPage .card-header { background: #fff; border-bottom: 1px solid #edf0f4; }
+  #salesPage .nav-tabs .nav-link { color: #59636e; font-size: 13px; font-weight: 600; padding: 8px 16px; border: 1px solid transparent; }
+  #salesPage .nav-tabs .nav-link.active { color: #1e293b; background: #fff; border-color: #cbd5e1 #cbd5e1 #fff; font-weight: 700; }
+  #salesPage thead th {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+    border-top: none !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+    padding: 8px 10px !important;
+  }
+  #salesPage tbody td {
+    font-size: 12.5px !important;
+    color: #334155;
+    padding: 7px 10px !important;
+    border-bottom: 1px solid #edf0f4 !important;
+    vertical-align: middle !important;
+  }
+  #salesPage tbody tr:hover { background: #f8faff !important; }
+  #salesPage .sale-total { color: #0f172a !important; font-size: 13px !important; font-weight: 700 !important; white-space: nowrap !important; }
+  #salesPage .sale-summary { font-size: 12px; }
+  #salesPage .sales-actions-cell .btn { margin: 1px 1px; font-size: 12px; }
+  #salesPage .sales-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #salesPage .sales-table, #salesPage #saleItemsTable { min-width: 1080px; }
+
+  /* Modal tạo/sửa bán hàng - giao diện chuẩn, nhập liệu thoải mái */
+  #saleModal label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 3px;
+  }
+  #saleModal .form-control-sm {
+    font-size: 13px;
+    height: 34px;
+    border-radius: 5px;
+  }
+  #saleModal select.form-control-sm {
+    font-size: 13px;
+    height: 34px;
+  }
+  #saleModal .ts-wrapper.form-control-sm .ts-control {
+    font-size: 13px;
+    min-height: 34px;
+    padding: 5px 8px;
+    border-radius: 5px;
+  }
+  #saleModal .sale-modal-table th {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 6px;
+    background: #f8fafc;
+    color: #475569;
+    white-space: nowrap;
+  }
+  #saleModal .sale-modal-table td {
+    padding: 5px 4px;
+    vertical-align: middle;
+  }
+  #saleModal .sale-modal-table input.form-control-sm {
+    padding: 4px 7px;
+    font-size: 13px;
+    height: 34px;
+    border-radius: 4px;
+  }
+  #saleModal .sale-modal-table input.sale-item-quantity {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #0f172a;
+  }
+  #saleModal .formula-hint {
+    font-size: 11px !important;
+    max-width: 170px !important;
+    white-space: normal !important;
+    word-break: break-all;
+    line-height: 1.2 !important;
+    color: #2563eb;
+  }
 
   /* iOS / iPad Safari touch scroll and viewport modal fixes */
   #saleModal .modal-dialog {
@@ -55,70 +151,154 @@
 
 <div class="container-fluid px-0" id="salesPage">
   <div class="card mb-0">
-    <div class="card-header py-2">
-      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
-        <div>
-          <strong>Nhật ký bán hàng</strong>
-          <span class="text-muted ml-1" id="salesCount">(0)</span>
+    <div class="card-header py-2 d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+      <div class="d-flex align-items-center" style="gap:8px;">
+        <strong class="font-size-14" style="color:#1e293b;">Nhật ký bán hàng</strong>
+        <span class="text-muted small ml-1" id="salesCount">(0)</span>
+      </div>
+      <input type="file" id="salesImportFile" accept=".xlsx,.xlsm,.zip" class="d-none">
+    </div>
+
+    <!-- Nav Tabs for View Switching -->
+    <div class="px-3 pt-2 bg-light border-bottom">
+      <ul class="nav nav-tabs border-bottom-0" id="salesViewTabs" role="tablist">
+        <li class="nav-item mr-1">
+          <a class="nav-link active font-weight-bold" id="tabInvoicesLink" data-toggle="tab" href="#invoicesView" role="tab">
+            <i class="fas fa-file-invoice mr-1"></i>Theo hóa đơn / Đơn hàng
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link font-weight-bold" id="tabItemsLink" data-toggle="tab" href="#itemsView" role="tab">
+            <i class="fas fa-table mr-1"></i>Sổ chi tiết bán hàng (Theo mặt hàng)
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="tab-content" id="salesTabsContent">
+      <!-- Tab 1: Theo hóa đơn -->
+      <div class="tab-pane fade show active" id="invoicesView" role="tabpanel">
+        <!-- Filter Toolbar -->
+        <div class="p-2 border-bottom bg-white">
+          <div class="form-row align-items-center">
+            <div class="col-lg-3 col-md-4 mb-1 mb-md-0">
+              <div class="input-group input-group-sm">
+                <div class="input-group-prepend"><span class="input-group-text bg-white border-right-0"><i class="fas fa-search text-muted"></i></span></div>
+                <input type="search" class="form-control border-left-0 pl-0" id="salesSearch" placeholder="Tìm số hóa đơn, khách hàng, điện thoại...">
+              </div>
+            </div>
+            <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
+              <select class="form-control form-control-sm" id="salesStatusFilter">
+                <option value="">-- Tất cả trạng thái --</option>
+                <option value="delivering">Đang giao</option>
+                <option value="pending">Chưa lấy hàng</option>
+                <option value="delivered">Đã lấy hàng</option>
+                <option value="cancelled">Đã hủy</option>
+              </select>
+            </div>
+            <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
+              <input type="date" class="form-control form-control-sm" id="salesDateFrom" aria-label="Từ ngày">
+            </div>
+            <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
+              <input type="date" class="form-control form-control-sm" id="salesDateTo" aria-label="Đến ngày">
+            </div>
+            <div class="col-sm-3 col-lg-1">
+              <button type="button" class="btn btn-sm btn-light border" id="salesClearFilters">Xóa lọc</button>
+            </div>
+            <div class="col-lg-3 text-lg-right mt-2 mt-lg-0 sale-summary text-muted" id="salesSummary"></div>
+          </div>
         </div>
-        <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
-          <a class="btn btn-sm btn-light border" href="/admin/enterprise/debts">Khách hàng & công nợ</a>
-          <button type="button" class="btn btn-sm btn-light border" id="salesImportButton">Nhập Excel / ZIP</button>
-          <input type="file" id="salesImportFile" accept=".xlsx,.xlsm,.zip" class="d-none">
-          <button type="button" class="btn btn-sm btn-light border" id="addSaleButton">
-            + Thêm hóa đơn
-          </button>
+
+        <div class="table-responsive sales-table-wrap">
+          <table class="table table-sm table-hover mb-0 sales-table" data-bulk-select="1">
+            <thead>
+              <tr>
+                <th style="width:45px;" class="text-center">STT</th>
+                <th style="width:95px;">Ngày</th>
+                <th style="width:75px;" class="text-center" title="Số hóa đơn">Số HĐ</th>
+                <th style="min-width:200px;">Khách hàng</th>
+                <th style="width:125px;" class="text-center">Trạng thái</th>
+                <th style="width:85px;" class="text-center">Mặt hàng</th>
+                <th style="width:140px;" class="text-right">Tổng tiền</th>
+                <th style="width:130px;" class="text-right">Đã thanh toán</th>
+                <th style="width:130px;" class="text-right">Còn nợ</th>
+                <th style="width:230px;" class="text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="salesRows">
+              <tr><td colspan="10" class="text-center text-muted py-4">Đang tải dữ liệu...</td></tr>
+            </tbody>
+          </table>
         </div>
+        <div id="salesPagination" class="d-flex justify-content-center py-2"></div>
+      </div>
+
+      <div class="tab-pane fade" id="itemsView" role="tabpanel">
+        <div class="p-2 border-bottom bg-white">
+          <div class="form-row align-items-center">
+            <div class="col-lg-3 col-md-4 mb-1 mb-md-0">
+              <div class="input-group input-group-sm">
+                <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
+                <input type="search" class="form-control" id="itemProductSearch" placeholder="Lọc tên hàng hoá, tên khách hàng (Hộp 100x100, Bảo Nam...)">
+              </div>
+            </div>
+            <div class="col-lg-2 col-md-3 mb-1 mb-md-0">
+              <select class="form-control form-control-sm" id="itemCustomerFilter">
+                <option value="">-- Tất cả khách hàng --</option>
+                {% for c in sales_customers %}
+                <option value="{{ c.id }}">{{ c.full_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-lg-2 col-md-2 col-6 mb-1 mb-md-0">
+              <input type="date" class="form-control form-control-sm" id="itemDateFrom" aria-label="Từ ngày">
+            </div>
+            <div class="col-lg-2 col-md-2 col-6 mb-1 mb-md-0">
+              <input type="date" class="form-control form-control-sm" id="itemDateTo" aria-label="Đến ngày">
+            </div>
+            <div class="col-lg-3 col-md-12 d-flex align-items-center justify-content-end" style="gap:6px;">
+              <button type="button" class="btn btn-sm btn-light border" id="itemBtnClear">Xóa lọc</button>
+              <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="itemBtnFilter"><i class="fas fa-filter mr-1"></i>Lọc</button>
+              <button type="button" class="btn btn-sm btn-success font-weight-bold" id="itemBtnExport"><i class="fas fa-file-excel mr-1"></i>Xuất Excel</button>
+            </div>
+          </div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap mt-2 pt-2 border-top small text-muted">
+            <div>
+              Tìm thấy: <strong id="itemSummaryCount" class="text-dark">0</strong> dòng mặt hàng &nbsp;|&nbsp; 
+              Mặt hàng khác nhau: <strong id="itemSummaryProducts" class="text-dark">0</strong>
+            </div>
+            <div>
+              Tổng sản lượng: <strong id="itemSummaryQty" class="text-primary font-weight-bold mr-3">0 kg</strong>
+              Tổng thành tiền: <strong id="itemSummaryAmount" class="text-success font-weight-bold">0 đ</strong>
+            </div>
+          </div>
+        </div>
+        <div class="table-responsive sales-table-wrap">
+          <table class="table table-sm table-hover mb-0" id="saleItemsTable" style="min-width: 980px;">
+            <thead class="bg-light">
+              <tr>
+                <th style="width:45px;" class="text-center">STT</th>
+                <th style="width:75px;" class="text-center">Số HĐ</th>
+                <th style="width:95px;" class="text-center">Ngày bán</th>
+                <th style="min-width:170px;">Tên khách hàng</th>
+                <th style="min-width:200px;">Tên hàng hoá</th>
+                <th style="width:55px;" class="text-center">ĐVT</th>
+                <th style="width:95px;" class="text-right">Số lượng</th>
+                <th style="width:100px;" class="text-right">Đơn giá</th>
+                <th style="width:125px;" class="text-right">Thành tiền</th>
+                <th style="width:120px;">Xe / Giao</th>
+                <th style="min-width:120px;">Ghi chú</th>
+                <th style="width:85px;" class="text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="saleItemsRows">
+              <tr><td colspan="12" class="text-center text-muted py-5">Đang tải dữ liệu mặt hàng...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="itemPagination" class="d-flex justify-content-center py-2"></div>
       </div>
     </div>
-    <div class="p-2 border-bottom">
-      <div class="form-row align-items-center">
-        <div class="col-lg-3 mb-1 mb-lg-0">
-          <input type="search" class="form-control form-control-sm" id="salesSearch" placeholder="Tìm số hóa đơn, khách hàng, điện thoại...">
-        </div>
-        <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
-          <select class="form-control form-control-sm" id="salesStatusFilter">
-            <option value="">-- Tất cả trạng thái --</option>
-            <option value="pending">Chưa lấy hàng</option>
-            <option value="delivered">Đã lấy hàng</option>
-            <option value="delivering">Đang giao</option>
-            <option value="cancelled">Đã hủy</option>
-          </select>
-        </div>
-        <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
-          <input type="date" class="form-control form-control-sm" id="salesDateFrom" aria-label="Từ ngày">
-        </div>
-        <div class="col-sm-3 col-lg-2 mb-1 mb-sm-0">
-          <input type="date" class="form-control form-control-sm" id="salesDateTo" aria-label="Đến ngày">
-        </div>
-        <div class="col-sm-3 col-lg-1">
-          <button type="button" class="btn btn-sm btn-light border" id="salesClearFilters">Xóa lọc</button>
-        </div>
-        <div class="col-lg-2 text-lg-right mt-2 mt-lg-0 sale-summary text-muted" id="salesSummary"></div>
-      </div>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0" data-bulk-select="1">
-        <thead>
-          <tr>
-            <th style="width:45px;" class="text-center">STT</th>
-            <th style="width:95px;">Ngày</th>
-            <th style="width:145px;">Số hóa đơn</th>
-            <th>Khách hàng</th>
-            <th style="width:125px;" class="text-center">Trạng thái</th>
-            <th style="width:85px;" class="text-center">Mặt hàng</th>
-            <th style="width:140px;" class="text-right">Tổng tiền</th>
-            <th style="width:130px;" class="text-right">Đã thanh toán</th>
-            <th style="width:130px;" class="text-right">Còn nợ</th>
-            <th style="width:230px;" class="text-right">Thao tác</th>
-          </tr>
-        </thead>
-        <tbody id="salesRows">
-          <tr><td colspan="10" class="text-center text-muted py-4">Đang tải dữ liệu...</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div id="salesPagination" class="d-flex justify-content-center py-2"></div>
   </div>
 </div>
 
@@ -140,7 +320,7 @@
             <div class="form-group col-md-3">
               <label for="saleInvoiceNumber">Số hóa đơn / STT</label>
               <input class="form-control form-control-sm font-weight-bold" id="saleInvoiceNumber" maxlength="100" placeholder="Số hóa đơn tự động...">
-              <small class="form-text text-muted">Tự động điền STT tiếp theo. Để trống nếu chưa lấy hàng.</small>
+              <small class="form-text text-muted">Đơn đang giao hoặc khách đặt chưa cần STT.</small>
             </div>
             <div class="form-group col-md-4">
               <label for="saleCustomer">Khách hàng <span class="text-danger">*</span></label>
@@ -167,8 +347,8 @@
             <div class="form-group col-md-3">
               <label for="saleStatus">Trạng thái đơn</label>
               <select class="form-control form-control-sm" id="saleStatus" data-no-search="true">
+                <option value="pending" selected>Chưa lấy hàng (Khách đặt)</option>
                 <option value="delivered">Đã lấy hàng</option>
-                <option value="pending">Chưa lấy hàng (Khách đặt)</option>
                 <option value="delivering">Đang giao</option>
                 <option value="cancelled">Đã hủy</option>
               </select>
@@ -191,34 +371,45 @@
             </div>
           </div>
           <div class="table-responsive border rounded">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 sale-modal-table">
               <thead><tr>
                 <th style="width:40px;" class="text-center">STT</th>
-                <th>Tên hàng hóa</th>
+                <th style="min-width:200px;">Tên hàng hóa</th>
                 <th style="width:75px;">ĐVT</th>
-                <th style="width:115px;">Cân tổng</th>
-                <th style="width:105px;">Bì</th>
-                <th style="width:115px;">Số lượng</th>
-                <th style="width:125px;">Đơn giá</th>
-                <th style="width:145px;" class="text-right">Thành tiền</th>
-                <th style="width:36px;"></th>
+                <th style="width:180px; min-width:160px;">Số lượng</th>
+                <th style="width:130px;">Đơn giá</th>
+                <th style="width:155px;" class="text-right">Thành tiền</th>
+                <th style="width:38px;"></th>
               </tr></thead>
               <tbody id="saleItemRows"></tbody>
               <tfoot class="bg-light font-weight-bold">
                 <tr>
-                  <td colspan="3" class="text-right align-middle text-muted small">Tổng cộng:</td>
-                  <td id="saleTotalGrossPreview" class="align-middle text-muted small">—</td>
-                  <td id="saleTotalTarePreview" class="align-middle text-muted small">—</td>
-                  <td class="align-middle text-primary" style="font-size: 13px;">
+                  <td colspan="3" class="text-right align-middle text-muted">Tổng cộng:</td>
+                  <td class="align-middle text-primary" style="font-size: 15px;">
                     <span id="saleTotalQuantityTable">0</span> <span class="small font-weight-normal text-muted" id="saleTotalUnitTable">kg</span>
                   </td>
                   <td></td>
-                  <td class="text-right align-middle text-success" id="saleTotalAmountTable" style="font-size: 13px;">0 đ</td>
+                  <td class="text-right align-middle text-success" id="saleTotalAmountTable" style="font-size: 15px;">0 đ</td>
                   <td></td>
                 </tr>
               </tfoot>
             </table>
           </div>
+          <datalist id="saleUnitList">
+            <option value="kg">kg</option>
+            <option value="Kg">Kg</option>
+            <option value="cái">cái</option>
+            <option value="Cái">Cái</option>
+            <option value="cây">cây</option>
+            <option value="tấm">tấm</option>
+            <option value="mét">mét</option>
+            <option value="tấn">tấn</option>
+            <option value="cuộn">cuộn</option>
+            <option value="bộ">bộ</option>
+            <option value="hộp">hộp</option>
+            <option value="chiếc">chiếc</option>
+            <option value="chuyến">chuyến</option>
+          </datalist>
           <div class="form-row mt-3 align-items-end">
             <div class="form-group col-md-4 mb-2" id="salePaidGroup">
               <label for="salePaid">Thanh toán lần này (đ)</label>
@@ -325,13 +516,28 @@
     return new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + ' đ';
   }
   function parseVND(val) {
-    if (val == null) return 0;
-    const str = String(val).replace(/\D/g, '');
-    return str ? parseInt(str, 10) : 0;
+    if (val == null || val === '') return 0;
+    if (typeof val === 'number') return Math.round(val);
+    const str = String(val).trim();
+    if (/^\d+\.\d{1,2}$/.test(str)) {
+      return Math.round(parseFloat(str));
+    }
+    const digits = str.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) : 0;
   }
   function formatVND(val) {
     if (val == null || val === '') return '';
-    const num = typeof val === 'number' ? val : parseVND(val);
+    let num;
+    if (typeof val === 'number') {
+      num = Math.round(val);
+    } else {
+      const str = String(val).trim();
+      if (/^\d+\.\d{1,2}$/.test(str)) {
+        num = Math.round(parseFloat(str));
+      } else {
+        num = parseVND(str);
+      }
+    }
     if (!num && num !== 0) return '';
     return new Intl.NumberFormat('vi-VN').format(num);
   }
@@ -350,6 +556,81 @@
       }
       if (typeof onChange === 'function') {
         onChange();
+      }
+    });
+  }
+  function formatWeightToken(token) {
+    if (!token) return '';
+    if (/^[+\-*\/]$/.test(token)) return token;
+    if (token.includes(',')) {
+      const sub = token.split(',');
+      const intDigits = sub[0].replace(/\D/g, '');
+      const intPart = intDigits ? new Intl.NumberFormat('vi-VN').format(parseInt(intDigits, 10)) : '0';
+      const decPart = sub.slice(1).join('').replace(/\D/g, '');
+      return sub.length > 1 ? (intPart + ',' + decPart) : intPart;
+    }
+    const digits = token.replace(/\D/g, '');
+    if (!digits) return '';
+    return new Intl.NumberFormat('vi-VN').format(parseInt(digits, 10));
+  }
+  function formatWeightExpr(raw) {
+    if (raw == null || raw === '') return '';
+    const str = String(raw).trim();
+    if (!str) return '';
+    const parts = str.split(/([+\-*\/])/);
+    return parts.map(p => formatWeightToken(p)).join('');
+  }
+  function updateFormulaHint(input) {
+    if (!input) return;
+    const parent = input.parentElement;
+    if (!parent) return;
+    let hint = parent.querySelector('.formula-hint');
+    const formula = (input.dataset.formula || '').trim();
+    if (formula && /[+\-*\/]/.test(formula)) {
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'formula-hint text-truncate';
+        hint.style.cssText = 'font-size:11px; color:#4f46e5; font-style:italic; line-height:1.2; margin-top:2px; max-width:170px; cursor:pointer; font-weight:600; word-break:break-all;';
+        parent.appendChild(hint);
+        hint.addEventListener('click', () => {
+          input.focus();
+        });
+      }
+      hint.textContent = 'fx: ' + formula;
+      hint.title = 'Phép tính đã lưu: ' + formula + ' (Bấm để xem/sửa)';
+      input.title = 'Phép tính: ' + formula;
+    } else {
+      if (hint) hint.remove();
+      input.removeAttribute('title');
+    }
+  }
+  function attachWeightInput(input, onChange) {
+    if (!input) return;
+    input.setAttribute('type', 'text');
+    input.setAttribute('inputmode', 'decimal');
+    input.setAttribute('autocomplete', 'off');
+    input.addEventListener('input', function () {
+      const raw = this.value;
+      if (!raw) {
+        this.value = '';
+        delete this.dataset.formula;
+        updateFormulaHint(this);
+      } else {
+        if (/[+\-*\/]/.test(raw)) {
+          this.dataset.formula = raw.trim();
+        }
+        const endsWithSpecial = /[,+\-*\/]$/.test(raw);
+        const formatted = formatWeightExpr(raw);
+        this.value = endsWithSpecial && !/[,+\-*\/]$/.test(formatted) ? formatted + raw.slice(-1) : formatted;
+      }
+      if (typeof onChange === 'function') {
+        onChange();
+      }
+    });
+    input.addEventListener('focus', function () {
+      if (this.dataset.formula) {
+        this.value = this.dataset.formula;
+        this.select();
       }
     });
   }
@@ -403,21 +684,26 @@
   }
   function formatStatusSelector(sale) {
     const s = sale.status || 'delivered';
-    let badgeClass = 'badge-success text-white';
-    if (s === 'pending') badgeClass = 'badge-warning text-dark font-weight-bold';
-    else if (s === 'delivering') badgeClass = 'badge-info text-white';
-    else if (s === 'cancelled') badgeClass = 'badge-secondary text-white';
+    let bg = '#d1fae5', color = '#065f46', border = '#a7f3d0';
+    if (s === 'pending') {
+      bg = '#fef3c7'; color = '#b45309'; border = '#fde68a';
+    } else if (s === 'delivering') {
+      bg = '#dbeafe'; color = '#1e40af'; border = '#bfdbfe';
+    } else if (s === 'cancelled') {
+      bg = '#fee2e2'; color = '#b91c1c'; border = '#fecaca';
+    }
 
-    return '<select class="form-control form-control-sm js-table-status-select ' + badgeClass + '" data-id="' + sale.id + '" data-no-search="true" style="width: auto; min-width: 108px; height: 26px; padding: 1px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: 1px solid #ced4da; cursor: pointer; display: inline-block;">' +
-      '<option value="delivered"' + (s === 'delivered' ? ' selected' : '') + ' class="bg-white text-dark">✓ Đã lấy</option>' +
-      '<option value="pending"' + (s === 'pending' ? ' selected' : '') + ' class="bg-white text-dark">⏱ Chưa lấy</option>' +
-      '<option value="delivering"' + (s === 'delivering' ? ' selected' : '') + ' class="bg-white text-dark">🚚 Đang giao</option>' +
-      '<option value="cancelled"' + (s === 'cancelled' ? ' selected' : '') + ' class="bg-white text-dark">✖ Đã hủy</option>' +
+    return '<select class="form-control form-control-sm js-table-status-select" data-id="' + sale.id + '" data-no-search="true" style="width: auto; min-width: 116px; height: 32px; padding: 3px 8px; font-size: 12.5px; font-weight: 700; border-radius: 6px; background-color: ' + bg + ' !important; color: ' + color + ' !important; border: 1px solid ' + border + ' !important; cursor: pointer; display: inline-block;">' +
+      '<option value="delivered"' + (s === 'delivered' ? ' selected' : '') + ' style="background:#fff; color:#065f46;">✓ Đã lấy</option>' +
+      '<option value="pending"' + (s === 'pending' ? ' selected' : '') + ' style="background:#fff; color:#b45309;">⏱ Chưa lấy</option>' +
+      '<option value="delivering"' + (s === 'delivering' ? ' selected' : '') + ' style="background:#fff; color:#1e40af;">🚚 Đang giao</option>' +
+      '<option value="cancelled"' + (s === 'cancelled' ? ' selected' : '') + ' style="background:#fff; color:#b91c1c;">✖ Đã hủy</option>' +
     '</select>';
   }
   function render() {
     document.getElementById('salesCount').textContent = '(' + salesTotal + ')';
-    document.getElementById('salesSummary').textContent = 'Tổng ' + money(salesSummary.total_amount) + ' · Thu ' + money(salesSummary.paid_amount);
+    const summaryEl = document.getElementById('salesSummary');
+    if (summaryEl) summaryEl.textContent = 'Tổng ' + money(salesSummary.total_amount) + ' · Thu ' + money(salesSummary.paid_amount);
     if (!sales.length) {
       pagination.innerHTML = '';
       rows.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Chưa có hóa đơn bán hàng phù hợp.</td></tr>';
@@ -440,22 +726,22 @@
       const remainingCell = remaining < 0
         ? '<span class="text-success font-weight-bold" title="Khách trả thừa tiền">Thừa ' + money(Math.abs(remaining)) + '</span>'
         : (remaining > 0 ? '<span class="text-danger font-weight-bold">' + money(remaining) + '</span>' : '<span class="text-muted">0 đ</span>');
-      const stt = (salesPage - 1) * 20 + idx + 1;
+      const stt = (salesPage - 1) * 100 + idx + 1;
       const invDisplay = (sale.display_invoice_number || sale.invoice_number || '').trim();
       const invCell = invDisplay
         ? escapeHtml(invDisplay)
-        : '<span class="badge badge-warning text-dark font-weight-bold px-2 py-1"><i class="fas fa-clock mr-1"></i>Chưa lấy hàng</span>';
+        : '<span class="text-muted">—</span>';
       return '<tr>' +
-        '<td class="text-center text-muted font-weight-medium">' + stt + '</td>' +
-        '<td class="text-nowrap">' + escapeHtml(formatDate(sale.sale_date)) + '</td>' +
-        '<td class="text-nowrap">' + invCell + '</td>' +
-        '<td><strong>' + escapeHtml(sale.customer_name) + '</strong></td>' +
-        '<td class="text-center">' + formatStatusSelector(sale) + '</td>' +
-        '<td class="text-center">' + escapeHtml(sale.item_count) + '</td>' +
-        '<td class="text-right sale-total">' + money(sale.total_amount) + '</td>' +
-        '<td class="text-right">' + money(sale.paid_total) + '</td>' +
-        '<td class="text-right">' + remainingCell + '</td>' +
-        '<td class="text-right text-nowrap">' +
+        '<td data-label="#" class="text-center text-muted font-weight-medium">' + stt + '</td>' +
+        '<td data-label="Ngày" class="text-nowrap">' + escapeHtml(formatDate(sale.sale_date)) + '</td>' +
+        '<td data-label="Số hóa đơn" class="text-nowrap text-center">' + invCell + '</td>' +
+        '<td data-label="Khách hàng" class="text-nowrap"><strong>' + escapeHtml(sale.customer_name) + '</strong></td>' +
+        '<td data-label="Trạng thái" class="text-center">' + formatStatusSelector(sale) + '</td>' +
+        '<td data-label="Mặt hàng" class="text-center">' + escapeHtml(sale.item_count) + '</td>' +
+        '<td data-label="Tổng tiền" class="text-right sale-total">' + money(sale.total_amount) + '</td>' +
+        '<td data-label="Đã thanh toán" class="text-right">' + money(sale.paid_total) + '</td>' +
+        '<td data-label="Còn nợ" class="text-right">' + remainingCell + '</td>' +
+        '<td data-label="Thao tác" class="text-right text-nowrap sales-actions-cell">' +
           '<a class="btn btn-sm btn-light border" href="/admin/enterprise/sales/' + sale.id + '/pdf" target="_blank" title="Xem và in hóa đơn">PDF</a> ' +
           (remaining > 0 ? '<button type="button" class="btn btn-sm btn-light border js-sale-payment" data-id="' + sale.id + '">Thu</button> ' : '') +
           '<button type="button" class="btn btn-sm btn-light border js-sale-edit" data-id="' + sale.id + '" title="Sửa hóa đơn"><i class="bx bx-edit-alt"></i> Sửa</button> ' +
@@ -465,13 +751,17 @@
   }
   async function loadSales(page = 1) {
     rows.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Đang tải dữ liệu...</td></tr>';
-    const statusVal = document.getElementById('salesStatusFilter') ? document.getElementById('salesStatusFilter').value : '';
+    const statusEl = document.getElementById('salesStatusFilter');
+    const dateFromEl = document.getElementById('salesDateFrom');
+    const dateToEl = document.getElementById('salesDateTo');
+    const searchEl = document.getElementById('salesSearch');
     const params = new URLSearchParams({
-      q: document.getElementById('salesSearch').value.trim(),
-      date_from: document.getElementById('salesDateFrom').value,
-      date_to: document.getElementById('salesDateTo').value,
-      status: statusVal,
-      page: String(page)
+      q: searchEl ? searchEl.value.trim() : '',
+      date_from: dateFromEl ? dateFromEl.value : '',
+      date_to: dateToEl ? dateToEl.value : '',
+      status: statusEl ? statusEl.value : '',
+      page: String(page),
+      per_page: '100'
     });
     try {
       const data = await requestJson(apiUrl + '?' + params.toString());
@@ -485,29 +775,76 @@
       rows.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">' + escapeHtml(error.message) + '</td></tr>';
     }
   }
+  function roundSaleAmount(value) {
+    return value > 0 ? Math.round(value / 1000) * 1000 : 0;
+  }
+  function evalMathExpr(raw) {
+    if (raw == null) return null;
+    let s = String(raw).trim();
+    if (!s) return null;
+    s = s.replace(/[xX]/g, '*');
+    if (!/^[0-9+\-*\/().,\s]+$/.test(s)) return null;
+    s = s.replace(/\.(?=\d{3}(?:\.|$|,|\s|[+\-*\/]))/g, '');
+    s = s.replace(/,/g, '.');
+    if (/[+\-*\/]$/.test(s.trim())) return null;
+    try {
+      const res = Function('"use strict"; return (' + s + ');')();
+      if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
+        return Math.round(res * 1000) / 1000;
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+  function parseWeightVal(raw) {
+    if (raw == null) return 0;
+    const str = String(raw).trim();
+    if (!str) return 0;
+    const evaled = evalMathExpr(str);
+    if (evaled !== null) return evaled;
+    let s = str.replace(/\.(?=\d{3}(?:\.|$|,|\s|[+\-*\/]))/g, '');
+    const num = parseFloat(s.replace(/,/g, '.')) || 0;
+    return isNaN(num) ? 0 : num;
+  }
+  function handleMathInputCommit(input) {
+    if (!input) return;
+    const raw = input.value.trim();
+    if (!raw) {
+      delete input.dataset.formula;
+      updateFormulaHint(input);
+      return;
+    }
+    if (/[+\-*\/]/.test(raw)) {
+      input.dataset.formula = raw;
+    }
+    const val = parseWeightVal(raw);
+    if (val > 0) {
+      input.value = formatQty(val);
+    } else if (val === 0 && raw !== '') {
+      input.value = '0';
+    }
+    updateFormulaHint(input);
+  }
   function addItemRow(item, isSurcharge = false) {
     const isSurch = isSurcharge || Boolean(item && Number(item.quantity || 0) <= 0 && Number(item.line_total || 0) > 0);
     const tr = document.createElement('tr');
     tr.innerHTML = '<td class="text-center text-muted align-middle sale-item-stt"></td>' +
       '<td><input class="form-control form-control-sm sale-item-name" maxlength="255" placeholder="' + (isSurch ? 'Khoản phát sinh (cước xe, sơn, v.v.)...' : 'Tên hàng...') + '"></td>' +
-      '<td><input class="form-control form-control-sm sale-item-unit" maxlength="80" value="' + (isSurch ? '' : 'Kg') + '" placeholder="ĐVT"></td>' +
-      '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-gross" placeholder="Tổng kg"></td>' +
-      '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-tare" placeholder="Bì kg"></td>' +
-      '<td><input type="number" min="0" step="0.001" class="form-control form-control-sm sale-item-quantity" placeholder="0"></td>' +
+      '<td><input class="form-control form-control-sm sale-item-unit" list="saleUnitList" maxlength="80" value="' + (isSurch ? '' : 'kg') + '" placeholder="ĐVT"></td>' +
+      '<td><input type="text" inputmode="decimal" class="form-control form-control-sm sale-item-quantity" placeholder="0"></td>' +
       '<td><input type="text" inputmode="numeric" class="form-control form-control-sm sale-item-price" placeholder="0"></td>' +
       '<td><input type="text" inputmode="numeric" class="form-control form-control-sm text-right font-weight-bold sale-item-total-input" placeholder="0"></td>' +
-      '<td class="align-middle"><button type="button" class="btn btn-sm btn-light border js-remove-sale-item" aria-label="Xóa dòng">×</button></td>';
+      '<td class="align-middle text-center"><button type="button" class="btn btn-sm btn-light border js-remove-sale-item" aria-label="Xóa dòng" title="Xóa dòng">×</button></td>';
     if (item) {
       tr.querySelector('.sale-item-name').value = item.product_name || '';
-      tr.querySelector('.sale-item-unit').value = item.unit != null ? item.unit : '';
-      if (item.gross_weight != null && item.gross_weight !== '' && Number(item.gross_weight) > 0) {
-        tr.querySelector('.sale-item-gross').value = item.gross_weight;
-      }
-      if (item.tare_weight != null && item.tare_weight !== '' && Number(item.tare_weight) > 0) {
-        tr.querySelector('.sale-item-tare').value = item.tare_weight;
-      }
+      tr.querySelector('.sale-item-unit').value = (item.unit != null && item.unit !== '') ? item.unit : (isSurch ? '' : 'kg');
       if (item.quantity != null && item.quantity !== '' && Number(item.quantity) > 0) {
-        tr.querySelector('.sale-item-quantity').value = item.quantity;
+        tr.querySelector('.sale-item-quantity').value = formatQty(item.quantity);
+      }
+      if (item.qty_formula) {
+        tr.querySelector('.sale-item-quantity').dataset.formula = item.qty_formula;
+        updateFormulaHint(tr.querySelector('.sale-item-quantity'));
       }
       if (item.unit_price != null && item.unit_price !== '' && Number(item.unit_price) > 0) {
         tr.querySelector('.sale-item-price').value = formatVND(item.unit_price);
@@ -517,29 +854,16 @@
     }
     document.getElementById('saleItemRows').appendChild(tr);
 
-    const grossInput = tr.querySelector('.sale-item-gross');
-    const tareInput = tr.querySelector('.sale-item-tare');
     const qtyInput = tr.querySelector('.sale-item-quantity');
     const priceInput = tr.querySelector('.sale-item-price');
     const totalInput = tr.querySelector('.sale-item-total-input');
 
-    function syncWeighQuantity() {
-      const grossRaw = grossInput.value.trim();
-      if (grossRaw !== '') {
-        const grossVal = parseFloat(grossRaw) || 0;
-        const tareVal = parseFloat(tareInput.value.trim()) || 0;
-        const net = Math.max(0, grossVal - tareVal);
-        qtyInput.value = parseFloat(net.toFixed(3));
-      }
-      syncFromQtyOrPrice();
-    }
-
     function syncFromQtyOrPrice() {
-      const qty = parseFloat(qtyInput.value) || 0;
+      const qty = parseWeightVal(qtyInput.value);
       const price = parseVND(priceInput.value);
       if (qty > 0 && price > 0) {
         const raw = qty * price;
-        totalInput.value = formatVND(Math.ceil(raw / 1000) * 1000);
+        totalInput.value = formatVND(roundSaleAmount(raw));
         delete totalInput.dataset.manual;
       } else if (!totalInput.dataset.manual && (qty === 0 || price === 0)) {
         totalInput.value = '';
@@ -550,20 +874,26 @@
     function syncFromTotal() {
       totalInput.dataset.manual = 'true';
       const totalVal = parseVND(totalInput.value);
-      const qty = parseFloat(qtyInput.value) || 0;
+      const qty = parseWeightVal(qtyInput.value);
       if (qty > 0 && totalVal > 0) {
         priceInput.value = formatVND(Math.round(totalVal / qty));
-      } else if (qty <= 0) {
-        priceInput.value = '';
       }
       calculateTotal();
     }
 
-    grossInput.addEventListener('input', syncWeighQuantity);
-    tareInput.addEventListener('input', syncWeighQuantity);
-    qtyInput.addEventListener('input', syncFromQtyOrPrice);
+    attachWeightInput(qtyInput, syncFromQtyOrPrice);
+    qtyInput.addEventListener('blur', () => {
+      handleMathInputCommit(qtyInput);
+      syncFromQtyOrPrice();
+    });
+
     attachVNDInput(priceInput, syncFromQtyOrPrice);
     attachVNDInput(totalInput, syncFromTotal);
+    totalInput.addEventListener('blur', () => {
+      const rounded = roundSaleAmount(parseVND(totalInput.value));
+      if (rounded > 0) totalInput.value = formatVND(rounded);
+      syncFromTotal();
+    });
     tr.querySelectorAll('input').forEach(input => input.addEventListener('input', calculateTotal));
     if (isSurch) {
       setTimeout(() => tr.querySelector('.sale-item-total-input').focus(), 50);
@@ -573,12 +903,12 @@
   function lineTotal(row) {
     const totalInput = row.querySelector('.sale-item-total-input');
     if (totalInput && totalInput.value !== '') {
-      return parseVND(totalInput.value);
+      return roundSaleAmount(parseVND(totalInput.value));
     }
-    const quantity = Number(row.querySelector('.sale-item-quantity')?.value || 0);
+    const quantity = parseWeightVal(row.querySelector('.sale-item-quantity')?.value);
     const price = parseVND(row.querySelector('.sale-item-price')?.value);
     const raw = quantity * price;
-    return raw > 0 ? Math.ceil(raw / 1000) * 1000 : 0;
+    return roundSaleAmount(raw);
   }
   function formatQty(val) {
     const rounded = Math.round(val * 1000) / 1000;
@@ -587,15 +917,11 @@
   function calculateTotal() {
     let total = 0;
     let totalQty = 0;
-    let totalGross = 0;
-    let totalTare = 0;
-    let hasGross = false;
-    let hasTare = false;
     let mainUnit = 'kg';
     let sttCounter = 0;
 
     document.querySelectorAll('#saleItemRows tr').forEach(row => {
-      const qty = Number(row.querySelector('.sale-item-quantity')?.value || 0);
+      const qty = parseWeightVal(row.querySelector('.sale-item-quantity')?.value);
       const val = lineTotal(row);
       const isSurch = qty <= 0 && val > 0;
       const sttCell = row.querySelector('.sale-item-stt');
@@ -613,17 +939,6 @@
       const u = (row.querySelector('.sale-item-unit')?.value || '').trim();
       if (u) mainUnit = u;
 
-      const grossVal = row.querySelector('.sale-item-gross')?.value;
-      if (grossVal !== '' && grossVal != null) {
-        totalGross += Number(grossVal) || 0;
-        hasGross = true;
-      }
-      const tareVal = row.querySelector('.sale-item-tare')?.value;
-      if (tareVal !== '' && tareVal != null) {
-        totalTare += Number(tareVal) || 0;
-        hasTare = true;
-      }
-
       total += val;
     });
 
@@ -637,11 +952,6 @@
     if (qtyTableEl) qtyTableEl.textContent = qtyFormatted;
     const unitTableEl = document.getElementById('saleTotalUnitTable');
     if (unitTableEl) unitTableEl.textContent = mainUnit.toLowerCase();
-
-    const grossTableEl = document.getElementById('saleTotalGrossPreview');
-    if (grossTableEl) grossTableEl.textContent = hasGross ? formatQty(totalGross) : '—';
-    const tareTableEl = document.getElementById('saleTotalTarePreview');
-    if (tareTableEl) tareTableEl.textContent = hasTare ? formatQty(totalTare) : '—';
 
     const totalAmountTableEl = document.getElementById('saleTotalAmountTable');
     if (totalAmountTableEl) totalAmountTableEl.textContent = money(total);
@@ -714,6 +1024,9 @@
       setCustomerLocked(true);
       document.getElementById('saleInvoiceNumber').value = sale.invoice_number || '';
       document.getElementById('saleStatus').value = sale.status || 'delivered';
+      if (['pending', 'delivering'].includes(sale.status)) {
+        document.getElementById('saleInvoiceNumber').value = '';
+      }
       document.getElementById('saleDate').value = sale.sale_date || '';
       document.getElementById('salePhone').value = sale.customer_phone || '';
       document.getElementById('saleAddress').value = sale.customer_address || '';
@@ -755,8 +1068,8 @@
   });
   document.getElementById('saleStatus').addEventListener('change', async function () {
     const invInput = document.getElementById('saleInvoiceNumber');
-    if (this.value === 'pending') {
-      invInput.placeholder = 'Đơn chưa lấy: để trống số hóa đơn';
+    if (['pending', 'delivering'].includes(this.value)) {
+      invInput.placeholder = 'Đơn đang giao/khách đặt chưa cần STT';
       invInput.value = '';
     } else {
       invInput.placeholder = 'Số hóa đơn tự động...';
@@ -765,13 +1078,12 @@
       }
     }
   });
-  document.getElementById('addSaleButton').addEventListener('click', async function () {
+  async function openNewSaleModal() {
     resetSaleEditor();
     document.getElementById('saleForm').reset();
-    document.getElementById('saleStatus').value = 'delivered';
-    const nextStt = await fetchNextStt();
-    document.getElementById('saleInvoiceNumber').value = nextStt;
-    document.getElementById('saleInvoiceNumber').placeholder = 'Số hóa đơn tự động...';
+    document.getElementById('saleStatus').value = 'pending';
+    document.getElementById('saleInvoiceNumber').value = '';
+    document.getElementById('saleInvoiceNumber').placeholder = 'Đơn đang giao/khách đặt chưa cần STT';
     document.getElementById('saleDate').value = '{{ today_str }}';
     document.getElementById('salePaid').value = '0';
     document.getElementById('salePaymentSource').value = 'Tiền mặt';
@@ -788,6 +1100,9 @@
     addItemRow();
     addItemRow();
     $('#saleModal').modal('show');
+  }
+  document.querySelectorAll('.js-trigger-add-sale, #addSaleButton, #addSaleButtonHeader').forEach(btn => {
+    btn.addEventListener('click', openNewSaleModal);
   });
   document.getElementById('addSaleItem').addEventListener('click', () => addItemRow());
   const addSaleSurchargeBtn = document.getElementById('addSaleSurcharge');
@@ -815,19 +1130,28 @@
       .map(row => {
         const name = (row.querySelector('.sale-item-name')?.value || '').trim();
         const unit = (row.querySelector('.sale-item-unit')?.value || '').trim();
-        const gross = (row.querySelector('.sale-item-gross')?.value || '').trim() || null;
-        const tare = (row.querySelector('.sale-item-tare')?.value || '').trim() || null;
-        const qty = (row.querySelector('.sale-item-quantity')?.value || '').trim();
+        const qtyRaw = (row.querySelector('.sale-item-quantity')?.value || '').trim();
+        const qtyVal = qtyRaw !== '' ? parseWeightVal(qtyRaw) : 0;
+
+        if (qtyVal > 0) row.querySelector('.sale-item-quantity').value = formatQty(qtyVal);
+
+        const qtyInput = row.querySelector('.sale-item-quantity');
+        let qtyFormula = (qtyInput?.dataset.formula || '').trim();
+        if (!qtyFormula && /[+\-*\/]/.test(qtyRaw)) qtyFormula = qtyRaw;
+
         const price = parseVND(row.querySelector('.sale-item-price')?.value);
         const total = parseVND(row.querySelector('.sale-item-total-input')?.value);
         return {
           product_name: name,
           unit: unit,
-          gross_weight: gross,
-          tare_weight: tare,
-          quantity: qty || '0',
+          gross_weight: null,
+          tare_weight: null,
+          quantity: String(qtyVal || '0'),
           unit_price: price > 0 ? String(price) : '0',
-          line_total: total > 0 ? String(total) : '0'
+          line_total: total > 0 ? String(total) : '0',
+          gross_formula: '',
+          tare_formula: '',
+          qty_formula: qtyFormula,
         };
       })
       .filter(item => item.product_name !== '' || (item.line_total && Number(item.line_total) > 0) || (item.quantity && Number(item.quantity) > 0));
@@ -859,7 +1183,7 @@
 
     let currentStatus = document.getElementById('saleStatus').value || 'delivered';
     let invoiceNum = document.getElementById('saleInvoiceNumber').value.trim();
-    if (currentStatus === 'pending') {
+    if (['pending', 'delivering'].includes(currentStatus)) {
       invoiceNum = '';
     } else if (!invoiceNum) {
       invoiceNum = await fetchNextStt();
@@ -908,6 +1232,66 @@
     } catch (error) { notify(error.message, true); }
     finally { updateSaveButtons(null, false); }
   });
+
+  function handleEnterAsTab(e) {
+    if (e.key !== 'Enter') return;
+    if (e.target.tagName === 'TEXTAREA') return;
+    if (e.target.tagName === 'BUTTON' || e.target.type === 'submit') return;
+
+    const tsWrapper = e.target.closest('.ts-wrapper');
+    if (tsWrapper && tsWrapper.classList.contains('dropdown-active')) {
+      return;
+    }
+
+    e.preventDefault();
+
+    if (e.target.classList.contains('sale-item-quantity')) {
+      handleMathInputCommit(e.target);
+    }
+
+    const currentRow = e.target.closest('#saleItemRows tr');
+    if (currentRow) {
+      if (e.target.classList.contains('sale-item-total-input')) {
+        const nextRow = currentRow.nextElementSibling;
+        if (nextRow) {
+          const nextName = nextRow.querySelector('.sale-item-name');
+          if (nextName) {
+            nextName.focus();
+            nextName.select?.();
+            return;
+          }
+        } else {
+          addItemRow();
+          const newRow = document.querySelector('#saleItemRows tr:last-child');
+          const firstName = newRow ? newRow.querySelector('.sale-item-name') : null;
+          if (firstName) {
+            firstName.focus();
+            firstName.select?.();
+            return;
+          }
+        }
+      }
+    }
+
+    const form = e.target.closest('form') || document.getElementById('saleForm');
+    const focusableSelector = 'input:not([type="hidden"]):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled])';
+    const focusables = Array.from(form.querySelectorAll(focusableSelector))
+      .filter(el => el.offsetParent !== null && !el.classList.contains('d-none'));
+
+    const currentIndex = focusables.indexOf(e.target);
+    if (currentIndex > -1 && currentIndex < focusables.length - 1) {
+      const nextInput = focusables[currentIndex + 1];
+      nextInput.focus();
+      if (nextInput.select && typeof nextInput.select === 'function') {
+        nextInput.select();
+      }
+    }
+  }
+
+  document.getElementById('saleForm').addEventListener('keydown', handleEnterAsTab);
+  const paymentForm = document.getElementById('salePaymentForm');
+  if (paymentForm) paymentForm.addEventListener('keydown', handleEnterAsTab);
+
   rows.addEventListener('change', async function (event) {
     const statusSelect = event.target.closest('.js-table-status-select');
     if (!statusSelect) return;
@@ -916,7 +1300,7 @@
     const currentSale = sales.find(item => String(item.id) === String(saleId));
     let currentNumber = (currentSale && (currentSale.display_invoice_number || currentSale.invoice_number)) ? (currentSale.display_invoice_number || currentSale.invoice_number) : '';
     let promptVal = currentNumber;
-    if (newStatus === 'pending') {
+    if (['pending', 'delivering'].includes(newStatus)) {
       promptVal = '';
     } else if (newStatus === 'delivered' && !currentNumber) {
       const suggested = await fetchNextStt();
@@ -1017,22 +1401,30 @@
     } catch (error) { notify(error.message, true); }
     finally { button.disabled = false; }
   });
-  document.getElementById('salesSearch').addEventListener('input', function () {
-    clearTimeout(debounceTimer); debounceTimer = setTimeout(loadSales, 250);
-  });
+  const salesSearchEl = document.getElementById('salesSearch');
+  if (salesSearchEl) {
+    salesSearchEl.addEventListener('input', function () {
+      clearTimeout(debounceTimer); debounceTimer = setTimeout(loadSales, 250);
+    });
+  }
   const statusFilterEl = document.getElementById('salesStatusFilter');
   if (statusFilterEl) {
     statusFilterEl.addEventListener('change', () => loadSales(1));
   }
-  document.getElementById('salesDateFrom').addEventListener('change', loadSales);
-  document.getElementById('salesDateTo').addEventListener('change', loadSales);
-  document.getElementById('salesClearFilters').addEventListener('click', function () {
-    document.getElementById('salesSearch').value = '';
-    if (statusFilterEl) statusFilterEl.value = '';
-    document.getElementById('salesDateFrom').value = '';
-    document.getElementById('salesDateTo').value = '';
-    loadSales();
-  });
+  const dateFromEl = document.getElementById('salesDateFrom');
+  if (dateFromEl) dateFromEl.addEventListener('change', loadSales);
+  const dateToEl = document.getElementById('salesDateTo');
+  if (dateToEl) dateToEl.addEventListener('change', loadSales);
+  const clearFiltersBtn = document.getElementById('salesClearFilters');
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener('click', function () {
+      if (salesSearchEl) salesSearchEl.value = '';
+      if (statusFilterEl) statusFilterEl.value = '';
+      if (dateFromEl) dateFromEl.value = '';
+      if (dateToEl) dateToEl.value = '';
+      loadSales();
+    });
+  }
   const importInput = document.getElementById('salesImportFile');
   const importButton = document.getElementById('salesImportButton');
   const importConfirm = document.getElementById('salesImportConfirm');
@@ -1052,7 +1444,9 @@
       '<ul class="pl-4 mb-0">' + labels.map(item => '<li>' + escapeHtml(item[0]) + ': <strong>' + escapeHtml(item[1]) + '</strong> / ' + escapeHtml(item[2]) + '</li>').join('') + '</ul>';
     importConfirm.disabled = !(summary.sales_new || summary.payments_new || summary.customers_new);
   }
-  importButton.addEventListener('click', () => importInput.click());
+  document.querySelectorAll('#salesImportButton, #salesImportButtonHeader').forEach(btn => {
+    btn.addEventListener('click', () => importInput.click());
+  });
   importInput.addEventListener('change', async function () {
     importFile = this.files && this.files[0] ? this.files[0] : null;
     if (!importFile) return;
@@ -1069,7 +1463,10 @@
       notify(error.message, true);
       importFile = null;
       importInput.value = '';
-    } finally { importButton.disabled = false; importButton.textContent = 'Nhập Excel / ZIP'; }
+    } finally {
+      importButton.disabled = false;
+      importButton.textContent = 'Nhập Excel / ZIP';
+    }
   });
   importConfirm.addEventListener('click', async function () {
     if (!importFile) return;
@@ -1097,7 +1494,9 @@
           option.textContent = customer.full_name;
           select.appendChild(option);
         });
-        document.getElementById('addSaleButton').disabled = customers.length === 0;
+        document.querySelectorAll('.js-trigger-add-sale, #addSaleButton, #addSaleButtonHeader').forEach(btn => {
+          btn.disabled = customers.length === 0;
+        });
       }
       notify('Đã nhập ' + (counts.customers_added || 0) + ' khách hàng, ' +
         (counts.sales_added || 0) + ' hóa đơn và ' + (counts.payments_added || 0) + ' giao dịch.', false);
@@ -1119,12 +1518,227 @@
       importInput.value = '';
     }
   });
-  if (!customers.length) notify('Hãy thêm khách hàng trong mục Khách hàng & công nợ trước khi tạo hóa đơn.', false);
+  if (!customers.length) {
+    document.querySelectorAll('.js-trigger-add-sale, #addSaleButton, #addSaleButtonHeader').forEach(btn => {
+      btn.disabled = true;
+    });
+    notify('Hãy thêm khách hàng trong mục Khách hàng & công nợ trước khi tạo hóa đơn.', false);
+  }
   pagination.addEventListener('click', function (event) {
     const button = event.target.closest('[data-sales-page]');
     if (!button || button.closest('.disabled')) return;
     loadSales(Number(button.dataset.salesPage) || 1);
   });
+  // ==========================================
+  // SỔ CHI TIẾT BÁN HÀNG THEO MẶT HÀNG (TAB 2)
+  // ==========================================
+  let saleItems = [];
+  let itemsPage = 1;
+  let itemsTotalPages = 1;
+  let itemsTotal = 0;
+  let itemsLoadedOnce = false;
+
+  const itemProductSearch = document.getElementById('itemProductSearch');
+  const itemCustomerFilter = document.getElementById('itemCustomerFilter');
+  const itemDateFrom = document.getElementById('itemDateFrom');
+  const itemDateTo = document.getElementById('itemDateTo');
+  const itemBtnFilter = document.getElementById('itemBtnFilter');
+  const itemBtnClear = document.getElementById('itemBtnClear');
+  const itemBtnExport = document.getElementById('itemBtnExport');
+  const saleItemsRows = document.getElementById('saleItemsRows');
+  const itemPagination = document.getElementById('itemPagination');
+
+  function escapeRegex(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function renderSaleItemsPagination() {
+    if (!itemPagination) return;
+    if (itemsTotalPages <= 1) {
+      itemPagination.innerHTML = '';
+      return;
+    }
+    const current = itemsPage;
+    const total = itemsTotalPages;
+    let html = '<ul class="pagination pagination-sm mb-0">';
+    html += '<li class="page-item ' + (current === 1 ? 'disabled' : '') + '"><a class="page-link" href="javascript:void(0)" data-item-page="' + (current - 1) + '">&laquo; Trước</a></li>';
+    const startP = Math.max(1, current - 2);
+    const endP = Math.min(total, current + 2);
+    for (let p = startP; p <= endP; p++) {
+      html += '<li class="page-item ' + (p === current ? 'active' : '') + '"><a class="page-link" href="javascript:void(0)" data-item-page="' + p + '">' + p + '</a></li>';
+    }
+    html += '<li class="page-item ' + (current === total ? 'disabled' : '') + '"><a class="page-link" href="javascript:void(0)" data-item-page="' + (current + 1) + '">Sau &raquo;</a></li>';
+    html += '</ul>';
+    itemPagination.innerHTML = html;
+  }
+
+  function renderSaleItems() {
+    if (!saleItemsRows) return;
+    if (!saleItems.length) {
+      saleItemsRows.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">Không có mặt hàng nào phù hợp với bộ lọc.</td></tr>';
+      return;
+    }
+    const searchProd = (itemProductSearch?.value || '').trim().toLowerCase();
+
+    saleItemsRows.innerHTML = saleItems.map((item, idx) => {
+      const stt = (itemsPage - 1) * 50 + idx + 1;
+      const invNum = item.invoice_number ? escapeHtml(item.invoice_number) : '<span class="text-muted">—</span>';
+
+      let prodNameDisplay = escapeHtml(item.product_name);
+      if (searchProd && prodNameDisplay.toLowerCase().includes(searchProd)) {
+        const regex = new RegExp('(' + escapeRegex(searchProd) + ')', 'gi');
+        prodNameDisplay = prodNameDisplay.replace(regex, '<span class="bg-warning text-dark font-weight-bold px-1 rounded">$1</span>');
+      }
+
+      let custNameDisplay = escapeHtml(item.customer_name);
+      if (searchProd && custNameDisplay.toLowerCase().includes(searchProd)) {
+        const regex = new RegExp('(' + escapeRegex(searchProd) + ')', 'gi');
+        custNameDisplay = custNameDisplay.replace(regex, '<span class="bg-warning text-dark font-weight-bold px-1 rounded">$1</span>');
+      }
+
+      let qtyDisplay = item.quantity ? ('<strong>' + formatQty(item.quantity) + '</strong>') : '0';
+      if (item.qty_formula) {
+        qtyDisplay += '<br><small class="text-primary font-italic" title="Phép tính: ' + escapeHtml(item.qty_formula) + '">fx: ' + escapeHtml(item.qty_formula) + '</small>';
+      }
+
+      const priceDisplay = item.unit_price ? money(item.unit_price) : '0 đ';
+      const totalDisplay = item.line_total ? ('<strong class="text-success">' + money(item.line_total) + '</strong>') : '0 đ';
+
+      return '<tr>' +
+        '<td class="text-center text-muted font-weight-medium">' + stt + '</td>' +
+        '<td class="text-center"><a href="javascript:void(0)" class="badge badge-light border text-primary font-weight-bold js-sale-edit" data-id="' + item.sale_id + '" title="Bấm để xem/sửa hóa đơn">' + invNum + '</a></td>' +
+        '<td class="text-nowrap text-center">' + escapeHtml(item.sale_date) + '</td>' +
+        '<td class="text-nowrap"><strong>' + custNameDisplay + '</strong></td>' +
+        '<td class="font-weight-bold text-dark" style="min-width:200px;">' + prodNameDisplay + '</td>' +
+        '<td class="text-center text-muted">' + escapeHtml(item.unit || 'kg') + '</td>' +
+        '<td class="text-right text-nowrap text-primary">' + qtyDisplay + '</td>' +
+        '<td class="text-right text-nowrap">' + priceDisplay + '</td>' +
+        '<td class="text-right text-nowrap">' + totalDisplay + '</td>' +
+        '<td class="text-muted small" style="max-width:130px;" title="' + escapeHtml(item.carrier || '') + '">' + escapeHtml(item.carrier || '—') + '</td>' +
+        '<td class="text-muted small" style="max-width:150px;" title="' + escapeHtml(item.sale_note || '') + '">' + escapeHtml(item.sale_note || '') + '</td>' +
+        '<td class="text-right text-nowrap">' +
+          '<a class="btn btn-xs btn-light border py-1 px-2" href="/admin/enterprise/sales/' + item.sale_id + '/pdf" target="_blank" title="Xem & in hóa đơn PDF"><i class="fas fa-print mr-1"></i>PDF</a> ' +
+          '<button type="button" class="btn btn-xs btn-light border py-1 px-2 js-sale-edit" data-id="' + item.sale_id + '" title="Xem / Sửa hóa đơn"><i class="bx bx-edit-alt"></i></button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  async function loadSaleItems(page = 1) {
+    if (!saleItemsRows) return;
+    saleItemsRows.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin mr-2"></i>Đang tải dữ liệu mặt hàng...</td></tr>';
+    const params = new URLSearchParams({
+      product_name: (itemProductSearch?.value || '').trim(),
+      customer_id: (itemCustomerFilter?.value || '').trim(),
+      date_from: itemDateFrom?.value || '',
+      date_to: itemDateTo?.value || '',
+      page: String(page),
+      per_page: '100'
+    });
+    try {
+      const data = await requestJson('/admin/enterprise/sales/api/items?' + params.toString());
+      saleItems = data.items || [];
+      itemsPage = Number(data.page) || 1;
+      itemsTotalPages = Number(data.total_pages) || 1;
+      itemsTotal = Number(data.total) || 0;
+      const summary = data.summary || {};
+
+      document.getElementById('itemSummaryCount').textContent = new Intl.NumberFormat('vi-VN').format(summary.total_items || 0);
+      document.getElementById('itemSummaryProducts').textContent = new Intl.NumberFormat('vi-VN').format(summary.total_products || 0);
+      const qtyStr = formatQty(summary.total_quantity || 0) + ' kg';
+      const amountStr = money(summary.total_amount || 0);
+      document.getElementById('itemSummaryQty').textContent = qtyStr;
+      document.getElementById('itemSummaryAmount').textContent = amountStr;
+
+      const quickStats = document.getElementById('itemsTabQuickStats');
+      if (quickStats) {
+        document.getElementById('quickStatsQty').textContent = qtyStr;
+        document.getElementById('quickStatsAmount').textContent = amountStr;
+      }
+
+      renderSaleItems();
+      renderSaleItemsPagination();
+      itemsLoadedOnce = true;
+    } catch (error) {
+      saleItemsRows.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-5">' + escapeHtml(error.message) + '</td></tr>';
+    }
+  }
+
+  if (itemBtnFilter) itemBtnFilter.addEventListener('click', () => loadSaleItems(1));
+  let prodSearchTimeout;
+  if (itemProductSearch) {
+    itemProductSearch.addEventListener('input', () => {
+      clearTimeout(prodSearchTimeout);
+      prodSearchTimeout = setTimeout(() => loadSaleItems(1), 350);
+    });
+    itemProductSearch.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(prodSearchTimeout);
+        loadSaleItems(1);
+      }
+    });
+  }
+  if (itemCustomerFilter) itemCustomerFilter.addEventListener('change', () => loadSaleItems(1));
+  if (itemDateFrom) itemDateFrom.addEventListener('change', () => loadSaleItems(1));
+  if (itemDateTo) itemDateTo.addEventListener('change', () => loadSaleItems(1));
+  if (itemBtnClear) {
+    itemBtnClear.addEventListener('click', () => {
+      if (itemProductSearch) itemProductSearch.value = '';
+      if (itemCustomerFilter) itemCustomerFilter.value = '';
+      if (itemDateFrom) itemDateFrom.value = '';
+      if (itemDateTo) itemDateTo.value = '';
+      loadSaleItems(1);
+    });
+  }
+  if (itemBtnExport) {
+    itemBtnExport.addEventListener('click', () => {
+      const params = new URLSearchParams({
+        product_name: (itemProductSearch?.value || '').trim(),
+        customer_id: (itemCustomerFilter?.value || '').trim(),
+        date_from: itemDateFrom?.value || '',
+        date_to: itemDateTo?.value || ''
+      });
+      window.location.href = '/admin/enterprise/sales/api/items/export?' + params.toString();
+    });
+  }
+  if (itemPagination) {
+    itemPagination.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-item-page]');
+      if (!btn || btn.closest('.disabled')) return;
+      loadSaleItems(Number(btn.dataset.itemPage) || 1);
+    });
+  }
+
+  const tabInvoicesLink = document.getElementById('tabInvoicesLink');
+  const tabItemsLink = document.getElementById('tabItemsLink');
+  function switchTab(tab) {
+    if (tab === 'items') {
+      $('#tabItemsLink').tab('show');
+      if (!itemsLoadedOnce) loadSaleItems(1);
+    } else {
+      $('#tabInvoicesLink').tab('show');
+    }
+  }
+  if (tabItemsLink) {
+    tabItemsLink.addEventListener('shown.bs.tab', () => {
+      if (!itemsLoadedOnce) loadSaleItems(1);
+    });
+  }
+  if (saleItemsRows) {
+    saleItemsRows.addEventListener('click', (e) => {
+      const btn = e.target.closest('.js-sale-edit');
+      if (btn && btn.dataset.id) {
+        openEditSaleModal(btn.dataset.id);
+      }
+    });
+  }
+  window.loadSaleItems = loadSaleItems;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('tab') === 'items') {
+    switchTab('items');
+  }
+
   loadSales();
 })();
 </script>

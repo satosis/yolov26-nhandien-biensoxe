@@ -17,7 +17,7 @@ from frontend.modules.zalo.inbox import INBOX_DIR, bridge_secret
 
 _TAX = re.compile(r"(?:\bmst\b|mã\s+số\s+thuế)\s*[:：]?\s*(\d{10}(?:-\d{3})?)", re.I)
 _MILLION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:triệu|tr\b)", re.I)
-_ROUTE = re.compile(r"\btừ\s+(.+?)\s+(?:đến|đi|tới)\s+(.+?)(?:[.!?]|$)", re.I)
+_ROUTE = re.compile(r"\b(?:từ|tu)\s+(.+?)\s+(?:đến|den|đi|di|tới|toi|sang|về|ve)\s+(.+?)(?:[.!?]|$)", re.I)
 _INVOICE_DONE = re.compile(r"(?:đã|rồi|\br\b).*?(?:tạo|xuất).*?hóa\s*đơn|(?:tạo|xuất).*?hóa\s*đơn.*?(?:rồi|\br\b)", re.I)
 _MAP_URL = re.compile(r"https://(?:www\.)?(?:google\.com/maps|maps\.app\.goo\.gl|goo\.gl/maps)(?:/|\?)[^\s<>]+", re.I)
 
@@ -43,10 +43,23 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
         raise ValueError("Các tin đã chọn phải thuộc cùng một nhóm Zalo.")
     messages = sorted(messages, key=lambda item: item.get("sent_at") or item.get("received_at") or "")
     texts = [str(item.get("text") or "").strip() for item in messages]
-    tax_codes = list(dict.fromkeys(code for text in texts for code in _TAX.findall(text)))
+    all_texts = list(texts)
+    for item in messages:
+        for line in item.get("extracted_lines") or []:
+            line_str = str(line.get("text") or "").strip()
+            if line_str:
+                all_texts.append(line_str)
+
+    tax_codes = list(dict.fromkeys(code for text in all_texts for code in _TAX.findall(text)))
+    if not tax_codes:
+        tax_codes = list(dict.fromkeys(
+            code for text in all_texts for code in re.findall(r"\b\d{10}(?:-\d{3})?\b", text)
+        ))
+
     prices = []
     for text in texts:
-        if "cuoc" in _fold(text):
+        folded = _fold(text)
+        if any(w in folded for w in ("cuoc", "gia", "vat", "van chuyen", "cau", "chuyen", "xe", "tr", "trieu")):
             prices.extend(int(float(match.replace(",", ".")) * 1_000_000) for match in _MILLION.findall(text))
     routes = [_ROUTE.search(text) for text in texts]
     route = next((match for match in routes if match), None)
@@ -54,39 +67,104 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
     destination_province = _province(route.group(2), provinces) if route else ""
     missing = []
     map_locations = []
+    _coord_re = re.compile(r"(?:tọa\s*độ\s*[:：]?\s*\(?|\b)([0-9]{1,2}\.[0-9]{4,8})[\s,]+([0-9]{2,3}\.[0-9]{4,8})\)?", re.I)
+    from frontend.modules.zalo.invoice_automation import resolve_coordinates_address
+
     for item, text in zip(messages, texts):
         shared_url = _MAP_URL.search(text)
         attachment_url = str(item.get("attachment_url") or "").strip()
         url = attachment_url if _MAP_URL.fullmatch(attachment_url) else (shared_url.group(0) if shared_url else "")
-        if item.get("attachment_type") == "chat.location.new" or url:
+        coord_m = _coord_re.search(text)
+        resolved_address = ""
+        coord_vals = None
+        if coord_m:
+            try:
+                lat, lon = float(coord_m.group(1)), float(coord_m.group(2))
+                coord_vals = [lat, lon]
+                resolved_address = resolve_coordinates_address(lat, lon)
+            except Exception:
+                pass
+            if not url:
+                url = f"https://maps.google.com/?q={coord_m.group(1)},{coord_m.group(2)}"
+        if item.get("attachment_type") == "chat.location.new" or url or coord_m:
             label = text.replace(url, "").strip(" -:") if shared_url else text
+            if resolved_address:
+                label = resolved_address
+            elif not label and coord_m:
+                label = f"Tọa độ ({coord_m.group(1)}, {coord_m.group(2)})"
             if label or url:
-                map_locations.append({"label": label, "url": url, "message_id": item["id"]})
-    map_places = [item["url"] or item["label"] for item in map_locations]
-    origin = map_places[0] if len(map_places) >= 2 else origin_province
-    destination = map_places[-1] if len(map_places) >= 2 else destination_province
+                map_locations.append({
+                    "label": label,
+                    "address": resolved_address or label,
+                    "url": url,
+                    "coordinates": coord_vals,
+                    "message_id": item["id"],
+                })
+    map_places = [item.get("address") or item.get("label") or item.get("url") for item in map_locations]
+    origin = map_places[0] if len(map_places) >= 2 else (origin_province or (route.group(1).strip() if route else ""))
+    destination = map_places[-1] if len(map_places) >= 2 else (destination_province or (route.group(2).strip() if route else ""))
+
+    # Resolve "công ty này" if company address is present in texts
+    if origin and any(phrase in _fold(origin) for phrase in ("cong ty nay", "cty nay", "doanh nghiep nay")):
+        company_addr_candidate = ""
+        for t in texts:
+            if any(k in _fold(t) for k in ("phu tho", "vinh phuc", "ha noi", "khu", "phuong", "xa", "huyen", "tinh")):
+                # Extract address portion after company name or comma
+                sub = re.sub(r"(?i)^công ty\s+[^,]+,\s*", "", t)
+                sub = re.sub(r"(?i)\s*mã\s+số\s+thuế.*$", "", sub).strip(" .,-")
+                if len(sub) > 10:
+                    company_addr_candidate = sub
+                    break
+        origin = company_addr_candidate or "Công ty khách hàng"
+    if destination and any(phrase in _fold(destination) for phrase in ("dia diem tren", "noi tren", "diem tren")):
+        clean_dest = re.sub(r"(?i)\s*\d+.*(?:triệu|tr|chưa\s*vat).*$", "", destination).strip(" .,-")
+        if map_places:
+            destination = map_places[0]
+        elif clean_dest:
+            destination = clean_dest
+
     if len(map_places) == 1:
         place = map_places[0]
         location_index = next(index for index, item in enumerate(messages)
                               if item["id"] == map_locations[0]["message_id"])
         nearby = _fold(" ".join(texts[max(0, location_index - 1):location_index + 3]))
-        if "diem giao" in nearby or "cho tra" in nearby or "tra hang" in nearby:
+        if "diem giao" in nearby or "cho tra" in nearby or "tra hang" in nearby or "den" in nearby or "toi" in nearby:
             destination = place
-        elif "diem lay" in nearby or "cho xuong lay" in nearby or "lay hang" in nearby:
+        elif "diem lay" in nearby or "cho xuong lay" in nearby or "lay hang" in nearby or "tu" in nearby:
             origin = place
         elif destination_province and _fold(destination_province).split()[-1] in _fold(place):
             destination = place
         elif origin_province and _fold(origin_province).split()[-1] in _fold(place):
             origin = place
-        else:
-            missing.append("Xác định vị trí Maps là điểm lấy hay điểm giao")
+        elif not destination:
+            destination = place
+
+    if not destination_province and destination:
+        destination_province = _province(destination, provinces)
+    if not origin_province and origin:
+        origin_province = _province(origin, provinces)
+
     cargo = next((name for name in sorted(cargo_types, key=len, reverse=True)
                   if any(_fold(name) in _fold(text) for text in texts)), "")
     transport_requested = any("van chuyen" in _fold(text) or "cuoc" in _fold(text) for text in texts)
     service = next((name for name in services if transport_requested and "van chuyen" in _fold(name) and
                     ("cau" in _fold(name) or not any("cau" in _fold(s) for s in services))), "")
-    driver_reference = next((text for text in texts if re.search(r"\bxe\s+chú\s+\w+", text, re.I)), "")
-    nickname = re.search(r"\bxe\s+chú\s+(\w+)", driver_reference, re.I)
+
+    vehicle_nickname = ""
+    for t in texts:
+        m = re.search(r"\bxe\s+(chú|bác|anh|em|ông|bố|mẹ)(?:\s+([A-Za-z0-9_À-ỹ]+))?", t, re.I)
+        if m:
+            title = m.group(1).strip()
+            name = (m.group(2) or "").strip()
+            if name.lower() in {"xuat", "chua", "roi", "di", "ve", "nay", "do", "can", "chuyen", "vat"}:
+                name = ""
+            vehicle_nickname = f"{title} {name}".strip() if name else title
+            break
+    if not vehicle_nickname:
+        plate_match = re.search(r"\b(\d{2}[A-Z]-?\d{3}\.?\d{2})\b", " ".join(texts), re.I)
+        if plate_match:
+            vehicle_nickname = plate_match.group(1).upper()
+
     sent_dates = [item.get("sent_at") for item in messages if item.get("sent_at")]
     invoice_date = ""
     if sent_dates:
@@ -101,9 +179,7 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
         missing.append("Xác nhận mã số thuế bên mua (có nhiều MST)")
     if not prices:
         missing.append("Cước trước VAT")
-    elif len(set(prices)) > 1:
-        missing.append("Xác nhận cước trước VAT (có nhiều mức)")
-    if not nickname:
+    if not vehicle_nickname:
         missing.append("Xe vận chuyển")
     if not cargo:
         missing.append("Loại hàng hóa")
@@ -120,11 +196,40 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
         note = (service + (" " + cargo.casefold() if cargo else "") + " từ "
                 + (origin_province or route.group(1).strip()) + " đến "
                 + (destination_province or route.group(2).strip()))
+
+    seller_company_id = messages[0].get("company_id")
+    seller_company_name = messages[0].get("company_name")
+
+    buyer_company_id = None
+    buyer_company_name = ""
+    if tax_codes:
+        try:
+            matched_tax = db._execute_query(
+                "SELECT id, name, address FROM public.invoice_companies WHERE tax_code = %s",
+                (tax_codes[0],),
+                fetch=True,
+            )
+            if matched_tax:
+                buyer_company_id = matched_tax["id"]
+                buyer_company_name = matched_tax["name"]
+                if not origin or any(phrase in _fold(origin) for phrase in ("cong ty nay", "cty nay", "khach hang")):
+                    origin = matched_tax.get("address") or origin
+        except Exception:
+            pass
+
+    if not buyer_company_id:
+        buyer_company_id = seller_company_id
+        buyer_company_name = seller_company_name
+
     return {
         "group_id": next(iter(groups)), "message_ids": [item["id"] for item in messages],
+        "company_id": buyer_company_id, "company_name": buyer_company_name or "",
+        "buyer_company_id": buyer_company_id, "buyer_company_name": buyer_company_name or "",
+        "seller_company_id": seller_company_id, "seller_company_name": seller_company_name or "",
         "tax_code": tax_codes[0] if len(tax_codes) == 1 else "",
-        "amount": prices[0] if len(set(prices)) == 1 and prices else 0,
-        "vehicle_nickname": nickname.group(1) if nickname else "",
+        "amount": prices[0] if prices else 0,
+        "prices": prices,
+        "vehicle_nickname": vehicle_nickname,
         "service": service, "cargo": cargo, "note": note,
         "origin": origin, "destination": destination,
         "origin_province": origin_province, "destination_province": destination_province,
@@ -186,7 +291,16 @@ def ensure_zalo_bridge(timeout_secs: float = 6.0) -> int | None:
         except Exception:
             return False
 
-    if is_running() and port_file.exists():
+    status_file = INBOX_DIR / "bridge-status.json"
+    status_connected = False
+    if status_file.exists():
+        try:
+            status_data = json.loads(status_file.read_text(encoding="utf-8"))
+            status_connected = status_data.get("state") == "connected"
+        except Exception:
+            pass
+
+    if (is_running() or status_connected) and port_file.exists():
         try:
             port = int(port_file.read_text(encoding="ascii").strip())
             if 1 <= port <= 65535:
@@ -203,7 +317,7 @@ def ensure_zalo_bridge(timeout_secs: float = 6.0) -> int | None:
         process = subprocess.Popen(
             ["node", "bridge.js"], cwd=bridge_dir,
             stdin=subprocess.DEVNULL, stdout=logfile, stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            creationflags=(subprocess.CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0,
             start_new_session=os.name != "nt",
         )
         pid_file.write_text(str(process.pid), encoding="ascii")
@@ -266,7 +380,20 @@ async def send_invoice_notice(trip_id: int, *, trip: dict, buyer: dict,
             f"• Tuyến: {trip.get('origin') or ''} → {trip.get('destination') or ''}\n"
             f"• Số hóa đơn: {invoice_no or 'chưa cấp'}"
         )
-        post_data = {"group_id": request_row["group_id"], "text": caption}
+        seller = get_company(trip.get("seller_company_id")) if trip.get("seller_company_id") else None
+        if seller and seller.get("bank_account") and seller.get("bank_name"):
+            caption += (
+                f"\n\n💳 THÔNG TIN CHUYỂN KHOẢN:\n"
+                f"• Ngân hàng: {seller['bank_name']}\n"
+                f"• Số tài khoản: {seller['bank_account']}\n"
+                f"• Chủ tài khoản: {seller.get('name') or ''}"
+            )
+
+        post_data = {
+            "group_id": request_row["group_id"],
+            "company_id": trip.get("seller_company_id"),
+            "text": caption,
+        }
         if image_path and Path(image_path).exists():
             post_data["image_path"] = str(Path(image_path).resolve())
 
@@ -278,7 +405,7 @@ async def send_invoice_notice(trip_id: int, *, trip: dict, buyer: dict,
             )
         if response.status_code == 200 and response.json().get("ok") is True:
             _set_notice_state(trip_id, "sent")
-            return "sent", "Đã gửi thông báo hóa đơn vào nhóm Zalo Đại Lộ Xanh."
+            return "sent", "Đã gửi thông báo hóa đơn vào nhóm Zalo."
         if response.status_code in (400, 404):
             _set_notice_state(trip_id, "send_failed", "Cầu nối Zalo từ chối tin hoặc chưa nạp mã mới.")
             return "send_failed", "Hóa đơn đã tạo; cầu nối Zalo từ chối tin hoặc chưa nạp mã mới."
@@ -293,7 +420,7 @@ async def send_saved_invoice_to_zalo(
     invoice_guid: str,
     image_path: str = "",
 ) -> tuple[bool, str]:
-    """Send ONLY the invoice image and payment QR image to the 'Đại Lộ Xanh' Zalo group with NO text."""
+    """Send invoice image, payment QR image and bank transfer info to the Zalo group."""
     import asyncio
     import logging
     import urllib.parse
@@ -329,23 +456,38 @@ async def send_saved_invoice_to_zalo(
         except Exception as e:
             logger.warning("Could not fetch invoice image for Zalo notice: %s", e)
 
-    # 2. Ảnh QR chuyển khoản thanh toán
+    # 2. Ảnh QR chuyển khoản thanh toán & Thông tin chuyển khoản
     valid_qr_path = ""
-    try:
-        seller = get_company(invoice.get("seller_company_id"))
-        if seller and seller.get("bank_account") and seller.get("bank_name"):
-            bank_name = str(seller["bank_name"]).strip().upper()
-            bank_code = BANK_CODE_MAP.get(bank_name, bank_name)
-            account_no = str(seller["bank_account"]).strip()
-            amount = (int(round(float(invoice["debt_amount"])))
-                      if invoice.get("payment_status") == "debt" and invoice.get("debt_amount")
-                      else int(round(float(invoice.get("gross") or 0))))
-            num = int(invoice["invoice_number"]) if invoice.get("invoice_number") else 0
-            info = f"HD {num:08d}"
+    transfer_text = ""
+    seller = get_company(invoice.get("seller_company_id"))
+    seller_name = seller.get("name") if seller else (invoice.get("seller_name") or "")
+
+    if seller and seller.get("bank_account") and seller.get("bank_name"):
+        bank_name = str(seller["bank_name"]).strip()
+        account_no = str(seller["bank_account"]).strip()
+        account_holder = str(seller.get("name") or "").strip()
+        amount = (int(round(float(invoice["debt_amount"])))
+                  if invoice.get("payment_status") == "debt" and invoice.get("debt_amount")
+                  else int(round(float(invoice.get("gross") or 0))))
+        num = int(invoice["invoice_number"]) if invoice.get("invoice_number") else 0
+        info = f"HD {num:08d}" if num else (invoice.get("invoice_serial") or "Thanh toan hoa don")
+        amount_str = f"{amount:,.0f}".replace(",", ".") + " đ" if amount > 0 else "Theo hóa đơn"
+
+        transfer_text = (
+            f"💳 THÔNG TIN CHUYỂN KHOẢN:\n"
+            f"• Ngân hàng: {bank_name}\n"
+            f"• Số tài khoản: {account_no}\n"
+            f"• Chủ tài khoản: {account_holder}\n"
+            f"• Số tiền: {amount_str}\n"
+            f"• Nội dung CK: {info}"
+        )
+
+        try:
+            bank_code = BANK_CODE_MAP.get(bank_name.upper(), bank_name.upper())
             params = {
                 "amount": str(amount),
                 "addInfo": info,
-                "accountName": _remove_accents(str(seller["name"])).upper(),
+                "accountName": _remove_accents(account_holder).upper(),
             }
             qr_url = f"https://img.vietqr.io/image/{bank_code}-{account_no}-compact2.png?{urllib.parse.urlencode(params)}"
             qr_file = Path(cfg.BASE_DIR) / "upload" / "bkav_invoices" / f"{guid_str}_qr.png"
@@ -363,8 +505,8 @@ async def send_saved_invoice_to_zalo(
                         qr_file.write_bytes(qr_resp.content)
             if qr_file.exists():
                 valid_qr_path = str(qr_file.resolve())
-    except Exception as qr_err:
-        logger.warning("Could not generate QR image for Zalo notice: %s", qr_err)
+        except Exception as qr_err:
+            logger.warning("Could not generate QR image for Zalo notice: %s", qr_err)
 
     images_to_send = [p for p in (valid_image_path, valid_qr_path) if p]
     if not images_to_send:
@@ -376,8 +518,10 @@ async def send_saved_invoice_to_zalo(
 
     secret = bridge_secret()
     payload = {
-        "text": "",  # KHÔNG THÊM TEXT THÔNG BÁO, CHỈ GỬI ẢNH
+        "text": transfer_text,
         "images": images_to_send,
+        "company_id": invoice.get("seller_company_id"),
+        "company_name": seller_name,
     }
 
     try:
@@ -388,7 +532,8 @@ async def send_saved_invoice_to_zalo(
                 json=payload,
             )
         if resp.status_code == 200 and resp.json().get("ok") is True:
-            return True, "Đã gửi ảnh hóa đơn và mã QR vào nhóm Zalo Đại Lộ Xanh thành công!"
+            cname = seller_name or "công ty"
+            return True, f"Đã gửi ảnh hóa đơn, mã QR và thông tin chuyển khoản vào nhóm Zalo {cname} thành công!"
         err = resp.json().get("error") if resp.headers.get("content-type", "").startswith("application/json") else resp.text
         return False, f"Cầu nối Zalo phản hồi lỗi: {err or resp.status_code}"
     except Exception as exc:

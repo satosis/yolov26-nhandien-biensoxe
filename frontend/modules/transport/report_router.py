@@ -206,7 +206,7 @@ async def monthly_report(request: Request, month: str | None = None,
     report_rows = [row for row in vehicle_options
                    if row["has_month_data"] and (vehicle_id is None or row["id"] == vehicle_id)]
     report_pagination = paginate(
-        report_rows, page=report_page, per_page=20,
+        report_rows, page=report_page, per_page=100,
         base_url="/admin/vehicles/monthly-report",
         extra_params={"month": month, "vehicle_id": vehicle_id},
     )
@@ -240,7 +240,7 @@ async def monthly_report(request: Request, month: str | None = None,
         (vehicle_id, start, end, vehicle_id, start, end), fetchall=True, commit=False,
     ) or [] if vehicle_id is not None else []
     trip_pagination = paginate(
-        all_trip_rows, page=trip_page, per_page=20,
+        all_trip_rows, page=trip_page, per_page=100,
         base_url="/admin/vehicles/monthly-report",
         extra_params={"month": month, "vehicle_id": vehicle_id},
     )
@@ -248,7 +248,7 @@ async def monthly_report(request: Request, month: str | None = None,
     settlement_rows = monthly_trip_settlements(start, end, {row["id"] for row in vehicle_options}) if vehicle_id is None else []
     all_receivable_rows = company_settlements(settlement_rows)
     receivable_pagination = paginate(
-        all_receivable_rows, page=receivable_page, per_page=20,
+        all_receivable_rows, page=receivable_page, per_page=100,
         base_url="/admin/vehicles/monthly-report", extra_params={"month": month},
     )
     receivable_pagination["page_param"] = "receivable_page"
@@ -258,7 +258,7 @@ async def monthly_report(request: Request, month: str | None = None,
         running_cash += Decimal(str(cash_row["paid_amount"] or 0))
         cash_row["running_paid_total"] = running_cash
     cash_pagination = paginate(
-        all_cash_rows, page=cash_page, per_page=20,
+        all_cash_rows, page=cash_page, per_page=100,
         base_url="/admin/vehicles/monthly-report", extra_params={"month": month},
     )
     cash_pagination["page_param"] = "cash_page"
@@ -337,7 +337,7 @@ async def vehicle_expenses(request: Request, month: str | None = None,
     if vehicle_id is not None:
         extra_params["vehicle_id"] = vehicle_id
     page_data = paginate_counts(
-        total_expenses, page=page, per_page=20,
+        total_expenses, page=page, per_page=100,
         base_url="/admin/vehicles/expenses", extra_params=extra_params,
     )
     ctx["expense_rows"] = db._execute_query(

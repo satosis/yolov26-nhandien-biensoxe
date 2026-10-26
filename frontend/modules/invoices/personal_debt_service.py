@@ -216,7 +216,7 @@ def get_customer_logs(company_id: int, customer_id: int) -> tuple[dict | None, l
         FROM public.personal_debt_logs l
         LEFT JOIN public.users u ON u.id = l.created_by
         WHERE l.company_id = %s AND l.customer_id = %s
-        ORDER BY l.transaction_date DESC, l.id DESC
+        ORDER BY l.transaction_date ASC, CASE WHEN COALESCE(l.amount_due, 0) > 0 THEN 0 ELSE 1 END ASC, l.id ASC
         """,
         (company_id, customer_id),
         fetchall=True,

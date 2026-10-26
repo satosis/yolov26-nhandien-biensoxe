@@ -48,8 +48,11 @@ def _bridge_running() -> bool:
     if not PID_FILE.exists():
         return False
     try:
-        process = psutil.Process(int(PID_FILE.read_text(encoding="ascii")))
-        return process.is_running() and process.cwd() == str(BRIDGE_DIR) and "bridge.js" in process.cmdline()
+        process = psutil.Process(int(PID_FILE.read_text(encoding="ascii").strip()))
+        if not process.is_running():
+            return False
+        cmdline = " ".join(process.cmdline())
+        return "bridge.js" in cmdline
     except (psutil.NoSuchProcess, psutil.AccessDenied, ValueError):
         return False
 
@@ -69,8 +72,17 @@ async def _process_salary_message(item_id: str, *, retry: bool = False, company_
         if previous and not retry:
             return
         set_salary_advance_status(item_id, {"state": "processing", "error": ""})
+        target_company_id = company_id or item.get("company_id")
+        if not target_company_id and item.get("group_name"):
+            try:
+                from frontend.modules.invoices.companies import find_company_by_name
+                matched = find_company_by_name(item["group_name"])
+                if matched:
+                    target_company_id = matched["id"]
+            except Exception:
+                pass
         try:
-            member, payment = await asyncio.to_thread(create_advance_from_message, item, company_id)
+            member, payment = await asyncio.to_thread(create_advance_from_message, item, target_company_id)
         except ValueError as exc:
             set_salary_advance_status(item_id, {"state": "needs_review", "error": str(exc)})
             return
@@ -113,6 +125,23 @@ async def inbox_page(
         request.session["zalo_send_nonce"] = secrets.token_urlsafe(24)
     ctx["send_nonce"] = request.session["zalo_send_nonce"]
     ctx["draft_error"] = request.query_params.get("draft_error", "")
+
+    # Active invoice gathering sessions
+    from frontend.modules.zalo.invoice_automation import SESSIONS_DIR
+    active_sessions = []
+    if SESSIONS_DIR.exists():
+        import time as _t
+        now_ts = _t.time()
+        for sp in SESSIONS_DIR.glob("*.json"):
+            try:
+                s_data = json.loads(sp.read_text(encoding="utf-8"))
+                if s_data.get("status") == "collecting":
+                    rem = max(0, int(300 - (now_ts - s_data.get("last_message_at", 0))))
+                    s_data["remaining_seconds"] = rem
+                    active_sessions.append(s_data)
+            except Exception:
+                pass
+    ctx["active_invoice_sessions"] = active_sessions
     return templates.TemplateResponse("pages/zalo_inbox.html", {"request": request, **ctx})
 
 
@@ -149,6 +178,8 @@ async def create_trip_draft(
     if any("tạo hóa đơn" in (item.get("text") or "").casefold()
            for item in recent):
         draft["possible_existing_invoice"] = True
+    if draft.get("company_id"):
+        request.session["active_company_id"] = draft["company_id"]
     draft["token"] = secrets.token_urlsafe(20)
     draft["user_id"] = user["id"]
     request.session["zalo_trip_draft"] = draft
@@ -166,7 +197,7 @@ async def connect_bridge(_: dict = Depends(require_menu("zalo_inbox"))):
             process = subprocess.Popen(
                 ["node", "bridge.js"], cwd=BRIDGE_DIR,
                 stdin=subprocess.DEVNULL, stdout=logfile, stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=(subprocess.CREATE_NO_WINDOW | 0x00000008) if os.name == "nt" else 0,
                 start_new_session=os.name != "nt",
             )
         finally:
@@ -185,6 +216,14 @@ async def disconnect_bridge(_: dict = Depends(require_menu("zalo_inbox"))):
     return RedirectResponse("/admin/zalo_inbox", status_code=303)
 
 
+@router.get("/companies")
+async def list_companies_for_zalo_bridge(x_zalo_bridge_secret: str = Header("")):
+    if not hmac.compare_digest(x_zalo_bridge_secret, bridge_secret()):
+        raise HTTPException(status_code=401)
+    from frontend.modules.invoices.companies import list_companies_for_bridge
+    return {"ok": True, "companies": list_companies_for_bridge()}
+
+
 @router.post("/ingest")
 async def ingest_message(
     event: str = Form(...),
@@ -200,9 +239,59 @@ async def ingest_message(
     if content is not None and len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 20 MB")
     item, created = save_message(payload, content, with_created=True)
+    if not item:
+        return {"ok": False, "ignored": True, "detail": "Nhóm Zalo không khớp 100% với tên công ty hoặc không có MST hợp lệ"}
     if created:
         await _process_salary_message(item["id"])
+        try:
+            from frontend.modules.zalo.invoice_automation import process_invoice_message_ingest
+            await process_invoice_message_ingest(item)
+        except Exception as exc:
+            logger.exception("Lỗi khi xử lý phiên tạo hóa đơn Zalo: %s", exc)
     return {"ok": True, "id": item["id"]}
+
+
+@router.get("/drafts/{draft_id}/apply")
+async def apply_saved_draft(
+    draft_id: str,
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+    _: dict = Depends(require_menu("zalo_inbox")),
+):
+    from frontend.modules.zalo.invoice_automation import DRAFTS_DIR
+    path = DRAFTS_DIR / f"{draft_id}.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy bản nháp hóa đơn.")
+    draft = json.loads(path.read_text(encoding="utf-8"))
+    if draft.get("company_id"):
+        request.session["active_company_id"] = draft["company_id"]
+    draft["token"] = secrets.token_urlsafe(20)
+    draft["user_id"] = user["id"]
+    request.session["zalo_trip_draft"] = draft
+    return RedirectResponse("/admin/vehicles/cargo/add?zalo_draft=1", status_code=303)
+
+
+@router.post("/sessions/{group_id}/finalize-now")
+async def finalize_session_now(
+    group_id: str,
+    request: Request,
+    nonce: str = Form(...),
+    user: dict = Depends(require_menu("vehicles")),
+    _: dict = Depends(require_menu("zalo_inbox")),
+):
+    expected = request.session.get("zalo_send_nonce", "")
+    if not expected or not hmac.compare_digest(nonce, expected):
+        raise HTTPException(status_code=403, detail="Yêu cầu không hợp lệ")
+    from frontend.modules.zalo.invoice_automation import finalize_invoice_session_sync
+    draft = finalize_invoice_session_sync(group_id)
+    if draft:
+        if draft.get("company_id"):
+            request.session["active_company_id"] = draft["company_id"]
+        draft["token"] = secrets.token_urlsafe(20)
+        draft["user_id"] = user["id"]
+        request.session["zalo_trip_draft"] = draft
+        return RedirectResponse("/admin/vehicles/cargo/add?zalo_draft=1", status_code=303)
+    return RedirectResponse("/admin/zalo_inbox?draft_error=Không thể gom phiên tạo hóa đơn này.", status_code=303)
 
 
 @router.post("/{item_id}/retry-salary")

@@ -11,7 +11,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
 
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
 
 
@@ -40,6 +39,14 @@
   {% endblock %}
 
   {% include "partials/landing_i18n.html" %}
+
+  <style>
+    :root, html, body {
+      font-family: "Times New Roman", Times, serif !important;
+    }
+    [x-cloak]{display:none!important}
+    html{scroll-behavior:smooth;scroll-padding-top:80px}
+  </style>
   {% block head %}{% endblock %}
   <script defer src="/static/user/js/htmx.min.js?v=2.1"></script>
 </head>

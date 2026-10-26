@@ -96,28 +96,6 @@ def _start_cleanup_loop():
     if _cleanup_task is None:
         _cleanup_task = asyncio.create_task(_cleanup_models_loop())
 
-def _dedupe_detections(detections, iou_threshold=0.5):
-    if len(detections) <= 1:
-        return detections
-    dets = sorted(detections, key=lambda d: d[4], reverse=True)
-    keep = []
-    for d in dets:
-        x1, y1, x2, y2 = d[0], d[1], d[2], d[3]
-        is_dup = False
-        for k in keep:
-            kx1, ky1, kx2, ky2 = k[0], k[1], k[2], k[3]
-            ix1, iy1 = max(x1, kx1), max(y1, ky1)
-            ix2, iy2 = min(x2, kx2), min(y2, ky2)
-            inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
-            area_a = (x2 - x1) * (y2 - y1)
-            area_b = (kx2 - kx1) * (ky2 - ky1)
-            union = area_a + area_b - inter
-            if union > 0 and inter / union > iou_threshold:
-                is_dup = True
-                break
-        if not is_dup:
-            keep.append(d)
-    return keep
 
 def _get_models(include_face=False):
     global _plate_detector, _ocr_reader, _face_recognizer, _last_request_time
@@ -385,26 +363,58 @@ def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = 
     return "inserted"
 
 
-def _get_person_by_identity(identity):
-    if not identity or identity == "STRANGER":
-        return None
-    if isinstance(identity, int) or (isinstance(identity, str) and identity.isdigit()):
-        query = "SELECT id, full_name, site_ids, note, username, person_identity FROM users WHERE id = %s OR username = %s OR person_identity = %s LIMIT 1"
-        row = db.execute_query(query, (int(identity), str(identity), str(identity)), fetch=True)
-    else:
-        query = "SELECT id, full_name, site_ids, note, username, person_identity FROM users WHERE username = %s OR person_identity = %s LIMIT 1"
-        row = db.execute_query(query, (str(identity), str(identity)), fetch=True)
+def _authorize_detection_camera(camera_id: int, site_id) -> None:
+    camera = cam_svc.get_camera(camera_id)
+    if not camera or not camera.get("is_active"):
+        raise HTTPException(status_code=404, detail="Camera không khả dụng.")
+    if site_id is None:
+        return
 
-    if row:
-        return {
-            "identity": str(row['id']),
-            "full_name": row['full_name'],
-            "username": row['username'],
-            "person_identity": row['person_identity'],
-            "site_ids": row['site_ids'],
-            "note": row['note']
-        }
-    return None
+    site_ids = camera.get("site_ids")
+    if isinstance(site_ids, str):
+        try:
+            site_ids = json.loads(site_ids)
+        except (TypeError, ValueError):
+            site_ids = []
+    try:
+        allowed_sites = {int(value) for value in (site_ids or [])}
+        selected_site = int(site_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=404, detail="Camera không khả dụng.")
+    if selected_site not in allowed_sites:
+        raise HTTPException(status_code=404, detail="Camera không khả dụng.")
+
+
+def _read_latest_camera_frame(camera_id: int) -> np.ndarray:
+    shm = None
+    try:
+        shm = sm.SharedMemory(name=f"shm_cam_{camera_id}", create=False)
+        try:
+            from multiprocessing import resource_tracker
+            resource_tracker.unregister(shm._name, "shared_memory")
+        except Exception:
+            pass
+        counter = np.ndarray((1,), dtype=np.uint32, buffer=shm.buf[:4])
+        frame_buffer = np.ndarray(
+            (cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8, buffer=shm.buf[4:]
+        )
+        for _ in range(3):
+            before = int(counter[0])
+            if before == 0 or before & 1:
+                continue
+            frame = frame_buffer.copy()
+            after = int(counter[0])
+            if after == before and not after & 1:
+                return frame
+    except (FileNotFoundError, OSError, ValueError, BufferError) as error:
+        logger.info("Camera %s has no readable shared frame: %s", camera_id, error)
+    finally:
+        if shm is not None:
+            try:
+                shm.close()
+            except Exception:
+                pass
+    raise HTTPException(status_code=503, detail="Camera chưa có khung hình để nhận diện.")
 
 
 _live_streams_lock = threading.Lock()
@@ -413,7 +423,7 @@ _LIVE_STREAM_TTL_SECONDS = 20
 _MAX_LIVE_STREAMS = 64
 
 
-def _live_stream_state(stream_key, detector, ocr):
+def _live_stream_state(stream_key, detector, ocr, *, quick_ocr=True, search_small=True):
     now = time.monotonic()
     with _live_streams_lock:
         expired = [key for key, value in _live_streams.items()
@@ -424,8 +434,8 @@ def _live_stream_state(stream_key, detector, ocr):
         state = _live_streams.get(stream_key)
         if state is None:
             analyzer = PlateFrameAnalyzer(
-                detector, ocr, search_small=True, detector_lock=_detector_lock,
-                ocr_lock=_ocr_lock, include_people=True, quick_ocr=True,
+                detector, ocr, search_small=search_small, detector_lock=_detector_lock,
+                ocr_lock=_ocr_lock, include_people=True, quick_ocr=quick_ocr,
             )
             aggregator = OCRTrackAggregator(
                 normalize=cfg.normalize_plate,
@@ -454,10 +464,32 @@ def _live_stream_state(stream_key, detector, ocr):
         return state
 
 
+def _format_vn_plate_for_display(value: str) -> str:
+    """Format recognized Vietnamese plate numbers for display only."""
+    if not isinstance(value, str) or not value.strip():
+        return ""
+    original = value.strip().upper()
+    clean = re.sub(r"[^A-Z0-9]", "", original)
+    patterns = (
+        r"^(\d{2}[A-Z]{1,2})(\d{4,5})$",  # 30F-945.35
+        r"^(\d{2}[A-Z]\d)(\d{4,5})$",  # 29A1-123.45
+        r"^(T\d{2})(\d{4,5})$",  # Temporary plates
+        r"^([A-Z]{2})(\d{4,5})$",  # Military / special plates
+    )
+    for pattern in patterns:
+        match = re.fullmatch(pattern, clean)
+        if match:
+            prefix, number = match.groups()
+            suffix = f"{number[:3]}.{number[3:]}" if len(number) == 5 else number
+            return f"{prefix}-{suffix}"
+    return original
+
+
 def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_frame=None):
     track_id = event["track_id"]
     meta = state["track_meta"].setdefault(track_id, {})
     text = event.get("text") or ""
+    display_text = _format_vn_plate_for_display(text)
     recognized = event.get("status") == "recognized" and bool(text)
     normalized = cfg.normalize_plate(text) if text else ""
     owner_name = meta.get("owner_name", "unknown")
@@ -470,7 +502,7 @@ def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_f
             meta["whitelist_checked"] = True
             owner_name = meta["owner_name"]
         status = "whitelist" if owner_name != "unknown" else "unknown"
-        if status == "unknown" and not meta.get("pending_saved"):
+        if status == "unknown" and source != "video_preview" and not meta.get("pending_saved"):
             snapshot = save_snapshot(snapshot_frame if snapshot_frame is not None else frame_bgr,
                                      source, normalized)
             _add_pending_plate_simple(
@@ -479,29 +511,51 @@ def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_f
             )
             meta["pending_saved"] = True
 
-    return {
+    item = {
         "type": "plate",
-        "text": text or "(BIỂN SỐ ?)",
+        "text": display_text or "(BIỂN SỐ ?)",
         "plate_type": "white",
         "confidence": round(float(event.get("detector_confidence") or 0) * 100, 1),
         "ocr_confidence": round(float(event.get("confidence") or 0) * 100, 1),
         "status": status,
         "owner_name": owner_name,
         "bbox": [int(value) for value in event["bbox"]],
-        "ocr_text": text,
+        "ocr_text": display_text,
         "quality": {"quality_score": float(event.get("quality_score") or 0)},
         "valid_format": bool(text and state["analyzer"].is_valid(text)),
         "recognition_status": event.get("status", "unreadable"),
         "track_id": track_id,
+        "stream_id": str(state.get("stream_id") or ""),
+        "start_time": event.get("start_time"),
+        "end_time": event.get("end_time"),
+        "best_crop_time": event.get("best_crop_time"),
         "observations": event.get("observations", 0),
     }
+    best_crop = event.get("best_crop")
+    best_crop_time = event.get("best_crop_time")
+    if source == "video_preview" and best_crop is not None and meta.get("preview_time") != best_crop_time:
+        raw_crop = np.ascontiguousarray(best_crop)
+        preview_crop = prepare_plate_preview(raw_crop)
+        ok, encoded = cv2.imencode(".jpg", preview_crop, [cv2.IMWRITE_JPEG_QUALITY, 94])
+        if ok:
+            item["crop_preview"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
+        ok, encoded = cv2.imencode(".jpg", raw_crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        if ok:
+            item["crop_original"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
+        crop_quality = assess_image(raw_crop)
+        item["quality"] = crop_quality
+        meta["preview_time"] = best_crop_time
+    return item
 
 
-def _detect_realtime_frame(frame_bgr, stream_key, site_id, source):
+def _detect_realtime_frame(frame_bgr, stream_key, site_id, source, *, timestamp=None,
+                           finish_tracks=False, quick_ocr=True, search_small=True):
     detector, ocr, _ = _get_models(include_face=False)
-    state = _live_stream_state(stream_key, detector, ocr)
+    state = _live_stream_state(stream_key, detector, ocr, quick_ocr=quick_ocr, search_small=search_small)
     with state["lock"]:
-        timestamp = time.monotonic()
+        state["stream_id"] = stream_key[-1] if stream_key else ""
+        timestamp = time.monotonic() if timestamp is None else float(timestamp)
+        state["analyzer"].quick_ocr = quick_ocr
         observations = state["analyzer"].observe(frame_bgr, timestamp)
         plate_observations = [item for item in observations if item.get("type") == "plate"]
         people = [{
@@ -510,7 +564,9 @@ def _detect_realtime_frame(frame_bgr, stream_key, site_id, source):
         } for item in observations if item.get("type") == "person"]
 
         expired = state["aggregator"].update(timestamp, plate_observations)
-        active = state["aggregator"].snapshot()
+        active = [] if finish_tracks else state["aggregator"].snapshot()
+        if finish_tracks:
+            expired.extend(state["aggregator"].finish())
         events_by_id = {event["track_id"]: (event, True) for event in expired}
         events_by_id.update({event["track_id"]: (event, False) for event in active})
         results = people + [
@@ -572,16 +628,17 @@ def _detect_plates(frame_bgr, s_id, source="webcam", *, preview_view="both", ful
                     image_path=snap_path, plate_type=p_type,
                 )
 
+            display_text = _format_vn_plate_for_display(text)
             plate_item = {
                 "type": "plate",
-                "text": text if text else "(BIỂN SỐ ?)",
+                "text": display_text if text else "(BIỂN SỐ ?)",
                 "plate_type": p_type,
                 "confidence": round(conf * 100, 1),
                 "ocr_confidence": round(ocr_conf * 100, 1),
                 "status": status,
                 "owner_name": owner_name,
                 "bbox": [x1, y1, x2, y2],
-                "ocr_text": text or "",
+                "ocr_text": display_text or "",
                 "quality": quality,
                 "valid_format": valid_format,
                 "recognition_status": "recognized" if valid_format and ocr_conf >= .70 else "uncertain" if text else "unreadable",
@@ -605,36 +662,68 @@ def _detect_plates(frame_bgr, s_id, source="webcam", *, preview_view="both", ful
 
 @router.post("/api/detect")
 async def detect_image(request: Request,
-                       file: UploadFile = File(...),
+                       file: UploadFile | None = File(None),
                        source: str = Form("webcam"),
                        preview_view: str = Form("both"),
                        preview_ocr: str = Form("quick"),
                        stream_id: str = Form(""),
+                       camera_id: int = Form(0),
+                       video_time: float = Form(-1),
+                       finish_tracks: bool = Form(False),
                        user: dict = Depends(require_menu("detection"))):
-    contents = await file.read()
-    if not contents:
-        logger.warning("Detection upload is empty")
-        return JSONResponse(
-            {"ok": False, "message": "Ảnh tải lên không hợp lệ."},
-            status_code=400,
-        )
-    frame_bgr, dbg_decode = await asyncio.to_thread(decode_image, contents, return_debug=True)
-    del contents
-    if frame_bgr is None:
-        logger.warning("Detection upload decode failed: %s", dbg_decode.get("error"))
-        return JSONResponse(
-            {"ok": False, "message": f"Ảnh tải lên không hợp lệ hoặc lỗi giải mã: {dbg_decode.get('error', 'Lỗi định dạng')}"},
-            status_code=400,
-        )
+    frame_bgr = None
+    if source == "rtsp" and camera_id > 0:
+        active_site_id = request.session.get("active_site_id") or None
+        await asyncio.to_thread(_authorize_detection_camera, camera_id, active_site_id)
+        frame_bgr = await asyncio.to_thread(_read_latest_camera_frame, camera_id)
+    else:
+        if file is None:
+            return JSONResponse(
+                {"ok": False, "message": "Thi\u1ebfu \u1ea3nh nh\u1eadn di\u1ec7n."}, status_code=400,
+            )
+        contents = await file.read()
+        if not contents:
+            logger.warning("Detection upload is empty")
+            return JSONResponse(
+                {"ok": False, "message": "\u1ea2nh t\u1ea3i l\u00ean kh\u00f4ng h\u1ee3p l\u1ec7."},
+                status_code=400,
+            )
+        frame_bgr, dbg_decode = await asyncio.to_thread(decode_image, contents, return_debug=True)
+        del contents
+        if frame_bgr is None:
+            logger.warning("Detection upload decode failed: %s", dbg_decode.get("error"))
+            decode_error = dbg_decode.get("error") or "invalid format"
+            return JSONResponse(
+                {"ok": False, "message": f"\u1ea2nh t\u1ea3i l\u00ean kh\u00f4ng h\u1ee3p l\u1ec7 ho\u1eb7c l\u1ed7i gi\u1ea3i m\u00e3: {decode_error}"},
+                status_code=400,
+            )
+
     def run_ai_pipeline():
         res = []
 
         s_id = request.session.get("active_site_id") or None
-        if source in ("upload", "video", "video_preview"):
-            # For uploaded images and videos, run plate/vehicle detection synchronously
+        if source == "video_preview":
+            client_host = request.client.host if request.client else "unknown"
+            client_stream_id = (stream_id or f"video_preview:{client_host}")[:120]
+            stream_key = (
+                str(user.get("id") or "anonymous"),
+                str(s_id or 0),
+                source,
+                client_stream_id,
+            )
+            timestamp = float(video_time) if np.isfinite(video_time) and video_time >= 0 else None
+            res.extend(_detect_realtime_frame(
+                frame_bgr, stream_key, s_id, source,
+                timestamp=timestamp,
+                finish_tracks=finish_tracks,
+                quick_ocr=preview_ocr != "full",
+                search_small=False,
+            ))
+        elif source in ("upload", "video"):
+            # Uploaded stills and queued video jobs use their dedicated OCR path.
             plate_res = _detect_plates(frame_bgr, s_id, source=source,
                                       preview_view=preview_view if preview_view in ("full", "center", "both") else "both",
-                                      full_ocr=source == "video_preview" and preview_ocr == "full")
+                                      full_ocr=False)
             res.extend(plate_res)
         else:
             client_host = request.client.host if request.client else "unknown"
@@ -750,8 +839,17 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                     await asyncio.sleep(0.5)
                     continue
 
+                # Odd sequence values mean the grabber is replacing the frame.
+                if counter & 1:
+                    await asyncio.sleep(0)
+                    continue
+
                 if counter != last_counter:
                     frame = np.frombuffer(shm.buf, dtype=np.uint8, offset=4, count=cfg.SHM_FRAME_BYTES).reshape((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3)).copy()
+                    after = int(np.frombuffer(shm.buf, dtype=np.uint32, count=1)[0])
+                    if after != counter or after & 1:
+                        await asyncio.sleep(0)
+                        continue
                     yield _mjpeg_frame(frame, cfg.STREAM_JPEG_QUALITY_LIVE)
                     last_counter = counter
                     last_frame_time = time.monotonic()

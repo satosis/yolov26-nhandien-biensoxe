@@ -90,11 +90,11 @@
             <td class="align-middle">{{ t.cargo_description or '—' }}</td>
             <td class="text-right text-nowrap align-middle">
               {% if t.freight_revenue is not none %}
-                {{ "{:,.0f}".format(t.freight_revenue * (1 + (t.vat_rate or 0)))|replace(',', '.') }}
+                {{ (t.freight_revenue * (1 + (t.vat_rate or 0)))|format_number }}
               {% else %}—{% endif %}
             </td>
             <td class="text-right text-nowrap align-middle font-weight-bold text-danger">
-              {{ "{:,.0f}".format(t.debt_amount)|replace(',', '.') }}
+              {{ t.debt_amount|format_number }}
             </td>
             <td class="align-middle small text-muted">{{ t.trip_note or '' }}</td>
             <td class="text-nowrap align-middle">

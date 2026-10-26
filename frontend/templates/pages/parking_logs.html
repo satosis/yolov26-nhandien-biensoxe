@@ -43,9 +43,9 @@
             </td>
             <td>
               {% if log.is_whitelist %}
-              <span class="badge badge-pill badge-success font-monospace font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
+              <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
               {% else %}
-              <span class="badge badge-pill badge-warning font-monospace font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
+              <span class="badge badge-pill badge-warning font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
               {% endif %}
             </td>
             <td>
@@ -57,8 +57,8 @@
             </td>
             <td class="text-muted" style="font-size:12px;">{{ log.camera_name or log.cam_in or log.cam_out or '—' }}</td>
             <td class="text-muted" style="font-size:12px;">{{ log.site_name or '—' }}</td>
-            <td class="font-monospace text-muted" style="font-size:11px;">{{ log.entry_time.strftime('%d/%m %H:%M:%S') if log.entry_time else '—' }}</td>
-            <td class="font-monospace text-muted" style="font-size:11px;">{{ log.exit_time.strftime('%d/%m %H:%M:%S') if log.exit_time else '—' }}</td>
+            <td class="text-muted" style="font-size:11px;">{{ log.entry_time.strftime('%d/%m %H:%M:%S') if log.entry_time else '—' }}</td>
+            <td class="text-muted" style="font-size:11px;">{{ log.exit_time.strftime('%d/%m %H:%M:%S') if log.exit_time else '—' }}</td>
             <td>
               {% if log.exit_time %}
               <span class="text-muted" style="font-size:11px;">Đã ra</span>

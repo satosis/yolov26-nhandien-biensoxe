@@ -266,23 +266,3 @@ def decode_image(
         return _finish(out_img, method=used_method)
 
     return _finish(None, err="Decoded image is empty or invalid")
-
-
-def encode_image(
-    image: np.ndarray,
-    ext: str = ".jpg",
-    quality: int = 95,
-) -> Optional[bytes]:
-    """Encode BGR numpy array to JPEG/PNG bytes."""
-    if image is None or not isinstance(image, np.ndarray) or image.size == 0:
-        return None
-    params = []
-    ext_lower = ext.lower()
-    if ext_lower in (".jpg", ".jpeg"):
-        params = [cv2.IMWRITE_JPEG_QUALITY, max(1, min(100, quality))]
-    elif ext_lower == ".png":
-        params = [cv2.IMWRITE_PNG_COMPRESSION, 3]
-    ok, buf = cv2.imencode(ext, image, params)
-    if not ok:
-        return None
-    return buf.tobytes()

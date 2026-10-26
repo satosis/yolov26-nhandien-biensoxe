@@ -14,13 +14,14 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from backend.services.database import db
-from frontend.deps import get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates, format_number, format_currency
 from frontend.pagination import paginate_counts
 from frontend.modules.invoices.companies import (
     TaxLookupError,
     get_company,
     get_company_bank_accounts,
     list_bank_names,
+    list_business_activities,
     refresh_company_from_tax,
     replace_company_bank_accounts,
     update_company,
@@ -105,7 +106,7 @@ def _personal_month_range(value: str | None = None) -> tuple[str, date, date]:
 def _parse_opening_balance(val: str) -> Decimal:
     if not val:
         return Decimal("0")
-    s = str(val).strip().replace(" ", "").replace(",", "")
+    s = str(val).strip().replace(" ", "").replace(".", "").replace(",", "")
     is_neg = s.startswith("-")
     clean_digits = re.sub(r"[^\d]", "", s)
     if not clean_digits:
@@ -120,9 +121,14 @@ def _parse_date_optional(val: str) -> date | None:
     s = str(val).strip()
     if not s:
         return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y", "%d-%m-%y", "%y-%m-%d"):
         try:
-            return datetime.strptime(s, fmt).date()
+            d = datetime.strptime(s, fmt).date()
+            if d.year < 100:
+                d = d.replace(year=2000 + d.year)
+            elif d.year < 1900:
+                d = d.replace(year=2000 + (d.year % 100))
+            return d
         except ValueError:
             pass
     return None
@@ -165,6 +171,7 @@ async def enterprise_page(
     ctx["company"] = company
     ctx["bank_accounts"] = get_company_bank_accounts(company["id"])
     ctx["bank_names"] = list_bank_names()
+    ctx["business_activities"] = list_business_activities()
     ctx["users_list"] = db._execute_query(
         "SELECT id, username, full_name, email, phone FROM public.users ORDER BY COALESCE(full_name, username) ASC",
         fetchall=True, commit=False,
@@ -504,6 +511,19 @@ async def attendance_save_row(
             updated_at = NOW()
         """,
         (user_id, cid, month_date, standard_days, actual_days, paid_leave_days, unpaid_leave_days, overtime_hours, note.strip() or None),
+        commit=True,
+    )
+    db._execute_query(
+        """
+        INSERT INTO public.staff_payroll_months (
+            user_id, month, work_days, standard_days, updated_at
+        ) VALUES (%s, %s, %s, %s, NOW())
+        ON CONFLICT (user_id, month) DO UPDATE SET
+            work_days = EXCLUDED.work_days,
+            standard_days = EXCLUDED.standard_days,
+            updated_at = NOW()
+        """,
+        (user_id, month_date, actual_days, standard_days),
         commit=True,
     )
     return JSONResponse({"ok": True, "message": "Đã lưu ngày công thành công."})
@@ -956,7 +976,7 @@ async def enterprise_debts_page(
     page: int = Query(1, ge=1),
     log_page: int = Query(1, ge=1),
     q: str = Query(""),
-    debt_only: int = Query(1),
+    debt_only: str = Query("0"),
     month: str = Query(""),
     personal_month: str = Query(""),
     personal_q: str = Query(""),
@@ -969,6 +989,17 @@ async def enterprise_debts_page(
 ):
     ctx = get_menu_context(request, user)
     owner_company_id = ctx.get("active_company_id")
+    raw_debt_filter = str(debt_only if debt_only is not None else "0").strip().lower()
+    if not raw_debt_filter:
+        raw_debt_filter = "0"
+    if raw_debt_filter == "due_7":
+        debt_only = 1
+        due_only = 1
+    else:
+        try:
+            debt_only = 1 if int(raw_debt_filter) == 1 else 0
+        except (TypeError, ValueError):
+            debt_only = 0
     ctx["current_menu"] = "debts"
     ctx["active_tab"] = tab.strip()
     ctx["message"] = message
@@ -979,7 +1010,7 @@ async def enterprise_debts_page(
     effective_q = (q or personal_q).strip()
 
     # Common debt_only filter: if passed via debt_only and not personal_debt_only, use it for both
-    if "debt_only" in request.query_params and "personal_debt_only" not in request.query_params:
+    if "personal_debt_only" not in request.query_params:
         personal_debt_only = debt_only
 
     today_d = date.today()
@@ -1092,9 +1123,17 @@ async def enterprise_debts_page(
         tuple([owner_company_id] + params), fetch=True, commit=False,
     ) or {}
     companies_pagination = paginate_counts(
-        int(company_count.get("total") or 0), page=page, per_page=20,
+        int(company_count.get("total") or 0), page=page, per_page=100,
         base_url="/admin/enterprise/debts",
-        extra_params={"tab": "companies", "q": effective_q, "debt_only": debt_only, "month": month_value},
+        extra_params={"tab": "companies", "q": effective_q, "debt_only": debt_only, "due_only": due_only, "month": month_value},
+    )
+    company_fetch_limit = (
+        int(company_count.get("total") or 0)
+        if due_only == 1 else companies_pagination["per_page"]
+    )
+    company_fetch_offset = (
+        0 if due_only == 1
+        else (companies_pagination["page"] - 1) * companies_pagination["per_page"]
     )
 
     companies = db._execute_query(
@@ -1111,8 +1150,8 @@ async def enterprise_debts_page(
             ORDER BY COALESCE(a.current_debt, 0) DESC, c.name ASC
             LIMIT %s OFFSET %s""",
         tuple([owner_company_id, owner_company_id, owner_company_id] + params + [
-            companies_pagination["per_page"],
-            (companies_pagination["page"] - 1) * companies_pagination["per_page"],
+            company_fetch_limit,
+            company_fetch_offset,
         ]),
         fetchall=True, commit=False,
     ) or []
@@ -1142,7 +1181,7 @@ async def enterprise_debts_page(
         tuple(log_params), fetch=True, commit=False,
     ) or {}
     log_pagination = paginate_counts(
-        int(log_count.get("total") or 0), page=log_page, per_page=20,
+        int(log_count.get("total") or 0), page=log_page, per_page=100,
         base_url="/admin/enterprise/debts", extra_params={"tab": "logs", "q": effective_q, "month": month_value},
     )
     log_pagination["page_param"] = "log_page"
@@ -1171,7 +1210,7 @@ async def enterprise_debts_page(
     for log in recent_logs:
         val = Decimal(str(log["amount"]))
         log["amount_val"] = float(val)
-        log["amount_fmt"] = "{:,.0f} đ".format(abs(val)).replace(",", ".")
+        log["amount_fmt"] = format_currency(abs(val))
         log["is_increase"] = val > 0
         log["type_label"] = type_labels.get(log["debt_type"], log["debt_type"])
         if log.get("recorded_date"):
@@ -1185,7 +1224,7 @@ async def enterprise_debts_page(
     for comp in companies:
         d_val = Decimal(str(comp.get("current_debt") or 0))
         comp["current_debt_val"] = float(d_val)
-        comp["current_debt_fmt"] = "{:,.0f} đ".format(d_val).replace(",", ".")
+        comp["current_debt_fmt"] = format_currency(d_val)
         if comp.get("last_log_date"):
             if hasattr(comp["last_log_date"], "strftime"):
                 comp["last_log_date_str"] = comp["last_log_date"].strftime("%d/%m/%Y")
@@ -1225,11 +1264,18 @@ async def enterprise_debts_page(
 
     if due_only == 1:
         companies = [c for c in companies if c.get("is_due")]
+        companies_pagination = paginate_counts(
+            len(companies), page=page, per_page=100,
+            base_url="/admin/enterprise/debts",
+            extra_params={"tab": "companies", "q": effective_q, "debt_only": debt_only, "due_only": 1, "month": month_value},
+        )
+        start = (companies_pagination["page"] - 1) * companies_pagination["per_page"]
+        companies = companies[start:start + companies_pagination["per_page"]]
 
     for c in all_companies:
         cd = Decimal(str(c.get("current_debt") or 0))
         c["current_debt_val"] = float(cd)
-        c["current_debt_fmt"] = "{:,.0f} đ".format(cd).replace(",", ".")
+        c["current_debt_fmt"] = format_currency(cd)
 
     b2b_debt = Decimal(str(debt_summary.get("total_debt_all") or 0))
     b2b_debtor_count = int(debt_summary.get("debt_company_count") or 0)
@@ -1285,6 +1331,19 @@ async def enterprise_debts_page(
     ctx["b2b_due_count"] = b2b_due_count
     ctx["total_due_count"] = pers_due_count + b2b_due_count
     ctx["due_only"] = due_only
+    pers_total_opening = sum((Decimal(str(c.get("opening_balance") or 0)) for c in personal_customers), Decimal("0"))
+    pers_total_due = sum((Decimal(str(c.get("month_due") or 0)) for c in personal_customers), Decimal("0"))
+    pers_total_paid = sum((Decimal(str(c.get("month_paid") or 0)) for c in personal_customers), Decimal("0"))
+    pers_total_balance = sum((Decimal(str(c.get("current_balance") or 0)) for c in personal_customers), Decimal("0"))
+
+    b2b_total_current_debt = sum((Decimal(str(c.get("current_debt_val") or 0)) for c in companies), Decimal("0"))
+
+    ctx["pers_total_opening_fmt"] = _fmt_currency(pers_total_opening)
+    ctx["pers_total_due_fmt"] = _fmt_currency(pers_total_due)
+    ctx["pers_total_paid_fmt"] = _fmt_currency(pers_total_paid)
+    ctx["pers_total_balance_fmt"] = _fmt_currency(pers_total_balance)
+    ctx["b2b_total_current_debt_fmt"] = _fmt_currency(b2b_total_current_debt)
+
     ctx["personal_summary"] = {
         "customer_count": int(personal_stats.get("customer_count") or 0),
         "debtor_count": int(personal_stats.get("debtor_count") or 0),
@@ -1770,14 +1829,6 @@ def _sale_row_json(row: dict) -> dict:
     return result
 
 
-def _sales_fmt_currency(value) -> str:
-    try:
-        amount = int(round(Decimal(str(value or 0))))
-    except Exception:
-        amount = 0
-    return f"{amount:,}".replace(",", ".") + " đồng"
-
-
 def _sales_company_id(request: Request, user: dict) -> int | None:
     return get_menu_context(request, user).get("active_company_id")
 
@@ -1827,6 +1878,7 @@ async def enterprise_sales_list_api(
     date_to: str = Query(""),
     status: str = Query(""),
     page: int = Query(1, ge=1),
+    per_page: int = Query(100, ge=1, le=200),
     user: dict = Depends(require_menu("sales")),
 ):
     company_id = _sales_company_id(request, user)
@@ -1839,7 +1891,7 @@ async def enterprise_sales_list_api(
         return JSONResponse({"ok": False, "message": "Khoảng ngày không hợp lệ."}, status_code=400)
     stats = sales_service.count_sales(company_id, q=q, date_from=start, date_to=end, status=status)
     page_data = paginate_counts(
-        int(stats.get("total") or 0), page=page, per_page=20,
+        int(stats.get("total") or 0), page=page, per_page=per_page,
     )
     rows = sales_service.list_sales(
         company_id, q=q, date_from=start, date_to=end, status=status,
@@ -1857,6 +1909,197 @@ async def enterprise_sales_list_api(
             "paid_amount": str(stats.get("paid_amount") or 0),
         },
     })
+
+
+@router.get("/sales/api/items")
+async def enterprise_sales_items_api(
+    request: Request,
+    q: str = Query(""),
+    product_name: str = Query(""),
+    customer_id: str = Query(""),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(100, ge=1, le=200),
+    user: dict = Depends(require_menu("sales")),
+):
+    company_id = _sales_company_id(request, user)
+    if not company_id:
+        return JSONResponse({"ok": False, "message": "Chưa chọn doanh nghiệp."}, status_code=400)
+    try:
+        start = date.fromisoformat(date_from) if date_from else None
+        end = date.fromisoformat(date_to) if date_to else None
+    except ValueError:
+        return JSONResponse({"ok": False, "message": "Khoảng ngày không hợp lệ."}, status_code=400)
+    
+    clean_cust_id = int(customer_id.strip()) if customer_id and customer_id.strip().isdigit() else None
+    stats = sales_service.count_sale_items(
+        company_id, q=q, product_name=product_name, customer_id=clean_cust_id, date_from=start, date_to=end
+    )
+    page_data = paginate_counts(
+        int(stats.get("total_items") or 0), page=page, per_page=per_page,
+    )
+    items = sales_service.list_sale_items(
+        company_id, q=q, product_name=product_name, customer_id=clean_cust_id, date_from=start, date_to=end,
+        limit=page_data["per_page"],
+        offset=(page_data["page"] - 1) * page_data["per_page"],
+    )
+    def _format_item(row):
+        sale_dt = row.get("sale_date")
+        sale_dt_str = sale_dt.strftime("%d/%m/%Y") if hasattr(sale_dt, "strftime") else str(sale_dt or "")
+        return {
+            "item_id": row["item_id"],
+            "sale_id": row["sale_id"],
+            "invoice_number": row.get("display_invoice_number") or "",
+            "sale_date": sale_dt_str,
+            "sale_date_raw": sale_dt.isoformat() if hasattr(sale_dt, "isoformat") else str(sale_dt or ""),
+            "customer_id": row.get("customer_id"),
+            "customer_code": row.get("customer_code") or "",
+            "customer_name": row.get("customer_name") or "",
+            "customer_phone": row.get("customer_phone") or "",
+            "carrier": row.get("carrier") or "",
+            "sale_note": row.get("sale_note") or "",
+            "status": row.get("status") or "delivered",
+            "product_name": row.get("product_name") or "",
+            "unit": row.get("unit") or "kg",
+            "gross_weight": _clean_dec(row.get("gross_weight")),
+            "tare_weight": _clean_dec(row.get("tare_weight")),
+            "quantity": _clean_dec(row.get("quantity")),
+            "unit_price": _clean_dec(row.get("unit_price")),
+            "line_total": _clean_dec(row.get("line_total")),
+            "gross_formula": row.get("gross_formula") or "",
+            "tare_formula": row.get("tare_formula") or "",
+            "qty_formula": row.get("qty_formula") or "",
+        }
+    return JSONResponse({
+        "ok": True,
+        "items": [_format_item(r) for r in items],
+        "page": page_data["page"],
+        "total_pages": page_data["total_pages"],
+        "total": page_data["total"],
+        "summary": {
+            "total_items": int(stats.get("total_items") or 0),
+            "total_quantity": float(stats.get("total_quantity") or 0),
+            "total_amount": float(stats.get("total_amount") or 0),
+            "total_products": int(stats.get("total_products") or 0),
+        }
+    })
+
+
+@router.get("/sales/api/items/export")
+async def enterprise_sales_items_export_api(
+    request: Request,
+    q: str = Query(""),
+    product_name: str = Query(""),
+    customer_id: str = Query(""),
+    date_from: str = Query(""),
+    date_to: str = Query(""),
+    user: dict = Depends(require_menu("sales")),
+):
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    company_id = _sales_company_id(request, user)
+    if not company_id:
+        raise HTTPException(status_code=400, detail="Chưa chọn doanh nghiệp.")
+    start = date.fromisoformat(date_from) if date_from else None
+    end = date.fromisoformat(date_to) if date_to else None
+    clean_cust_id = int(customer_id.strip()) if customer_id and customer_id.strip().isdigit() else None
+
+    items = sales_service.list_sale_items(
+        company_id, q=q, product_name=product_name, customer_id=clean_cust_id, date_from=start, date_to=end,
+        limit=5000, offset=0
+    )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sổ chi tiết bán hàng"
+
+    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+
+    headers = [
+        "STT", "Số HĐ", "Ngày bán", "Mã KH", "Tên khách hàng", "Tên hàng hoá",
+        "ĐVT", "Cân tổng", "Bì", "Số lượng", "Đơn giá (đ)", "Thành tiền (đ)",
+        "Xe / Giao hàng", "Ghi chú"
+    ]
+    ws.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = align_center
+
+    row_font = Font(name="Arial", size=10)
+    num_format_currency = "#,##0"
+    num_format_qty = "#,##0.000"
+
+    for idx, r in enumerate(items, 1):
+        sale_dt = r.get("sale_date")
+        sale_dt_str = sale_dt.strftime("%d/%m/%Y") if hasattr(sale_dt, "strftime") else str(sale_dt or "")
+        qty = float(r.get("quantity") or 0)
+        price = float(r.get("unit_price") or 0)
+        total = float(r.get("line_total") or 0)
+        gross = float(r.get("gross_weight")) if r.get("gross_weight") is not None else None
+        tare = float(r.get("tare_weight")) if r.get("tare_weight") is not None else None
+
+        row_data = [
+            idx,
+            r.get("display_invoice_number") or "",
+            sale_dt_str,
+            r.get("customer_code") or "",
+            r.get("customer_name") or "",
+            r.get("product_name") or "",
+            r.get("unit") or "kg",
+            gross,
+            tare,
+            qty,
+            price,
+            total,
+            r.get("carrier") or "",
+            r.get("sale_note") or "",
+        ]
+        ws.append(row_data)
+        current_row = ws.max_row
+        for col_idx in range(1, len(row_data) + 1):
+            cell = ws.cell(row=current_row, column=col_idx)
+            cell.font = row_font
+            cell.border = thin_border
+            if col_idx in (1, 2, 3, 4, 7):
+                cell.alignment = align_center
+            elif col_idx in (8, 9, 10):
+                cell.alignment = align_right
+                cell.number_format = num_format_qty
+            elif col_idx in (11, 12):
+                cell.alignment = align_right
+                cell.number_format = num_format_currency
+            else:
+                cell.alignment = align_left
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    filename = f"So_chi_tiet_ban_hang_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.post("/sales/api/{sale_id}/status")
@@ -1878,6 +2121,20 @@ async def enterprise_sales_update_status_api(
     except Exception:
         return JSONResponse({"ok": False, "message": "Dữ liệu trạng thái không hợp lệ."}, status_code=400)
     return JSONResponse({"ok": True, "message": "Đã cập nhật trạng thái đơn hàng."})
+
+
+def _clean_dec(val) -> str:
+    if val is None or val == "":
+        return ""
+    try:
+        d = Decimal(str(val))
+        if not d.is_finite():
+            return ""
+        if d == d.to_integral():
+            return str(int(d))
+        return f"{d.normalize():f}"
+    except Exception:
+        return str(val)
 
 
 @router.get("/sales/api/{sale_id}")
@@ -1915,10 +2172,14 @@ async def enterprise_sales_get_api(
                 "product_name": item.get("product_name") or "",
                 "unit": item.get("unit") or "",
                 "weigh_code": item.get("weigh_code") or "",
-                "gross_weight": str(item["gross_weight"]) if item.get("gross_weight") is not None else "",
-                "tare_weight": str(item["tare_weight"]) if item.get("tare_weight") is not None else "",
-                "quantity": str(item.get("quantity") or 0),
-                "unit_price": str(item.get("unit_price") or 0),
+                "gross_weight": _clean_dec(item.get("gross_weight")),
+                "tare_weight": _clean_dec(item.get("tare_weight")),
+                "quantity": _clean_dec(item.get("quantity")),
+                "unit_price": _clean_dec(item.get("unit_price")),
+                "line_total": _clean_dec(item.get("line_total")),
+                "gross_formula": item.get("gross_formula") or "",
+                "tare_formula": item.get("tare_formula") or "",
+                "qty_formula": item.get("qty_formula") or "",
             }
             for item in items
         ],
@@ -1965,7 +2226,13 @@ async def enterprise_sales_create_api(
             }
 
         sale_date = date.fromisoformat(str(data.get("sale_date") or date.today().isoformat()))
-        items, item_error = sales_service.normalize_items(data.get("items"))
+        invoice_number = str(data.get("invoice_number") or "").strip()
+        status = str(data.get("status") or ("pending" if not invoice_number else "delivered")).strip()
+        if status in ("pending", "delivering"):
+            invoice_number = ""
+        items, item_error = sales_service.normalize_items(
+            data.get("items"), allow_unpriced=status in ("pending", "delivering")
+        )
         paid_amount = Decimal(str(data.get("paid_amount") or "0"))
         if item_error:
             return JSONResponse({"ok": False, "message": item_error}, status_code=400)
@@ -1977,7 +2244,6 @@ async def enterprise_sales_create_api(
     except Exception:
         return JSONResponse({"ok": False, "message": "Dữ liệu hóa đơn không hợp lệ."}, status_code=400)
 
-    invoice_number = str(data.get("invoice_number") or "").strip()
     if invoice_number:
         taken = db._execute_query(
             "SELECT id FROM public.personal_sales WHERE company_id = %s AND (invoice_number = %s OR source_invoice_number = %s) LIMIT 1",
@@ -1986,7 +2252,6 @@ async def enterprise_sales_create_api(
         if taken:
             return JSONResponse({"ok": False, "message": f"Mã hóa đơn '{invoice_number}' đã tồn tại."}, status_code=400)
 
-    status = str(data.get("status") or ("pending" if not invoice_number else "delivered")).strip()
     values = {
         "invoice_number": invoice_number,
         "status": status,
@@ -2022,7 +2287,10 @@ async def enterprise_sales_update_api(
     try:
         data = await request.json()
         sale_date = date.fromisoformat(str(data.get("sale_date") or ""))
-        items, item_error = sales_service.normalize_items(data.get("items"))
+        status = str(data.get("status") or "").strip()
+        items, item_error = sales_service.normalize_items(
+            data.get("items"), allow_unpriced=status in ("pending", "delivering")
+        )
         if item_error:
             return JSONResponse({"ok": False, "message": item_error}, status_code=400)
         total_amount = sum((item["line_total"] for item in items), Decimal("0"))
@@ -2035,6 +2303,8 @@ async def enterprise_sales_update_api(
         return JSONResponse({"ok": False, "message": "Dữ liệu hóa đơn không hợp lệ."}, status_code=400)
 
     custom_inv_num = str(data.get("invoice_number") or "").strip()
+    if status in ("pending", "delivering"):
+        custom_inv_num = ""
     if custom_inv_num:
         taken = db._execute_query(
             "SELECT id FROM public.personal_sales WHERE company_id = %s AND id != %s AND (invoice_number = %s OR source_invoice_number = %s) LIMIT 1",
@@ -2043,7 +2313,6 @@ async def enterprise_sales_update_api(
         if taken:
             return JSONResponse({"ok": False, "message": f"Mã hóa đơn '{custom_inv_num}' đã tồn tại ở hóa đơn khác."}, status_code=400)
 
-    status = str(data.get("status") or "").strip()
     values = {
         "invoice_number": custom_inv_num,
         "status": status,
@@ -2163,6 +2432,23 @@ def _fmt_money_num(value) -> str:
     return f"{amount:,}".replace(",", ".")
 
 
+def _fmt_qty_num(value) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        dec = Decimal(str(value))
+        if not dec or dec <= 0:
+            return ""
+        rounded = dec.quantize(Decimal("0.001")).normalize()
+        if rounded == rounded.to_integral():
+            return f"{int(rounded):,}".replace(",", ".")
+        parts = f"{rounded:f}".split(".")
+        int_part = f"{int(parts[0]):,}".replace(",", ".")
+        return f"{int_part},{parts[1]}"
+    except Exception:
+        return ""
+
+
 def _sale_amount_words(value: int, use_ngan: bool = True) -> str:
     digits = ("không", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín")
 
@@ -2219,27 +2505,21 @@ def _sale_amount_words(value: int, use_ngan: bool = True) -> str:
     return words_str
 
 
-def _sales_pdf_image(url: str | None) -> str:
-    source = str(url or "").strip()
-    relative = source.lstrip("/").split("?", 1)[0]
-    if not re.fullmatch(r"upload/companies/[A-Za-z0-9][A-Za-z0-9_.-]*\.(?:png|jpe?g|webp|gif)", relative, re.IGNORECASE):
-        return source if source.startswith(("https://", "http://", "data:")) else ""
-    path = Path(__file__).resolve().parents[3] / relative
-    if not path.is_file():
-        return ""
-    mime = mimetypes.guess_type(path.name)[0] or "image/png"
-    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
-
-
 @router.get("/sales/{sale_id}/pdf")
 async def enterprise_sales_invoice_pdf(
     sale_id: int,
     request: Request,
     user: dict = Depends(require_menu("sales")),
 ):
-    company_id = _sales_company_id(request, user)
-    if not company_id:
-        raise HTTPException(status_code=400, detail="Chưa chọn doanh nghiệp.")
+    sale_row = db._execute_query(
+        "SELECT company_id FROM public.personal_sales WHERE id = %s",
+        (sale_id,),
+        fetch=True,
+        commit=False,
+    )
+    if not sale_row:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hóa đơn bán hàng.")
+    company_id = sale_row["company_id"]
     sale, items = sales_service.get_sale(company_id, sale_id)
     if not sale:
         raise HTTPException(status_code=404, detail="Không tìm thấy hóa đơn bán hàng.")
@@ -2252,6 +2532,10 @@ async def enterprise_sales_invoice_pdf(
         company_id, sale.get("customer_id"), sale_date, sale["invoice_number"]
     )
     if last_date:
+        if last_date.year < 100:
+            last_date = last_date.replace(year=2000 + last_date.year)
+        elif last_date.year < 1900:
+            last_date = last_date.replace(year=2000 + (last_date.year % 100))
         if last_date.year != sale_date.year:
             prev_date_day_month = last_date.strftime("%d/%m/%Y")
         else:
@@ -2314,12 +2598,12 @@ async def enterprise_sales_invoice_pdf(
     sale["remaining_debt"] = remaining_debt
 
     if remaining_debt < 0:
-        sale["remaining_debt_label"] = "còn thừa"
+        sale["remaining_debt_label"] = "Còn thừa"
         sale["remaining_debt_fmt"] = _fmt_money_num(abs(remaining_debt))
         words_amount = int(round(abs(remaining_debt)))
         sale["remaining_debt_words"] = _sale_amount_words(words_amount, use_ngan=False)
     else:
-        sale["remaining_debt_label"] = "còn nợ"
+        sale["remaining_debt_label"] = "Còn nợ"
         sale["remaining_debt_fmt"] = _fmt_money_num(remaining_debt)
         words_amount = int(round(remaining_debt))
         sale["remaining_debt_words"] = _sale_amount_words(words_amount, use_ngan=False)
@@ -2332,19 +2616,11 @@ async def enterprise_sales_invoice_pdf(
     for item in items:
         qty_num = Decimal(str(item.get('quantity') or 0))
         price_num = Decimal(str(item.get('unit_price') or 0))
-        item["quantity_display"] = (
-            f"{qty_num.normalize():f}" if qty_num > 0 else ""
-        )
-        item["gross_weight_display"] = (
-            f"{Decimal(str(item['gross_weight'])).normalize():f}"
-            if item.get("gross_weight") is not None and Decimal(str(item['gross_weight'])) > 0 else ""
-        )
-        item["tare_weight_display"] = (
-            f"{Decimal(str(item['tare_weight'])).normalize():f}"
-            if item.get("tare_weight") is not None and Decimal(str(item['tare_weight'])) > 0 else ""
-        )
+        item["quantity_display"] = _fmt_qty_num(qty_num)
+        item["gross_weight_display"] = _fmt_qty_num(item.get("gross_weight"))
+        item["tare_weight_display"] = _fmt_qty_num(item.get("tare_weight"))
         item["unit_price_fmt"] = _fmt_money_num(price_num) if price_num > 0 else ""
-        item["line_total_fmt"] = _fmt_money_num(item["line_total"])
+        item["line_total_fmt"] = _fmt_money_num(item["line_total"]) if Decimal(str(item.get("line_total") or 0)) > 0 else ""
         item["is_surcharge"] = bool(qty_num <= 0 and price_num <= 0 and Decimal(str(item.get("line_total") or 0)) > 0)
 
     pad_rows = []
@@ -2358,17 +2634,20 @@ async def enterprise_sales_invoice_pdf(
         payments=payments,
         has_weigh_info=False,
         summary_colspan=5,
+        old_debt=old_debt,
     )
     from frontend.modules.transport.contract import _find_browser_exe, render_pdf_from_html
     if not _find_browser_exe():
         raise HTTPException(status_code=503, detail="Không tìm thấy Chrome/Edge để tạo PDF.")
     pdf_bytes = render_pdf_from_html(html, f"HOÁ ĐƠN BÁN HÀNG {sale['display_invoice_number']}")
     try:
+        if not pdf_bytes or not pdf_bytes.startswith(b"%PDF"):
+            raise ValueError("Không tạo được dữ liệu PDF hợp lệ")
         import fitz
         with fitz.open(stream=pdf_bytes, filetype="pdf") as pdf:
             rendered_text = " ".join(page.get_text() for page in pdf)
-        if sale["display_invoice_number"] not in rendered_text or sale["customer_name"] not in rendered_text:
-            raise ValueError("PDF renderer returned a fallback document")
+        if "Vui lòng mở trên trình duyệt có Chrome/Edge" in rendered_text:
+            raise ValueError("Không tìm thấy Chrome/Edge để tạo PDF.")
     except Exception as exc:
         logger.exception("Could not render sales invoice PDF")
         raise HTTPException(status_code=500, detail="Không thể tạo PDF hóa đơn.") from exc

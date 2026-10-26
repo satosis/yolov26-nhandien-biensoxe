@@ -127,13 +127,10 @@ def _contract_bank_rows(accounts: list[dict]) -> str:
             f'<td colspan="2">{prefix}{acc_part}{bank_part}</td></tr>'
         )
     return "\n".join(rows)
-def _split_rep_prefix(rep: str, gender: str | None = None) -> tuple[str, str]:
-    """Split representative string into (honorific_prefix, name)."""
-    return split_rep_honorific(rep, gender)
 
 
 def _format_rep_html(rep: str, gender: str | None = None) -> str:
-    prefix, name = _split_rep_prefix(rep, gender)
+    prefix, name = split_rep_honorific(rep, gender)
     if not name:
         return "Ông/Bà ................................................."
     return f"{escape(prefix)}<span class=\"bold\">{escape(name)}</span>"
@@ -287,7 +284,7 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
     top_bar = ""
     if preview:
         top_bar = f"""
-        <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #1e293b; color: #fff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-family: system-ui, -apple-system, sans-serif;">
+        <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #1e293b; color: #fff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;">
             <span>Hợp đồng vận chuyển: <strong>{ctx['contract_no']}</strong></span>
           </div>
@@ -342,13 +339,13 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
 <title>Hợp đồng vận chuyển - {ctx['contract_no']}</title>
 <style>
   @page {{
-    size: 210mm 297mm;
-    margin: 16mm 18mm 16mm 18mm;
+    size: A4 portrait;
+    margin: 7mm 15mm;
   }}
   * {{
     box-sizing: border-box;
   }}
-  body {{
+  html, body {{
     font-family: "Times New Roman", Times, serif;
     font-size: 11.5pt;
     line-height: 1.32;
@@ -362,19 +359,6 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
     margin: 0 auto;
     background: #fff;
   }}
-  @media print {{
-    body {{
-      background: #fff !important;
-    }}
-    .no-print {{
-      display: none !important;
-    }}
-    .contract-container {{
-      max-width: 100% !important;
-      margin: 0 !important;
-      box-shadow: none !important;
-    }}
-  }}
   .page {{
     padding: 16mm 18mm;
     background: #fff;
@@ -385,10 +369,6 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   }}
   .page:last-child {{
     line-height: 1.28;
-  }}
-  @page {{
-    size: A4 portrait;
-    margin: 7mm 15mm;
   }}
   @media print {{
     body {{

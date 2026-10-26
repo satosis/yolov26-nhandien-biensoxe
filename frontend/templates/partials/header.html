@@ -4,14 +4,12 @@
 
     <div class="d-flex align-items-center h-100">
 
-      <div class="navbar-brand-box d-flex align-items-center justify-content-center"
-           style="width:220px;height:100%;background:#ffffff;border-right:1px solid #e2e8f0;">
+      <div class="navbar-brand-box header-navbar-brand d-flex align-items-center justify-content-center">
         <a href="/admin/parking_dashboard" class="text-decoration-none d-flex align-items-center gap-2">
           <i class="bx bxs-car-garage text-primary" style="font-size:22px;"></i>
-          <span class="fw-bold" style="color:#1e293b;font-size:14px;">Parking Camera</span>
+          <span class="fw-bold header-brand-text" style="color:#1e293b;font-size:14px;">Parking Camera</span>
         </a>
       </div>
-
 
       <button type="button" class="btn btn-sm px-3 font-size-16 header-item waves-effect border-0 text-dark"
               id="vertical-menu-btn" style="background:transparent;">
@@ -24,8 +22,7 @@
       {% if user_companies is defined and user_companies %}
       <div class="d-inline-flex align-items-center mr-2 mr-sm-3 me-2 me-sm-3">
         <select name="company_id" id="header-active-company"
-                class="form-control form-control-sm font-size-13"
-                style="border-radius:6px;font-weight:600;color:#1e293b;cursor:pointer;background-color:#f8fafc;border-color:#e2e8f0;width:auto;min-width:220px;max-width:480px;padding-right:28px;text-overflow:ellipsis;"
+                class="form-control form-control-sm header-company-select font-size-13"
                 title="Nguồn công ty đang làm việc"
                 hx-post="/set-company" hx-trigger="change" hx-swap="none"
                 hx-on::after-request="if (typeof window.onActiveCompanyChanged === 'function') { window.onActiveCompanyChanged(); } else { window.location.reload(); }">
@@ -37,6 +34,8 @@
         </select>
       </div>
       {% endif %}
+
+      {% include "partials/reminder_bell.html" %}
 
       <div class="dropdown d-inline-block">
         <button type="button" class="btn header-item waves-effect d-flex align-items-center"

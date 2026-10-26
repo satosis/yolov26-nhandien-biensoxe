@@ -24,13 +24,13 @@
       <label class="font-size-13 text-muted">Giá dầu</label>
       <input type="hidden" name="fuel_price_per_liter" :value="fuelPrice">
       <div class="form-control cargo-field-output d-flex align-items-center text-muted"
-           x-text="{% if fuel_field_prefix == 'edit' %}fuelPrice !== null && fuelPrice !== ''{% else %}fuelPrice > 0{% endif %} ? (Number(fuelPrice).toLocaleString('vi-VN') + ' ₫/lít') : '—'"></div>
+           x-text="{% if fuel_field_prefix == 'edit' %}fuelPrice !== null && fuelPrice !== ''{% else %}fuelPrice > 0{% endif %} ? (formatNumber(fuelPrice) + ' ₫/lít') : '—'"></div>
     </div>
     <div class="col-12 col-md-6 col-lg-4 mb-2">
       <label class="font-size-13 text-muted">Tổng chi phí dầu</label>
       <div class="form-control cargo-field-output d-flex align-items-center font-weight-bold"
            :class="fuelTotal > 0 ? 'text-warning' : 'text-muted'"
-           x-text="{% if fuel_field_prefix == 'edit' %}fuelTotal !== null{% else %}fuelTotal > 0{% endif %} ? fuelTotal.toLocaleString('vi-VN') + ' ₫' : '—'"></div>
+           x-text="{% if fuel_field_prefix == 'edit' %}fuelTotal !== null{% else %}fuelTotal > 0{% endif %} ? formatCurrency(fuelTotal, '₫') : '—'"></div>
     </div>
   </div>
 </section>

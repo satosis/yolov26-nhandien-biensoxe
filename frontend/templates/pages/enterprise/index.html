@@ -17,6 +17,63 @@
   .company-asset-filename { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; font-size: 11px; }
   .company-asset-filename:empty { display: none; }
   @media(max-width: 640px) { .company-assets-grid { grid-template-columns: 1fr; } }
+
+  /* Combobox styling for Business Activity */
+  .company-activity-wrapper .ts-wrapper { width: 100%; }
+  .company-activity-wrapper .ts-control {
+    min-height: 24px !important;
+    height: 24px !important;
+    padding: 1px 7px !important;
+    line-height: 20px !important;
+    font-size: 13px !important;
+    border-radius: 4px;
+    background-color: #fff;
+  }
+  .company-activity-wrapper .ts-control input {
+    font-size: 13px !important;
+    height: 20px !important;
+    line-height: 20px !important;
+  }
+  .company-activity-wrapper .ts-dropdown {
+    border-radius: 12px !important;
+    border: 1px solid #EAECF0 !important;
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12) !important;
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    font-size: 13px !important;
+    z-index: 1050 !important;
+    margin-top: 4px !important;
+    background: #ffffff !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option {
+    padding: 8px 14px !important;
+    color: #232A2F !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid #f8fafc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    transition: background-color 0.15s ease;
+  }
+  .company-activity-wrapper .ts-dropdown .option:last-child {
+    border-bottom: none !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option:hover,
+  .company-activity-wrapper .ts-dropdown .option.active {
+    background-color: #EDF4F8 !important;
+    color: #232A2F !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option.selected {
+    background-color: #e8f0fe !important;
+    font-weight: 600 !important;
+    color: #1967d2 !important;
+  }
+  .company-activity-wrapper .ts-dropdown .create {
+    padding: 8px 14px !important;
+    color: #1a73e8 !important;
+    background-color: #f8f9fa !important;
+    cursor: pointer !important;
+  }
 </style>
 {% endblock %}
 
@@ -32,7 +89,7 @@
       <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
         <div>
           <h5 class="mb-1 font-weight-bold text-dark">{{ company.name }}</h5>
-          <div class="small text-muted font-monospace">
+          <div class="small text-muted ">
             MST: <strong>{{ company.tax_code }}</strong>
             {% if company.address %} · {{ company.address }}{% endif %}
           </div>
@@ -65,7 +122,7 @@
             <label for="edit-tax-code" class="small font-weight-bold">Mã số thuế <span class="text-danger">*</span></label>
             <div class="input-group">
               <input id="edit-tax-code" name="tax_code" value="{{ company.tax_code }}" maxlength="14" required
-                     class="form-control font-monospace" style="font-family:monospace;"
+                     class="form-control"
                      oninput="clearLookupMessage()">
               <div class="input-group-append">
                 <button type="button" class="btn btn-outline-secondary" onclick="lookupTaxCode()" id="lookup-btn" title="Tra cứu mã số thuế">
@@ -77,7 +134,7 @@
           </div>
           <div class="col-md-8 mb-3">
             <label for="edit-name" class="small font-weight-bold">Tên công ty / Doanh nghiệp <span class="text-danger">*</span></label>
-            <input id="edit-name" name="name" value="{{ company.name }}" maxlength="255" required class="form-control font-weight-bold">
+            <input id="edit-name" name="name" value="{{ company.name }}" maxlength="255" required class="form-control">
           </div>
         </div>
 
@@ -109,9 +166,25 @@
           <input id="edit-address" name="address" value="{{ company.address }}" maxlength="255" required class="form-control">
         </div>
 
-        <div class="form-group mb-3">
+        <div class="form-group mb-3 company-activity-wrapper">
           <label for="edit-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger">*</span></label>
-          <input id="edit-business-activity" name="business_activity" value="{{ company.business_activity or '' }}" maxlength="500" required class="form-control" placeholder="VD: Vận tải hàng hóa bằng đường bộ, cho thuê xe, kho bãi...">
+          <input id="edit-business-activity" name="business_activity" value="{{ company.business_activity or '' }}" maxlength="500" required class="form-control" placeholder="Nhập hoặc chọn ngành nghề hoạt động" list="business-activities-list">
+          <datalist id="business-activities-list">
+            {% for act in business_activities or [
+              "Thương mại", "Công nghiệp chế biến, chế tạo", "Kinh doanh bất động sản", "Vận tải, kho bãi",
+              "Hoạt động Tài chính, ngân hàng, bảo hiểm", "Giáo dục & Đào tạo", "Xây dựng", "Dịch vụ lưu trú & ăn uống",
+              "Khai khoáng", "Nông nghiệp", "Ngư nghiệp", "Lâm nghiệp",
+              "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí",
+              "Cung cấp nước, hoạt động quản lý và xử lý rác thải", "Hoạt động chuyên môn, KHCN", "Hoạt động dịch vụ khác",
+              "Hoạt động các tổ chức và cơ quan quốc tế", "Hoạt động hành chính và dịch vụ Hỗ trợ",
+              "Hoạt động làm thuê các công việc trong các hộ gia đình, sản xuất sản phẩm vật chất và dịch vụ tự tiêu dùng của hộ gia đình",
+              "Nghệ thuật, vui chơi, giải trí", "Thông tin & truyền thông",
+              "Hoạt động của Đảng Cộng Sản tổ chức Chính Trị - Xã Hội, Quản lý nhà nước, An ninh quốc phòng, Đảm bảo xã hội bắt buộc",
+              "Y tế và hoạt động trợ giúp Xã Hội", "Sản phẩm bán lẻ", "Chưa xác định mã ngành"
+            ] %}
+              <option value="{{ act }}"></option>
+            {% endfor %}
+          </datalist>
         </div>
 
         <!-- Bank Accounts Component -->
@@ -229,7 +302,7 @@ async function lookupTaxCode() {
     const addr = (result.address || '').trim();
     document.getElementById('edit-address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;
     if (result.business_activity) {
-      document.getElementById('edit-business-activity').value = result.business_activity;
+      setCompanyActivitySelect(document.getElementById('edit-business-activity'), result.business_activity);
     }
     const contactEmail = result.email || result.director_email || '';
     const contactPhone = result.phone || result.director_phone || '';
@@ -348,5 +421,64 @@ async function deleteCompanyAsset(type, companyId) {
     showNotify('Lỗi: ' + err.message, 'error');
   }
 }
+
+function initCompanyActivitySelect(select) {
+  if (!select || select.tagName === 'INPUT') return;
+  if (typeof TomSelect !== 'undefined' && !select.tomselect) {
+    new TomSelect(select, {
+      create: true,
+      createOnBlur: true,
+      placeholder: 'Chọn hoặc tìm/nhập ngành nghề hoạt động',
+      maxOptions: 50,
+      allowEmptyOption: true,
+      shouldSort: false,
+      score: function(search) {
+        const normSearch = (search || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+        if (!normSearch) return () => 1;
+        return function(item) {
+          const text = (item.text || item.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+          const idx = text.indexOf(normSearch);
+          if (idx === -1) return 0;
+          return (100 - idx) + (text === normSearch ? 100 : 0);
+        };
+      },
+      render: {
+        option_create: function(data, escape) {
+          return '<div class="create">Thêm mới: <strong>' + escape(data.input) + '</strong>...</div>';
+        },
+        no_results: function(data, escape) {
+          return '<div class="no-results" style="padding: 8px 12px; color: #6c757d; font-size: 12px;">Không tìm thấy ngành nghề phù hợp</div>';
+        }
+      }
+    });
+  }
+}
+
+function setCompanyActivitySelect(select, value) {
+  if (!select) return;
+  const val = (value || '').trim();
+  if (select.tagName === 'INPUT' || select.tagName === 'TEXTAREA') {
+    select.value = val;
+    return;
+  }
+  if (select.tomselect) {
+    if (val && !select.tomselect.options[val]) {
+      select.tomselect.addOption({value: val, text: val});
+    }
+    select.tomselect.setValue(val);
+  } else {
+    if (val && !Array.from(select.options).some(o => o.value === val)) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      select.add(opt);
+    }
+    select.value = val;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.company-activity-select').forEach(initCompanyActivitySelect);
+});
 </script>
 {% endblock %}

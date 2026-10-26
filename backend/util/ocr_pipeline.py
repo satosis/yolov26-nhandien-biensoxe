@@ -497,6 +497,10 @@ class OCRTrackAggregator:
                 sample.text, sample.confidence, sample.valid_text = existing.text, existing.confidence, existing.valid_text
                 sample.read = True
             track.samples = [item for item in track.samples if item is not existing]
+        # Encoded video often repeats the exact same decoded frame. It is one
+        # visual observation, not another independent OCR vote or fusion input.
+        if sample.signature and any(item.signature == sample.signature for item in track.samples):
+            return
         # Own retained memory; callers may reuse the decoder's source buffer.
         sample.crop = sample.crop.copy()
         available = track.samples + [sample]
@@ -554,7 +558,8 @@ class OCRTrackAggregator:
             status = "recognized" if winner.support >= 2 and winner.confidence >= 0.70 and winner.support / track.valid_votes >= 0.60 else "uncertain"
         # If separate frames did not produce a stable reading, one conservative
         # registration/fusion pass can recover a candidate from shared temporal
-        # detail. This is one inference, never an extra independent frame vote.
+        # detail. Do not count the fused read as a separate source-frame vote.
+        fused_text = ""
         if (allow_temporal_fusion and status != "recognized" and self.recognize_track is not None
                 and len(track.samples) >= 3):
             crops = [sample.crop for sample in track.samples if sample.crop is not None]
@@ -566,6 +571,8 @@ class OCRTrackAggregator:
                     text, valid_text = self._text(prediction.get("text"))
                     confidence = _confidence(prediction.get("confidence"))
                     if valid_text and confidence > 0:
+                        if prediction.get("temporal_fusion") is True:
+                            fused_text = text
                         quality = max((sample.quality_score for sample in track.samples), default=0.)
                         weight = confidence * (0.5 + 0.5 * quality)
                         hypothesis = track.hypotheses.get(text)
@@ -580,7 +587,8 @@ class OCRTrackAggregator:
                             hypothesis.last_confidence = confidence
                             hypothesis.last_weight = weight
                             hypothesis.best_confidence = max(hypothesis.best_confidence, confidence)
-                            track.valid_votes += 1
+                            if prediction.get("temporal_fusion") is not True:
+                                track.valid_votes += 1
                         else:
                             hypothesis.best_confidence = max(hypothesis.best_confidence, confidence)
                             if hypothesis.support:
@@ -592,10 +600,14 @@ class OCRTrackAggregator:
                                 )
                         valid = [item for item in track.hypotheses.values() if item.valid and item.support]
                         winner = max(valid, key=lambda item: (item.weighted_sum, item.support, item.confidence))
-                        status = "recognized" if (
+                        consensus_ok = (
                             winner.support >= 2 and winner.confidence >= 0.70
                             and winner.support / track.valid_votes >= 0.60
-                        ) else "uncertain"
+                        )
+                        fused_read_ok = (
+                            bool(fused_text) and winner.text == fused_text and confidence >= 0.90
+                        )
+                        status = "recognized" if consensus_ok or fused_read_ok else "uncertain"
         ranked = sorted(track.hypotheses.values(), key=lambda item: (item.valid, item.weighted_sum, item.best_confidence), reverse=True)
         preferred = [sample for sample in track.samples if winner is not None and sample.text == winner.text]
         best_sample = max(preferred or track.samples, key=lambda item: item.rank, default=None)
@@ -603,9 +615,11 @@ class OCRTrackAggregator:
             "track_id": track.track_id, "start_time": track.start_time, "end_time": track.last_time,
             "bbox": list(track.bbox), "text": winner.text if winner else "",
             "confidence": float(winner.confidence) if winner else 0.0, "status": status,
+            "temporal_fusion": bool(fused_text and winner and winner.text == fused_text),
             "detector_confidence": max((sample.detector_confidence for sample in track.samples), default=0.0),
             "quality_score": max((sample.quality_score for sample in track.samples), default=0.0),
             "observations": track.observations,
+            "best_crop_time": best_sample.timestamp if best_sample else None,
             "candidates": [{"text": item.text, "confidence": float(item.confidence),
                             "support": item.support, "valid": item.valid} for item in ranked[:self.max_crops]],
             "best_crop": best_sample.crop if best_sample else None,

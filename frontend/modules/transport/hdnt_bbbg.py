@@ -1136,7 +1136,7 @@ def render_hdnt_bbbg_html(
     top_bar = ""
     if preview:
         top_bar = f"""
-        <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #0f172a; color: #fff; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #0f172a; color: #fff; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
           <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Chứng từ</span>
@@ -1224,7 +1224,7 @@ def render_hdnt_bbbg_html(
   * {{
     box-sizing: border-box;
   }}
-  body {{
+  html, body {{
     font-family: "Times New Roman", Times, serif;
     font-size: 11pt;
     line-height: 1.35;

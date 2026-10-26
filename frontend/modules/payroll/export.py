@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+import json
 from pathlib import Path
 import re
 import warnings
@@ -41,13 +42,39 @@ def _fill_employee(book, row: dict, salary_row: int, attendance_row: int,
         value = row[key]
         salary[f"{col}{salary_row}"] = value if isinstance(value, str) else _number(value)
 
-    # The app stores a monthly total, not the individual attendance marks.
-    # Remove the sample day's marks so they cannot be mistaken for this month.
+    # Fill daily marks in BCC from daily_details if available
+    details = row.get("daily_details")
+    if isinstance(details, str):
+        try:
+            details = json.loads(details)
+        except Exception:
+            details = {}
+    elif not isinstance(details, dict):
+        details = {}
+
     for work_row in (attendance_row, attendance_row + 1):
         for col in range(5, 36):
             attendance.cell(work_row, col).value = None
-    attendance[f"AJ{attendance_row}"] = _number(row["work_days"])
-    attendance[f"AY{attendance_row}"] = "Tổng công tháng từ hệ thống; chưa có chấm công từng ngày"
+
+    if details:
+        for d in range(1, 32):
+            d_val = details.get(str(d), {})
+            hc = str(d_val.get("hc", "") or "").strip()
+            ot = d_val.get("ot", "")
+            col_idx = 4 + d # Day 1 is col E (index 5)
+            if col_idx <= 35:
+                if hc:
+                    attendance.cell(attendance_row, col_idx).value = hc
+                if ot:
+                    try:
+                        attendance.cell(attendance_row + 1, col_idx).value = float(ot)
+                    except Exception:
+                        pass
+        attendance[f"AJ{attendance_row}"] = _number(row["work_days"])
+        attendance[f"AY{attendance_row}"] = row.get("note") or ""
+    else:
+        attendance[f"AJ{attendance_row}"] = _number(row["work_days"])
+        attendance[f"AY{attendance_row}"] = row.get("note") or ""
 
     for col, key in (("D", "advance_amount"), ("E", "bonus_amount"), ("F", "trip_wage")):
         bonus[f"{col}{bonus_row}"] = _number(row[key])

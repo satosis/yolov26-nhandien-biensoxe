@@ -23,7 +23,8 @@ cfg.setup_logging("frontend.log")
 from frontend.notifications import InquiryNotification, manager
 from frontend.modules.auth import router as auth_router
 from frontend.modules.invoices import router as input_invoices_router, companies_router
-from frontend.modules.enterprise import enterprise_router
+from frontend.modules.enterprise import enterprise_router, supplier_router
+from frontend.modules.enterprise.tax_checklist_router import router as tax_checklist_router
 from frontend.modules.payroll import router as staff_payroll_router
 from frontend.modules.staff import staff_router
 from frontend.modules.service_accounts import router as service_accounts_router, alias_router as service_accounts_alias_router
@@ -34,6 +35,7 @@ from frontend.modules.transport import (
     contracts_router,
     report_router as vehicle_monthly_report_router,
 )
+from frontend.modules.transport.tax_report_router import router as tax_report_router
 from frontend.modules.zalo import router as zalo_inbox_router
 
 from frontend.routers.cameras_router import router as cameras_router
@@ -57,6 +59,7 @@ from frontend.routers.system_router import router as system_router
 from frontend.routers.telegram_router import router as telegram_router
 from frontend.routers.users_router import router as users_router
 from frontend.routers.vehicles_router import router as vehicles_router
+from frontend.modules.reminders.router import router as reminders_router
 
 STATIC_CACHE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".webp", ".svg", ".ico",
@@ -124,6 +127,7 @@ ADMIN_ROUTERS = [
     vehicle_monthly_report_router,
     staff_payroll_router,
     input_invoices_router,
+    tax_report_router,
     service_accounts_router,
     service_accounts_alias_router,
     api_keys_router,
@@ -139,6 +143,8 @@ ADMIN_ROUTERS = [
     sites_router,
     companies_router,
     enterprise_router,
+    tax_checklist_router,
+    supplier_router,
     staff_router,
     providers_router,
     door_providers_router,
@@ -158,6 +164,8 @@ for router in ADMIN_ROUTERS:
 app.include_router(auth_router)
 app.include_router(landing_router)
 app.include_router(kyc_router)
+app.include_router(reminders_router)
+app.include_router(reminders_router, prefix="/admin")
 
 
 @app.get("/admin")

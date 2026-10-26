@@ -28,9 +28,11 @@ MENU_GROUPS = {
         "payroll": "💰 Lương nhân sự",
         "debts": "📑 Quản lý công nợ",
         "sales": "🧾 Lịch sử bán hàng",
+        "suppliers": "📦 Nhà cung cấp",
     },
     "🚚 Vận chuyển": {
         "vehicles": "🚚 Quản lý vận chuyển",
+        "tax_checklist": "📑 Checklist Kế toán & Thuế",
     },
     "⚙️ Hệ thống": {
         "companies": "🏢 Danh sách đơn vị",

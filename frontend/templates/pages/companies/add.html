@@ -2,6 +2,66 @@
 {% block title %}Thêm đơn vị / Công ty{% endblock %}
 {% block page_title %}Thêm đơn vị / Công ty{% endblock %}
 {% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block head %}
+<style>
+  /* Combobox styling for Business Activity */
+  .company-activity-wrapper .ts-wrapper { width: 100%; }
+  .company-activity-wrapper .ts-control {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 4px 8px !important;
+    line-height: 22px !important;
+    font-size: 12.5px !important;
+    border-radius: 6px;
+    background-color: #fff;
+  }
+  .company-activity-wrapper .ts-control input {
+    font-size: 12.5px !important;
+    height: 22px !important;
+    line-height: 22px !important;
+  }
+  .company-activity-wrapper .ts-dropdown {
+    border-radius: 12px !important;
+    border: 1px solid #EAECF0 !important;
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12) !important;
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    font-size: 13px !important;
+    z-index: 1050 !important;
+    margin-top: 4px !important;
+    background: #ffffff !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option {
+    padding: 8px 14px !important;
+    color: #232A2F !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid #f8fafc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    transition: background-color 0.15s ease;
+  }
+  .company-activity-wrapper .ts-dropdown .option:last-child {
+    border-bottom: none !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option:hover,
+  .company-activity-wrapper .ts-dropdown .option.active {
+    background-color: #EDF4F8 !important;
+    color: #232A2F !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option.selected {
+    background-color: #e8f0fe !important;
+    font-weight: 600 !important;
+    color: #1967d2 !important;
+  }
+  .company-activity-wrapper .ts-dropdown .create {
+    padding: 8px 14px !important;
+    color: #1a73e8 !important;
+    background-color: #f8f9fa !important;
+    cursor: pointer !important;
+  }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0 w-100" style="max-width:860px;">
@@ -18,6 +78,7 @@
             <div class="input-group">
               <input id="add-tax-code" name="tax_code" maxlength="14" required
                      class="form-control" placeholder="VD: 0100109106"
+                     value="{{ tax_code or '' }}"
                      oninput="clearLookupMessage()">
               <div class="input-group-append">
                 <button type="button" class="btn btn-outline-secondary" onclick="lookupTaxCode()" id="lookup-btn">
@@ -69,9 +130,25 @@
           </div>
         </div>
 
-        <div class="form-group mb-3">
+        <div class="form-group mb-3 company-activity-wrapper">
           <label for="add-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger">*</span></label>
-          <input id="add-business-activity" name="business_activity" maxlength="500" required class="form-control" placeholder="VD: Vận tải hàng hóa bằng đường bộ, cho thuê xe, kho bãi...">
+          <input id="add-business-activity" name="business_activity" value="" maxlength="500" required class="form-control" placeholder="Nhập hoặc chọn ngành nghề hoạt động" list="business-activities-list">
+          <datalist id="business-activities-list">
+            {% for act in business_activities or [
+              "Thương mại", "Công nghiệp chế biến, chế tạo", "Kinh doanh bất động sản", "Vận tải, kho bãi",
+              "Hoạt động Tài chính, ngân hàng, bảo hiểm", "Giáo dục & Đào tạo", "Xây dựng", "Dịch vụ lưu trú & ăn uống",
+              "Khai khoáng", "Nông nghiệp", "Ngư nghiệp", "Lâm nghiệp",
+              "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí",
+              "Cung cấp nước, hoạt động quản lý và xử lý rác thải", "Hoạt động chuyên môn, KHCN", "Hoạt động dịch vụ khác",
+              "Hoạt động các tổ chức và cơ quan quốc tế", "Hoạt động hành chính và dịch vụ Hỗ trợ",
+              "Hoạt động làm thuê các công việc trong các hộ gia đình, sản xuất sản phẩm vật chất và dịch vụ tự tiêu dùng của hộ gia đình",
+              "Nghệ thuật, vui chơi, giải trí", "Thông tin & truyền thông",
+              "Hoạt động của Đảng Cộng Sản tổ chức Chính Trị - Xã Hội, Quản lý nhà nước, An ninh quốc phòng, Đảm bảo xã hội bắt buộc",
+              "Y tế và hoạt động trợ giúp Xã Hội", "Sản phẩm bán lẻ", "Chưa xác định mã ngành"
+            ] %}
+              <option value="{{ act }}"></option>
+            {% endfor %}
+          </datalist>
         </div>
 
         <!-- Chữ ký & Con dấu -->
@@ -167,8 +244,13 @@ async function lookupTaxCode() {
   const taxCode = document.getElementById('add-tax-code').value.trim();
   const message = document.getElementById('lookup-message');
   const btn = document.getElementById('lookup-btn');
-  if (!taxCode) { message.textContent = 'Vui lòng nhập mã số thuế.'; return; }
-  message.textContent = 'Đang tra cứu...';
+  if (!taxCode) {
+    message.className = 'd-block mt-1 text-danger small';
+    message.textContent = 'Vui lòng nhập mã số thuế.';
+    return;
+  }
+  message.className = 'd-none';
+  message.textContent = '';
   btn.disabled = true;
   try {
     const resp = await fetch('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
@@ -177,7 +259,7 @@ async function lookupTaxCode() {
     document.getElementById('add-name').value = result.name || '';
     const addr = (result.address || '').trim();
     document.getElementById('add-address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;
-    if (result.business_activity) document.getElementById('add-business-activity').value = result.business_activity;
+    if (result.business_activity) setCompanyActivitySelect(document.getElementById('add-business-activity'), result.business_activity);
     if (result.email) document.getElementById('add-email').value = result.email;
     if (result.phone) document.getElementById('add-phone').value = result.phone;
 
@@ -215,14 +297,8 @@ async function lookupTaxCode() {
     }
     if (result.bank_account) document.getElementById('add-bank-account').value = result.bank_account;
     if (result.bank_name) setCompanyBankSelect(document.getElementById('add-bank-name'), result.bank_name);
-    message.className = 'd-block mt-1 text-success small';
-    let successMsg = 'Đã lấy thông tin từ MaSoThue. Kiểm tra lại trước khi lưu.';
-    if (result.director_user_created) {
-      successMsg = 'Đã lấy thông tin và tự động tạo tài khoản giám đốc mới: ' + (result.director_label || result.director_name) + '. Kiểm tra lại trước khi lưu.';
-    } else if (result.director_name) {
-      successMsg = 'Đã lấy thông tin và đồng bộ giám đốc: ' + (result.director_label || result.director_name) + '. Kiểm tra lại trước khi lưu.';
-    }
-    message.textContent = successMsg;
+    message.className = 'd-none';
+    message.textContent = '';
   } catch (err) {
     message.className = 'd-block mt-1 text-danger small';
     message.textContent = err.message || 'Không tra cứu được mã số thuế.';
@@ -251,5 +327,64 @@ function previewUploadImage(input, previewId) {
     container.style.display = 'none';
   }
 }
+
+function initCompanyActivitySelect(select) {
+  if (!select || select.tagName === 'INPUT') return;
+  if (typeof TomSelect !== 'undefined' && !select.tomselect) {
+    new TomSelect(select, {
+      create: true,
+      createOnBlur: true,
+      placeholder: 'Chọn hoặc tìm/nhập ngành nghề hoạt động',
+      maxOptions: 50,
+      allowEmptyOption: true,
+      shouldSort: false,
+      score: function(search) {
+        const normSearch = (search || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+        if (!normSearch) return () => 1;
+        return function(item) {
+          const text = (item.text || item.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+          const idx = text.indexOf(normSearch);
+          if (idx === -1) return 0;
+          return (100 - idx) + (text === normSearch ? 100 : 0);
+        };
+      },
+      render: {
+        option_create: function(data, escape) {
+          return '<div class="create">Thêm mới: <strong>' + escape(data.input) + '</strong>...</div>';
+        },
+        no_results: function(data, escape) {
+          return '<div class="no-results" style="padding: 8px 12px; color: #6c757d; font-size: 12px;">Không tìm thấy ngành nghề phù hợp</div>';
+        }
+      }
+    });
+  }
+}
+
+function setCompanyActivitySelect(select, value) {
+  if (!select) return;
+  const val = (value || '').trim();
+  if (select.tagName === 'INPUT' || select.tagName === 'TEXTAREA') {
+    select.value = val;
+    return;
+  }
+  if (select.tomselect) {
+    if (val && !select.tomselect.options[val]) {
+      select.tomselect.addOption({value: val, text: val});
+    }
+    select.tomselect.setValue(val);
+  } else {
+    if (val && !Array.from(select.options).some(o => o.value === val)) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      select.add(opt);
+    }
+    select.value = val;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.company-activity-select').forEach(initCompanyActivitySelect);
+});
 </script>
 {% endblock %}

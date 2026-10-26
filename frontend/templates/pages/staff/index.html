@@ -3,6 +3,14 @@
 {% block title %}Quản lý nhân sự nội bộ{% endblock %}
 {% block page_title %}Quản lý nhân sự nội bộ{% endblock %}
 
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddStaffModal()">
+    <i class="bx bx-plus mr-1"></i>Thêm nhân sự
+  </button>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0 w-100">
 
@@ -34,11 +42,6 @@
                  value="{{ q }}"
                  oninput="scheduleStaffSearch()"
                  onkeydown="if (event.key === 'Enter') { event.preventDefault(); applyStaffFilters(); }">
-
-          <!-- Add Staff Button -->
-          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddStaffModal()">
-            <i class="bx bx-plus mr-1"></i>Thêm nhân sự
-          </button>
         </div>
       </div>
     </div>
@@ -64,7 +67,7 @@
               <!-- Personnel Column -->
               <td>
                 <div class="font-weight-bold text-dark">{{ s.full_name or s.username }}</div>
-                <div class="small text-muted font-monospace">
+                <div class="small text-muted ">
                   @{{ s.username }}
                   {% if s.gender %} · {{ s.gender }}{% endif %}
                   {% if s.id_number %} · {{ s.id_number }}{% endif %}
@@ -109,7 +112,7 @@
               <!-- Bank Account -->
               <td>
                 {% if s.bank_account %}
-                  <div class="font-monospace text-dark font-weight-bold" style="font-family:monospace; font-size:12.5px;">
+                  <div class="text-dark font-weight-bold" style=" font-size:12.5px;">
                     {{ s.bank_account }}
                   </div>
                   {% if s.bank_name %}
@@ -284,37 +287,31 @@
           <div class="form-row">
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Lương chính thỏa thuận (đ)</label>
-              <input type="text" name="base_salary" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+              <input type="text" name="base_salary" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
-              <input type="text" name="insurance_salary" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+              <input type="text" name="insurance_salary" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
             </div>
           </div>
           <div class="form-row">
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Trách nhiệm (đ)</label>
-              <input type="text" name="responsibility_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+              <input type="text" name="responsibility_allowance" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Tiền ăn (đ)</label>
-              <input type="text" name="meal_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+              <input type="text" name="meal_allowance" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Điện thoại (đ)</label>
-              <input type="text" name="phone_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="0" oninput="formatCurrencyInput(this)">
+              <input type="text" name="phone_allowance" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
             </div>
           </div>
           <div class="form-row">
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Số tài khoản ngân hàng</label>
-              <input type="text" name="bank_account" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" placeholder="Số TK...">
+              <input type="text" name="bank_account" class="form-control form-control-sm " placeholder="Số TK...">
             </div>
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Tên ngân hàng</label>
@@ -425,37 +422,31 @@
           <div class="form-row">
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Lương chính thỏa thuận (đ)</label>
-              <input type="text" id="edit-base-salary" name="base_salary" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+              <input type="text" id="edit-base-salary" name="base_salary" class="form-control form-control-sm " oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
-              <input type="text" id="edit-insurance-salary" name="insurance_salary" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+              <input type="text" id="edit-insurance-salary" name="insurance_salary" class="form-control form-control-sm " oninput="formatCurrencyInput(this)">
             </div>
           </div>
           <div class="form-row">
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Trách nhiệm (đ)</label>
-              <input type="text" id="edit-resp-allowance" name="responsibility_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+              <input type="text" id="edit-resp-allowance" name="responsibility_allowance" class="form-control form-control-sm " oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Tiền ăn (đ)</label>
-              <input type="text" id="edit-meal-allowance" name="meal_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+              <input type="text" id="edit-meal-allowance" name="meal_allowance" class="form-control form-control-sm " oninput="formatCurrencyInput(this)">
             </div>
             <div class="col-md-4 mb-2">
               <label class="small font-weight-bold">PC Điện thoại (đ)</label>
-              <input type="text" id="edit-phone-allowance" name="phone_allowance" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;" oninput="formatCurrencyInput(this)">
+              <input type="text" id="edit-phone-allowance" name="phone_allowance" class="form-control form-control-sm " oninput="formatCurrencyInput(this)">
             </div>
           </div>
           <div class="form-row">
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Số tài khoản ngân hàng</label>
-              <input type="text" id="edit-bank-account" name="bank_account" class="form-control form-control-sm font-monospace"
-                     style="font-family:monospace;">
+              <input type="text" id="edit-bank-account" name="bank_account" class="form-control form-control-sm ">
             </div>
             <div class="col-md-6 mb-2">
               <label class="small font-weight-bold">Tên ngân hàng</label>
@@ -596,16 +587,6 @@ function applyStaffFilters() {
   loadStaffAjax(url.toString(), true);
 }
 
-function formatCurrencyInput(input) {
-  let val = input.value.replace(/\D/g, '');
-  if (!val) { input.value = ''; return; }
-  input.value = new Intl.NumberFormat('vi-VN').format(parseInt(val, 10));
-}
-
-function formatNumber(num) {
-  if (!num || num === 0) return '0';
-  return new Intl.NumberFormat('vi-VN').format(Math.round(num));
-}
 
 function openAddStaffModal() {
   const form = document.getElementById('add-staff-form');
@@ -752,7 +733,7 @@ async function loadStaffRecords(userId) {
           <td><strong>${c.contract_number || 'Chưa có số'}</strong></td>
           <td><span class="badge badge-light border">${c.contract_type}</span></td>
           <td class="small">${c.start_date || '--'} &rarr; ${c.end_date || 'KTH'}</td>
-          <td class="text-right font-monospace">${c.salary_rate_fmt || '0 đ'}</td>
+          <td class="text-right ">${c.salary_rate_fmt || '0 đ'}</td>
           <td class="small text-muted">${c.note || '--'}</td>
           <td class="text-right">
             <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
@@ -774,7 +755,7 @@ async function loadStaffRecords(userId) {
         tr.innerHTML = `
           <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
           <td><strong>${l.license_type}</strong></td>
-          <td class="font-monospace">${l.license_number || '--'}</td>
+          <td class="">${l.license_number || '--'}</td>
           <td class="small">${l.issued_date || '--'}</td>
           <td class="small font-weight-bold">${l.expiry_date || 'Không thời hạn'}</td>
           <td class="small text-muted">${l.issued_by || '--'}</td>
@@ -801,7 +782,7 @@ async function loadStaffRecords(userId) {
           <td><span class="badge badge-light border">${w.event_type}</span></td>
           <td class="small">${w.old_value || '--'}</td>
           <td class="small font-weight-bold text-dark">${w.new_value || '--'}</td>
-          <td class="small font-monospace">${w.decision_number || '--'}</td>
+          <td class="small ">${w.decision_number || '--'}</td>
           <td class="small text-muted">${w.note || '--'}</td>
           <td class="text-right">
             <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
@@ -1006,11 +987,11 @@ async function deleteWorkHistory(histId) {
               <div class="form-row">
                 <div class="col-md-3 mb-2">
                   <label class="small font-weight-bold">Lương theo HĐ (đ)</label>
-                  <input type="text" name="salary_rate" class="form-control form-control-sm font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+                  <input type="text" name="salary_rate" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
                 </div>
                 <div class="col-md-3 mb-2">
                   <label class="small font-weight-bold">Lương đóng BHXH (đ)</label>
-                  <input type="text" name="insurance_rate" class="form-control form-control-sm font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+                  <input type="text" name="insurance_rate" class="form-control form-control-sm " placeholder="0" oninput="formatCurrencyInput(this)">
                 </div>
                 <div class="col-md-4 mb-2">
                   <label class="small font-weight-bold">Ghi chú</label>
@@ -1063,7 +1044,7 @@ async function deleteWorkHistory(histId) {
                 </div>
                 <div class="col-md-3 mb-2">
                   <label class="small font-weight-bold">Số hiệu GPLX / Số hồ sơ</label>
-                  <input type="text" name="license_number" class="form-control form-control-sm font-monospace" placeholder="VD: 010182001928">
+                  <input type="text" name="license_number" class="form-control form-control-sm " placeholder="VD: 010182001928">
                 </div>
                 <div class="col-md-3 mb-2">
                   <label class="small font-weight-bold">Ngày cấp</label>

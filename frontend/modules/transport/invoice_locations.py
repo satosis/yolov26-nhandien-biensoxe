@@ -7,8 +7,13 @@ import unicodedata
 _WORD = re.compile(r"\w+", re.UNICODE)
 _FACILITY = re.compile(r"\b(?:kcn|ccn|khu cong nghiep|cum cong nghiep|cong ty|nha may|cang)\b")
 _KCN_PREFIXES = (("khu", "cong", "nghiep"), ("kcn",))
-_COMMUNE_PREFIXES = (("xa",), ("phuong",), ("dac", "khu"))
-_PROVINCE_PREFIXES = (("tinh",), ("thanh", "pho"), ("tp",))
+# Only commune-level prefixes. Districts (huyện, quận, thị xã) are NOT communes in the DB.
+_COMMUNE_PREFIXES = (
+    ("xa",), ("phuong",), ("p",), ("thi", "tran"), ("tt",), ("dac", "khu")
+)
+_PROVINCE_PREFIXES = (("tinh",), ("thanh", "pho"), ("tp",), ("t",))
+_COUNTRY_REGEX = re.compile(r",?\s*(?:việt\s*nam|viet\s*nam|vietnam|vn)[\s.]*$", re.IGNORECASE)
+_PLUS_CODE_REGEX = re.compile(r"^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\b\s*,?\s*", re.IGNORECASE)
 
 
 def _fold(value: str) -> str:
@@ -73,7 +78,7 @@ def _kcn_location(text: str, words: list[tuple[str, int, int]], prefix_end: int,
             _, name_end, commune = best[0]
             locality = commune[0].lower() + commune[1:]
 
-    name = text[words[prefix_end][1]:words[name_end][1]].strip(" ,.;")
+    name = text[words[prefix_end][1]:words[name_end][1]].strip(" ,.;-")
     if not name:
         return text
     province_label = province[0].lower() + province[1:]
@@ -82,17 +87,31 @@ def _kcn_location(text: str, words: list[tuple[str, int, int]], prefix_end: int,
 
 def normalize_invoice_location(value: str, directory: list[dict]) -> str:
     """Expand a verified commune/province suffix; leave unknown places unchanged."""
-    text = " ".join(str(value or "").split()).strip()
+    text = unicodedata.normalize("NFC", " ".join(str(value or "").split()).strip())
     if not text or text.startswith(("http://", "https://")):
         return text
+
+    # Strip Google Plus Code prefix if present (e.g. "G3XV+32W ")
+    text = _PLUS_CODE_REGEX.sub("", text).strip(" ,.;-")
+    if not text:
+        return ""
+
+    # Strip trailing country name (e.g. ", Việt Nam", ", Vietnam", "Việt Nam.")
+    text = _COUNTRY_REGEX.sub("", text).strip(" ,.;-")
+    if not text:
+        return ""
+
     words = _words(text)
     folded = tuple(word for word, _, _ in words)
+    if not folded:
+        return text
+
     provinces = {row["province_name"] for row in directory}
 
     province_match = None
     for province in provinces:
         bare = _bare_name(province, _PROVINCE_PREFIXES)
-        if bare and folded[-len(bare):] == bare:
+        if bare and len(folded) >= len(bare) and folded[-len(bare):] == bare:
             start = _without_type(words, len(words) - len(bare), _PROVINCE_PREFIXES)
             if province_match is None or len(bare) > province_match[0]:
                 province_match = (len(bare), start, province)
@@ -103,38 +122,48 @@ def normalize_invoice_location(value: str, directory: list[dict]) -> str:
         if kcn_prefix_end:
             return _kcn_location(text, words, kcn_prefix_end, province_start, province, directory)
         before = folded[:province_start]
-        matches = []
-        for row in directory:
-            if row["province_name"] != province:
-                continue
-            commune = row["commune_name"]
-            bare = _bare_name(commune, _COMMUNE_PREFIXES)
-            if bare and len(before) >= len(bare) and before[-len(bare):] == bare:
-                start = _without_type(words, len(before) - len(bare), _COMMUNE_PREFIXES)
-                explicit = start < len(before) - len(bare)
-                leading_text = text[:words[start][1]]
-                facility_without_separator = (_FACILITY.search(_fold(leading_text))
-                                              and not re.search(r"[,;/]\s*$", leading_text))
-                if facility_without_separator and not explicit:
+
+        def _match_communes(slice_folded):
+            found = []
+            for row in directory:
+                if row["province_name"] != province:
                     continue
-                if len(bare) >= 2 or explicit:
-                    matches.append((len(bare), start, commune))
+                commune = row["commune_name"]
+                bare = _bare_name(commune, _COMMUNE_PREFIXES)
+                if bare and len(slice_folded) >= len(bare) and slice_folded[-len(bare):] == bare:
+                    start = _without_type(words, len(slice_folded) - len(bare), _COMMUNE_PREFIXES)
+                    explicit = start < len(slice_folded) - len(bare)
+                    leading_text = text[:words[start][1]]
+                    facility_without_separator = (_FACILITY.search(_fold(leading_text))
+                                                  and not re.search(r"[,;/]\s*$", leading_text))
+                    if facility_without_separator and not explicit:
+                        continue
+                    if len(bare) >= 2 or explicit:
+                        found.append((len(bare), start, commune))
+            return found
+
+        matches = _match_communes(before)
+
         if matches:
             longest = max(match[0] for match in matches)
             names = {match[2] for match in matches if match[0] == longest}
             if len(names) == 1:
                 _, start, commune = next(match for match in matches if match[0] == longest)
-                prefix = text[:words[start][1]].rstrip(" ,.;")
-                return " ".join(part for part in (prefix, commune, province) if part)
-        prefix = text[:words[province_start][1]].rstrip(" ,.;")
+                prefix = text[:words[start][1]].rstrip(" ,.;-")
+                if prefix:
+                    return f"{prefix}, {commune} {province}"
+                return f"{commune} {province}"
+        prefix = text[:words[province_start][1]].rstrip(" ,.;-")
         if _FACILITY.fullmatch(_fold(prefix)):
             return text
-        return " ".join(part for part in (prefix, province) if part)
+        if prefix:
+            return f"{prefix}, {province}"
+        return province
 
     matches = []
     for row in directory:
         bare = _bare_name(row["commune_name"], _COMMUNE_PREFIXES)
-        if len(bare) >= 2 and folded == bare:
+        if len(bare) >= 2 and (folded == bare or len(folded) == len(bare) and folded == bare):
             matches.append((row["commune_name"], row["province_name"]))
     unique_matches = list(dict.fromkeys(matches))
     if len(unique_matches) == 1:

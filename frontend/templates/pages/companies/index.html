@@ -7,8 +7,8 @@
   #companyDirectory .card-header { padding: 10px 14px !important; background: #fff; border-bottom: 1px solid #d9dfe6; }
   #companyDirectory .company-toolbar { gap: 6px; }
   #companyDirectory .company-toolbar > .btn,
-  #companyDirectory .company-toolbar > a { display: inline-flex; align-items: center; justify-content: center; height: 30px; white-space: nowrap; }
-  #companyDirectory .company-toolbar .form-control { height: 30px; border-color: #cfd6df; }
+  #companyDirectory .company-toolbar > a { display: inline-flex; align-items: center; justify-content: center; height: 32px; min-height: 32px; font-size: 12.5px; border-radius: 6px; white-space: nowrap; }
+  #companyDirectory .company-toolbar .form-control { height: 32px; min-height: 32px; font-size: 12.5px; border-radius: 6px; border-color: #cfd6df; }
   #companyDirectory .btn-primary,
   #companyDirectory .btn-danger,
   #companyDirectory .btn-outline-secondary,
@@ -55,6 +55,17 @@
 {% block title %}Danh sách đơn vị & Đối tác{% endblock %}
 {% block page_title %}Danh sách đơn vị & Đối tác{% endblock %}
 
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <a href="/admin/enterprise/debts" class="btn btn-sm btn-outline-secondary font-weight-medium">
+    <i class="bx bx-receipt mr-1"></i>Quản lý công nợ
+  </a>
+  <a href="/admin/companies/add?back={{ request.url|urlencode }}" class="btn btn-sm btn-primary font-weight-bold">
+    <i class="bx bx-plus mr-1"></i>Thêm đơn vị
+  </a>
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid px-0 w-100" id="companyDirectory">
 
@@ -79,17 +90,18 @@
                   title="Chỉ hiển thị đơn vị còn nợ">
             <i class="bx bx-filter-alt mr-1"></i>Còn nợ
           </button>
-          <a href="/admin/companies/add?back={{ request.url|urlencode }}"
-             class="btn btn-sm btn-primary font-weight-bold">
-            <i class="bx bx-plus mr-1"></i>Thêm đơn vị
-          </a>
-          <input id="catalog-company-search" type="search"
-                 class="form-control form-control-sm"
-                 style="width:220px; max-width:100%;"
-                 placeholder="Tìm tên, MST, địa chỉ..."
-                 value="{{ q }}"
-                 oninput="scheduleCatalogCompanySearch()"
-                 onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitCatalogCompanySearch(); }">
+          <div class="position-relative" style="width:240px; max-width:100%;">
+            <input id="catalog-company-search" type="search"
+                   class="form-control form-control-sm pr-4"
+                   placeholder="Tìm tên, MST, địa chỉ..."
+                   value="{{ q }}"
+                   autocomplete="off"
+                   oninput="scheduleCatalogCompanySearch()"
+                   onsearch="submitCatalogCompanySearch()"
+                   onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitCatalogCompanySearch(); }">
+            <span id="catalog-search-spinner" class="spinner-border spinner-border-sm position-absolute text-muted d-none"
+                  style="right:8px; top:50%; margin-top:-6px; pointer-events:none;"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -137,7 +149,7 @@
               <td class="text-center text-muted font-weight-medium align-middle">
                 {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
               </td>
-              <td class="font-weight-bold text-primary font-monospace">
+              <td class="font-weight-bold text-primary ">
                 <code>{{ company.tax_code }}</code>
               </td>
               <td>
@@ -158,7 +170,7 @@
               </td>
               <td class="text-right text-nowrap align-middle">
                 {% if company.total_debt and company.total_debt > 0 %}
-                  <div class="font-weight-bold company-debt-amount" style="font-family:monospace;">{{ company.total_debt_fmt }}</div>
+                  <div class="font-weight-bold company-debt-amount">{{ company.total_debt_fmt }}</div>
                   <button type="button" class="btn btn-link btn-sm p-0 text-muted font-size-11"
                           onclick="openDebtLedgerModal({{ company.id }}, '{{ company.name|escape }}', {{ company.total_debt }})">
                     Sổ công nợ
@@ -177,7 +189,7 @@
                       <input type="text" name="amount"
                              class="form-control form-control-sm text-right font-weight-bold"
                              placeholder="Số tiền..."
-                             style="width:115px; font-family:monospace;"
+                             style="width:115px; "
                              oninput="formatCurrencyInput(this)"
                              required autocomplete="off">
                       <button type="submit" class="btn btn-light border btn-sm font-weight-bold text-success text-nowrap"
@@ -214,9 +226,21 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="7" class="text-center py-4 text-muted">
-                <i class="bx bx-buildings font-size-36 d-block mb-1 text-secondary"></i>
-                Chưa có đơn vị hoặc công ty nào phù hợp điều kiện tìm kiếm.
+              <td colspan="7" class="text-center py-5 text-muted">
+                <i class="bx bx-buildings font-size-40 d-block mb-2 text-secondary"></i>
+                {% if q %}
+                  <div class="font-weight-medium text-dark font-size-15 mb-1">
+                    Không tìm thấy đơn vị nào khớp với từ khóa "<code>{{ q }}</code>"
+                  </div>
+                  <div class="small text-muted mb-3">
+                    Bạn có thể kiểm tra lại mã số thuế hoặc thêm mới đơn vị này vào danh mục.
+                  </div>
+                  <a href="/admin/companies/add?tax_code={{ q|urlencode }}&back={{ request.url|urlencode }}" class="btn btn-sm btn-primary font-weight-bold">
+                    <i class="bx bx-plus mr-1"></i>Thêm đơn vị mới với MST "{{ q }}"
+                  </a>
+                {% else %}
+                  <div>Chưa có đơn vị hoặc công ty nào trong danh mục.</div>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
@@ -257,6 +281,29 @@
 </div>
 
 <script>
+function showNotify(msg, type = 'success') {
+  if (window.toastr) {
+    if (type === 'error') toastr.error(msg);
+    else if (type === 'warning') toastr.warning(msg);
+    else toastr.success(msg);
+  } else {
+    console.log('[' + type + ']', msg);
+  }
+  window.dispatchEvent(new CustomEvent('showToast', {
+    detail: { msg: msg, type: type }
+  }));
+}
+
+function formatCurrencyInput(input) {
+  if (!input) return;
+  const raw = input.value.replace(/\D/g, '');
+  if (!raw) {
+    input.value = '';
+    return;
+  }
+  input.value = Number(raw).toLocaleString('vi-VN');
+}
+
 {% if error or message %}
 showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
 const compUrl = new URL(window.location.href);
@@ -268,24 +315,28 @@ window.history.replaceState(null, '', compUrl.pathname + compUrl.search + compUr
 let _catalogLoading = false;
 async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
   const tableArea = document.getElementById('catalog-table-area');
+  const spinner = document.getElementById('catalog-search-spinner');
   if (!tableArea) return;
   _catalogLoading = true;
   tableArea.style.opacity = '0.45';
   tableArea.style.pointerEvents = 'none';
+  if (spinner) spinner.classList.remove('d-none');
 
   try {
     const res = await fetch(targetUrl, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-    if (!res.ok) throw new Error('Không thể tải dữ liệu danh mục.');
+    if (!res.ok) throw new Error('Không thể tải dữ liệu danh mục (HTTP ' + res.status + ').');
     const htmlText = await res.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
 
     const newTableArea = doc.getElementById('catalog-table-area');
-    if (newTableArea) {
-      tableArea.innerHTML = newTableArea.innerHTML;
+    if (!newTableArea) {
+      window.location.href = targetUrl;
+      return;
     }
+    tableArea.innerHTML = newTableArea.innerHTML;
 
     const newCount = doc.getElementById('catalog-company-count');
     const curCount = document.getElementById('catalog-company-count');
@@ -317,6 +368,7 @@ async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
   } finally {
     tableArea.style.opacity = '1';
     tableArea.style.pointerEvents = '';
+    if (spinner) spinner.classList.add('d-none');
     _catalogLoading = false;
   }
 }
@@ -344,7 +396,7 @@ document.addEventListener('click', function(e) {
 let _catalogSearchTimeout = null;
 function scheduleCatalogCompanySearch() {
   clearTimeout(_catalogSearchTimeout);
-  _catalogSearchTimeout = setTimeout(submitCatalogCompanySearch, 300);
+  _catalogSearchTimeout = setTimeout(submitCatalogCompanySearch, 250);
 }
 
 function submitCatalogCompanySearch() {
@@ -542,11 +594,6 @@ function deleteCatalogCompany(event, companyId, companyName) {
   $('#companyDeleteModal').modal('show');
 }
 
-function formatCurrencyInput(input) {
-  let val = input.value.replace(/\D/g, '');
-  if (!val) { input.value = ''; return; }
-  input.value = new Intl.NumberFormat('vi-VN').format(parseInt(val, 10));
-}
 
 async function submitPayDebtAjax(event, form, companyName, maxDebt) {
   event.preventDefault();
@@ -655,7 +702,7 @@ async function loadDebtLedgerHistory(companyId) {
         <td class="text-center text-muted font-weight-medium align-middle">${idx + 1}</td>
         <td class="align-middle text-muted small">${log.recorded_date_str || ''}</td>
         <td class="align-middle">${typeBadge}</td>
-        <td class="align-middle text-right ${amountClass}" style="font-family:monospace;">${sign}${log.amount_fmt}</td>
+        <td class="align-middle text-right ${amountClass}">${sign}${log.amount_fmt}</td>
         <td class="align-middle small">
           ${log.note ? `<div class="font-weight-medium">${log.note}</div>` : ''}
           ${log.reference_doc ? `<div class="text-muted font-size-11">CT/HĐ: <code>${log.reference_doc}</code></div>` : ''}
@@ -773,7 +820,7 @@ async function deleteDebtLogAjax(logId) {
         <div class="d-flex align-items-center justify-content-between p-3 mb-3 bg-white border rounded">
           <div>
             <div class="text-muted small">Dư nợ hiện tại:</div>
-            <div class="h4 mb-0 font-weight-bold text-danger font-monospace" id="debtModalBalance">0 đ</div>
+            <div class="h4 mb-0 font-weight-bold text-danger " id="debtModalBalance">0 đ</div>
           </div>
           <div class="d-flex align-items-center" style="gap:6px;">
             <button class="btn btn-sm btn-outline-danger font-weight-bold" type="button" onclick="showDebtActionTab('add')">

@@ -86,7 +86,7 @@
             <div class="col-12 col-md-4 mb-3">
               <label class="font-weight-bold small text-muted text-uppercase">Nguyên giá xe (đ)</label>
               <input id="edit-purchase-price-display" type="text" inputmode="numeric"
-                     value="{{ '{:,.0f}'.format(vehicle.purchase_price)|replace(',', '.') if vehicle.purchase_price is not none else '' }}"
+                     value="{{ vehicle.purchase_price|format_number('') }}"
                      placeholder="VD: 850.000.000" class="form-control">
               <input id="edit-purchase-price" name="purchase_price" type="hidden"
                      value="{{ '{:.0f}'.format(vehicle.purchase_price) if vehicle.purchase_price is not none else '' }}">
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const syncPurchasePrice = () => {
     const digits = (display.value || '').replace(/\D/g, '');
     hidden.value = digits;
-    display.value = digits ? Number(digits).toLocaleString('vi-VN') : '';
+    display.value = digits ? formatNumber(digits) : '';
   };
   display?.addEventListener('input', syncPurchasePrice);
   display?.form?.addEventListener('submit', syncPurchasePrice);

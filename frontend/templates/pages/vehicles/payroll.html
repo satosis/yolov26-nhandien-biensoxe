@@ -11,15 +11,15 @@
     <tbody>{% for p in payroll_rows %}<tr>
       <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
       <td>{{ p.driver_code or '—' }}</td><td>{{ p.driver_name or '—' }}</td><td>{{ p.plate_number }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.base_salary)|replace(',', '.') if p.base_salary is not none else '—' }}</td>
-      <td class="text-right">{{ p.work_days }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.meal_allowance)|replace(',', '.') if p.meal_allowance is not none else '—' }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.trip_wage)|replace(',', '.') }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.bonus_pay)|replace(',', '.') }}</td>
-      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(p.total_salary)|replace(',', '.') }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.advance_amount)|replace(',', '.') }}</td>
-      <td class="text-right">{{ "{:,.0f}".format(p.salary_deductions)|replace(',', '.') }}</td>
-      <td class="text-right font-weight-bold">{{ "{:,.0f}".format(p.net_salary)|replace(',', '.') }}</td>
+      <td class="text-right">{{ p.base_salary|format_number('—') }}</td>
+      <td class="text-right">{{ p.work_days|format_number('0') }}</td>
+      <td class="text-right">{{ p.meal_allowance|format_number('—') }}</td>
+      <td class="text-right">{{ p.trip_wage|format_number }}</td>
+      <td class="text-right">{{ p.bonus_pay|format_number }}</td>
+      <td class="text-right font-weight-bold">{{ p.total_salary|format_number }}</td>
+      <td class="text-right">{{ p.advance_amount|format_number }}</td>
+      <td class="text-right">{{ p.salary_deductions|format_number }}</td>
+      <td class="text-right font-weight-bold">{{ p.net_salary|format_number }}</td>
     </tr>{% else %}<tr><td colspan="13" class="text-center text-muted py-3">Xe chưa gắn tài xế.</td></tr>{% endfor %}</tbody>
   </table></div>
 

@@ -1,12 +1,12 @@
 
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
+@import url('/static/vendor/fonts-inter/index.css');
 
 body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    font-size: 11.5px;
+    font-size: 12px;
 }
+
 .main-content {
     background: #f8fafc !important;
     margin-top: 40px;
@@ -20,14 +20,38 @@ body {
     flex: 1 0 auto;
 }
 .page-title-box {
-    padding: 4px 0 !important;
+    padding: 6px 0 !important;
     margin-bottom: 12px !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 12px !important;
 }
 .page-title-box h4 {
-    font-size: 13.5px !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: -0.01em;
+}
+.page-title-box .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    min-height: 32px;
+    font-size: 12.5px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    white-space: nowrap;
 }
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
@@ -80,43 +104,47 @@ body {
 .card {
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-    margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    margin-bottom: 12px;
+    background: #ffffff;
 }
 .card-header {
-    background: #fff;
+    background: #ffffff;
     border-bottom: 1px solid #f1f5f9;
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #1e293b;
 }
 .card-body {
-    padding: 6px 12px;
+    padding: 12px 14px;
 }
 
 
 .table-cinema {
     width: 100%;
-    font-size: 12px;
+    font-size: 12.5px;
 }
 .table-cinema thead th {
     background: #f8fafc;
-    font-size: 0.68rem;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #64748b;
-    padding: 4px 6px;
-    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: 0.03em;
+    color: #475569;
+    padding: 8px 10px;
+    border-bottom: 1px solid #cbd5e1;
     white-space: nowrap;
 }
 .table-cinema tbody td {
-    padding: 4px 6px;
+    padding: 8px 10px;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
-    font-size: 0.8rem;
+    font-size: 12.5px;
+    color: #334155;
 }
 .table-cinema tbody tr:hover {
-    background: #f8fafc;
+    background: #f8faff;
 }
 .table-cinema tbody tr:last-child td {
     border-bottom: none;
@@ -1008,4 +1036,356 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 [data-bulk-item] {
     position: relative;
+}
+
+/* ==========================================================================
+   UNIFIED SYSTEM-WIDE UI STANDARDS (ĐỒNG BỘ TOÀN DIỆN MỌI MÀN HÌNH)
+   ========================================================================== */
+
+/* 1. Global Typography & Elements */
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    color: #1e293b;
+    background-color: #f8fafc;
+}
+
+/* 2. Standard Form Controls */
+.form-control, select.form-control {
+    font-size: 13px;
+    color: #1e293b;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    height: 34px;
+    padding: 5px 10px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-control:focus, select.form-control:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14) !important;
+    outline: none !important;
+}
+
+.form-control-sm, select.form-control-sm {
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 12.5px !important;
+    padding: 4px 8px !important;
+    border-radius: 5px !important;
+}
+
+/* TomSelect Integration */
+.ts-control {
+    min-height: 32px !important;
+    height: auto !important;
+    font-size: 12.5px !important;
+    border-radius: 5px !important;
+    border-color: #cbd5e1 !important;
+    padding: 4px 8px !important;
+}
+.ts-control:focus, .ts-wrapper.focus .ts-control {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14) !important;
+}
+.ts-dropdown {
+    font-size: 12.5px !important;
+    z-index: 1065 !important;
+}
+
+/* 3. Standard Buttons */
+.btn {
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    line-height: 1.4;
+    transition: all 0.15s ease-in-out;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.btn-sm {
+    font-size: 12.5px !important;
+    padding: 4px 12px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 5px !important;
+}
+
+.btn-xs {
+    font-size: 11px !important;
+    padding: 2px 7px !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    border-radius: 4px !important;
+}
+
+.btn-primary {
+    background-color: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #ffffff !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25) !important;
+}
+
+.btn-success {
+    background-color: #16a34a !important;
+    border-color: #16a34a !important;
+    color: #ffffff !important;
+}
+.btn-success:hover, .btn-success:focus {
+    background-color: #15803d !important;
+    border-color: #15803d !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25) !important;
+}
+
+.btn-light, .btn-outline-secondary {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+}
+.btn-light:hover, .btn-outline-secondary:hover {
+    background-color: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+/* 4. Standard Tables & Responsive Scrolling */
+.table-responsive,
+.cx-overflow-x-auto,
+.sales-table-wrap,
+.cargo-table-wrap,
+[class*="table-wrap"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+    position: relative;
+    border-radius: 6px;
+}
+
+.table {
+    margin-bottom: 0;
+    width: 100%;
+}
+
+.table thead th,
+.table-cinema thead th,
+.cargo-history-table thead th,
+.sales-table thead th,
+#debtManagement .table thead th {
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.03em !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    border-top: none !important;
+    padding: 9px 10px !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
+}
+
+.table tbody td,
+.table-cinema tbody td,
+.cargo-history-table tbody td,
+.sales-table tbody td,
+#debtManagement .table tbody td {
+    padding: 8px 10px !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    border-top: none !important;
+    vertical-align: middle !important;
+    font-size: 12.5px !important;
+    color: #334155 !important;
+}
+
+.table tbody tr:hover,
+.table-cinema tbody tr:hover,
+.cargo-history-table tbody tr:hover,
+.sales-table tbody tr:hover,
+#debtManagement .table tbody tr:hover {
+    background: #f8faff !important;
+}
+
+/* 5. Standard Filter Toolbars */
+.filter-toolbar-unified,
+.debt-global-filter-card,
+.input-invoice-filter,
+.monthly-report-filter,
+.tax-toolbar,
+.cargo-history-toolbar,
+#salesPage .sales-filterbar {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 10px 14px !important;
+    margin-bottom: 12px !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+}
+
+/* 6. Standard KPI & Summary Cards */
+.kpi-unified-grid,
+.tax-kpi-grid,
+#debtManagement > .row.no-gutters {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    margin-bottom: 12px !important;
+}
+
+.kpi-unified-card,
+.tax-kpi-card,
+#debtManagement .debt-summary-card {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 12px 14px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03) !important;
+    min-width: 0 !important;
+}
+
+/* 7. Header Topbar Synchronization */
+.header-navbar-brand {
+    width: 220px;
+    height: 100%;
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+}
+
+.header-company-select {
+    border-radius: 6px;
+    font-weight: 600;
+    color: #1e293b;
+    cursor: pointer;
+    background-color: #f8fafc;
+    border-color: #e2e8f0;
+    width: auto;
+    min-width: 180px;
+    max-width: 380px;
+    padding-right: 24px;
+    text-overflow: ellipsis;
+    height: 32px !important;
+    font-size: 12.5px !important;
+}
+
+/* ==========================================================================
+   MULTI-DEVICE RESPONSIVE BREAKPOINTS (ĐỒNG BỘ MỌI THIẾT BỊ)
+   ========================================================================== */
+
+/* Laptop & Medium Screens (<= 1199.98px) */
+@media (max-width: 1199.98px) {
+    .kpi-unified-grid,
+    .tax-kpi-grid,
+    #debtManagement > .row.no-gutters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px !important;
+    }
+}
+
+/* Tablet & iPad (<= 991.98px) */
+@media (max-width: 991.98px) {
+    .main-content {
+        margin-left: 0 !important;
+        margin-top: 50px !important;
+    }
+    .header-navbar-brand {
+        width: auto !important;
+        padding: 0 10px !important;
+        border-right: none !important;
+    }
+    .header-company-select {
+        min-width: 140px !important;
+        max-width: 220px !important;
+        font-size: 12px !important;
+    }
+    .page-title-box {
+        gap: 8px !important;
+    }
+    .page-title-box .btn,
+    .cargo-page-actions .btn,
+    .sales-actions .btn {
+        min-height: 34px !important;
+        padding: 5px 12px !important;
+    }
+    .kpi-unified-grid,
+    .tax-kpi-grid,
+    #debtManagement > .row.no-gutters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+/* Mobile Phones (<= 767.98px) */
+@media (max-width: 767.98px) {
+    .page-content {
+        padding: 8px 8px 12px !important;
+    }
+    .page-title-box {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 8px !important;
+        margin-bottom: 10px !important;
+    }
+    .page-title-box > div:first-child {
+        width: 100% !important;
+        justify-content: space-between !important;
+    }
+    .page-title-box > div:last-child,
+    .page-title-box .cargo-page-actions,
+    .page-title-box .sales-actions {
+        width: 100% !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    .page-title-box .btn,
+    .cargo-page-actions .btn {
+        flex: 1 1 calc(50% - 6px) !important;
+        min-height: 36px !important;
+        font-size: 12px !important;
+        text-align: center !important;
+        justify-content: center !important;
+    }
+    .header-navbar-brand .header-brand-text {
+        display: none !important;
+    }
+    .header-company-select {
+        min-width: 110px !important;
+        max-width: 145px !important;
+        font-size: 11px !important;
+        padding: 2px 6px !important;
+        height: 30px !important;
+    }
+    .kpi-unified-grid,
+    .tax-kpi-grid,
+    #debtManagement > .row.no-gutters {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    .card-header {
+        padding: 8px 10px !important;
+    }
+    .card-body {
+        padding: 8px 10px !important;
+    }
+}
+
+/* Narrow Mobile Phones (<= 480px) */
+@media (max-width: 480px) {
+    .page-title-box .btn,
+    .cargo-page-actions .btn {
+        flex: 1 1 100% !important;
+    }
 }

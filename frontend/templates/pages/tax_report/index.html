@@ -1,0 +1,1029 @@
+{% extends "layout.html" %}
+{% block title %}Bảng kê Báo cáo thuế theo quý{% endblock %}
+{% block page_title %}Bảng kê Báo cáo thuế theo quý{% endblock %}
+{% block page_back_button %}
+<a href="/admin/vehicles/cargo" class="btn btn-light btn-sm font-weight-bold">
+  <i class="bx bx-arrow-back mr-1"></i> Chuyến hàng
+</a>
+{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center" style="gap:8px;">
+  <a href="/admin/transport/input-invoices" class="btn btn-outline-primary btn-sm font-weight-bold">
+    <i class="bx bx-receipt mr-1"></i>Hóa đơn đầu vào
+  </a>
+  <a href="/admin/transport/tax-report/export?year={{ year }}&quarter={{ quarter }}{% if company_id %}&company_id={{ company_id }}{% endif %}{% if deductible_in_val is not none %}&deductible_in={{ deductible_in_val }}{% endif %}"
+     class="btn btn-success btn-sm font-weight-bold">
+    <i class="bx bx-download mr-1"></i>Xuất Excel Bảng Kê Quý
+  </a>
+  <button type="button" class="btn btn-outline-secondary btn-sm font-weight-bold" onclick="window.print()">
+    <i class="bx bx-printer mr-1"></i>In bảng kê
+  </button>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .tax-page { font-size: 13px; }
+  .tax-toolbar {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .tax-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .tax-kpi-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tax-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .tax-kpi-card .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  .tax-kpi-card .kpi-value {
+    font-size: 19px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+    line-height: 1.2;
+  }
+  .tax-kpi-card .kpi-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  .tax-kpi-card .kpi-icon {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    font-size: 28px;
+    opacity: 0.18;
+  }
+
+  .tax-balance-card {
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border: 1px solid transparent;
+  }
+  .tax-balance-payable {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: #fde68a;
+    color: #92400e;
+  }
+  .tax-balance-deductible {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: #a7f3d0;
+    color: #065f46;
+  }
+  .tax-balance-neutral {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    color: #475569;
+  }
+
+  .tax-nav-tabs {
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 16px;
+  }
+  .tax-nav-tabs .nav-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    border: none;
+    padding: 10px 18px;
+    cursor: pointer;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+  }
+  .tax-nav-tabs .nav-link:hover {
+    color: #1e3a8a;
+  }
+  .tax-nav-tabs .nav-link.active {
+    color: #1e3a8a;
+    border-bottom: 2px solid #1e3a8a;
+    background: transparent;
+  }
+
+  .table-tax-htkk {
+    width: 100%;
+    min-width: 960px;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1;
+  }
+  .table-tax-htkk th,
+  .table-tax-htkk td {
+    border: 1px solid #cbd5e1 !important;
+    vertical-align: middle;
+    padding: 7px 8px;
+    font-size: 13px;
+  }
+  .table-tax-htkk thead th {
+    background: #f1f5f9;
+    color: #1e293b;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0.2px;
+  }
+  .table-tax-htkk thead th.sub-head {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    background: #f8fafc;
+    padding: 4px 6px;
+  }
+  .table-tax-htkk .col-stt {
+    width: 45px;
+    max-width: 48px;
+    text-align: center;
+    font-weight: 700;
+    color: #334155;
+  }
+  .table-tax-htkk .col-name {
+    min-width: 360px;
+    line-height: 1.45;
+  }
+  .table-tax-htkk .col-code {
+    width: 62px;
+    max-width: 65px;
+    text-align: center;
+    padding: 4px 2px;
+  }
+  .table-tax-htkk .col-val {
+    width: 170px;
+    min-width: 155px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    padding-right: 10px;
+    white-space: nowrap;
+  }
+  .table-tax-htkk tr.highlight-total {
+    background: #f8fafc;
+    font-weight: 700;
+  }
+  .table-tax-htkk tr.highlight-grand {
+    background: #f0f9ff;
+    font-weight: 700;
+  }
+  .table-tax-htkk tr.row-group-header {
+    background: #fafafa;
+    border-top: 2px solid #cbd5e1 !important;
+  }
+  .table-tax-htkk tr.row-group-header td {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .table-tax-detail {
+    min-width: 980px;
+  }
+  .table-tax-detail th {
+    white-space: nowrap;
+  }
+  .table-tax-detail td.col-party {
+    min-width: 320px;
+    white-space: normal;
+    line-height: 1.4;
+  }
+
+  .tax-code-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    height: 24px;
+    padding: 1px 6px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 3px;
+    border: 1px solid #94a3b8;
+    background: #ffffff;
+    color: #1e3a8a;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s ease;
+  }
+  .tax-code-btn:hover {
+    background: #1e3a8a;
+    color: #ffffff;
+    border-color: #1e3a8a;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+  }
+  .tax-code-btn.active-copied {
+    background: #059669 !important;
+    color: #ffffff !important;
+    border-color: #047857 !important;
+  }
+  .tax-code-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    height: 24px;
+    padding: 1px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    border-radius: 3px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    line-height: 1;
+  }
+
+  .filter-pill-btn {
+    padding: 3px 10px;
+    font-size: 12px;
+    border-radius: 20px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .filter-pill-btn.active {
+    background: #1e3a8a;
+    color: #ffffff;
+    border-color: #1e3a8a;
+  }
+
+  @media print {
+    .vertical-menu, header, .tax-toolbar, .page-title-box, .btn, .no-print {
+      display: none !important;
+    }
+    .main-content { margin-left: 0 !important; padding: 0 !important; }
+    .page-content { padding: 0 !important; }
+    .card { border: none !important; box-shadow: none !important; }
+    .tax-page { font-size: 11px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tax-page" x-data="{
+  activeTab: 'htkk',
+  outSearch: '',
+  outRate: 'all',
+  inSearch: '',
+  inRate: 'all',
+  copySuccess: '',
+  copyVal(val, label) {
+    const num = Math.round(Number(val || 0));
+    navigator.clipboard.writeText(num.toString()).then(() => {
+      this.copySuccess = label;
+      setTimeout(() => { this.copySuccess = ''; }, 2000);
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã sao chép số tiền chỉ tiêu ' + label + ': ' + num.toLocaleString('vi-VN') + ' đ', type:'success'}}));
+    });
+  }
+}">
+
+  <!-- TOOLBAR BỘ LỌC -->
+  <div class="tax-toolbar no-print">
+    <form method="get" action="/admin/transport/tax-report" class="d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold text-muted small mr-1"><i class="bx bx-filter-alt mr-1"></i>Kỳ báo cáo:</span>
+
+        <!-- Chọn Quý -->
+        <select name="quarter" class="form-control form-control-sm font-weight-bold" style="width:160px;" onchange="this.form.submit()">
+          <option value="1" {% if quarter == 1 %}selected{% endif %}>Quý 1 (T1 - T3)</option>
+          <option value="2" {% if quarter == 2 %}selected{% endif %}>Quý 2 (T4 - T6)</option>
+          <option value="3" {% if quarter == 3 %}selected{% endif %}>Quý 3 (T7 - T9)</option>
+          <option value="4" {% if quarter == 4 %}selected{% endif %}>Quý 4 (T10 - T12)</option>
+          <option value="0" {% if quarter == 0 %}selected{% endif %}>Cả năm</option>
+        </select>
+
+        <!-- Chọn Năm -->
+        <select name="year" class="form-control form-control-sm font-weight-bold" style="width:105px;" onchange="this.form.submit()">
+          {% for y in available_years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>Năm {{ y }}</option>
+          {% endfor %}
+        </select>
+
+        <!-- Chọn Công ty -->
+        {% if companies %}
+        <select name="company_id" class="form-control form-control-sm font-weight-bold ml-1" style="min-width:220px; max-width:360px;" onchange="this.form.submit()">
+          {% for c in companies %}
+          <option value="{{ c.id }}" {% if c.id == company_id %}selected{% endif %}>
+            {{ c.name }}{% if c.tax_code %} ({{ c.tax_code }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        {% endif %}
+
+        <!-- Nút Xem báo cáo / Lọc cho iPad và Máy tính -->
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3 shadow-sm ml-1" style="display:inline-flex; align-items:center; gap:6px; height:31px; border-radius:6px;">
+          <i class="bx bx-search"></i>
+          <span>Xem báo cáo</span>
+        </button>
+      </div>
+
+      <div class="text-right">
+        <span class="badge badge-light border text-dark font-weight-medium px-2 py-1" style="font-size:12px;">
+          <i class="bx bx-calendar mr-1"></i>Từ <strong>{{ start_date[8:10] }}/{{ start_date[5:7] }}/{{ start_date[:4] }}</strong> đến <strong>{{ end_date[8:10] }}/{{ end_date[5:7] }}/{{ end_date[:4] }}</strong>
+        </span>
+      </div>
+    </form>
+  </div>
+
+  <!-- KPI CARDS GRID -->
+  <div class="tax-kpi-grid">
+    <!-- Card 1: Doanh thu bán ra -->
+    <div class="tax-kpi-card">
+      <div class="kpi-label">Doanh thu bán ra (chưa VAT)</div>
+      <div class="kpi-value text-primary">{{ total_out_subtotal_fmt }}</div>
+      <div class="kpi-sub">
+        <i class="bx bx-file mr-1"></i><strong>{{ summary.out_count }}</strong> hóa đơn phát hành
+      </div>
+      <i class="bx bx-trending-up kpi-icon text-primary"></i>
+    </div>
+
+    <!-- Card 2: Thuế GTGT bán ra -->
+    <div class="tax-kpi-card">
+      <div class="kpi-label">Thuế GTGT bán ra (Đầu ra)</div>
+      <div class="kpi-value text-indigo" style="color:#4f46e5;">{{ total_out_vat_fmt }}</div>
+      <div class="kpi-sub">
+        Tổng thanh toán: <strong>{{ total_out_gross_fmt }}</strong>
+      </div>
+      <i class="bx bx-receipt kpi-icon text-indigo" style="color:#4f46e5;"></i>
+    </div>
+
+    <!-- Card 3: Chi phí mua vào -->
+    <div class="tax-kpi-card">
+      <div class="kpi-label">Chi phí mua vào (chưa VAT)</div>
+      <div class="kpi-value text-purple" style="color:#7c3aed;">{{ total_in_subtotal_fmt }}</div>
+      <div class="kpi-sub">
+        <i class="bx bx-shopping-bag mr-1"></i><strong>{{ summary.in_count }}</strong> hóa đơn chi phí
+      </div>
+      <i class="bx bx-purchase-tag kpi-icon text-purple" style="color:#7c3aed;"></i>
+    </div>
+
+    <!-- Card 4: Thuế GTGT mua vào -->
+    <div class="tax-kpi-card">
+      <div class="kpi-label">Thuế GTGT mua vào (Được khấu trừ)</div>
+      <div class="kpi-value text-teal" style="color:#0d9488;">{{ total_in_vat_fmt }}</div>
+      <div class="kpi-sub">
+        Tổng thanh toán: <strong>{{ total_in_total_fmt }}</strong>
+      </div>
+      <i class="bx bx-shield-quarter kpi-icon text-teal" style="color:#0d9488;"></i>
+    </div>
+  </div>
+
+  <!-- HIGHLIGHT BANNER: CÂN ĐỐI NGHĨA VỤ THUẾ -->
+  <div class="tax-balance-card {% if summary.vat_payable > 0 %}tax-balance-payable{% elif summary.vat_deductible > 0 %}tax-balance-deductible{% else %}tax-balance-neutral{% endif %}">
+    <div class="d-flex align-items-center" style="gap:14px;">
+      <div style="font-size:32px;">
+        {% if summary.vat_payable > 0 %}
+        <i class="bx bx-error-circle text-warning"></i>
+        {% elif summary.vat_deductible > 0 %}
+        <i class="bx bx-check-shield text-success"></i>
+        {% else %}
+        <i class="bx bx-minus-circle text-muted"></i>
+        {% endif %}
+      </div>
+      <div>
+        <div class="font-weight-bold" style="font-size:14px; text-transform:uppercase; letter-spacing:0.4px;">
+          {% if summary.vat_payable > 0 %}
+            Thuế GTGT phải nộp trong kỳ (Chỉ tiêu [40])
+          {% elif summary.vat_deductible > 0 %}
+            Thuế GTGT còn được khấu trừ chuyển kỳ sau (Chỉ tiêu [43])
+          {% else %}
+            Thuế GTGT cân bằng trong kỳ (Bằng 0)
+          {% endif %}
+        </div>
+        <small class="d-block" style="opacity:0.9;">
+          {% if summary.vat_payable > 0 %}
+            Thuế GTGT đầu ra lớn hơn thuế đầu vào được khấu trừ (đã trừ chỉ tiêu [22] khấu trừ kỳ trước chuyển sang: <strong>{{ vat_carry_in_fmt }}</strong>). Doanh nghiệp cần nộp số tiền này vào NSNN trước ngày 30 của tháng đầu quý kế tiếp.
+          {% elif summary.vat_deductible > 0 %}
+            Thuế GTGT đầu vào lớn hơn thuế đầu ra phát sinh. Số thuế này được kết chuyển sang chỉ tiêu [22] của quý kế tiếp để khấu trừ tiếp.
+          {% else %}
+            Doanh thu và chi phí cân bằng nghĩa vụ thuế GTGT.
+          {% endif %}
+        </small>
+      </div>
+    </div>
+    <div class="text-right">
+      <div style="font-size:24px; font-weight:800; font-variant-numeric:tabular-nums;">
+        {% if summary.vat_payable > 0 %}
+          {{ vat_payable_fmt }}
+        {% elif summary.vat_deductible > 0 %}
+          {{ vat_deductible_fmt }}
+        {% else %}
+          0 ₫
+        {% endif %}
+      </div>
+      <span class="badge badge-pill {% if summary.vat_payable > 0 %}badge-warning{% elif summary.vat_deductible > 0 %}badge-success{% else %}badge-secondary{% endif %} font-weight-bold">
+        Phát sinh kỳ này [36]: {{ net_vat_fmt }} {% if summary.vat_carry_in > 0 %} · Khấu trừ kỳ trước [22]: {{ vat_carry_in_fmt }}{% endif %}
+      </span>
+    </div>
+  </div>
+
+  <!-- TABS NAVIGATION -->
+  <div class="tax-nav-tabs d-flex align-items-center">
+    <button type="button" class="nav-link" :class="activeTab === 'htkk' ? 'active' : ''" @click="activeTab = 'htkk'">
+      <i class="bx bx-calculator mr-1"></i>I. Đối chiếu Tờ khai Thuế (Mẫu 01/GTGT)
+    </button>
+    <button type="button" class="nav-link" :class="activeTab === 'output' ? 'active' : ''" @click="activeTab = 'output'">
+      <i class="bx bx-upload mr-1"></i>II. Bảng kê Bán ra (Đầu ra) <span class="badge badge-primary badge-pill ml-1">{{ summary.out_count }}</span>
+    </button>
+    <button type="button" class="nav-link" :class="activeTab === 'input' ? 'active' : ''" @click="activeTab = 'input'">
+      <i class="bx bx-download mr-1"></i>III. Bảng kê Mua vào (Đầu vào) <span class="badge badge-secondary badge-pill ml-1">{{ summary.in_count }}</span>
+    </button>
+  </div>
+
+  <!-- TAB 1: BẢNG ĐỐI CHIẾU CHỈ TIÊU TỜ KHAI THUẾ HTKK -->
+  <div x-show="activeTab === 'htkk'" x-cloak>
+    <div class="card mb-4 border">
+      <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap py-2" style="gap:10px;">
+        <span class="font-weight-bold text-dark">
+          <i class="bx bx-table mr-1 text-primary"></i>TỜ KHAI THUẾ GIÁ TRỊ GIA TĂNG (MẪU 01/GTGT) — {{ period_label|upper }}
+        </span>
+        <div class="d-flex align-items-center flex-wrap" style="gap:12px;">
+          <span class="font-italic text-dark font-weight-medium small">
+            Đơn vị tiền: Đồng Việt Nam
+          </span>
+          <span class="badge badge-light border text-muted px-2 py-1 small d-none d-md-inline">
+            <i class="bx bx-copy mr-1 text-primary"></i>Bấm vào mã chỉ tiêu <strong>[xx]</strong> để copy số tiền
+          </span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 table-tax-htkk no-bulk" data-no-bulk="1">
+          <thead>
+            <tr>
+              <th rowspan="2" class="col-stt" style="vertical-align:middle;">STT</th>
+              <th rowspan="2" class="text-center col-name" style="vertical-align:middle;">Chỉ tiêu</th>
+              <th colspan="2" class="text-center" style="border-bottom:1px solid #cbd5e1;">
+                Giá trị hàng hóa, dịch vụ<br>
+                <span style="font-weight:normal; font-size:11px; text-transform:none; color:#475569;">(chưa có thuế giá trị gia tăng)</span>
+              </th>
+              <th colspan="2" class="text-center" style="border-bottom:1px solid #cbd5e1; vertical-align:middle;">
+                Thuế giá trị gia tăng
+              </th>
+            </tr>
+            <tr>
+              <th class="sub-head col-code">Mã CT</th>
+              <th class="sub-head col-val text-right">Số tiền</th>
+              <th class="sub-head col-code">Mã CT</th>
+              <th class="sub-head col-val text-right">Số tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Mục A: Không phát sinh -->
+            <tr>
+              <td class="col-stt">A</td>
+              <td class="col-name font-weight-medium">Không phát sinh hoạt động mua, bán trong kỳ (đánh dấu "X")</td>
+              <td class="col-code"><span class="tax-code-box">[21]</span></td>
+              <td class="col-val text-center">
+                <input type="checkbox" disabled {% if summary.out_count == 0 and summary.in_count == 0 %}checked{% endif %} style="transform: scale(1.15); cursor:default;">
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+            </tr>
+
+            <!-- Mục B: Khấu trừ kỳ trước -->
+            <tr style="background:#f8fafc;">
+              <td class="col-stt">B</td>
+              <td class="col-name font-weight-bold text-dark">
+                Thuế giá trị gia tăng còn được khấu trừ kỳ trước chuyển sang
+                {% if summary.vat_carry_in > 0 %}
+                <span class="badge badge-success ml-1 font-weight-normal" style="font-size:10px;">Chuyển từ Quý trước</span>
+                {% endif %}
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[22]' ? 'active-copied' : ''" @click="copyVal({{ summary.vat_carry_in }}, '[22]')" title="Bấm để copy số tiền [22]">
+                  <span x-text="copySuccess === '[22]' ? '✓ [22]' : '[22]'">[22]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-success" style="color:#047857;">
+                {{ summary.vat_carry_in|format_number }}
+              </td>
+            </tr>
+
+            <!-- Mục C Header -->
+            <tr class="row-group-header" style="background:#f1f5f9; border-top:2px solid #cbd5e1;">
+              <td class="col-stt font-weight-bold">C</td>
+              <td colspan="5" class="font-weight-bold text-uppercase py-2 text-primary" style="font-size:11px; letter-spacing:0.5px;">
+                Kê khai thuế giá trị gia tăng phải nộp ngân sách nhà nước
+              </td>
+            </tr>
+
+            <!-- I. Hàng hoá mua vào -->
+            <tr class="row-group-header" style="background:#fafafa;">
+              <td class="col-stt text-primary font-weight-bold">I</td>
+              <td colspan="5" class="font-weight-bold text-dark py-1" style="font-size:12px;">
+                Hàng hóa, dịch vụ mua vào trong kỳ
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt">1</td>
+              <td class="col-name font-weight-medium">Giá trị và thuế giá trị gia tăng của hàng hóa, dịch vụ mua vào</td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[23]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_in_subtotal }}, '[23]')" title="Bấm để copy số tiền [23]">
+                  <span x-text="copySuccess === '[23]' ? '✓ [23]' : '[23]'">[23]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-dark">
+                {{ summary.total_in_subtotal|format_number }}
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[24]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_in_vat }}, '[24]')" title="Bấm để copy số tiền [24]">
+                  <span x-text="copySuccess === '[24]' ? '✓ [24]' : '[24]'">[24]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-teal" style="color:#0d9488;">
+                {{ summary.total_in_vat|format_number }}
+              </td>
+            </tr>
+            <tr style="background:#f8fafc;">
+              <td class="col-stt text-muted"></td>
+              <td class="col-name pl-4 text-muted">
+                <i class="bx bx-subdirectory-right mr-1"></i>Trong đó: hàng hóa, dịch vụ nhập khẩu
+              </td>
+              <td class="col-code"><span class="tax-code-box">[23a]</span></td>
+              <td class="col-val text-muted">0</td>
+              <td class="col-code"><span class="tax-code-box">[24a]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+            <tr class="highlight-total">
+              <td class="col-stt font-weight-bold">2</td>
+              <td class="col-name font-weight-bold">
+                Thuế giá trị gia tăng của hàng hóa, dịch vụ mua vào được khấu trừ kỳ này
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[25]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_in_vat }}, '[25]')" title="Bấm để copy số tiền [25]">
+                  <span x-text="copySuccess === '[25]' ? '✓ [25]' : '[25]'">[25]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-teal" style="font-size:14px; color:#0d9488;">
+                {{ summary.total_in_vat|format_number }}
+              </td>
+            </tr>
+
+            <!-- II. Hàng hoá bán ra -->
+            <tr class="row-group-header" style="background:#fafafa; border-top:2px solid #cbd5e1;">
+              <td class="col-stt text-primary font-weight-bold">II</td>
+              <td colspan="5" class="font-weight-bold text-dark py-1" style="font-size:12px;">
+                Hàng hóa, dịch vụ bán ra trong kỳ
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt">1</td>
+              <td class="col-name">Hàng hóa, dịch vụ bán ra không chịu thuế giá trị gia tăng</td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[26]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate.kct.subtotal }}, '[26]')" title="Bấm để copy số tiền [26]">
+                  <span x-text="copySuccess === '[26]' ? '✓ [26]' : '[26]'">[26]</span>
+                </button>
+              </td>
+              <td class="col-val">
+                {{ summary.out_by_rate.kct.subtotal|format_number }}
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+            </tr>
+            <tr class="highlight-grand" style="background:#f0f9ff;">
+              <td class="col-stt font-weight-bold">2</td>
+              <td class="col-name font-weight-bold text-dark">
+                Hàng hóa, dịch vụ bán ra chịu thuế giá trị gia tăng ([27]=[29]+[30]+[32]+[32a]; [28]=[31]+[33])
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[27]' ? 'active-copied' : ''" @click="copyVal({{ summary.taxable_out_subtotal }}, '[27]')" title="Bấm để copy số tiền [27]">
+                  <span x-text="copySuccess === '[27]' ? '✓ [27]' : '[27]'">[27]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-primary" style="font-size:14px;">
+                {{ summary.taxable_out_subtotal|format_number }}
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[28]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_out_vat }}, '[28]')" title="Bấm để copy số tiền [28]">
+                  <span x-text="copySuccess === '[28]' ? '✓ [28]' : '[28]'">[28]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-indigo" style="font-size:14px; color:#4f46e5;">
+                {{ summary.total_out_vat|format_number }}
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">a</td>
+              <td class="col-name pl-4">Hàng hóa, dịch vụ bán ra chịu thuế suất 0%</td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[29]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate['0'].subtotal }}, '[29]')" title="Bấm để copy số tiền [29]">
+                  <span x-text="copySuccess === '[29]' ? '✓ [29]' : '[29]'">[29]</span>
+                </button>
+              </td>
+              <td class="col-val">
+                {{ summary.out_by_rate['0'].subtotal|format_number }}
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">b</td>
+              <td class="col-name pl-4">Hàng hóa, dịch vụ bán ra chịu thuế suất 5%</td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[30]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate['5'].subtotal }}, '[30]')" title="Bấm để copy số tiền [30]">
+                  <span x-text="copySuccess === '[30]' ? '✓ [30]' : '[30]'">[30]</span>
+                </button>
+              </td>
+              <td class="col-val">
+                {{ summary.out_by_rate['5'].subtotal|format_number }}
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[31]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate['5'].vat }}, '[31]')" title="Bấm để copy số tiền [31]">
+                  <span x-text="copySuccess === '[31]' ? '✓ [31]' : '[31]'">[31]</span>
+                </button>
+              </td>
+              <td class="col-val">
+                {{ summary.out_by_rate['5'].vat|format_number }}
+              </td>
+            </tr>
+            <tr style="background:#fafafa;">
+              <td class="col-stt font-weight-bold text-dark">c</td>
+              <td class="col-name pl-4 font-weight-medium">
+                Hàng hóa, dịch vụ bán ra chịu thuế suất 10%
+                <div class="small text-muted mt-1">
+                  • Nhóm 8% (giảm thuế): Doanh số <strong>{{ summary.out_by_rate['8'].subtotal|format_number }}</strong> · Thuế: <strong>{{ summary.out_by_rate['8'].vat|format_number }}</strong><br>
+                  • Nhóm 10% (thường): Doanh số <strong>{{ summary.out_by_rate['10'].subtotal|format_number }}</strong> · Thuế: <strong>{{ summary.out_by_rate['10'].vat|format_number }}</strong>
+                </div>
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[32]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate['8'].subtotal + summary.out_by_rate['10'].subtotal }}, '[32]')" title="Bấm để copy số tiền [32]">
+                  <span x-text="copySuccess === '[32]' ? '✓ [32]' : '[32]'">[32]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-dark">
+                {{ (summary.out_by_rate['8'].subtotal + summary.out_by_rate['10'].subtotal)|format_number }}
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[33]' ? 'active-copied' : ''" @click="copyVal({{ summary.out_by_rate['8'].vat + summary.out_by_rate['10'].vat }}, '[33]')" title="Bấm để copy số tiền [33]">
+                  <span x-text="copySuccess === '[33]' ? '✓ [33]' : '[33]'">[33]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-indigo" style="color:#4f46e5;">
+                {{ (summary.out_by_rate['8'].vat + summary.out_by_rate['10'].vat)|format_number }}
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">d</td>
+              <td class="col-name pl-4 text-muted">Hàng hóa, dịch vụ bán ra không tính thuế</td>
+              <td class="col-code"><span class="tax-code-box text-muted">[32a]</span></td>
+              <td class="col-val text-muted">0</td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+            </tr>
+            <tr class="highlight-grand" style="border-top:2px solid #93c5fd;">
+              <td class="col-stt font-weight-bold">3</td>
+              <td class="col-name font-weight-bold text-dark">
+                Tổng doanh thu và thuế giá trị gia tăng của hàng hóa, dịch vụ bán ra ([34]=[26]+[27]; [35]=[28])
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[34]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_out_subtotal }}, '[34]')" title="Bấm để copy số tiền [34]">
+                  <span x-text="copySuccess === '[34]' ? '✓ [34]' : '[34]'">[34]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-primary" style="font-size:14px;">
+                {{ summary.total_out_subtotal|format_number }}
+              </td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn" :class="copySuccess === '[35]' ? 'active-copied' : ''" @click="copyVal({{ summary.total_out_vat }}, '[35]')" title="Bấm để copy số tiền [35]">
+                  <span x-text="copySuccess === '[35]' ? '✓ [35]' : '[35]'">[35]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold text-indigo" style="font-size:14px; color:#4f46e5;">
+                {{ summary.total_out_vat|format_number }}
+              </td>
+            </tr>
+
+            <!-- III. Thuế phát sinh trong kỳ -->
+            <tr style="background:#f8fafc; border-top:2px solid #cbd5e1;">
+              <td class="col-stt text-primary font-weight-bold">III</td>
+              <td class="col-name font-weight-bold text-dark">
+                Thuế giá trị gia tăng phát sinh trong kỳ ([36]=[35]-[25])
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn font-weight-bold" :class="copySuccess === '[36]' ? 'active-copied' : ''" @click="copyVal({{ summary.net_vat }}, '[36]')" title="Bấm để copy số tiền [36]">
+                  <span x-text="copySuccess === '[36]' ? '✓ [36]' : '[36]'">[36]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold {% if summary.net_vat > 0 %}text-warning{% else %}text-success{% endif %}" style="font-size:14px;">
+                {% if summary.net_vat < 0 %}({{ (summary.net_vat * -1)|format_number }}){% else %}{{ summary.net_vat|format_number }}{% endif %}
+              </td>
+            </tr>
+
+            <!-- IV. Điều chỉnh tăng giảm -->
+            <tr class="row-group-header" style="background:#fafafa;">
+              <td class="col-stt text-primary font-weight-bold">IV</td>
+              <td colspan="5" class="font-weight-medium text-muted py-1" style="font-size:12px;">
+                Điều chỉnh tăng, giảm thuế giá trị gia tăng còn được khấu trừ của các kỳ trước
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">1</td>
+              <td class="col-name pl-4 text-muted">Điều chỉnh giảm</td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code"><span class="tax-code-box text-muted">[37]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">2</td>
+              <td class="col-name pl-4 text-muted">Điều chỉnh tăng</td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code"><span class="tax-code-box text-muted">[38]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+
+            <!-- V. Bàn giao -->
+            <tr>
+              <td class="col-stt text-primary font-weight-bold">V</td>
+              <td class="col-name text-muted">Thuế giá trị gia tăng nhận bàn giao được khấu trừ trong kỳ</td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code"><span class="tax-code-box text-muted">[39a]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+
+            <!-- VI. Xác định nghĩa vụ thuế -->
+            <tr class="row-group-header" style="background:#f1f5f9; border-top:2px solid #cbd5e1;">
+              <td class="col-stt font-weight-bold text-dark">VI</td>
+              <td colspan="5" class="font-weight-bold text-uppercase py-2 text-dark" style="font-size:12px; letter-spacing:0.5px;">
+                Xác định nghĩa vụ thuế giá trị gia tăng phải nộp trong kỳ:
+              </td>
+            </tr>
+            <tr style="background:#fffbeb;">
+              <td class="col-stt font-weight-bold text-warning">1</td>
+              <td class="col-name font-weight-bold text-warning">
+                Thuế giá trị gia tăng phải nộp của hoạt động sản xuất kinh doanh trong kỳ ({[40a]=([36]-[22]+[37]-[38]-[39a]) ≥ 0})
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn font-weight-bold" :class="copySuccess === '[40a]' ? 'active-copied' : ''" @click="copyVal({{ summary.vat_payable }}, '[40a]')" title="Bấm để copy số tiền [40a]">
+                  <span x-text="copySuccess === '[40a]' ? '✓ [40a]' : '[40a]'">[40a]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold" style="font-size:14px; color:#b45309;">
+                {{ summary.vat_payable|format_number }}
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">2</td>
+              <td class="col-name pl-4 text-muted">
+                Thuế giá trị gia tăng mua vào của dự án đầu tư được bù trừ với thuế GTGT còn phải nộp của hoạt động sản xuất kinh doanh cùng kỳ tính thuế ([40b] ≤ [40a])
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code"><span class="tax-code-box text-muted">[40b]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+            <tr style="background:#fffbeb;">
+              <td class="col-stt font-weight-bold text-warning">3</td>
+              <td class="col-name font-weight-bold text-warning">
+                Thuế giá trị gia tăng còn phải nộp trong kỳ ([40]=[40a]-[40b])
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn font-weight-bold" :class="copySuccess === '[40]' ? 'active-copied' : ''" @click="copyVal({{ summary.vat_payable }}, '[40]')" title="Bấm để copy số tiền [40]">
+                  <span x-text="copySuccess === '[40]' ? '✓ [40]' : '[40]'">[40]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold" style="font-size:15px; color:#b45309;">
+                {{ summary.vat_payable|format_number }}
+              </td>
+            </tr>
+            <tr style="background:#ecfdf5;">
+              <td class="col-stt font-weight-bold text-success">4</td>
+              <td class="col-name font-weight-bold text-success">
+                Thuế giá trị gia tăng chưa khấu trừ hết kỳ này ({[41]=([36]-[22]+[37]-[38]-[39a]) ≤ 0})
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn font-weight-bold" :class="copySuccess === '[41]' ? 'active-copied' : ''" @click="copyVal({{ summary.vat_deductible }}, '[41]')" title="Bấm để copy số tiền [41]">
+                  <span x-text="copySuccess === '[41]' ? '✓ [41]' : '[41]'">[41]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold" style="font-size:14px; color:#047857;">
+                {{ summary.vat_deductible|format_number }}
+              </td>
+            </tr>
+            <tr>
+              <td class="col-stt text-muted">4.1</td>
+              <td class="col-name pl-4 text-muted">Thuế giá trị gia tăng đề nghị hoàn ([42] ≤ [41])</td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code"><span class="tax-code-box text-muted">[42]</span></td>
+              <td class="col-val text-muted">0</td>
+            </tr>
+            <tr style="background:#ecfdf5; border-bottom:2px solid #a7f3d0;">
+              <td class="col-stt font-weight-bold text-success">4.2</td>
+              <td class="col-name font-weight-bold text-success">
+                Thuế giá trị gia tăng còn được khấu trừ chuyển kỳ sau ([43]=[41]-[42])
+              </td>
+              <td class="col-code"></td>
+              <td class="col-val"></td>
+              <td class="col-code">
+                <button type="button" class="tax-code-btn font-weight-bold" :class="copySuccess === '[43]' ? 'active-copied' : ''" @click="copyVal({{ summary.vat_deductible }}, '[43]')" title="Bấm để copy số tiền [43]">
+                  <span x-text="copySuccess === '[43]' ? '✓ [43]' : '[43]'">[43]</span>
+                </button>
+              </td>
+              <td class="col-val font-weight-bold" style="font-size:16px; color:#047857;">
+                {{ summary.vat_deductible|format_number }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: BẢNG KÊ HÓA ĐƠN ĐẦU RA (BÁN RA) -->
+  <div x-show="activeTab === 'output'" x-cloak>
+    <div class="card mb-4 border">
+      <div class="card-header bg-white py-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <input type="text" class="form-control form-control-sm" style="width:240px;" placeholder="Tìm theo số HĐ, tên, MST..." x-model="outSearch">
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="filter-pill-btn" :class="outRate === 'all' ? 'active' : ''" @click="outRate = 'all'">Tất cả</button>
+              <button type="button" class="filter-pill-btn" :class="outRate === '8' ? 'active' : ''" @click="outRate = '8'">Thuế 8%</button>
+              <button type="button" class="filter-pill-btn" :class="outRate === '10' ? 'active' : ''" @click="outRate = '10'">Thuế 10%</button>
+              <button type="button" class="filter-pill-btn" :class="outRate === '5' ? 'active' : ''" @click="outRate = '5'">Thuế 5%</button>
+              <button type="button" class="filter-pill-btn" :class="outRate === '0' ? 'active' : ''" @click="outRate = '0'">Thuế 0%</button>
+            </div>
+          </div>
+          <div class="small text-muted">
+            Tổng <strong>{{ output_invoices|length }}</strong> hóa đơn phát hành
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 table-tax-detail" style="font-size:12px;">
+          <thead class="thead-light">
+            <tr>
+              <th style="width:45px;" class="text-center">STT</th>
+              <th style="width:90px;" class="text-center">Ký hiệu</th>
+              <th style="width:110px;" class="text-center">Số HĐ</th>
+              <th style="width:95px;" class="text-center">Ngày lập</th>
+              <th style="min-width:320px;">Khách hàng / Đơn vị mua</th>
+              <th style="width:130px;" class="text-center">Mã số thuế</th>
+              <th class="text-right" style="width:140px;">Doanh số chưa VAT</th>
+              <th style="width:80px;" class="text-center">Thuế suất</th>
+              <th class="text-right" style="width:130px;">Tiền thuế GTGT</th>
+              <th class="text-right" style="width:145px;">Tổng thanh toán</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in output_invoices %}
+            <tr x-show="(outRate === 'all' || outRate === '{{ inv.vat_rate_percent }}') && (!outSearch || '{{ inv.invoice_number }} {{ inv.buyer_name }} {{ inv.buyer_tax_code }}'.toLowerCase().includes(outSearch.toLowerCase()))">
+              <td class="text-center text-muted">{{ loop.index }}</td>
+              <td class="text-center">{{ inv.serial }}</td>
+              <td class="text-center font-weight-bold text-primary">
+                {{ inv.invoice_number }}
+              </td>
+              <td class="text-center text-nowrap">{{ inv.date_fmt }}</td>
+              <td class="font-weight-medium col-party">{{ inv.buyer_name }}</td>
+              <td class="text-center text-nowrap">{{ inv.buyer_tax_code or '—' }}</td>
+              <td class="text-right font-weight-bold text-dark">{{ inv.subtotal_fmt }}</td>
+              <td class="text-center">
+                <span class="badge badge-light border">{{ inv.vat_rate_label }}</span>
+              </td>
+              <td class="text-right font-weight-bold" style="color:#4f46e5;">{{ inv.vat_amount_fmt }}</td>
+              <td class="text-right font-weight-bold text-dark">{{ inv.gross_fmt }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="10" class="text-center text-muted py-4">Chưa có hóa đơn bán ra trong khoảng thời gian này.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="thead-light" style="font-weight:700; border-top:2px solid #cbd5e1;">
+            <tr>
+              <td colspan="6" class="text-center text-uppercase py-2">TỔNG CỘNG HÓA ĐƠN BÁN RA</td>
+              <td class="text-right text-primary">{{ total_out_subtotal_fmt }}</td>
+              <td class="text-center">—</td>
+              <td class="text-right" style="color:#4f46e5;">{{ total_out_vat_fmt }}</td>
+              <td class="text-right text-dark">{{ total_out_gross_fmt }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: BẢNG KÊ HÓA ĐƠN ĐẦU VÀO (MUA VÀO) -->
+  <div x-show="activeTab === 'input'" x-cloak>
+    <div class="card mb-4 border">
+      <div class="card-header bg-white py-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <input type="text" class="form-control form-control-sm" style="width:240px;" placeholder="Tìm NCC, MST, mặt hàng..." x-model="inSearch">
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="filter-pill-btn" :class="inRate === 'all' ? 'active' : ''" @click="inRate = 'all'">Tất cả</button>
+              <button type="button" class="filter-pill-btn" :class="inRate === '10' ? 'active' : ''" @click="inRate = '10'">Thuế 10%</button>
+              <button type="button" class="filter-pill-btn" :class="inRate === '8' ? 'active' : ''" @click="inRate = '8'">Thuế 8%</button>
+              <button type="button" class="filter-pill-btn" :class="inRate === '5' ? 'active' : ''" @click="inRate = '5'">Thuế 5%</button>
+              <button type="button" class="filter-pill-btn" :class="(inRate === 'kkknt' || inRate === '0') ? 'active' : ''" @click="inRate = 'kkknt'">KKKNT</button>
+            </div>
+          </div>
+          <div class="small text-muted">
+            Tổng <strong>{{ input_invoices|length }}</strong> hóa đơn chi phí mua vào
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 table-tax-detail" style="font-size:12px;">
+          <thead class="thead-light">
+            <tr>
+              <th style="width:45px;" class="text-center">STT</th>
+              <th style="width:90px;" class="text-center">Ký hiệu</th>
+              <th style="width:110px;" class="text-center">Số HĐ</th>
+              <th style="width:95px;" class="text-center">Ngày lập</th>
+              <th style="min-width:320px;">Nhà cung cấp / Người bán</th>
+              <th style="width:130px;" class="text-center">Mã số thuế</th>
+              <th class="text-right" style="width:140px;">Tiền hàng chưa VAT</th>
+              <th style="width:80px;" class="text-center">Thuế suất</th>
+              <th class="text-right" style="width:130px;">Tiền thuế GTGT</th>
+              <th class="text-right" style="width:145px;">Tổng thanh toán</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for inv in input_invoices %}
+            <tr x-show="(inRate === 'all' || inRate === '{{ inv.vat_rate_percent }}' || ((inRate === 'kkknt' || inRate === '0') && ('{{ inv.is_kkknt }}' === 'True' || '{{ inv.vat_rate_percent }}' === 'kkknt' || '{{ inv.vat_rate_percent }}' === '0'))) && (!inSearch || '{{ inv.invoice_number }} {{ inv.seller_name }} {{ inv.seller_tax_code }}'.toLowerCase().includes(inSearch.toLowerCase()))">
+              <td class="text-center text-muted">{{ loop.index }}</td>
+              <td class="text-center">{{ inv.serial or '—' }}</td>
+              <td class="text-center font-weight-bold text-dark">
+                {{ inv.invoice_number or '—' }}
+              </td>
+              <td class="text-center text-nowrap">{{ inv.date_fmt }}</td>
+              <td class="font-weight-medium col-party">{{ inv.seller_name or 'Chưa rõ NCC' }}</td>
+              <td class="text-center text-nowrap">{{ inv.seller_tax_code or '—' }}</td>
+              <td class="text-right font-weight-bold text-dark">{{ inv.subtotal_fmt }}</td>
+              <td class="text-center">
+                {% if inv.vat_rate_label and not inv.is_kkknt and inv.vat_rate_percent not in ('0', 'kkknt') %}
+                <span class="badge badge-light border">{{ inv.vat_rate_label }}</span>
+                {% endif %}
+              </td>
+              <td class="text-right font-weight-bold" style="color:#0d9488;">{{ inv.vat_amount_fmt }}</td>
+              <td class="text-right font-weight-bold text-dark">{{ inv.total_fmt }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="10" class="text-center text-muted py-4">Chưa có hóa đơn mua vào trong khoảng thời gian này.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="thead-light" style="font-weight:700; border-top:2px solid #cbd5e1;">
+            <tr>
+              <td colspan="6" class="text-center text-uppercase py-2">TỔNG CỘNG HÓA ĐƠN MUA VÀO</td>
+              <td class="text-right text-purple" style="color:#7c3aed;">{{ total_in_subtotal_fmt }}</td>
+              <td class="text-center">—</td>
+              <td class="text-right" style="color:#0d9488;">{{ total_in_vat_fmt }}</td>
+              <td class="text-right text-dark">{{ total_in_total_fmt }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

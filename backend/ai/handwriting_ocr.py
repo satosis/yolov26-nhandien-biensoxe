@@ -94,31 +94,7 @@ def _get_places_from_db() -> tuple[list[str], dict[str, str]]:
     return _DB_PLACES_CACHE, _DB_PLACES_FOLDED
 
 
-_DB_CARGO_CACHE: list[str] | None = None
-_DB_CARGO_TIMESTAMP: float = 0
 
-
-def _get_cargo_types_from_db() -> list[str]:
-    """Tải toàn bộ danh mục loại hàng hóa từ database (cargo_catalog_items)."""
-    global _DB_CARGO_CACHE, _DB_CARGO_TIMESTAMP
-    now = time.time()
-    if _DB_CARGO_CACHE is not None and (now - _DB_CARGO_TIMESTAMP < _CACHE_TTL):
-        return _DB_CARGO_CACHE
-
-    cargos: list[str] = []
-    try:
-        from backend.services.database import db
-        rows = db._execute_query(
-            "SELECT name FROM public.cargo_catalog_items WHERE kind = 'cargo_type' ORDER BY name",
-            fetchall=True, commit=False,
-        ) or []
-        cargos = [r["name"].strip() for r in rows if r.get("name")]
-    except Exception as e:
-        logger.warning("Không thể tải danh mục hàng hóa từ DB: %s", e)
-
-    _DB_CARGO_CACHE = cargos
-    _DB_CARGO_TIMESTAMP = now
-    return _DB_CARGO_CACHE
 
 
 def _correct_place(text: str) -> str:
@@ -140,24 +116,6 @@ def _correct_place(text: str) -> str:
         logger.debug("place folded correction: '%s' → '%s'", text, corrected)
         return corrected
     return text
-
-
-def _correct_cargo(text: str) -> str:
-    if len(text) < 3:
-        return text
-    cargos = _get_cargo_types_from_db()
-    if not cargos:
-        return text
-    cargos_lower = [c.lower() for c in cargos]
-    tl = text.lower()
-    matches = difflib.get_close_matches(tl, cargos_lower, n=1, cutoff=0.68)
-    if matches:
-        idx = cargos_lower.index(matches[0])
-        corrected = cargos[idx]
-        logger.debug("cargo correction: '%s' → '%s'", text, corrected)
-        return corrected
-    return text
-
 
 
 @lru_cache(maxsize=1)
@@ -555,10 +513,6 @@ def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
     return decoded
 
 
-def _ocr_line_results(image_bytes: bytes) -> list[dict]:
-    return _ocr_line_results_from_bgr(_decode_image_bgr(image_bytes))
-
-
 def _is_pdf(filename: str = "", content_type: str = "") -> bool:
     return (content_type or "").lower().startswith("application/pdf") or (filename or "").lower().endswith(".pdf")
 
@@ -834,112 +788,7 @@ def _extract_unlabeled_trip_numbers(line: str) -> dict:
 
 
 
-def _extract_weight(line: str) -> Optional[float]:
-    m = _WEIGHT_RE.search(line)
-    if not m:
-        return None
-    val = _parse_number(m.group(1))
-    if val is None:
-        return None
-    raw = m.group(0).lower()
-    if "tạ" in raw:
-        val = val / 10.0
-    elif "kg" in raw:
-        val = val / 1000.0
-    return val
 
-
-def _lines_to_trips(lines: list[str]) -> list[dict]:
-    trips: list[dict] = []
-    current: Optional[dict] = None
-    year_hint = datetime.now().year
-
-    def _flush():
-        if current and current.get("departure_time"):
-            trips.append(dict(current))
-
-    def _enrich(line: str, trip: dict, overwrite: bool = False):
-        folded_line = _fold_text(line)
-        origin, dest = _parse_route(line)
-        if origin and (overwrite or not trip.get("origin")):
-            trip["origin"] = origin
-        if dest and (overwrite or not trip.get("destination")):
-            trip["destination"] = dest
-
-        fm = _FUEL_FOLD_RE.search(folded_line) or _FUEL_RE.search(line)
-        if fm and not trip.get("fuel_liters"):
-            trip["fuel_liters"] = _parse_number(fm.group(1))
-
-        rm = _REVENUE_FOLD_RE.search(folded_line) or _REVENUE_RE.search(line)
-        if rm and not trip.get("freight_revenue"):
-            trip["freight_revenue"] = _parse_number(rm.group(1))
-
-        dm = _DISTANCE_FOLD_RE.search(folded_line)
-        if dm and not trip.get("distance_km"):
-            trip["distance_km"] = _parse_number(dm.group(1))
-
-        inferred = _extract_unlabeled_trip_numbers(line)
-        if not trip.get("fuel_liters") and inferred.get("fuel_liters") is not None:
-            trip["fuel_liters"] = inferred["fuel_liters"]
-        if not trip.get("freight_revenue") and inferred.get("freight_revenue") is not None:
-            trip["freight_revenue"] = inferred["freight_revenue"]
-        if not trip.get("distance_km") and inferred.get("distance_km") is not None:
-            trip["distance_km"] = inferred["distance_km"]
-
-        wm = _extract_weight(line)
-        if wm is not None and not trip.get("weight_tons"):
-            trip["weight_tons"] = wm
-
-
-        tn = _TRIP_NO_RE.search(line)
-        if tn and not trip.get("trip_no"):
-            trip["trip_no"] = int(tn.group(1))
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        dep = _parse_date(line, year_hint)
-
-        if dep and current is not None and _RETURN_KEYWORD_RE.search(line):
-            if not current.get("return_time"):
-                current["return_time"] = dep
-            continue
-
-        if dep:
-            _flush()
-            current = {"departure_time": dep}
-            _enrich(line, current)
-
-        elif current is not None:
-            if _RETURN_KEYWORD_RE.search(line):
-                ret = _parse_date(line, year_hint)
-                if ret and not current.get("return_time"):
-                    current["return_time"] = ret
-                    continue
-
-            _enrich(line, current)
-
-            has_arrow = bool(_ARROW_RE.search(line))
-            has_number = bool(_NUMBER_RE.search(line))
-            if not has_arrow and not has_number and len(line) > 2:
-                if not current.get("note") and line != current.get("departure_time"):
-                    current["note"] = line
-
-    _flush()
-    return trips
-
-
-_TRIP_FIELDS = (
-    "departure_time", "return_time", "origin", "destination",
-    "fuel_liters", "fuel_price_per_liter", "freight_revenue",
-    "distance_km", "note",
-)
-
-
-def _public_trip(candidate: dict) -> dict:
-    return {k: candidate.get(k) for k in _TRIP_FIELDS if candidate.get(k) not in (None, "")}
 
 
 def _set_candidate_field(candidate: dict, field: str, value, line_item: dict, overwrite: bool = False):
@@ -1094,24 +943,7 @@ def _lines_to_trip_candidates(line_items: list[dict]) -> list[dict]:
 
 
 
-def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
-    lines = _ocr_line_results(image_bytes)
-    if not lines:
-        return []
-    trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]
-    logger.info("handwriting_ocr: parse được %d chuyến từ %d dòng", len(trips), len(lines))
-    return trips
 
-
-def extract_trips_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> list[dict]:
-    if _is_pdf(filename, content_type):
-        lines = _ocr_pdf_line_results(file_bytes)
-        if not lines:
-            return []
-        trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]
-        logger.info("handwriting_ocr: parse được %d chuyến từ %d dòng PDF", len(trips), len(lines))
-        return trips
-    return extract_trips_from_image(file_bytes)
 
 
 def extract_trip_candidates_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> dict:

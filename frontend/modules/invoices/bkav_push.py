@@ -79,6 +79,14 @@ def is_configured(seller_tax: str | None = None) -> bool:
 
 
 
+def ensure_schema() -> None:
+    pass
+
+
+def ensure_saved_invoice_links_schema() -> None:
+    pass
+
+
 def push_state(trip_id: int) -> dict | None:
     return db._execute_query(
         "SELECT status, invoice_guid, invoice_form, invoice_serial, invoice_no, message, attempted_at "
@@ -159,7 +167,7 @@ def build_command(trip: dict, buyer: dict) -> dict:
         if len(item_desc) > 500:
             raise ValueError("Nội dung hóa đơn vượt quá 500 ký tự BKAV cho phép.")
         item = {
-            "ItemTypeID": 22,
+            "ItemTypeID": 0,
             "IsDiscount": False,
             "ItemName": item_desc,
             "UnitName": "Ca cẩu" if is_crane_by_shift_service(service) else "Chuyến",
@@ -402,7 +410,7 @@ def push_saved_invoice(invoice: dict, lines: list[dict], buyer: dict, seller: di
         raise ValueError("Không tìm thấy công ty bên bán.")
     seller_tax = str(seller.get("tax_code") or "").strip()
     config = configuration(seller_tax)
-    if invoice.get("entry_origin") != "manual":
+    if invoice.get("entry_origin") not in ("manual", "edited", None):
         raise ValueError("Hóa đơn này đã có trên BKAV; không gửi lại.")
     if not lines:
         raise ValueError("Hóa đơn chưa có dòng xe để đồng bộ.")
@@ -416,6 +424,15 @@ def push_saved_invoice(invoice: dict, lines: list[dict], buyer: dict, seller: di
     for index, line in enumerate(lines, 1):
         description = str(line.get("description") or "").strip()
         plate = str(line.get("plate_number") or "").strip()
+        if not plate and line.get("vehicle_id"):
+            v_row = db._execute_query(
+                "SELECT plate_number FROM public.plate_whitelist WHERE id = %s",
+                (line["vehicle_id"],), fetch=True, commit=False,
+            )
+            if v_row:
+                plate = str(v_row.get("plate_number") or "").strip()
+        if not plate:
+            plate = str(invoice.get("plate_number") or "Xe").strip()
         amount = Decimal(str(line.get("amount") or 0))
         if not description or not plate or not amount.is_finite() or amount <= 0 or amount != amount.to_integral_value():
             raise ValueError(f"Dòng xe {index} thiếu biển số, nội dung hoặc cước hợp lệ.")

@@ -34,8 +34,8 @@
           {% for item in api_keys %}
           <tr class="api-key-item">
             <td class="text-center text-muted font-weight-medium key-stt" style="vertical-align:middle;">{{ loop.index }}</td>
-            <td><input name="keys" value="{{ item.key }}" class="form-control font-monospace" required maxlength="128" aria-label="Key"></td>
-            <td><input name="values" value="{{ item.value }}" type="password" class="form-control font-monospace" required aria-label="Value của {{ item.key }}"></td>
+            <td><input name="keys" value="{{ item.key }}" class="form-control " required maxlength="128" aria-label="Key"></td>
+            <td><input name="values" value="{{ item.value }}" type="password" class="form-control " required aria-label="Value của {{ item.key }}"></td>
             <td class="text-right text-nowrap">
               <button type="button" class="btn btn-light btn-sm" onclick="toggleApiKeyValue(this)" aria-label="Hiện hoặc ẩn value" title="Hiện hoặc ẩn value"><i class="bx bx-show"></i></button>
               <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeApiKeyRow(this)" aria-label="Xóa key" title="Xóa key"><i class="bx bx-trash"></i></button>
@@ -54,8 +54,8 @@
 <template id="api-key-row-template">
   <tr class="api-key-item">
     <td class="text-center text-muted font-weight-medium key-stt" style="vertical-align:middle;"></td>
-    <td><input name="keys" class="form-control font-monospace" required maxlength="128" placeholder="KEY_NAME" aria-label="Key"></td>
-    <td><input name="values" type="password" class="form-control font-monospace" required placeholder="Value" aria-label="Value"></td>
+    <td><input name="keys" class="form-control " required maxlength="128" placeholder="KEY_NAME" aria-label="Key"></td>
+    <td><input name="values" type="password" class="form-control " required placeholder="Value" aria-label="Value"></td>
     <td class="text-right text-nowrap">
       <button type="button" class="btn btn-light btn-sm" onclick="toggleApiKeyValue(this)" aria-label="Hiện hoặc ẩn value" title="Hiện hoặc ẩn value"><i class="bx bx-show"></i></button>
       <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeApiKeyRow(this)" aria-label="Xóa key" title="Xóa key"><i class="bx bx-trash"></i></button>

@@ -156,7 +156,7 @@ async def users_page(
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "users"
     total_users = count_all_users()
-    paginated = paginate_counts(total_users, page=page, per_page=20, base_url="/admin/users")
+    paginated = paginate_counts(total_users, page=page, per_page=100, base_url="/admin/users")
     users = get_all_users(limit=paginated["per_page"], offset=(paginated["page"] - 1) * paginated["per_page"]) or []
     
     for u in users:

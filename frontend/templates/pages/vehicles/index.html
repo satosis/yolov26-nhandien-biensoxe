@@ -30,7 +30,7 @@
               {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
             </td>
             <td>
-              <span class="badge badge-pill badge-success font-weight-bold" style="font-family:monospace;font-size:13px;">{{ v.plate_number }}</span>
+              <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;">{{ v.plate_number }}</span>
             </td>
             <td>{{ v.owner_name or '—' }}</td>
             <td>
@@ -40,7 +40,7 @@
               </div>
             </td>
             <td>
-              {% if v.fuel_consumption is not none %}<span class="font-weight-bold" style="font-family:monospace;">{{ "%g"|format(v.fuel_consumption|float) }}</span> <span class="text-muted small">L/100km</span>{% else %}<span class="text-muted">—</span>{% endif %}
+              {% if v.fuel_consumption is not none %}<span class="font-weight-bold">{{ "%g"|format(v.fuel_consumption|float) }}</span> <span class="text-muted small">L/100km</span>{% else %}<span class="text-muted">—</span>{% endif %}
             </td>
             <td>
               <div class="d-flex flex-wrap" style="gap:4px;">

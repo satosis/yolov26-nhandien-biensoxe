@@ -34,16 +34,3 @@ def check_plate_authenticity(crop) -> tuple[bool, float, str]:
     reason_str = "|".join(reasons) if reasons else "normal"
     return suspicious, min(1.0, confidence), reason_str
 
-def get_debug_info(crop):
-    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
-    hist = cv2.calcHist([gray], [0], None, [256], [0, 256])
-    high_intensity_pixels = np.sum(hist[200:]) / np.sum(hist)
-    edges = cv2.Canny(gray, 100, 200)
-    edge_density = np.sum(edges) / (gray.shape[0] * gray.shape[1] * 255)
-    
-    return {
-        "laplacian_var": laplacian_var,
-        "high_intensity_ratio": high_intensity_pixels,
-        "edge_density": edge_density
-    }

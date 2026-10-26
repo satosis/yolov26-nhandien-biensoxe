@@ -3,25 +3,46 @@ function canonicalizeInvoiceLocation(value) {
 }
 
 function parseInvoiceDescription(raw, serviceNames = [], cargoNames = []) {
-  const source = String(raw || '').replace(/\s+/g, ' ').trim();
+  const normRaw = String(raw || '').normalize('NFC');
+  const source = normRaw.replace(/\s+/g, ' ').trim();
   const fold = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/gi, 'd').toLocaleLowerCase('vi-VN').replace(/\s+/g, ' ').trim();
+  const foldExact = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase();
+  const taxRegex = /^\s*(?:\([^\)]*\)|(?:[+(,]|\b(?:chua|da|khong|co|bao\s+gom|gom|truoc|sau|\+)\b|\s+)*(?:thue|vat|gtgt)\b(?:\s*\))?)/i;
   const moneyPattern = /(?:^|[\s,.;])(\d{1,3}(?:[., ]\d{3})+|\d+(?:[.,]\d+)?)\s*(triệu|tr|đồng|vnđ|vnd|đ)(?=\s|[.,;!?]|$)/gi;
   let price = null;
   for (const match of source.matchAll(moneyPattern)) {
-    const tail = fold(source.slice(match.index + match[0].length)).replace(/[.,;!?]/g, ' ').trim();
-    if (tail && !/^(?:(?:chua|da|khong|co|bao gom|truoc|sau|thue|vat|gtgt)\s*)+$/.test(tail)) continue;
+    const after = source.slice(match.index + match[0].length);
+    const foldedAfter = foldExact(after);
+    const taxMatch = taxRegex.exec(foldedAfter);
+    const taxText = taxMatch ? taxMatch[0] : '';
+    const taxLength = taxMatch ? taxMatch[0].length : 0;
     const unit = fold(match[2]);
     const digits = match[1].replace(/\s/g, '');
     const number = unit === 'tr' || unit === 'trieu'
       ? Number(digits.replace(',', '.')) * 1000000
       : Number(digits.replace(/[.,]/g, ''));
     if (Number.isSafeInteger(number) && number > 0) {
-      const includesVat = /\b(?:da|co|bao gom|sau)\b/.test(tail) && !/\b(?:chua|khong|truoc)\b/.test(tail);
-      price = {amount: includesVat ? null : number, index: match.index, includesVat};
+      const includesVat = taxText
+        ? (/\b(?:da|co|bao gom|sau)\b/.test(taxText) && !/\b(?:chua|khong|truoc)\b/.test(taxText))
+        : false;
+      price = {
+        amount: includesVat ? null : number,
+        start: match.index,
+        end: match.index + match[0].length + taxLength,
+        includesVat
+      };
     }
   }
-  const work = (price ? source.slice(0, price.index) : source).replace(/[\s,.;:]+$/, '').trim();
+  let work = source;
+  if (price) {
+    const beforePrice = source.slice(0, price.start).replace(/[\s,.;:]+$/, '').trim();
+    if (/\btừ\s+/i.test(beforePrice)) {
+      work = beforePrice;
+    } else {
+      work = (source.slice(0, price.start) + ' ' + source.slice(price.end)).replace(/[\s,.;:]+$/, '').trim();
+    }
+  }
   const routeStart = /\btừ\s+/i.exec(work);
   const routeParts = routeStart
     ? work.slice(routeStart.index + routeStart[0].length)
@@ -58,10 +79,16 @@ function parseInvoiceDescription(raw, serviceNames = [], cargoNames = []) {
   const rawCargo = transportWord ? prefix.slice(transportWord.index + transportWord[0].length).trim() : '';
   const workName = service ? service + (cargo || rawCargo ? ' ' + (cargo || rawCargo).toLocaleLowerCase('vi-VN') : '')
     : prefix;
+  const numMatch = /(?:(?:hóa\s+đơn|hđ)\s*số|số\s*(?:hóa\s+đơn|hđ))\s*[:.]?\s*(\d{1,10})/i.exec(normRaw);
+  const serialMatch = /(?:ký\s+hiệu|serial|mẫu\s+số)\s*[:.]?\s*([a-zA-Z0-9]{6,8})/i.exec(normRaw);
+  const invoiceNumber = numMatch ? String(Number(numMatch[1])).padStart(8, '0') : null;
+  const invoiceSerial = serialMatch ? serialMatch[1].toUpperCase() : null;
+
   return {
     description: `${workName} từ ${origin}${viaPoints.map(point => ` qua ${point}`).join('')} đến ${destination}`.trim(),
     origin, destination, via_points: viaPoints, amount: price?.amount ?? null,
-    includesVat: price?.includesVat || false, service, cargo
+    includesVat: price?.includesVat || false, service, cargo,
+    invoice_number: invoiceNumber, invoice_serial: invoiceSerial
   };
 }
 
@@ -242,26 +269,27 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       }
       let locations = null;
       let locationLookupFailed = false;
-      if (parsed.origin && parsed.destination) {
+      const lookupOrigin = parsed.origin || line.origin || '';
+      const lookupDest = parsed.destination || line.destination || '';
+      const lookupVia = (parsed.via_points && parsed.via_points.length) ? parsed.via_points : (line.via_points || []);
+      if (lookupOrigin || lookupDest) {
         try {
-          locations = await officialLocations(parsed.origin, parsed.destination, parsed.via_points);
+          locations = await officialLocations(lookupOrigin, lookupDest, lookupVia);
         } catch (_) {
           locationLookupFailed = true;
         }
       }
       if (line.normalizationRequestId !== requestId || line.description !== originalDescription
           || JSON.stringify(line.via_points || []) !== originalVia) return;
-      const origin = locations?.origin || parsed.origin;
-      const destination = locations?.destination || parsed.destination;
-      const viaPoints = locations?.via_points || parsed.via_points;
+      const origin = locations?.origin || lookupOrigin;
+      const destination = locations?.destination || lookupDest;
+      const viaPoints = locations?.via_points || lookupVia;
       line._autofill ||= {};
       const setLineField = (field, value) => {
         const knownLocationCorrection = (field === 'origin' || field === 'destination')
-          && line[field] && line[field] !== value
-          && (canonicalizeInvoiceLocation(line[field]) === value
-              || canonicalizeInvoiceLocation(line[field]).toLocaleLowerCase('vi-VN')
-                === canonicalizeInvoiceLocation(parsed[field]).toLocaleLowerCase('vi-VN'));
-        if (value && (!line[field] || line[field] === line._autofill[field] || knownLocationCorrection)) {
+          && line[field] && line[field] !== value;
+        const amountOverride = field === 'amount' && (line[field] === '0' || line[field] === '0 đ' || notify);
+        if (value && (!line[field] || line[field] === line._autofill[field] || knownLocationCorrection || amountOverride)) {
           const changed = line[field] !== value;
           line[field] = value;
           line._autofill[field] = value;
@@ -274,7 +302,10 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const priorVia = Array.isArray(line.via_points) ? line.via_points : [];
       const viaChanged = JSON.stringify(priorVia) !== JSON.stringify(viaPoints);
       line.via_points = [...viaPoints];
-      if (parsed.amount !== null) setLineField('amount', parsed.amount.toLocaleString('vi-VN'));
+      if (parsed.amount !== null) {
+        setLineField('amount', parsed.amount.toLocaleString('vi-VN'));
+        this.refreshDebtPlaceholder?.();
+      }
       if (parsed.cargo && setLineField('cargo_description', parsed.cargo)) {
         this.$nextTick(() => {
           const select = document.querySelector(`[data-invoice-line-key="${line._key}"] .invoice-cargo-select`);
@@ -287,6 +318,14 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
           if (select.tomselect) select.tomselect.setValue(parsed.service);
           else select.value = parsed.service;
         }
+      }
+      if (parsed.invoice_number) {
+        const numEl = document.getElementById('invoice-number');
+        if (numEl && (!numEl.value || notify)) numEl.value = parsed.invoice_number;
+      }
+      if (parsed.invoice_serial) {
+        const serEl = document.getElementById('invoice-serial');
+        if (serEl && (!serEl.value || notify)) serEl.value = parsed.invoice_serial;
       }
       if (parsed.origin && parsed.destination) {
         const routeSuffix = ` từ ${parsed.origin}${parsed.via_points.map(point => ` qua ${point}`).join('')} đến ${parsed.destination}`;
@@ -469,6 +508,14 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       if (this.paymentStatus === 'debt' && debt && !debt.value.trim()) {
         debt.value = this.subtotal() ? this.gross().toLocaleString('vi-VN') : '0';
       }
+      const numInput = document.getElementById('invoice-number');
+      const serInput = document.getElementById('invoice-serial');
+      if (numInput && !numInput.value.trim() && window._defaultInvoiceNumber) {
+        numInput.value = window._defaultInvoiceNumber;
+      }
+      if (serInput && !serInput.value.trim() && window._defaultInvoiceSerial) {
+        serInput.value = window._defaultInvoiceSerial;
+      }
       this.$refs.linesPayload.value = JSON.stringify(this.lines.map(line => ({
         vehicle_id: line.vehicle_id,
         cargo_description: line.cargo_description,
@@ -489,12 +536,106 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
 if (typeof module !== 'undefined') module.exports = {parseInvoiceDescription, invoiceEditor};
 
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+  // Auto-fill next invoice number & serial if fields are empty
+  const numInput = document.getElementById('invoice-number');
+  const serInput = document.getElementById('invoice-serial');
+  if (numInput && (!numInput.value || !numInput.value.trim() || !serInput?.value?.trim())) {
+    fetch('/admin/vehicles/api/next-invoice-number', {credentials: 'same-origin'})
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.ok) {
+          if (res.invoice_number) window._defaultInvoiceNumber = res.invoice_number;
+          if (res.invoice_serial) window._defaultInvoiceSerial = res.invoice_serial;
+          if (numInput && !numInput.value.trim() && res.invoice_number) {
+            numInput.value = res.invoice_number;
+          }
+          if (serInput && !serInput.value.trim() && res.invoice_serial) {
+            serInput.value = res.invoice_serial;
+          }
+        }
+      })
+      .catch(() => {});
+  }
+
   const companySelect = document.getElementById('invoice-company');
   if (!companySelect || companySelect.tomselect || typeof TomSelect === 'undefined') return;
-  new TomSelect(companySelect, {
+
+  /** Normalize a raw company address for use as an invoice location.
+   *  - Strips trailing ", Việt Nam" / ", Vietnam" (Google Maps artifact)
+   *  - Strips Google Plus Code prefix, e.g. "G3XV+32W " at the start
+   *  - Removes duplicate whitespace and stray leading/trailing commas
+   */
+  function normalizeCompanyAddress(raw) {
+    if (!raw) return '';
+    let s = String(raw).trim();
+    // Remove trailing country name (added by Google Maps API)
+    // Must match literal "Việt Nam" (ệ ≠ ê), "Viet Nam", or "Vietnam"
+    s = s.replace(/,\s*(Việt\s*Nam|Viet\s*Nam|Vietnam)\s*$/i, '').trim();
+    // Remove Google Plus Code prefix like "G3XV+32W " or "ABCD+12 "
+    s = s.replace(/^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\s*/i, '').trim();
+    // Normalize multiple spaces / stray commas
+    s = s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+    return s;
+  }
+
+  /** Fill empty "Điểm lấy hàng" fields with the selected company's address, normalized via DB. */
+  async function fillOriginFromCompany(companyId) {
+    if (!companyId) return;
+    const opt = companySelect.querySelector(`option[value="${CSS.escape(String(companyId))}"]`);
+    const rawAddress = (opt && opt.dataset.address) ? opt.dataset.address.trim() : '';
+    if (!rawAddress) return;
+    const clientClean = normalizeCompanyAddress(rawAddress);
+    if (!clientClean) return;
+    // Alpine.js component root — find the x-data element wrapping the form
+    const alpineRoot = companySelect.closest('[x-data]');
+    if (!alpineRoot || !alpineRoot._x_dataStack) return;
+    const data = alpineRoot._x_dataStack[0];
+    if (!data || !Array.isArray(data.lines)) return;
+    data.lines.forEach(line => {
+      if (!line.origin || !line.origin.trim()) {
+        line.origin = clientClean;
+      }
+    });
+
+    // Query backend to normalize address against database administrative tables (tỉnh, xã)
+    try {
+      const resp = await fetch('/admin/vehicles/api/normalize-invoice-locations', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({origin: rawAddress, destination: '', via_points: []})
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.ok && json.origin) {
+          const norm = json.origin;
+          data.lines.forEach(line => {
+            if (line.origin === clientClean || !line.origin || !line.origin.trim()) {
+              line.origin = norm;
+              if (line.destination && data.calculateDistance) {
+                data.calculateDistance(line, true);
+              }
+            }
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  const ts = new TomSelect(companySelect, {
     create: false,
     maxItems: 1,
     searchField: ['text'],
-    placeholder: 'Tìm theo tên hoặc mã số thuế...'
+    placeholder: 'Tìm theo tên hoặc mã số thuế...',
+    onChange(value) {
+      fillOriginFromCompany(value);
+    }
   });
+
+  // Pre-fill on page load if a company is already selected
+  if (companySelect.value) {
+    // Wait a tick for Alpine to finish initialising
+    setTimeout(() => fillOriginFromCompany(companySelect.value), 60);
+  }
 });
+

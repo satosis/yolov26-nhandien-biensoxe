@@ -79,12 +79,12 @@ async def cargo_catalog_page(
     active_cid = ctx.get("active_company_id")
     if current_tab == "companies":
         paginated = paginate_counts(
-            count_companies(q, debt_only=debt, seller_company_id=active_cid), page=page, per_page=20,
+            count_companies(q, debt_only=debt, seller_company_id=active_cid), page=page, per_page=100,
             base_url="/admin/transport/catalog",
             extra_params={"tab": "companies", "back": back, "q": q.strip(), "debt": "true" if debt else None},
         )
         companies = list_companies_page(
-            q, limit=20, offset=(paginated["page"] - 1) * 20,
+            q, limit=100, offset=(paginated["page"] - 1) * 100,
             debt_only=debt, seller_company_id=active_cid,
         )
         company_ids = [company["id"] for company in companies]
@@ -109,12 +109,12 @@ async def cargo_catalog_page(
         ctx["page_base_url"] = paginated["page_base_url"]
     elif current_tab == "service":
         paginated = paginate_counts(
-            count_catalog_items("service", company_id=active_cid), page=page, per_page=20,
+            count_catalog_items("service", company_id=active_cid), page=page, per_page=100,
             base_url="/admin/transport/catalog",
             extra_params={"tab": "service", "back": back},
         )
         ctx["services"] = list_catalog_items_page(
-            "service", company_id=active_cid, limit=20, offset=(paginated["page"] - 1) * 20,
+            "service", company_id=active_cid, limit=100, offset=(paginated["page"] - 1) * 100,
         )
         ctx["page"] = paginated["page"]
         ctx["total_pages"] = paginated["total_pages"]
@@ -122,12 +122,12 @@ async def cargo_catalog_page(
         ctx["page_base_url"] = paginated["page_base_url"]
     else:  # cargo_type
         paginated = paginate_counts(
-            count_catalog_items("cargo_type", company_id=active_cid), page=page, per_page=20,
+            count_catalog_items("cargo_type", company_id=active_cid), page=page, per_page=100,
             base_url="/admin/transport/catalog",
             extra_params={"tab": "cargo_type", "back": back},
         )
         ctx["cargo_types"] = list_catalog_items_page(
-            "cargo_type", company_id=active_cid, limit=20, offset=(paginated["page"] - 1) * 20,
+            "cargo_type", company_id=active_cid, limit=100, offset=(paginated["page"] - 1) * 100,
         )
         ctx["page"] = paginated["page"]
         ctx["total_pages"] = paginated["total_pages"]

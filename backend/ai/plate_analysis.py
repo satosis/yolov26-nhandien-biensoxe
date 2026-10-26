@@ -117,14 +117,14 @@ class PlateFrameAnalyzer:
         self.detected_frames += bool(observations)
         return observations
 
-    def recognize_crop(self, crop):
+    def recognize_crop(self, crop, *, full=False):
         contiguous = np.ascontiguousarray(crop)
-        key = (crop.shape, hashlib.blake2b(memoryview(contiguous), digest_size=16).digest())
+        key = (bool(full), crop.shape, hashlib.blake2b(memoryview(contiguous), digest_size=16).digest())
         if key in self.cache:
             self.cache.move_to_end(key)
             return dict(self.cache[key])
         with self.ocr_lock:
-            read = getattr(self.reader, "read_quick", self.reader.read) if self.quick_ocr else self.reader.read
+            read = getattr(self.reader, "read_quick", self.reader.read) if self.quick_ocr and not full else self.reader.read
             text, confidence, plate_type = read(crop)
             debug = dict(getattr(getattr(self.reader, "_ocr", self.reader), "last_debug_info", {}))
         self.ocr_calls += 1
@@ -140,6 +140,8 @@ class PlateFrameAnalyzer:
         fused = fuse_temporal_crops(crops)
         if fused is None:
             return None
-        result = self.recognize_crop(fused)
+        # A fused crop is the expensive fallback for an uncertain track. Use
+        # the complete OCR path here, even when per-frame reads are bounded.
+        result = self.recognize_crop(fused, full=True)
         result["temporal_fusion"] = True
         return result

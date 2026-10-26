@@ -184,6 +184,16 @@
 
   function setupTable(table) {
     if (!(table instanceof HTMLTableElement)) return;
+    if (
+      table.dataset.noBulk === '1' ||
+      table.dataset.bulkDisable === '1' ||
+      table.classList.contains('no-bulk') ||
+      table.classList.contains('table-tax-htkk') ||
+      table.closest('#supplierPage') ||
+      table.closest('.supplier-modal') ||
+      table.closest('#statementModal') ||
+      window.location.pathname.includes('/admin/enterprise/suppliers')
+    ) return;
     if (table.dataset.bulkReady === '1') {
       decorateTableRows(table, Number(table.dataset.bulkActionIndex));
       return;
@@ -223,6 +233,15 @@
   }
 
   function decorateTableRows(table, actionCol) {
+    Array.from(table.tHead?.rows || []).slice(1).forEach((row) => {
+      if (row.dataset.bulkHeaderDecorated === '1') return;
+      const cell = document.createElement('th');
+      cell.className = 'admin-bulk-select-cell text-center text-muted';
+      cell.style.verticalAlign = 'middle';
+      cell.textContent = '--';
+      row.insertBefore(cell, row.firstElementChild);
+      row.dataset.bulkHeaderDecorated = '1';
+    });
     Array.from(table.tBodies).flatMap((body) => Array.from(body.rows)).forEach((row) => {
       const cells = rowCells(row);
       if (!cells.length) return;

@@ -24,6 +24,7 @@
   "payroll": "bx-money",
   "debts": "bx-receipt",
   "sales": "bx-receipt",
+  "suppliers": "bx-cart-download",
   "detection": "bx-scan",
   "recordings": "bx-video",
   "parking_dashboard": "bx-bar-chart-square",
@@ -49,9 +50,11 @@
 } %}
 {% set transport_path = request.url.path %}
 {% set transport_active = 'contracts' if transport_path.startswith('/admin/transport/contracts') else
+  'tax_checklist' if transport_path.startswith('/admin/enterprise/tax-checklist') else
   'catalog_' ~ (request.query_params.get('tab', 'service')) if transport_path.startswith('/admin/transport/catalog') or transport_path.startswith('/admin/vehicles/catalog') else
   'staff_payroll' if transport_path.startswith('/admin/transport/payroll') else
   'input_invoices' if transport_path.startswith('/admin/transport/input-invoices') else
+  'tax_report' if transport_path.startswith('/admin/transport/tax-report') else
   'cargo' if transport_path.startswith('/admin/vehicles/cargo') or '/cargo' in transport_path else
   'vehicles' %}
 
@@ -88,19 +91,23 @@
           </a>
           <ul class="sub-menu mm-collapse {% if ns.active %}mm-show{% endif %}" {% if ns.active %}aria-expanded="true"{% endif %}>
             {% for key, label in items.items() %}
-            {% if group_name == '🚚 Vận chuyển' and key == 'vehicles' %}
+            {% if group_name == '🚚 Vận chuyển' %}
+            {% if loop.first %}
             {% for menu_key, menu_label, menu_icon, menu_url in [
               ('vehicles', 'Danh sách xe', 'bx-car', '/admin/vehicles'),
               ('cargo', 'Chuyến hàng', 'bx-package', '/admin/vehicles/cargo'),
               ('contracts', 'Hợp đồng', 'bx-file', '/admin/transport/contracts'),
+              ('tax_checklist', 'Checklist Kế toán & Thuế', 'bx-check-double', '/admin/enterprise/tax-checklist'),
               ('catalog_service', 'Danh mục dịch vụ', 'bx-list-ul', '/admin/transport/catalog?tab=service'),
               ('catalog_cargo_type', 'Danh mục hàng hóa', 'bx-box', '/admin/transport/catalog?tab=cargo_type'),
-              ('input_invoices', 'Chi phí đầu vào', 'bx-receipt', '/admin/transport/input-invoices')
+              ('input_invoices', 'Chi phí đầu vào', 'bx-receipt', '/admin/transport/input-invoices'),
+              ('tax_report', 'Báo cáo thuế theo quý', 'bx-calculator', '/admin/transport/tax-report')
             ] %}
             <li class="{% if transport_active == menu_key %}mm-active{% endif %}">
               <a href="{{ menu_url }}" class="{% if transport_active == menu_key %}active{% endif %}"><i class="bx {{ menu_icon }}"></i> {{ menu_label }}</a>
             </li>
             {% endfor %}
+            {% endif %}
             {% else %}
             {% set parts = label.split(' ', 1) %}
             {% set l_clean = parts[1] if parts|length > 1 and parts[0]|length <= 2 else label %}
@@ -114,7 +121,9 @@
               '/admin/enterprise/advances' if key == 'advances' else
               '/admin/enterprise/assets' if key == 'assets' else
               '/admin/enterprise/debts' if key == 'debts' else
+              '/admin/enterprise/tax-checklist' if key == 'tax_checklist' else
               '/admin/enterprise/sales' if key == 'sales' else
+              '/admin/enterprise/suppliers' if key == 'suppliers' else
               '/admin/' ~ key %}
             <li class="{% if current_menu == key %}mm-active{% endif %}">
               <a href="{{ target_url }}" class="{% if current_menu == key %}active{% endif %}">

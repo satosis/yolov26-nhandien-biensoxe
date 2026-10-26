@@ -5,6 +5,9 @@
 {% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
 {% block page_actions %}
 <div class="d-flex align-items-center flex-wrap" style="gap:6px">
+  <button type="button" id="btn-save-invoice" class="btn btn-success btn-sm font-weight-bold" onclick="submitInvoiceForm('save')">
+    <i class="bx bx-save mr-1"></i>Lưu hóa đơn
+  </button>
   <button type="button" id="btn-export-invoice" class="btn btn-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('export')">
     <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
   </button>
@@ -44,7 +47,7 @@
     .invoice-page-layout:has(.invoice-side-panel){grid-template-columns:100%}
   }
 </style>
-<script src="/static/admin-assets/js/cargo-invoice-form.js?v=16"></script>
+<script src="/static/admin-assets/js/cargo-invoice-form.js?v=20"></script>
 <script>
 function showSavedInvoiceImage(src) {
   const image = document.getElementById('saved-bkav-invoice-image');
@@ -154,7 +157,7 @@ async function sendInvoiceToZalo(guid) {
     btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang gửi Zalo...';
   }
   window.dispatchEvent(new CustomEvent('showToast', {
-    detail: { msg: 'Đang gửi thông tin và ảnh hóa đơn vào nhóm Zalo Đại Lộ Xanh...', type: 'info' }
+    detail: { msg: 'Đang gửi thông tin và ảnh hóa đơn vào nhóm Zalo...', type: 'info' }
   }));
   try {
     const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/send-zalo', {
@@ -170,7 +173,7 @@ async function sendInvoiceToZalo(guid) {
       throw new Error(data.error || 'Không thể gửi hóa đơn vào nhóm Zalo.');
     }
     window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: data.message || 'Đã gửi ảnh hóa đơn vào nhóm Zalo Đại Lộ Xanh thành công!', type: 'success' }
+      detail: { msg: data.message || 'Đã gửi ảnh hóa đơn vào nhóm Zalo thành công!', type: 'success' }
     }));
   } catch (error) {
     window.dispatchEvent(new CustomEvent('showToast', {
@@ -219,24 +222,39 @@ async function submitInvoiceAction(event) {
   if (invoiceActionBusy) return;
   const form = event.currentTarget;
   const action = form.dataset.invoiceAction || 'export';
-  const buttons = [document.getElementById('btn-export-invoice'), document.getElementById('btn-push-invoice-bkav')];
-  const activeButton = action === 'bkav' ? buttons[1] : buttons[0];
+  const btnSave = document.getElementById('btn-save-invoice');
+  const buttons = [document.getElementById('btn-export-invoice'), document.getElementById('btn-push-invoice-bkav'), btnSave];
+  const activeButton = action === 'bkav' ? buttons[1] : action === 'save' ? btnSave : buttons[0];
   const originalLabel = activeButton ? activeButton.innerHTML : '';
   invoiceActionBusy = true;
   buttons.forEach(button => { if (button) button.disabled = true; });
-  if (activeButton) activeButton.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>' + (action === 'bkav' ? 'Đang đồng bộ...' : 'Đang tạo tệp...');
+  const loadingLabel = action === 'bkav' ? 'Đang đồng bộ...' : action === 'save' ? 'Đang lưu...' : 'Đang tạo tệp...';
+  if (activeButton) activeButton.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>' + loadingLabel;
   try {
     const endpoint = action === 'bkav'
       ? '/admin/vehicles/cargo/invoices/push-bkav'
-      : '/admin/vehicles/cargo/invoices/add';
+      : action === 'save'
+        ? '/admin/vehicles/cargo/invoices/save'
+        : '/admin/vehicles/cargo/invoices/add';
     const response = await fetch(endpoint, {
       method: 'POST', body: new FormData(form), credentials: 'same-origin',
-      headers: {'Accept': action === 'bkav' ? 'application/json' : '*/*', 'X-Requested-With': 'XMLHttpRequest'}
+      headers: {'Accept': action === 'export' ? '*/*' : 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
     });
-    if (action === 'bkav') {
+    if (action === 'save') {
       const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể lưu hóa đơn.');
+      invoiceToast('Đã lưu hóa đơn thành công.', 'success');
+      if (data.redirect) setTimeout(() => { window.location.href = data.redirect; }, 700);
+    } else if (action === 'bkav') {
+      const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể đồng bộ hóa đơn sang BKAV.');
       invoiceToast(data.message || 'Đã đồng bộ hóa đơn sang BKAV.', 'success');
+      if (data.image_url) {
+        showSavedInvoiceImage(data.image_url);
+      }
+      if (data.redirect && (!form.invoice_guid || !form.invoice_guid.value || !window.location.pathname.includes(data.invoice_guid))) {
+        setTimeout(() => { window.location.href = data.redirect; }, 1000);
+      }
     } else {
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -309,6 +327,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="card-body p-3 p-md-4">
     <form id="invoice-form" method="post" action="/admin/vehicles/cargo/invoices/add" @submit.prevent="prepareSubmit($event); submitInvoiceAction($event)">
       <input type="hidden" name="lines_json" x-ref="linesPayload">
+      {% if invoice %}
+      <input type="hidden" name="invoice_guid" value="{{ invoice.invoice_guid }}">
+      {% endif %}
       <div class="invoice-section-title border-bottom pb-2 mb-3">Thông tin chung</div>
       <div class="row">
         <div class="col-md-6 mb-3">
@@ -327,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="row">
         <div class="col-md-4 mb-3">
           <label for="invoice-number">Số hóa đơn *</label>
-          <input id="invoice-number" name="invoice_number" class="form-control font-monospace" inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" value="{{ form_values.invoice_number }}" required>
+          <input id="invoice-number" name="invoice_number" class="form-control " inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" value="{{ form_values.invoice_number }}" required>
         </div>
         <div class="col-md-4 mb-3">
           <label for="invoice-vat">Thuế suất GTGT (%) *</label>
@@ -343,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <label for="invoice-company">Tên đơn vị *</label>
           <select id="invoice-company" name="company_id" class="form-control" required>
             <option value="">— Chọn đơn vị —</option>
-            {% for company in companies %}<option value="{{ company.id }}" {% if form_values.company_id|string == company.id|string %}selected{% endif %}>{{ company.name }}{% if company.tax_code %} — {{ company.tax_code }}{% endif %}</option>{% endfor %}
+            {% for company in companies %}<option value="{{ company.id }}" data-address="{{ company.address or '' }}" {% if form_values.company_id|string == company.id|string %}selected{% endif %}>{{ company.name }}{% if company.tax_code %} — {{ company.tax_code }}{% endif %}</option>{% endfor %}
           </select>
         </div>
       </div>
@@ -479,6 +500,20 @@ document.addEventListener('DOMContentLoaded', function() {
             <input id="invoice-debt" name="debt_amount" class="form-control invoice-money border-danger font-weight-bold text-danger" inputmode="numeric" value="{{ form_values.debt_amount or '' }}" placeholder="0 đ">
           </div>
         </div>
+
+        <div class="col-12 mt-3 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+          <a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold">
+            <i class="bx bx-arrow-back mr-1"></i>Quay lại
+          </a>
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <button type="button" class="btn btn-success btn-sm font-weight-bold px-3" onclick="submitInvoiceForm('save')">
+              <i class="bx bx-save mr-1"></i>Lưu hóa đơn
+            </button>
+            <button type="button" class="btn btn-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('export')">
+              <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   </div>
@@ -489,7 +524,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="card-header d-flex align-items-center justify-content-between flex-wrap" style="gap:8px">
       <strong class="small">Ảnh hóa đơn BKAV</strong>
       <div class="d-flex align-items-center flex-wrap" style="gap:6px">
-        <button type="button" id="saved-bkav-invoice-send-zalo" class="btn btn-outline-success btn-sm font-weight-bold" onclick="sendInvoiceToZalo('{{ invoice.invoice_guid }}')" {% if not bkav_image_url %}hidden{% endif %} title="Gửi ảnh hóa đơn vào nhóm Zalo Đại Lộ Xanh"><i class="bx bxl-telegram mr-1"></i>Gửi Zalo</button>
+        <button type="button" id="saved-bkav-invoice-send-zalo" class="btn btn-outline-success btn-sm font-weight-bold" onclick="sendInvoiceToZalo('{{ invoice.invoice_guid }}')" {% if not bkav_image_url %}hidden{% endif %} title="Gửi ảnh hóa đơn vào nhóm Zalo công ty"><i class="bx bxl-telegram mr-1"></i>Gửi Zalo</button>
         <a id="saved-bkav-invoice-download" href="/admin/vehicles/cargo/invoices/{{ invoice.invoice_guid }}/bkav-image?download=1" class="btn btn-outline-primary btn-sm" {% if not bkav_image_url %}hidden{% endif %}><i class="bx bx-download mr-1"></i>Tải ảnh</a>
         <button type="button" id="saved-bkav-invoice-refresh" data-bkav-refresh class="btn btn-outline-info btn-sm" onclick="openInvoiceBkavImage('{{ invoice.invoice_guid }}', false)" {% if bkav_image_url %}hidden{% endif %}><i class="bx bx-refresh mr-1"></i>Lấy ảnh</button>
       </div>

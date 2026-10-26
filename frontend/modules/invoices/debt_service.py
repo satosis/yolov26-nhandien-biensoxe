@@ -8,6 +8,7 @@ from typing import Optional
 from psycopg2.extras import RealDictCursor
 
 from backend.services.database import db
+from frontend.deps import format_currency
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ def get_company_debt_logs(
     for row in rows:
         value = Decimal(str(row["amount"]))
         row["amount"] = float(value)
-        row["amount_fmt"] = "{:,.0f} đ".format(abs(value)).replace(",", ".")
+        row["amount_fmt"] = format_currency(abs(value))
         row["is_increase"] = value > 0
         recorded = row.get("recorded_date")
         row["recorded_date_str"] = recorded.strftime("%d/%m/%Y") if hasattr(recorded, "strftime") else str(recorded or "")

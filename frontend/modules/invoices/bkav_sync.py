@@ -57,14 +57,16 @@ def _fold_search_text(value: str) -> str:
 
 def _is_crane_invoice_line(detail: dict, description: str) -> bool:
     folded = _fold_search_text(description)
-    if _fold_search_text("c\u01b0\u1edbc c\u1ea9u") in folded:
+    if any(marker in folded for marker in (
+        "cuoc cau", "ca cau", "dich vu cau", "thue cau", "thue xe cau", "cong cau", "tien cau"
+    )):
         return True
     # Some older catalog rows store the service label in its mojibake form.
     legacy_marker = " ".join(CRANE_BY_SHIFT_SERVICE.split()[:2]).casefold()
     if legacy_marker in description.casefold():
         return True
     unit = _fold_search_text(detail.get("UnitName") or "")
-    return unit == "ca cau"
+    return unit in {"ca cau", "ca"}
 
 def _fuel_price_for_date(target_date):
     try:
@@ -161,7 +163,7 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
     if not isinstance(row, dict) or not isinstance(row.get("Invoice"), dict):
         return None
     inv = row["Invoice"]
-    if inv.get("InvoiceStatusID") != 2 or inv.get("InvoiceTypeID") != 1:
+    if inv.get("InvoiceStatusID") not in (2, 6) or inv.get("InvoiceTypeID") != 1:
         return None
     if str(inv.get("CurrencyID") or "VND").upper() != "VND":
         return None
@@ -209,15 +211,17 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
         if raw_amount is None and detail.get("Price") is not None and detail.get("Qty") is not None:
             raw_amount = _number(detail["Price"]) * _number(detail["Qty"])
         amount = _number(raw_amount) if raw_amount is not None else Decimal(0)
-        if (not leg and not crane_by_shift) or amount <= 0 or amount != amount.to_integral_value():
+        is_crane_line = _is_crane_invoice_line(detail, line)
+        is_crane_segment = not leg and (is_crane_line or crane_by_shift)
+        if (not leg and not is_crane_segment) or amount <= 0 or amount != amount.to_integral_value():
             segments = []
             break
         qty = detail.get("Qty")
         unit = str(detail.get("UnitName") or "").strip().casefold()
         repeats = 1
         folded_unit = _fold_search_text(unit)
-        repeated_unit = unit in _REPEATED_TRIP_UNITS or folded_unit in {"chuyen", "luot", "ca cau"}
-        if (repeated_unit or crane_by_shift) and qty not in (None, ""):
+        repeated_unit = unit in _REPEATED_TRIP_UNITS or folded_unit in {"chuyen", "luot", "ca cau", "ca"}
+        if (repeated_unit or is_crane_segment or crane_by_shift) and qty not in (None, ""):
             quantity = _number(qty)
             if quantity < 1 or quantity > _MAX_REPEATED_TRIPS or quantity != quantity.to_integral_value():
                 segments = []
@@ -245,13 +249,19 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
                              "vehicle_plate": line_plates[0] if line_plates else None,
                              "description": line, "amount": int(amount / repeats), "distance_km": None,
                              "tax_amount": str(split_tax) if split_tax is not None else None,
-                             "cargo_description": None if crane_by_shift else cargo_name or cargo or None,
+                             "cargo_description": None if is_crane_segment else cargo_name or cargo or None,
                              "cargo_weight_tons": str(qty).strip() if unit in {"tấn", "tan"}
-                             and qty not in (None, "") else None})
+                             and qty not in (None, "") else None,
+                             "is_crane": is_crane_segment})
     if segments and sum((Decimal(segment["amount"]) for segment in segments), Decimal(0)) != subtotal:
         segments = []
     if segments:
-        origin, destination = segments[0]["origin"], segments[-1]["destination"]
+        route_legs = [s for s in segments if s.get("origin") and s.get("destination")]
+        if route_legs:
+            origin, destination = route_legs[0]["origin"], route_legs[-1]["destination"]
+        else:
+            origin, destination = "", ""
+    pure_crane = bool(segments and all(s.get("is_crane") for s in segments))
     rates = {_number(item.get("TaxRate")) for item in details
              if isinstance(item, dict) and not item.get("IsDiscount")
              and item.get("ItemTypeID", 0) != 4 and item.get("TaxRate") is not None}
@@ -266,7 +276,7 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
         "buyer_email": str(inv.get("ReceiverEmail") or "").strip(),
         "seller_tax_code": str(inv.get("SellerTaxCode") or "").strip(),
         "service": service[:255], "cargo": cargo, "description": "\n".join(lines),
-        "is_crane_by_shift": crane_by_shift,
+        "is_crane_by_shift": pure_crane,
         "first_line": first,
         "segments": segments, "line_count": len(segments) if segments else len(lines),
         "source_line_count": len(lines), "source_descriptions": lines,
@@ -341,7 +351,7 @@ def _line_vehicle(invoice: dict, target: dict | None, line: dict,
     """Link recognized crane plates to fleet rows without treating cranes as trips."""
     if target:
         return target
-    if invoice.get("is_crane_by_shift") and line.get("vehicle_plate"):
+    if line.get("vehicle_plate"):
         return vehicles.get(_plate_key(line["vehicle_plate"]))
     return None
 
@@ -813,12 +823,18 @@ def invoice_vehicle_groups(invoice: dict, vehicles: dict[str, dict],
     groups = []
     for vehicle, legs in grouped.values():
         subtotal = sum((Decimal(str(leg["amount"])) for leg in legs), Decimal(0))
-        distance = sum((Decimal(str(leg["distance_km"])) for leg in legs), Decimal(0)) if all(
-            leg.get("distance_km") not in (None, "") for leg in legs) else None
+        route_legs = [leg for leg in legs if not leg.get("is_crane") and leg.get("origin") and leg.get("destination")]
+        distance = (sum((Decimal(str(leg["distance_km"])) for leg in route_legs), Decimal(0))
+                    if route_legs and all(leg.get("distance_km") not in (None, "") for leg in route_legs)
+                    else None)
+        origin = route_legs[0]["origin"] if route_legs else ""
+        destination = route_legs[-1]["destination"] if route_legs else ""
+        first_line = route_legs[0]["description"] if route_legs else legs[0]["description"]
+        cargo = next((leg.get("cargo_description") for leg in legs if leg.get("cargo_description")), None)
         group = {**invoice, "segments": legs, "line_count": len(legs),
-                 "origin": legs[0]["origin"], "destination": legs[-1]["destination"],
-                 "first_line": legs[0]["description"], "description": "\n".join(leg["description"] for leg in legs),
-                 "cargo": legs[0].get("cargo_description"), "subtotal": subtotal,
+                 "origin": origin, "destination": destination,
+                 "first_line": first_line, "description": "\n".join(leg["description"] for leg in legs),
+                 "cargo": cargo, "subtotal": subtotal,
                  "distance_km": distance}
         if len(grouped) == 1:
             group["gross"] = invoice["gross"]
@@ -913,16 +929,10 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
                    for target, group in groups for line in group["segments"]}
         if len(by_line) != invoice["line_count"]:
             raise ValueError(f"Hóa đơn {invoice['number']} thiếu dòng hoặc trùng thứ tự dòng.")
-        crane_by_shift = bool(invoice.get("is_crane_by_shift"))
-        if not crane_by_shift and any(line.get("distance_km") in (None, "")
-                                      for _, line in by_line.values()):
-            raise ValueError(f"Hóa đơn {invoice['number']} chưa tính đủ quãng đường từng dòng.")
         assignments[guid] = [by_line[number] for number in range(1, invoice["line_count"] + 1)]
     fuel_dates = {by_guid[guid]["date"] for guid in selected_guids
-                  if not by_guid[guid].get("is_crane_by_shift")}
+                  if any(not seg.get("is_crane") and seg.get("origin") for seg in by_guid[guid].get("segments", []))}
     fuel_prices = {day: _fuel_price_for_date(day) for day in fuel_dates}
-    if any(price is None for price in fuel_prices.values()):
-        raise ValueError("Chưa lấy được giá dầu theo ngày hóa đơn; hãy thử đồng bộ lại.")
     legacy_table = db._execute_query(
         "SELECT to_regclass('public.bkav_invoice_imports') AS table_name",
         fetch=True, commit=False,
@@ -1040,7 +1050,7 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
                     rate = target.get("fuel_consumption") if target else None
                     liters = ((distance * Decimal(str(rate)) / Decimal(100)).quantize(Decimal("0.01"))
                               if distance is not None and rate not in (None, "") else None)
-                    price = None if invoice.get("is_crane_by_shift") else fuel_prices.get(invoice["date"])
+                    price = None if (invoice.get("is_crane_by_shift") or line.get("is_crane") or not line.get("origin")) else fuel_prices.get(invoice["date"])
                     fuel_cost = (liters * price).quantize(Decimal("0.01")) if liters is not None and price is not None else None
                     cargo_weight = line.get("cargo_weight_tons")
                     cursor.execute("""

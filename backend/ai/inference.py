@@ -740,6 +740,8 @@ class InferenceWorker:
         arr = np.ndarray((cfg.GRAB_HEIGHT, cfg.GRAB_WIDTH, 3), dtype=np.uint8, buffer=shm.buf[4:])
         for _ in range(3):
             c1 = int(counter[0])
+            if c1 == 0 or c1 & 1:
+                continue
             frame = arr.copy()
             if int(counter[0]) == c1:
                 return frame

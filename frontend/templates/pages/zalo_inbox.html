@@ -15,7 +15,7 @@
       </form>
       {% endif %}
     </div>
-    <p class="text-muted small">Kết nối nhóm cá nhân qua phiên Zalo Web không chính thức; Zalo có thể hạn chế tài khoản. Hãy quét QR bằng đúng tài khoản tham gia nhóm Đại Lộ xanh. Khi mở Zalo Web ở nơi khác, kết nối nhận tin có thể bị ngắt.</p>
+    <p class="text-muted small">Kết nối nhóm cá nhân qua phiên Zalo Web không chính thức; Zalo có thể hạn chế tài khoản. Quét QR bằng tài khoản tham gia các nhóm Zalo trùng tên công ty (ví dụ: CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH). Hệ thống tự động liên kết nhóm Zalo theo tên công ty để xử lý công việc.</p>
     {% if bridge_running and bridge_status %}
     <p><strong>Kết nối:</strong> {{ bridge_status.detail or bridge_status.state }}</p>
     {% if bridge_status.state == 'qr' and qr_ready %}
@@ -38,6 +38,24 @@
       });
     </script>
     {% endif %}
+    {% if active_invoice_sessions %}
+    {% for sess in active_invoice_sessions %}
+    <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap mb-3 p-2">
+      <div>
+        <i class="bx bx-time-five mr-1"></i>
+        <strong>Đang chờ người dùng soạn nội dung tạo hóa đơn:</strong>
+        <span class="badge badge-primary">{{ sess.company_name }}</span> (MST: {{ sess.tax_code }})
+        — Đã nhận {{ sess.message_ids|length }} tin nhắn.
+        <small class="text-muted ml-2">Tự động gom sau {{ sess.remaining_seconds }}s nếu không có thêm tin mới.</small>
+      </div>
+      <form method="post" action="/admin/zalo_inbox/sessions/{{ sess.group_id }}/finalize-now" class="m-0">
+        <input type="hidden" name="nonce" value="{{ send_nonce }}">
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bx bx-check mr-1"></i> Gom tạo hóa đơn ngay</button>
+      </form>
+    </div>
+    {% endfor %}
+    {% endif %}
+
     <form id="zalo-trip-draft-form" method="post" action="/admin/zalo_inbox/trip-draft" class="mb-3">
       <input type="hidden" name="nonce" value="{{ send_nonce }}">
       <button type="submit" class="btn btn-primary btn-sm"><i class="bx bx-package mr-1"></i> Gom tin đã chọn thành chuyến hàng</button>
@@ -49,12 +67,15 @@
     {% for item in items %}
     <div class="border rounded p-3 mb-3">
       <div class="d-flex justify-content-between flex-wrap">
-        <div class="d-flex align-items-center" style="gap:8px;">
+        <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
           {% if item.id and not item.salary_advance %}
           <input type="checkbox" form="zalo-trip-draft-form" name="message_ids" value="{{ item.id }}"
                  aria-label="Chọn tin của {{ item.sender_name or item.sender_id or 'thành viên nhóm' }} để gom chuyến">
           {% endif %}
           <strong>{{ item.sender_name or item.sender_id or 'Thành viên nhóm' }}</strong>
+          {% if item.company_name or item.group_name %}
+          <span class="badge badge-light border text-primary" title="Nhóm Zalo / Công ty"><i class="bx bx-buildings mr-1"></i>{{ item.company_name or item.group_name }}</span>
+          {% endif %}
         </div>
         <small class="text-muted">{{ item.sent_at or item.received_at }}</small>
       </div>
@@ -62,6 +83,30 @@
       <div><span class="badge badge-info">{{ item.category }}</span>
         {% if item.reviewed %}<span class="badge badge-success">Đã xem</span>{% endif %}
       </div>
+      {% if item.invoice_draft %}
+      <div class="mt-2 p-2 bg-light border border-success rounded d-flex justify-content-between align-items-center flex-wrap" style="gap:8px;">
+        <div>
+          <span class="badge badge-success"><i class="bx bx-check-circle mr-1"></i> Đã tự động gom tạo hóa đơn</span>
+          <strong class="ml-2">{{ item.invoice_draft.company_name }}</strong>
+          {% if item.invoice_draft.amount %}
+          <span class="text-success font-weight-bold ml-2">{{ item.invoice_draft.amount|format_currency }}</span>
+          {% endif %}
+          {% if item.invoice_draft.destination %}
+          <div class="small text-muted mt-1"><i class="bx bx-map-pin mr-1"></i>Đến: {{ item.invoice_draft.destination }}</div>
+          {% endif %}
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          {% if item.invoice_draft.invoice_url %}
+          <a href="{{ item.invoice_draft.invoice_url }}" class="btn btn-sm btn-primary font-weight-bold">
+            <i class="bx bx-receipt mr-1"></i> Xem hóa đơn ({{ item.invoice_draft.line_count or 1 }} dòng)
+          </a>
+          {% endif %}
+          <a href="/admin/zalo_inbox/drafts/{{ item.invoice_draft.draft_id }}/apply" class="btn btn-sm btn-outline-success font-weight-bold">
+            <i class="bx bx-package mr-1"></i> Mở đơn chuyến hàng
+          </a>
+        </div>
+      </div>
+      {% endif %}
       {% if item.salary_advance %}
       {% set advance = item.salary_advance %}
       <div class="mt-2 small">
@@ -73,7 +118,7 @@
         <span class="badge badge-info">Đang xử lý tạm ứng</span>
         {% endif %}
         {% if advance.staff_id and advance.advance_id %}
-        <a class="ml-2" href="/admin/transport/payroll/{{ advance.staff_id }}?month={{ advance.month }}&advance={{ advance.advance_id }}">{{ advance.staff_name }} — {{ "{:,.0f}".format(advance.amount|float)|replace(',', '.') }} đ</a>
+        <a class="ml-2" href="/admin/transport/payroll/{{ advance.staff_id }}?month={{ advance.month }}&advance={{ advance.advance_id }}">{{ advance.staff_name }} — {{ advance.amount|format_currency }}</a>
         {% endif %}
         {% if advance.error and not (advance.staff_id and advance.advance_id) %}<div class="text-danger mt-1">{{ advance.error }}</div>{% endif %}
         {% if not (advance.staff_id and advance.advance_id) and advance.state in ('needs_review', 'processing') %}

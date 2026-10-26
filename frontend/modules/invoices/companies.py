@@ -38,6 +38,38 @@ _PREFERRED_BANK_NAMES = (
     "VIB", "MSB", "SACOMBANK", "SEABANK",
 )
 
+BUSINESS_ACTIVITIES = (
+    "Thương mại",
+    "Công nghiệp chế biến, chế tạo",
+    "Kinh doanh bất động sản",
+    "Vận tải, kho bãi",
+    "Hoạt động Tài chính, ngân hàng, bảo hiểm",
+    "Giáo dục & Đào tạo",
+    "Xây dựng",
+    "Dịch vụ lưu trú & ăn uống",
+    "Khai khoáng",
+    "Nông nghiệp",
+    "Ngư nghiệp",
+    "Lâm nghiệp",
+    "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí",
+    "Cung cấp nước, hoạt động quản lý và xử lý rác thải",
+    "Hoạt động chuyên môn, KHCN",
+    "Hoạt động dịch vụ khác",
+    "Hoạt động các tổ chức và cơ quan quốc tế",
+    "Hoạt động hành chính và dịch vụ Hỗ trợ",
+    "Hoạt động làm thuê các công việc trong các hộ gia đình, sản xuất sản phẩm vật chất và dịch vụ tự tiêu dùng của hộ gia đình",
+    "Nghệ thuật, vui chơi, giải trí",
+    "Thông tin & truyền thông",
+    "Hoạt động của Đảng Cộng Sản tổ chức Chính Trị - Xã Hội, Quản lý nhà nước, An ninh quốc phòng, Đảm bảo xã hội bắt buộc",
+    "Y tế và hoạt động trợ giúp Xã Hội",
+    "Sản phẩm bán lẻ",
+    "Chưa xác định mã ngành",
+)
+
+
+def list_business_activities() -> list[str]:
+    return list(BUSINESS_ACTIVITIES)
+
 
 def canonical_bank_name(value: str) -> str:
     name = str(value or "").strip()
@@ -148,6 +180,41 @@ def get_company(company_id: int) -> dict | None:
         fetch=True,
         commit=False,
     )
+
+
+def find_company_by_name(name: str) -> dict | None:
+    """Find a company in public.invoice_companies by 100% matching name."""
+    target = str(name or "").strip().casefold()
+    if not target:
+        return None
+
+    companies = db._execute_query(
+        "SELECT id, name, tax_code FROM public.invoice_companies ORDER BY id",
+        fetchall=True, commit=False,
+    ) or []
+
+    for c in companies:
+        if str(c.get("name") or "").strip().casefold() == target:
+            return c
+
+    return None
+
+
+def list_companies_for_bridge() -> list[dict]:
+    """List companies for Zalo bridge 100% group name matching."""
+    companies = db._execute_query(
+        "SELECT id, name, tax_code FROM public.invoice_companies ORDER BY id",
+        fetchall=True, commit=False,
+    ) or []
+    return [
+        {
+            "id": c["id"],
+            "name": str(c["name"]).strip(),
+            "tax_code": c.get("tax_code") or "",
+        }
+        for c in companies if c.get("name")
+    ]
+
 
 
 def get_company_bank_accounts(company_id: int) -> list[dict]:

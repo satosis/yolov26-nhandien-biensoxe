@@ -369,7 +369,7 @@ _COMMON_CSS = """
     margin: 15mm 15mm 15mm 15mm;
   }
   * { box-sizing: border-box; }
-  body {
+  html, body {
     margin: 0;
     padding: 0;
     background: #525659;
@@ -400,6 +400,7 @@ _COMMON_CSS = """
       width: 100% !important;
       min-height: auto !important;
     }
+    table.grid-table th { background: transparent !important; }
     .no-print { display: none !important; }
   }
   .text-center { text-align: center; }
@@ -435,9 +436,6 @@ _COMMON_CSS = """
     background: #f1f5f9;
     text-align: center;
     font-weight: bold;
-  }
-  @media print {
-    table.grid-table th { background: transparent !important; }
   }
   .national-header {
     width: 100%;
@@ -496,7 +494,7 @@ _COMMON_CSS = """
 def _render_toolbar(info: dict, active_kind: str, invoice_guid: str | None = None) -> str:
     guid_val = invoice_guid or ""
     return f"""
-    <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #0f172a; color: #fff; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-family: system-ui, -apple-system, sans-serif;">
+    <div class="no-print" style="position: sticky; top: 0; z-index: 1000; background: #0f172a; color: #fff; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
       <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <span style="background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">Chứng từ chuyến hàng</span>
         <span style="font-weight: 600; font-size: 13.5px; color: #e2e8f0;">HĐ: <strong style="color: #60a5fa;">{info['invoice_number_formatted']}</strong> &bull; KH: <strong style="color: #f1f5f9;">{escape(info['customer_name'])}</strong></span>

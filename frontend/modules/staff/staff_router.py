@@ -137,7 +137,7 @@ async def staff_index(
     count_row = db._execute_query(count_sql, tuple(params) if params else None, fetch=True, commit=False)
     total_count = count_row["total"] if count_row else 0
 
-    per_page = 20
+    per_page = 100
     paginated = paginate_counts(
         total_count, page=page, per_page=per_page,
         base_url="/admin/staff",

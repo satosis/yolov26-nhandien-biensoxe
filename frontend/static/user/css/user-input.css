@@ -17,16 +17,10 @@
   --color-status-red: #EF4444;
   --color-status-yellow: #F59E0B;
 
-
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
-
-
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
 }
-
 
 @theme {
   --color-tsl-primary: #004b41;
@@ -41,19 +35,21 @@
   --color-tsl-muted: #6b7280;
   --color-tsl-faint: #9ca3af;
   --color-tsl-border: #e5e7eb;
-
-  --font-display: "Outfit", "Inter", system-ui, sans-serif;
 }
 
 @layer base {
   [x-cloak] { display: none !important; }
+
+  :root, html, body {
+    font-family: "Times New Roman", Times, serif !important;
+  }
 
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #0A0F1C; }
   ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }
 
   body {
-    @apply bg-bg-page text-white font-sans antialiased;
+    @apply bg-bg-page text-white antialiased;
   }
 
   a, button, [role="button"], select,
@@ -100,7 +96,7 @@
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   }
   .minimalist-plate-text {
-    @apply font-mono font-bold text-slate-900 tracking-tight;
+    @apply font-bold text-slate-900 tracking-tight;
     font-size: 36px;
     line-height: normal;
   }
@@ -135,7 +131,7 @@
 
   .tsl-btn {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3
-           font-display font-semibold rounded-lg border-2 border-transparent
+           font-semibold rounded-lg border-2 border-transparent
            transition-all duration-300 cursor-pointer text-center;
   }
   .tsl-btn-lg { @apply px-8 py-4 text-lg; }

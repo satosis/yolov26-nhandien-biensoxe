@@ -13,15 +13,6 @@
 
   <script src="/static/vendor/tailwind.min.js"></script>
 
-
-  <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
-    onload="this.onload=null;this.rel='stylesheet'">
-  <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
-      rel="stylesheet" />
-  </noscript>
-
   <link rel="preload" as="style"
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block"
     onload="this.onload=null;this.rel='stylesheet'">
@@ -237,16 +228,6 @@
             "base": "4px",
             "margin": "32px"
           },
-          "fontFamily": {
-            "label-sm": ["Inter"],
-            "label-bold": ["Inter"],
-            "body-lg": ["Inter"],
-            "h3": ["Inter"],
-            "h2": ["Inter"],
-            "display": ["Inter"],
-            "h1": ["Inter"],
-            "body-md": ["Inter"]
-          },
           "fontSize": {
             "label-sm": ["12px", { "lineHeight": "1.2", "fontWeight": "500" }],
             "label-bold": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700" }],
@@ -262,7 +243,12 @@
     }
   </script>
   <style>
+    :root, html, body {
+      font-family: 'Times New Roman', Times, serif !important;
+    }
+
     .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined' !important;
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       display: inline-block;
       vertical-align: middle;
@@ -340,9 +326,7 @@
       margin-top: 20px;
       opacity: 0.6;
     }
-  </style>
 
-  <style>
     .glass-card {
       background: rgba(255, 255, 255, 0.03);
       backdrop-filter: blur(10px);
@@ -391,7 +375,6 @@
       white-space: nowrap;
       transition: opacity 0.3s, color 0.3s;
       padding: 0 2.5rem;
-      font-family: 'Inter', sans-serif;
     }
 
     .partner-logo:hover {
@@ -402,7 +385,7 @@
 
 </head>
 
-<body class="bg-background text-on-background font-body-md overflow-x-hidden antialiased">
+<body class="bg-background text-on-background overflow-x-hidden antialiased">
 
   <div id="preloader">
     <svg class="factory-loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80"
@@ -451,7 +434,7 @@
           <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
         </div>
         <div class="flex flex-col leading-none">
-          <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">THÉP SƠN
+          <span class="text-lg font-black text-white uppercase tracking-tighter notranslate">THÉP SƠN
             LÂM</span>
           <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial
             Core</span>
@@ -540,7 +523,7 @@
           <span class="material-symbols-outlined text-orange-500 text-lg notranslate" aria-hidden="true">call</span>
         </div>
         <span
-          class="text-[13px] font-black text-white font-inter tracking-tight group-hover:text-orange-400 transition-colors">+84
+          class="text-[13px] font-black text-white tracking-tight group-hover:text-orange-400 transition-colors">+84
           986 565 666</span>
       </a>
 
@@ -736,7 +719,7 @@
         <div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
           <div class="max-w-2xl">
             <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Ecosystem</span>
-            <h2 class="text-h2 font-display text-slate-900 mb-6">Giải pháp hạ tầng<br>Toàn diện & Đột phá</h2>
+            <h2 class="text-h2 text-slate-900 mb-6">Giải pháp hạ tầng<br>Toàn diện & Đột phá</h2>
             <p class="text-slate-500 leading-relaxed">Chúng tôi không chỉ cung cấp diện tích mặt bằng, mà còn cung cấp
               một
               hệ sinh thái hỗ trợ doanh nghiệp từ khâu khởi đầu đến lúc vận hành sản xuất ổn định.</p>
@@ -841,7 +824,7 @@
           <div>
             <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Featured
               Assets</span>
-            <h2 class="text-h2 font-display text-slate-900">Dự án trọng điểm</h2>
+            <h2 class="text-h2 text-slate-900">Dự án trọng điểm</h2>
           </div>
           <div class="flex gap-4">
             <button @click="prev()"
@@ -941,7 +924,7 @@
         <div class="lg:w-1/2">
           <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Strategic
             Reach</span>
-          <h2 class="text-h2 font-display text-white mb-8">Vị trí đắc địa tại các<br>Vùng kinh tế trọng điểm</h2>
+          <h2 class="text-h2 text-white mb-8">Vị trí đắc địa tại các<br>Vùng kinh tế trọng điểm</h2>
           <p class="text-slate-400 mb-12 leading-relaxed">THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ
             phát triển công nghiệp nhanh nhất Việt Nam, đảm bảo khả năng kết nối đa phương thức.</p>
 
@@ -976,7 +959,7 @@
           <div>
             <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Market
               Insights</span>
-            <h2 class="text-h2 font-display text-slate-900">Tin tức & Báo cáo</h2>
+            <h2 class="text-h2 text-slate-900">Tin tức & Báo cáo</h2>
           </div>
           <a href="/tin-tuc" class="text-slate-500 font-bold hover:text-orange-500 transition-colors">Xem tất cả tin
             tức</a>
@@ -1228,17 +1211,17 @@
       href="/">
       <span class="material-symbols-outlined notranslate" aria-hidden="true"
         style="font-variation-settings: 'FILL' 1;">grid_view</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
     </a>
     <a class="flex flex-col items-center justify-center text-slate-500 p-1 transition-all" href="/nha-xuong">
       <span class="material-symbols-outlined notranslate" aria-hidden="true" style="">warehouse</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
     </a>
 
     <a class="flex flex-col items-center justify-center text-slate-500 p-1 hover:text-slate-900 transition-all"
       href="/login">
       <span class="material-symbols-outlined notranslate" aria-hidden="true">person</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
     </a>
 
   </nav>

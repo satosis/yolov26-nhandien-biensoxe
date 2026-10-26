@@ -66,7 +66,7 @@
           <div class="col-12 col-md-6 mb-2">
             <label class="font-size-12 text-muted">Cước (₫) *</label>
             <input type="text" class="form-control" inputmode="numeric" required
-                   x-init="$el.value = segment.amount ? Number(segment.amount).toLocaleString('vi-VN') : ''"
+                   x-init="$el.value = segment.amount ? formatNumber(segment.amount) : ''"
                    @input="formatSegmentAmount($event, segment)">
           </div>
         </div>

@@ -7,13 +7,13 @@
 
 <div class="row mb-3">
   <div class="col-6 col-md-4 mb-2 mb-md-0"><div class="card mb-0"><div class="card-body py-2">
-    <div class="text-muted small">Chuyến còn nợ</div><strong>{{ debt_rows|length }}</strong>
+    <div class="text-muted small">Chuyến còn nợ</div><strong>{{ debt_rows|length|format_number }}</strong>
   </div></div></div>
   <div class="col-6 col-md-4 mb-2 mb-md-0"><div class="card mb-0"><div class="card-body py-2">
-    <div class="text-muted small">Doanh thu chuyến</div><strong>{{ "{:,.0f}".format(total_revenue)|replace(',', '.') }} đ</strong>
+    <div class="text-muted small">Doanh thu chuyến</div><strong>{{ total_revenue|format_currency }}</strong>
   </div></div></div>
   <div class="col-12 col-md-4"><div class="card mb-0"><div class="card-body py-2">
-    <div class="text-muted small">Tổng tiền còn nợ</div><strong class="text-danger">{{ "{:,.0f}".format(total_debt)|replace(',', '.') }} đ</strong>
+    <div class="text-muted small">Tổng tiền còn nợ</div><strong class="text-danger">{{ total_debt|format_currency }}</strong>
   </div></div></div>
 </div>
 
@@ -40,9 +40,9 @@
           <td style="min-width:150px;">{{ t.destination or '—' }}</td>
           <td>{{ t.cargo_description or '—' }}</td>
           <td>{{ t.tax_code or '—' }}</td>
-          <td class="text-right">{{ t.trip_quantity if t.trip_quantity is not none else '—' }}</td>
-          <td class="text-right text-nowrap">{{ "{:,.0f}".format(t.freight_revenue * (1 + (t.vat_rate or 0)))|replace(',', '.') if t.freight_revenue is not none else '—' }}</td>
-          <td class="text-right text-nowrap text-danger font-weight-bold">{{ "{:,.0f}".format(t.debt_amount)|replace(',', '.') }}</td>
+          <td class="text-right">{{ t.trip_quantity|format_number('—') }}</td>
+          <td class="text-right text-nowrap">{{ (t.freight_revenue * (1 + (t.vat_rate or 0)))|format_number('—') if t.freight_revenue is not none else '—' }}</td>
+          <td class="text-right text-nowrap text-danger font-weight-bold">{{ t.debt_amount|format_number }}</td>
           <td>{{ t.trip_note or '—' }}</td>
           <td class="text-nowrap"><a href="/admin/vehicles/cargo/{{ t.id }}/edit" class="btn btn-light btn-sm">Sửa chuyến</a></td>
         </tr>

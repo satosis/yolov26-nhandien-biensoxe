@@ -165,7 +165,7 @@ async def vehicles_page(
 
     active_cid = ctx.get("active_company_id")
     total_vehicles = count_whitelist_vehicles(site_id=site_id, company_id=active_cid)
-    paginated = paginate_counts(total_vehicles, page=page, per_page=20, base_url="/admin/vehicles")
+    paginated = paginate_counts(total_vehicles, page=page, per_page=100, base_url="/admin/vehicles")
     vehicles = get_whitelist_vehicles(
         site_id=site_id, company_id=active_cid,
         limit=paginated["per_page"], offset=(paginated["page"] - 1) * paginated["per_page"],

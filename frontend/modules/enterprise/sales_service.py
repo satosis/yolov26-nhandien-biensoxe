@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, ROUND_CEILING
+from decimal import Decimal, ROUND_HALF_UP
 import json
 import re
 import unicodedata
@@ -80,7 +80,29 @@ def get_or_create_customer(
     return new_cust
 
 
-def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
+def _parse_math_decimal(val) -> Decimal | None:
+    if val in (None, ""):
+        return None
+    s = str(val).strip().replace(" ", "")
+    import re
+    # Strip Vietnamese thousands separator dots (e.g. 1.111 -> 1111)
+    s = re.sub(r"\.(?=\d{3}(?:\.|$|,|\s|[+\-*\/]))", "", s)
+    s = s.replace(",", ".")
+    try:
+        return Decimal(s)
+    except Exception:
+        pass
+    try:
+        if re.match(r"^[0-9+\-*\/().]+$", s):
+            res = eval(s, {"__builtins__": None}, {})
+            if isinstance(res, (int, float)):
+                return Decimal(str(round(float(res), 3)))
+    except Exception:
+        pass
+    return None
+
+
+def normalize_items(items: object, allow_unpriced: bool = False) -> tuple[list[dict] | None, str | None]:
     if not isinstance(items, list) or not items:
         return None, "Hóa đơn cần có ít nhất một mặt hàng."
 
@@ -108,14 +130,14 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
 
             gross_weight = None
             if raw_gross not in (None, ""):
-                gross_weight = Decimal(str(raw_gross))
-                if not gross_weight.is_finite() or gross_weight < 0:
+                gross_weight = _parse_math_decimal(raw_gross)
+                if gross_weight is None or not gross_weight.is_finite() or gross_weight < 0:
                     return None, "Cân tổng không hợp lệ."
 
             tare_weight = None
             if raw_tare not in (None, ""):
-                tare_weight = Decimal(str(raw_tare))
-                if not tare_weight.is_finite() or tare_weight < 0:
+                tare_weight = _parse_math_decimal(raw_tare)
+                if tare_weight is None or not tare_weight.is_finite() or tare_weight < 0:
                     return None, "Bì không hợp lệ."
 
             custom_total = None
@@ -125,8 +147,9 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
                 except Exception:
                     custom_total = None
 
-            if raw_quantity not in (None, "") and Decimal(str(raw_quantity)) > 0:
-                quantity = Decimal(str(raw_quantity))
+            parsed_qty = _parse_math_decimal(raw_quantity)
+            if parsed_qty is not None and parsed_qty > 0:
+                quantity = parsed_qty
             elif gross_weight is not None and (gross_weight - (tare_weight or Decimal("0"))) > 0:
                 quantity = gross_weight - (tare_weight or Decimal("0"))
             else:
@@ -136,19 +159,31 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
             if quantity > 0 and unit_price <= 0 and custom_total is not None and custom_total > 0:
                 unit_price = (custom_total / quantity).quantize(Decimal("0.01"))
             elif quantity <= 0:
-                unit_price = Decimal("0")
+                # Retain positive unit_price if provided (e.g. advance orders with agreed pricing before weighing)
+                if not unit_price.is_finite() or unit_price < 0:
+                    unit_price = Decimal("0")
 
             if custom_total is not None and custom_total >= 0:
-                line_total = custom_total.to_integral_value(rounding=ROUND_CEILING)
+                line_total = (custom_total / Decimal("1000")).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                ) * Decimal("1000")
             elif quantity > 0 and unit_price > 0:
                 raw_total = quantity * unit_price
-                line_total = (raw_total / Decimal("1000")).to_integral_value(rounding=ROUND_CEILING) * Decimal("1000")
+                line_total = (raw_total / Decimal("1000")).quantize(
+                    Decimal("1"), rounding=ROUND_HALF_UP
+                ) * Decimal("1000")
             else:
                 line_total = Decimal("0")
 
             if not name:
                 return None, "Tên mặt hàng/khoản phát sinh là bắt buộc."
-            if line_total <= 0 and (quantity <= 0 or unit_price <= 0):
+            is_order_item = allow_unpriced and line_total == 0
+            has_positive_amount = (
+                (custom_total is not None and custom_total > 0)
+                or (quantity > 0 and unit_price > 0)
+                or (allow_unpriced and unit_price > 0)
+            )
+            if line_total <= 0 and not is_order_item and not has_positive_amount:
                 return None, f"Mục '{name}' cần có số lượng và đơn giá, hoặc thành tiền lớn hơn 0."
             if not quantity.is_finite() or quantity < 0:
                 return None, "Số lượng không hợp lệ."
@@ -156,6 +191,10 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
                 return None, "Đơn giá không hợp lệ."
             if quantity.quantize(Decimal("0.001")) != quantity or unit_price.quantize(Decimal("0.01")) != unit_price:
                 return None, "Số lượng tối đa 3 chữ số thập phân, đơn giá tối đa 2 chữ số thập phân."
+
+            gross_formula = str(row.get("gross_formula") or "").strip()
+            tare_formula = str(row.get("tare_formula") or "").strip()
+            qty_formula = str(row.get("qty_formula") or "").strip()
 
             normalized.append({
                 "product_name": name[:255],
@@ -166,6 +205,9 @@ def normalize_items(items: object) -> tuple[list[dict] | None, str | None]:
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "line_total": line_total,
+                "gross_formula": gross_formula,
+                "tare_formula": tare_formula,
+                "qty_formula": qty_formula,
             })
         if not normalized:
             return None, "Hóa đơn cần ít nhất một mặt hàng."
@@ -192,6 +234,7 @@ def get_next_sale_stt(company_id: int) -> str:
                 SELECT COUNT(*)
                 FROM public.personal_sales
                 WHERE company_id = %s
+                  AND NULLIF(COALESCE(NULLIF(source_invoice_number, ''), invoice_number, ''), '') IS NOT NULL
             )
         ) AS max_stt
         """,
@@ -209,7 +252,7 @@ def create_sale(company_id: int, values: dict, user_id: int | None) -> dict | No
     status = (values.get("status") or "").strip()
     if not status:
         status = "pending" if not raw_invoice_number else "delivered"
-    if status == "pending":
+    if status in ("pending", "delivering"):
         raw_invoice_number = ""
     elif not raw_invoice_number:
         raw_invoice_number = get_next_sale_stt(company_id)
@@ -224,6 +267,9 @@ def create_sale(company_id: int, values: dict, user_id: int | None) -> dict | No
             "quantity": str(row["quantity"]),
             "unit_price": str(row["unit_price"]),
             "line_total": str(row["line_total"]),
+            "gross_formula": str(row.get("gross_formula") or ""),
+            "tare_formula": str(row.get("tare_formula") or ""),
+            "qty_formula": str(row.get("qty_formula") or ""),
         }
         for row in items
     ], ensure_ascii=False)
@@ -246,13 +292,15 @@ def create_sale(company_id: int, values: dict, user_id: int | None) -> dict | No
                       total_amount, paid_on_sale, payment_source, status
         ), inserted_items AS (
             INSERT INTO public.personal_sale_items
-                (sale_id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total)
-            SELECT s.id, x.product_name, x.unit, COALESCE(x.weigh_code, ''), x.gross_weight, x.tare_weight, x.quantity, x.unit_price, x.line_total
+                (sale_id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total, gross_formula, tare_formula, qty_formula)
+            SELECT s.id, x.product_name, x.unit, COALESCE(x.weigh_code, ''), x.gross_weight, x.tare_weight, x.quantity, x.unit_price, x.line_total,
+                   COALESCE(x.gross_formula, ''), COALESCE(x.tare_formula, ''), COALESCE(x.qty_formula, '')
             FROM sale s
             CROSS JOIN jsonb_to_recordset(%s::jsonb) AS x(
                 product_name TEXT, unit TEXT, weigh_code TEXT,
                 gross_weight NUMERIC, tare_weight NUMERIC,
-                quantity NUMERIC, unit_price NUMERIC, line_total NUMERIC
+                quantity NUMERIC, unit_price NUMERIC, line_total NUMERIC,
+                gross_formula TEXT, tare_formula TEXT, qty_formula TEXT
             )
             RETURNING id
         ), debt_entry AS (
@@ -344,7 +392,20 @@ def list_sales(company_id: int, q: str = "", date_from=None, date_to=None, statu
                    AND NULLIF(s.invoice_number, '') IS NOT NULL AND l.invoice_number = s.invoice_number)
         ) payments ON TRUE
         WHERE {where}
-        ORDER BY s.sale_date DESC, s.id DESC
+        ORDER BY
+            CASE
+                WHEN COALESCE(s.status, 'delivered') = 'delivering' THEN 0
+                WHEN COALESCE(s.status, 'delivered') = 'pending' THEN 1
+                WHEN COALESCE(s.status, 'delivered') = 'delivered' THEN 2
+                ELSE 3
+            END,
+            CASE
+                WHEN COALESCE(NULLIF(s.source_invoice_number, ''), s.invoice_number, '') ~ '^[0-9]+$'
+                THEN COALESCE(NULLIF(s.source_invoice_number, ''), s.invoice_number, '')::NUMERIC
+                ELSE NULL
+            END DESC NULLS LAST,
+            s.sale_date DESC,
+            s.id DESC
     """
     if limit is not None:
         query += " LIMIT %s"
@@ -386,7 +447,10 @@ def get_sale(company_id: int, sale_id: int) -> tuple[dict | None, list[dict]]:
         return None, []
     items = db._execute_query(
         """
-        SELECT id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total
+        SELECT id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total,
+               COALESCE(gross_formula, '') AS gross_formula,
+               COALESCE(tare_formula, '') AS tare_formula,
+               COALESCE(qty_formula, '') AS qty_formula
         FROM public.personal_sale_items WHERE sale_id = %s ORDER BY id
         """,
         (sale_id,),
@@ -416,7 +480,7 @@ def update_sale(company_id: int, sale_id: int, values: dict) -> bool:
             old_source = sale.get("source_invoice_number") or old_invoice_number
             new_invoice_number = (values.get("invoice_number") or "").strip()
             new_status = values.get("status") or sale.get("status") or ("pending" if not new_invoice_number else "delivered")
-            if new_status == "pending":
+            if new_status in ("pending", "delivering"):
                 new_invoice_number = ""
             elif not new_invoice_number:
                 new_invoice_number = old_invoice_number or get_next_sale_stt(company_id)
@@ -446,12 +510,13 @@ def update_sale(company_id: int, sale_id: int, values: dict) -> bool:
             cursor.execute("DELETE FROM public.personal_sale_items WHERE sale_id = %s", (sale_id,))
             cursor.executemany(
                 """INSERT INTO public.personal_sale_items
-                       (sale_id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total)
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                       (sale_id, product_name, unit, weigh_code, gross_weight, tare_weight, quantity, unit_price, line_total, gross_formula, tare_formula, qty_formula)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                 [
                     (sale_id, item["product_name"], item["unit"],
                      item.get("weigh_code") or "", item.get("gross_weight"), item.get("tare_weight"),
-                     item["quantity"], item["unit_price"], item["line_total"])
+                     item["quantity"], item["unit_price"], item["line_total"],
+                     item.get("gross_formula") or "", item.get("tare_formula") or "", item.get("qty_formula") or "")
                     for item in items
                 ],
             )
@@ -511,9 +576,19 @@ def update_sale_status(company_id: int, sale_id: int, status: str, invoice_numbe
     if clean_status not in ("delivered", "pending", "delivering", "cancelled"):
         raise ValueError("Trạng thái không hợp lệ.")
     
-    clean_inv = invoice_number.strip() if invoice_number is not None else None
-    if clean_status != "pending" and (clean_inv is not None and not clean_inv):
+    no_stt_status = clean_status in ("pending", "delivering")
+    clean_inv = "" if no_stt_status else (invoice_number.strip() if invoice_number is not None else None)
+    if not no_stt_status and clean_inv is not None and not clean_inv:
         clean_inv = get_next_sale_stt(company_id)
+
+    old_sale = None
+    if no_stt_status:
+        old_sale = db._execute_query(
+            "SELECT customer_id, invoice_number FROM public.personal_sales WHERE company_id = %s AND id = %s",
+            (company_id, sale_id), fetch=True, commit=False
+        )
+        if not old_sale:
+            return False
 
     if clean_inv is not None:
         res = db._execute_query(
@@ -533,8 +608,16 @@ def update_sale_status(company_id: int, sale_id: int, status: str, invoice_numbe
                     WHERE (sale_id = %s) OR (company_id = %s AND sale_id IS NULL AND invoice_number = '')""",
                 (clean_inv, sale_id, company_id), commit=True
             )
+        elif no_stt_status:
+            old_invoice = str(old_sale.get("invoice_number") or "").strip()
+            db._execute_query(
+                """UPDATE public.personal_debt_logs SET invoice_number = ''
+                    WHERE sale_id = %s
+                       OR (%s <> '' AND company_id = %s AND customer_id = %s AND invoice_number = %s)""",
+                (sale_id, old_invoice, company_id, old_sale["customer_id"], old_invoice), commit=True
+            )
     else:
-        if clean_status != "pending":
+        if not no_stt_status:
             curr = db._execute_query(
                 "SELECT invoice_number FROM public.personal_sales WHERE company_id = %s AND id = %s",
                 (company_id, sale_id), fetch=True, commit=False
@@ -594,7 +677,7 @@ def record_payment(company_id: int, sale_id: int, amount: Decimal, source: str, 
         WHERE %s > 0
         RETURNING id
         """,
-        (amount, source, note, user_id, company_id, sale_id, amount),
+        (company_id, sale_id, amount, source, note, user_id, amount),
         fetch=True,
         commit=True,
     )
@@ -900,3 +983,127 @@ def get_sale_payments(company_id: int, customer_id: int | None, invoice_number: 
         (company_id, customer_id, invoice_number),
         fetchall=True, commit=False
     ) or []
+
+
+def _sale_items_filters(
+    company_id: int,
+    q: str = "",
+    product_name: str = "",
+    customer_id: int | None = None,
+    date_from=None,
+    date_to=None,
+) -> tuple[str, list]:
+    filters = ["s.company_id = %s"]
+    params: list = [company_id]
+    if product_name:
+        p_term = f"%{product_name.strip()}%"
+        filters.append(
+            "(i.product_name ILIKE %s OR s.customer_name ILIKE %s OR s.customer_code ILIKE %s OR s.invoice_number ILIKE %s OR s.source_invoice_number ILIKE %s)"
+        )
+        params.extend([p_term] * 5)
+    if customer_id:
+        filters.append("s.customer_id = %s")
+        params.append(customer_id)
+    if date_from:
+        filters.append("s.sale_date >= %s")
+        params.append(date_from)
+    if date_to:
+        filters.append("s.sale_date <= %s")
+        params.append(date_to)
+    term = (q or "").strip()
+    if term:
+        wildcard = f"%{term}%"
+        filters.append(
+            "(i.product_name ILIKE %s OR s.invoice_number ILIKE %s OR s.source_invoice_number ILIKE %s "
+            "OR s.customer_name ILIKE %s OR s.customer_code ILIKE %s OR s.carrier ILIKE %s OR s.note ILIKE %s)"
+        )
+        params.extend([wildcard] * 7)
+    return " AND ".join(filters), params
+
+
+def count_sale_items(
+    company_id: int,
+    q: str = "",
+    product_name: str = "",
+    customer_id: int | None = None,
+    date_from=None,
+    date_to=None,
+) -> dict:
+    where, params = _sale_items_filters(company_id, q, product_name, customer_id, date_from, date_to)
+    return db._execute_query(
+        f"""
+        SELECT COUNT(*) AS total_items,
+               COALESCE(SUM(i.quantity), 0) AS total_quantity,
+               COALESCE(SUM(i.line_total), 0) AS total_amount,
+               COUNT(DISTINCT i.product_name) AS total_products
+        FROM public.personal_sale_items i
+        JOIN public.personal_sales s ON s.id = i.sale_id
+        WHERE {where}
+        """,
+        tuple(params),
+        fetch=True,
+        commit=False,
+    ) or {"total_items": 0, "total_quantity": 0, "total_amount": 0, "total_products": 0}
+
+
+def list_sale_items(
+    company_id: int,
+    q: str = "",
+    product_name: str = "",
+    customer_id: int | None = None,
+    date_from=None,
+    date_to=None,
+    limit: int | None = 50,
+    offset: int | None = 0,
+) -> list[dict]:
+    where, params = _sale_items_filters(company_id, q, product_name, customer_id, date_from, date_to)
+    query = f"""
+        SELECT
+            i.id AS item_id,
+            s.id AS sale_id,
+            s.invoice_number,
+            COALESCE(NULLIF(s.source_invoice_number, ''), s.invoice_number) AS display_invoice_number,
+            s.sale_date,
+            s.customer_id,
+            s.customer_code,
+            s.customer_name,
+            s.customer_phone,
+            s.carrier,
+            s.note AS sale_note,
+            COALESCE(s.status, 'delivered') AS status,
+            i.product_name,
+            i.unit,
+            i.gross_weight,
+            i.tare_weight,
+            i.quantity,
+            i.unit_price,
+            i.line_total,
+            COALESCE(i.gross_formula, '') AS gross_formula,
+            COALESCE(i.tare_formula, '') AS tare_formula,
+            COALESCE(i.qty_formula, '') AS qty_formula
+        FROM public.personal_sale_items i
+        JOIN public.personal_sales s ON s.id = i.sale_id
+        WHERE {where}
+        ORDER BY
+            CASE
+                WHEN COALESCE(s.status, 'delivered') = 'delivering' THEN 0
+                WHEN COALESCE(s.status, 'delivered') = 'pending' THEN 1
+                WHEN COALESCE(s.status, 'delivered') = 'delivered' THEN 2
+                ELSE 3
+            END,
+            s.sale_date DESC, s.id DESC, i.id ASC
+    """
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+
+    return db._execute_query(
+        query,
+        tuple(params),
+        fetchall=True,
+        commit=False,
+    ) or []
+

@@ -13,11 +13,11 @@
       margin: 0;
       padding: 0;
     }
-    body {
-      color: #111;
-      font-family: "Times New Roman", Times, Georgia, serif;
-      font-size: 13px;
+    html, body {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 18px;
       line-height: 1.4;
+      color: #111;
       background: #fff;
     }
     .invoice-container {
@@ -33,7 +33,7 @@
       margin-bottom: 18px;
     }
     .invoice-title {
-      font-size: 22px;
+      font-size: 28px;
       font-weight: bold;
       letter-spacing: 0.5px;
       color: #222;
@@ -43,7 +43,7 @@
       position: absolute;
       top: 0;
       right: 0;
-      font-size: 15px;
+      font-size: 18px;
       font-weight: 600;
       color: #333;
     }
@@ -56,12 +56,12 @@
       border: none;
       padding: 3px 0;
       vertical-align: top;
-      font-size: 13px;
+      font-size: 18px;
     }
     .customer-name {
       color: #c92a2a;
       font-weight: bold;
-      font-size: 18px;
+      font-size: 20px;
       line-height: 1.25;
     }
     .items-table {
@@ -71,8 +71,8 @@
     }
     .items-table th, .items-table td {
       border: 1px solid #444;
-      padding: 5px 6px;
-      font-size: 13px;
+      padding: 5px 8px;
+      font-size: 18px;
     }
     .items-table th {
       text-align: center;
@@ -89,16 +89,22 @@
       text-align: left;
     }
     .empty-row td {
-      height: 24px;
+      height: 20px;
     }
     .summary-label {
       text-align: right;
       font-weight: 500;
-      padding-right: 12px !important;
+      padding: 4px 8px !important;
+      line-height: 1.25;
     }
     .summary-val {
       text-align: right;
       font-weight: bold;
+      padding: 4px 8px !important;
+      line-height: 1.25;
+    }
+    .old-debt-value {
+      font-weight: normal;
     }
     .grand-total-row {
       background-color: #fff;
@@ -107,70 +113,71 @@
       text-align: right;
       font-weight: bold;
       color: #c92a2a;
-      font-size: 13.5px;
-      padding-right: 12px !important;
+      font-size: 18px;
+      padding: 5px 8px !important;
+      line-height: 1.25;
     }
     .grand-total-val {
       text-align: right;
       font-weight: bold;
       color: #c92a2a;
-      font-size: 13.5px;
+      font-size: 18px;
+      padding: 5px 8px !important;
+      line-height: 1.25;
     }
     .payment-row td {
       border: 1px solid #444;
-      padding: 5px 6px;
-      font-size: 13px;
+      padding: 4px 8px;
+      font-size: 18px;
+      line-height: 1.25;
     }
-    .remaining-row td {
+    .payment-row .summary-val {
+      font-weight: normal;
+    }
+    .remaining-row td,
+    .remaining-row .summary-label {
       border-top: 1px dashed #444 !important;
       border-bottom: 1px solid #444;
       border-left: 1px solid #444;
       border-right: 1px solid #444;
-      padding: 5px 6px;
-      font-size: 13px;
-    }
-    .remaining-label {
-      text-align: right;
-      font-weight: normal;
-      padding-right: 12px !important;
-    }
-    .remaining-val {
-      text-align: right;
+      padding: 5px 8px;
+      font-size: 18px;
       font-weight: bold;
+      line-height: 1.25;
     }
     .words-section {
-      margin-top: 18px;
-      font-size: 13.5px;
+      margin-top: 8px;
+      font-size: 18px;
+      line-height: 1.3;
     }
     .footer-section {
-      margin-top: 36px;
+      margin-top: 10px;
       width: 100%;
-      min-height: 65px;
-      position: relative;
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      justify-content: center;
+    }
+    .footer-spacer-col {
+      /* Left column to balance centering of stamp */
     }
     .footer-stamp-col {
-      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       text-align: center;
-      vertical-align: middle;
-      padding-top: 6px;
     }
     .footer-date-col {
-      position: absolute;
-      right: 0;
-      top: 50%;
-      transform: translateY(-50%);
       text-align: right;
-      vertical-align: middle;
       font-style: italic;
-      font-size: 13px;
+      font-size: 16px;
+      white-space: nowrap;
     }
     .stamp-box {
       display: inline-block;
-      padding: 11px 26px;
-      font-size: 15px;
+      padding: 7px 20px;
+      font-size: 18px;
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 0.8px;
@@ -178,27 +185,24 @@
       border-radius: 4px;
     }
     .stamp-box.unpaid {
-      font-size: 15px;
-      padding: 11px 26px;
+      font-size: 18px;
+      padding: 10px 20px;
       letter-spacing: 0.7px;
-      border: 2.5px solid #c92a2a;
+      border: 2px solid #c92a2a;
       color: #c92a2a;
-      box-shadow: 0 0 0 1px #c92a2a;
     }
     .stamp-box.paid {
-      font-size: 15px;
-      padding: 11px 26px;
+      font-size: 18px;
+      padding: 7px 20px;
       letter-spacing: 0.7px;
       border: 2.5px solid #2b8a3e;
       color: #2b8a3e;
-      box-shadow: 0 0 0 1px #2b8a3e;
     }
     .stamp-box.pending {
-      font-size: 14px;
-      padding: 10px 22px;
+      font-size: 18px;
+      padding: 7px 20px;
       border: 2.5px dashed #d9480f;
       color: #d9480f;
-      box-shadow: 0 0 0 1px #d9480f;
     }
   </style>
 </head>
@@ -207,21 +211,33 @@
     <div class="invoice-header-row">
       <div class="invoice-title">HOÁ ĐƠN BÁN HÀNG</div>
       {% if sale.status == 'pending' %}
-      <div style="font-size: 13px; font-weight: bold; color: #d9480f; margin-top: 3px; letter-spacing: 0.5px;">(ĐƠN ĐẶT HÀNG — CHƯA LẤY HÀNG)</div>
+      <div style="font-size: 16px; font-weight: bold; color: #d9480f; margin-top: 3px; letter-spacing: 0.5px;">(ĐƠN ĐẶT HÀNG — CHƯA LẤY HÀNG)</div>
       {% elif sale.status == 'delivering' %}
-      <div style="font-size: 13px; font-weight: bold; color: #1098ad; margin-top: 3px;">(ĐANG GIAO HÀNG)</div>
+      <div style="font-size: 16px; font-weight: bold; color: #1098ad; margin-top: 3px;">(ĐANG GIAO HÀNG)</div>
       {% elif sale.status == 'cancelled' %}
-      <div style="font-size: 13px; font-weight: bold; color: #868e96; margin-top: 3px;">(ĐÃ HỦY ĐƠN)</div>
+      <div style="font-size: 16px; font-weight: bold; color: #868e96; margin-top: 3px;">(ĐÃ HỦY ĐƠN)</div>
       {% endif %}
       <div class="invoice-number-top">{% if sale.display_invoice_number %}{{ sale.display_invoice_number }}{% else %}Chưa cấp số{% endif %}</div>
     </div>
 
+    {% set cust_name = sale.customer_name or '' %}
+    {% set name_len = cust_name|length %}
+    {% if name_len > 32 %}
+      {% set col1_w = "62%" %}
+      {% set col2_w = "38%" %}
+    {% elif name_len > 20 %}
+      {% set col1_w = "55%" %}
+      {% set col2_w = "45%" %}
+    {% else %}
+      {% set col1_w = "48%" %}
+      {% set col2_w = "52%" %}
+    {% endif %}
     <table class="customer-info-table">
       <tr>
-        <td style="width: 58%;">
+        <td style="width: {{ col1_w }};">
           Họ và tên người mua : &nbsp;<span class="customer-name">{{ sale.customer_name }}</span>
         </td>
-        <td style="width: 42%;">
+        <td style="width: {{ col2_w }}; padding-left: 10px;">
           SĐT : {{ sale.customer_phone or '' }}
         </td>
       </tr>
@@ -229,8 +245,8 @@
         <td>
           Địa chỉ: {{ sale.customer_address or '' }}
         </td>
-        <td>
-          Xe vận chuyển : {{ sale.carrier or '0' }}
+        <td style="padding-left: 10px;">
+          Xe vận chuyển : {{ sale.carrier or '' }}
         </td>
       </tr>
     </table>
@@ -285,6 +301,7 @@
         </tr>
         {% endfor %}
 
+        {% if old_debt and old_debt != 0 %}
         <tr style="font-weight: bold;">
           <td colspan="{{ summary_colspan }}" class="summary-label" style="font-weight: bold;">
             Cộng tiền hàng ngày {{ sale_date_day_month }}
@@ -295,8 +312,9 @@
           <td colspan="{{ summary_colspan }}" class="summary-label">
             Nợ cũ đến {{ prev_date_day_month }}
           </td>
-          <td class="summary-val">{{ sale.old_debt_fmt }}</td>
+          <td class="summary-val old-debt-value">{{ sale.old_debt_fmt }}</td>
         </tr>
+        {% endif %}
         <tr class="grand-total-row">
           <td colspan="{{ summary_colspan }}" class="grand-total-label">
             TỔNG CỘNG
@@ -313,10 +331,10 @@
           </tr>
           {% endfor %}
           <tr class="remaining-row">
-            <td colspan="{{ summary_colspan }}" class="summary-label remaining-label">
-              {{ sale.remaining_debt_label or 'còn nợ' }}
+            <td colspan="{{ summary_colspan }}" class="summary-label">
+              {{ (sale.remaining_debt_label or 'Còn nợ')|capitalize }}
             </td>
-            <td class="summary-val remaining-val">{{ sale.remaining_debt_fmt }}</td>
+            <td class="summary-val">{{ sale.remaining_debt_fmt }}</td>
           </tr>
         {% endif %}
       </tbody>
@@ -326,10 +344,17 @@
       Số tiền bằng chữ : &nbsp;<strong>{{ sale.remaining_debt_words }}</strong>
     </div>
 
+    {% if sale.note %}
+    <div class="note-section" style="margin-top: 4px; font-size: 18px; color: #c92a2a; font-weight: bold; line-height: 1.3; white-space: pre-wrap;">
+      Ghi chú : &nbsp;{{ sale.note }}
+    </div>
+    {% endif %}
+
     <div class="footer-section">
+      <div class="footer-spacer-col"></div>
       <div class="footer-stamp-col">
         {% if sale.status == 'pending' %}
-        <div class="stamp-box pending" style="margin-right: 12px;">CHƯA LẤY HÀNG</div>
+        <div class="stamp-box pending">CHƯA LẤY HÀNG</div>
         {% endif %}
         {% if sale.remaining_debt <= 0 %}
         <div class="stamp-box paid">ĐÃ THANH TOÁN</div>

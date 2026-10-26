@@ -5,7 +5,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 28px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 12.5px !important;
+    border-radius: 6px;
   }
 </style>
 {% endblock %}
@@ -160,7 +163,7 @@
                 </td>
                 <td class="text-right text-nowrap align-middle">
                   {% if company.total_debt and company.total_debt > 0 %}
-                    <div class="font-weight-bold text-danger" style="font-family:monospace; font-size:13px;">{{ company.total_debt_fmt }}</div>
+                    <div class="font-weight-bold text-danger" style=" font-size:13px;">{{ company.total_debt_fmt }}</div>
                   {% else %}
                     <span class="text-muted small">0 đ</span>
                   {% endif %}
@@ -174,7 +177,7 @@
                       <input type="text" name="amount"
                              class="form-control form-control-sm text-right font-weight-bold text-success"
                              placeholder="Số tiền..."
-                             style="width:115px; font-family:monospace;"
+                             style="width:115px; "
                              oninput="formatCurrencyInput(this)"
                              required autocomplete="off">
                       <button type="submit" class="btn btn-success btn-sm font-weight-bold text-nowrap"
@@ -621,15 +624,6 @@ function scheduleCatalogCompanySearch() {
   _catalogCompanySearchTimer = setTimeout(submitCatalogCompanySearch, 300);
 }
 
-function formatCurrencyInput(input) {
-  let val = input.value.replace(/\D/g, '');
-  if (!val) {
-    input.value = '';
-    return;
-  }
-  input.value = Number(val).toLocaleString('vi-VN');
-}
-
 function confirmPayDebt(form, companyName, totalDebt) {
   const amountStr = form.amount.value.replace(/\D/g, '');
   if (!amountStr || Number(amountStr) <= 0) {
@@ -637,8 +631,8 @@ function confirmPayDebt(form, companyName, totalDebt) {
     return false;
   }
   const amount = Number(amountStr);
-  const formattedAmount = amount.toLocaleString('vi-VN') + ' đ';
-  const formattedDebt = Number(totalDebt).toLocaleString('vi-VN') + ' đ';
+  const formattedAmount = formatCurrency(amount);
+  const formattedDebt = formatCurrency(totalDebt);
 
   let confirmMsg = `Xác nhận khách hàng "${companyName}" thanh toán: ${formattedAmount}?\n(Tổng nợ: ${formattedDebt}).`;
   if (amount > totalDebt) {

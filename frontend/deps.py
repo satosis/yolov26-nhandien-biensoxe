@@ -17,6 +17,45 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 templates.env.add_extension("jinja2.ext.do")
 templates.env.policies["json.dumps_kwargs"] = {"sort_keys": True, "default": _json_default}
 
+
+def format_number(value, default: str = "0") -> str:
+    """Format numeric value into Vietnamese standard format with dot thousand separators (e.g., 1.234.567)."""
+    if value is None or value == "":
+        return default
+    try:
+        clean = str(value).strip().replace(" ", "").replace(",", "")
+        d = Decimal(clean)
+        if d == d.to_integral():
+            val_int = int(d)
+            return f"{val_int:,}".replace(",", ".")
+        else:
+            parts = f"{d:f}".split(".")
+            int_part = f"{int(parts[0]):,}".replace(",", ".")
+            dec_part = parts[1].rstrip("0")
+            return f"{int_part},{dec_part}" if dec_part else int_part
+    except Exception:
+        return str(value)
+
+
+def format_currency(value, symbol: str = "đ", default: str = "0 đ") -> str:
+    """Format numeric value as currency (e.g., 1.234.567 đ)."""
+    if value is None or value == "":
+        return default
+    num_str = format_number(value, default="0")
+    if num_str == "0":
+        return f"0 {symbol}".strip()
+    return f"{num_str} {symbol}".strip()
+
+
+templates.env.filters["format_number"] = format_number
+templates.env.filters["format_currency"] = format_currency
+templates.env.filters["format_vnd"] = format_currency
+templates.env.filters["money"] = format_currency
+templates.env.globals["format_number"] = format_number
+templates.env.globals["format_currency"] = format_currency
+templates.env.globals["format_vnd"] = format_currency
+templates.env.globals["money"] = format_currency
+
 from backend.services.database import db
 
 
@@ -62,7 +101,7 @@ def require_menu(menu_key: str):
                     "vehicles" in allowed_list or "users" in allowed_list or "rbac" in allowed_list
                 ):
                     return user
-                if menu_key in ("companies", "staff", "enterprise", "payroll", "departments", "attendance", "advances", "assets", "debts", "sales") and (
+                if menu_key in ("companies", "staff", "enterprise", "payroll", "departments", "attendance", "advances", "assets", "debts", "tax_checklist", "sales", "suppliers") and (
                     "vehicles" in allowed_list or "users" in allowed_list
                 ):
                     return user
@@ -130,7 +169,39 @@ def get_menu_context(request: Request, user: dict) -> dict:
     active_company_id = request.session.get("active_company_id")
     valid_cids = [c["id"] for c in user_companies]
     if active_company_id not in valid_cids:
-        active_company_id = valid_cids[0] if valid_cids else None
+        matched_cid = None
+        # Ưu tiên 1: Khớp đúng theo Email doanh nghiệp đã liên kết Gmail
+        try:
+            from backend.services.settings_service import get_app_setting
+            sync_email = get_app_setting("gmail_sync_email", "").strip().lower()
+            if sync_email:
+                for c in user_companies:
+                    c_row = db._execute_query(
+                        "SELECT email FROM public.invoice_companies WHERE id = %s",
+                        (c["id"],), fetch=True, commit=False,
+                    )
+                    if c_row and (c_row.get("email") or "").strip().lower() == sync_email:
+                        matched_cid = c["id"]
+                        break
+        except Exception:
+            pass
+
+        # Ưu tiên 2: Doanh nghiệp đã có sẵn dữ liệu hóa đơn đầu vào
+        if not matched_cid:
+            try:
+                inv_c = db._execute_query("""
+                    SELECT buyer_company_id, COUNT(*) as cnt
+                    FROM public.transport_input_invoices
+                    WHERE buyer_company_id IS NOT NULL
+                    GROUP BY buyer_company_id
+                    ORDER BY cnt DESC LIMIT 1
+                """, fetch=True, commit=False)
+                if inv_c and inv_c.get("buyer_company_id") in valid_cids:
+                    matched_cid = inv_c["buyer_company_id"]
+            except Exception:
+                pass
+
+        active_company_id = matched_cid if matched_cid else (valid_cids[0] if valid_cids else None)
         request.session["active_company_id"] = active_company_id
 
     active_company = next((c for c in user_companies if c["id"] == active_company_id), None)
@@ -152,9 +223,11 @@ def get_menu_context(request: Request, user: dict) -> dict:
             current_menu = "assets"
         elif admin_sub.startswith("enterprise/sales"):
             current_menu = "sales"
+        elif admin_sub.startswith("enterprise/tax-checklist"):
+            current_menu = "tax_checklist"
         elif admin_sub.startswith("enterprise"):
             current_menu = "enterprise"
-        elif admin_sub.startswith("transport/catalog") or admin_sub.startswith("transport/contracts") or admin_sub.startswith("transport/input-invoices"):
+        elif admin_sub.startswith("transport/catalog") or admin_sub.startswith("transport/contracts") or admin_sub.startswith("transport/input-invoices") or admin_sub.startswith("transport/tax-report"):
             current_menu = "vehicles"
         else:
             current_menu = admin_sub.split("/")[0]

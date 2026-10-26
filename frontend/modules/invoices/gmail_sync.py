@@ -68,6 +68,17 @@ def get_connected_gmail_email() -> str:
     return _get_env_or_setting("GMAIL_SYNC_EMAIL") or get_app_setting("gmail_sync_email", "")
 
 
+def get_company_by_enterprise_email(email_address: str) -> Optional[dict]:
+    """Look up an enterprise in invoice_companies whose registered email matches."""
+    if not email_address or not email_address.strip():
+        return None
+    clean_email = email_address.strip().lower()
+    return db._execute_query(
+        "SELECT id, name, tax_code, address, email FROM public.invoice_companies WHERE LOWER(TRIM(COALESCE(email, ''))) = %s LIMIT 1",
+        (clean_email,), fetch=True, commit=False,
+    )
+
+
 def save_gmail_tokens(refresh_token: str, access_token: str = "", email_address: str = ""):
     settings = {}
     if refresh_token:
@@ -186,12 +197,6 @@ async def get_valid_gmail_access_token() -> str | None:
 # ---------------------------------------------------------------------------
 # E-Invoice XML Parser (Circular 78, Circular 32, MISA, Petrolimex, etc.)
 # ---------------------------------------------------------------------------
-
-def _clean_str(val: Any) -> str:
-    if val is None:
-        return ""
-    return str(val).strip()
-
 
 def _parse_xml_text(elem: ET.Element, *tag_names: str) -> str:
     for target in tag_names:
@@ -342,14 +347,21 @@ def parse_einvoice_xml(xml_bytes: bytes) -> Optional[Dict[str, Any]]:
                 vat_percent = Decimal(vat_match.group(1))
             except Exception:
                 pass
+        elif any(k in vat_rate_text.upper() for k in ("KKKNT", "KCT", "KHONG", "KHAC", "X")):
+            vat_percent = Decimal(0)
+            vat_amount = Decimal(0)
+
+    if vat_amount == Decimal(0) and subtotal > Decimal(0) and (total == subtotal or total == Decimal(0)):
+        vat_percent = Decimal(0)
 
     if total == Decimal(0) and subtotal > Decimal(0):
-        if vat_amount == Decimal(0):
+        if vat_amount == Decimal(0) and vat_percent > Decimal(0):
             vat_amount = (subtotal * vat_percent / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         total = subtotal + vat_amount
     elif subtotal == Decimal(0) and total > Decimal(0):
         subtotal = total
         vat_amount = Decimal(0)
+        vat_percent = Decimal(0)
 
     if not items:
         items = [{
@@ -562,8 +574,9 @@ def _try_parse_pdf(filename: str, content: bytes) -> Optional[Tuple[str, str, by
             buyer = parsed.get("buyer") or {}
             items = parsed.get("items") or []
             subtotal = sum((money(it.get("amount") or (money(it.get("quantity", 0), "q") * money(it.get("unit_price", 0), "p")), "a") for it in items), Decimal(0))
-            vat_p = Decimal(str(parsed.get("vat_percent") or 10))
-            vat_a = (subtotal * vat_p / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            vat_raw = parsed.get("vat_percent")
+            vat_p = Decimal(str(vat_raw if vat_raw is not None else 10))
+            vat_a = Decimal(str(parsed.get("vat_amount"))) if parsed.get("vat_amount") is not None else ((subtotal * vat_p / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if vat_p > 0 else Decimal(0))
             inv_dict = {
                 "invoice_date": parsed.get("invoice_date") or date.today(),
                 "serial": (parsed.get("serial") or "")[:50],
@@ -592,28 +605,39 @@ def _try_parse_pdf(filename: str, content: bytes) -> Optional[Tuple[str, str, by
 # Database Persist & Deduplication
 # ---------------------------------------------------------------------------
 
-def _invoice_already_exists(invoice_number: str, serial: str, invoice_date: date, seller_name: str) -> bool:
-    """Check whether this invoice is already saved in the database."""
+def _invoice_already_exists(
+    invoice_number: str,
+    serial: str,
+    invoice_date: date,
+    seller_name: str,
+    buyer_company_id: Optional[int] = None,
+) -> bool:
+    """Check whether this invoice is already saved in the database for the given buyer company."""
     if not invoice_number:
         return False
 
-    row = db._execute_query("""
+    b_cond = "AND (buyer_company_id = %s OR buyer_company_id IS NULL)" if buyer_company_id else ""
+    b_params = (buyer_company_id,) if buyer_company_id else ()
+
+    row = db._execute_query(f"""
         SELECT id FROM public.transport_input_invoices
         WHERE invoice_number = %s
           AND (serial = %s OR %s = '' OR serial = '')
           AND (invoice_date = %s OR invoice_date IS NULL)
+          {b_cond}
         LIMIT 1
-    """, (invoice_number, serial, serial, invoice_date), fetch=True, commit=False)
+    """, (invoice_number, serial, serial, invoice_date) + b_params, fetch=True, commit=False)
     if row:
         return True
 
     # Secondary check by invoice_number and seller_name if serial is blank
     if seller_name:
-        row2 = db._execute_query("""
+        row2 = db._execute_query(f"""
             SELECT id FROM public.transport_input_invoices
             WHERE invoice_number = %s AND seller_name = %s
+              {b_cond}
             LIMIT 1
-        """, (invoice_number, seller_name), fetch=True, commit=False)
+        """, (invoice_number, seller_name) + b_params, fetch=True, commit=False)
         if row2:
             return True
     return False
@@ -634,12 +658,68 @@ def save_synced_invoice(
     if not inv_num:
         return None
 
-    if _invoice_already_exists(inv_num, serial, inv_date, seller_name):
-        logger.info("Invoice %s (%s) from '%s' already exists in database; skipping.",
-                    inv_num, serial, seller_name)
+    buyer_name = str(invoice_data.get("buyer_name") or "").strip()
+    buyer_tax = str(invoice_data.get("buyer_tax_code") or "").strip()
+    buyer_address = str(invoice_data.get("buyer_address") or "").strip()
+
+    # 1. Ưu tiên khớp công ty theo Mã số thuế người mua trên hóa đơn
+    clean_inv_tax = buyer_tax.replace("-", "").strip() if buyer_tax else ""
+    if clean_inv_tax:
+        b_match = db._execute_query(
+            "SELECT id, name, tax_code, address, email FROM public.invoice_companies WHERE REPLACE(tax_code, '-', '') = %s LIMIT 1",
+            (clean_inv_tax,), fetch=True, commit=False,
+        )
+        if b_match:
+            buyer_company_id = b_match["id"]
+            active_comp = b_match
+            if not buyer_name:
+                buyer_name = b_match.get("name") or ""
+            if not buyer_address:
+                buyer_address = b_match.get("address") or ""
+
+    # 2. Khớp đúng theo Email doanh nghiệp liên kết hộp thư Gmail
+    connected_email = get_connected_gmail_email()
+    email_company = get_company_by_enterprise_email(connected_email) if connected_email else None
+    if not buyer_company_id and email_company:
+        buyer_company_id = email_company["id"]
+        active_comp = email_company
+
+    # 3. Tải thông tin công ty nếu buyer_company_id đã được chỉ định
+    if buyer_company_id and not active_comp:
+        active_comp = db._execute_query(
+            "SELECT id, name, tax_code, address, email FROM public.invoice_companies WHERE id = %s",
+            (buyer_company_id,), fetch=True, commit=False,
+        )
+
+    # 4. Kiểm tra cách ly công ty: Nếu hóa đơn có MST người mua khác với active_comp,
+    # kiểm tra xem MST đó có thuộc công ty nào khác trong hệ thống để tự chuyển về đúng công ty
+    if active_comp and clean_inv_tax:
+        clean_target_tax = (active_comp.get("tax_code") or "").replace("-", "").strip()
+        if clean_target_tax and clean_inv_tax != clean_target_tax:
+            other_target = db._execute_query(
+                "SELECT id, name, tax_code, address FROM public.invoice_companies WHERE REPLACE(tax_code, '-', '') = %s LIMIT 1",
+                (clean_inv_tax,), fetch=True, commit=False
+            )
+            if other_target:
+                buyer_company_id = other_target["id"]
+                active_comp = other_target
+                logger.info(
+                    "Tự động chuyển hóa đơn %s %s về đúng doanh nghiệp %s (MST: %s).",
+                    serial, inv_num, other_target["name"], clean_inv_tax
+                )
+            else:
+                logger.info(
+                    "Bỏ qua hóa đơn %s %s: MST người mua %s không khớp công ty %s (MST: %s).",
+                    serial, inv_num, clean_inv_tax, clean_target_tax
+                )
+                return None
+
+    if _invoice_already_exists(inv_num, serial, inv_date, seller_name, buyer_company_id=buyer_company_id):
+        logger.info("Invoice %s (%s) from '%s' already exists for company %s; skipping.",
+                    inv_num, serial, seller_name, buyer_company_id)
         return None
 
-    # Link or auto-create company
+    # Link or auto-create seller company
     seller_tax = str(invoice_data.get("seller_tax_code", "")).strip()
     seller_address = str(invoice_data.get("seller_address", "")).strip()
     seller_company_id = None
@@ -680,10 +760,26 @@ def save_synced_invoice(
     att_mimetype = attachment[1] if attachment else invoice_data.get("source_type")
     att_data = attachment[2] if attachment else None
 
-    buyer_name = str(invoice_data.get("buyer_name") or "").strip()
-    buyer_tax = str(invoice_data.get("buyer_tax_code") or "").strip()
-    buyer_address = str(invoice_data.get("buyer_address") or "").strip()
-    if buyer_company_id and (not buyer_name or not buyer_tax):
+    if buyer_tax and not buyer_company_id:
+        b_match = db._execute_query(
+            "SELECT id, name, tax_code, address FROM public.invoice_companies WHERE tax_code = %s LIMIT 1",
+            (buyer_tax,), fetch=True, commit=False,
+        )
+        if b_match:
+            buyer_company_id = b_match["id"]
+            if not buyer_name:
+                buyer_name = b_match.get("name") or ""
+            if not buyer_address:
+                buyer_address = b_match.get("address") or ""
+
+    if active_comp:
+        if not buyer_name:
+            buyer_name = active_comp.get("name") or ""
+        if not buyer_tax:
+            buyer_tax = active_comp.get("tax_code") or ""
+        if not buyer_address:
+            buyer_address = active_comp.get("address") or ""
+    elif buyer_company_id and (not buyer_name or not buyer_tax):
         b_comp = db._execute_query(
             "SELECT name, tax_code, address FROM public.invoice_companies WHERE id = %s",
             (buyer_company_id,), fetch=True, commit=False,
@@ -742,6 +838,14 @@ async def sync_invoices_from_gmail_api(
     access_token = await get_valid_gmail_access_token()
     if not access_token:
         raise ValueError("Chưa kết nối tài khoản Gmail qua Google OAuth (thiếu Refresh Token).")
+
+    # Tự động gán buyer_company_id theo Email doanh nghiệp đã đăng ký nếu chưa có
+    connected_email = get_connected_gmail_email()
+    email_company = get_company_by_enterprise_email(connected_email) if connected_email else None
+    if not buyer_company_id and email_company:
+        buyer_company_id = email_company["id"]
+        logger.info("Gmail Sync: Khớp doanh nghiệp %s (id: %s) theo email %s",
+                    email_company["name"], email_company["id"], connected_email)
 
     headers = {"Authorization": f"Bearer {access_token}"}
 
@@ -912,6 +1016,13 @@ def sync_invoices_from_imap(
     clean_user = email_address.strip()
     if not clean_user or not clean_pwd:
         raise ValueError("Vui lòng nhập Email và Mật khẩu ứng dụng (App Password).")
+
+    # Tự động gán buyer_company_id theo Email doanh nghiệp đã đăng ký nếu chưa có
+    email_company = get_company_by_enterprise_email(clean_user) if clean_user else None
+    if not buyer_company_id and email_company:
+        buyer_company_id = email_company["id"]
+        logger.info("IMAP Sync: Khớp doanh nghiệp %s (id: %s) theo email %s",
+                    email_company["name"], email_company["id"], clean_user)
 
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com", 993)
