@@ -15,9 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from backend.services import config as cfg
-from frontend.modules.invoices.company_images import company_image_print_width_mm
-import fitz  # PyMuPDF fallback
-from docx import Document
+try:
+    import fitz  # PyMuPDF fallback
+except ImportError:
+    fitz = None
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -735,12 +736,14 @@ def render_pdf_from_html(html_content: str, title: str = "Tài liệu") -> bytes
                 pass
 
     # PyMuPDF Fallback: convert HTML using basic PyMuPDF story / rect
-    doc = fitz.open()
-    page = doc.new_page(width=595, height=842)
-    page.insert_text((50, 50), f"{title}\nVui lòng mở trên trình duyệt có Chrome/Edge để in PDF chuẩn.", fontsize=12)
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
+    if fitz is not None:
+        doc = fitz.open()
+        page = doc.new_page(width=595, height=842)
+        page.insert_text((50, 50), f"{title}\nVui lòng mở trên trình duyệt có Chrome/Edge để in PDF chuẩn.", fontsize=12)
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+    return b""
 
 
 def render_contract_pdf(ctx: dict[str, Any]) -> bytes:
