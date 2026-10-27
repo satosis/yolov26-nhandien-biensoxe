@@ -5,9 +5,13 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+_default_plate_model = os.path.join(BASE_DIR, "backend/models/best.pt")
+if not os.path.exists(_default_plate_model):
+    _default_plate_model = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door_int8.onnx")
+
 PLATE_MODEL_PATH = os.environ.get(
     "PLATE_MODEL_PATH",
-    os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door_int8.onnx"),
+    _default_plate_model,
 )
 RKNN_MODEL_PATH = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door.rknn")
 FACE_MODEL_DIR = os.path.join(BASE_DIR, "backend/models/insightface")

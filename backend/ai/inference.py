@@ -85,6 +85,17 @@ def _patch_e2e_loss():
     class E2ELoss:
         pass
 
+    try:
+        import ultralytics.utils.loss as u_loss
+        u_loss.E2ELoss = E2ELoss
+    except Exception:
+        pass
+    try:
+        import ultralytics.nn.modules.loss as m_loss
+        m_loss.E2ELoss = E2ELoss
+    except Exception:
+        pass
+
     for name in ("ultralytics.utils.loss", "ultralytics.nn.modules.loss"):
         module = sys.modules.setdefault(name, types.ModuleType(name))
         module.E2ELoss = E2ELoss
@@ -108,51 +119,24 @@ def validate_plate_crop(crop) -> bool:
         return False
 
     h, w = crop.shape[:2]
-    aspect = w / h
+    aspect = w / max(1, h)
 
-    if aspect < 0.8 or aspect > 6.0:
+    if aspect < 0.6 or aspect > 7.0:
         return False
 
-    if w < 25 or h < 12:
+    if w < 20 or h < 10:
         return False
 
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-    if gray.mean() < 40:
+    if gray.mean() < 20:
         return False
 
-    edges = cv2.Canny(gray, 50, 150)
+    edges = cv2.Canny(gray, 40, 140)
     edge_ratio = np.count_nonzero(edges) / (h * w)
-    if edge_ratio < 0.03 or edge_ratio > 0.60:
+    if edge_ratio < 0.01 or edge_ratio > 0.70:
         return False
 
     return True
-
-
-def enhance_plate(crop):
-    h, w = crop.shape[:2]
-    MIN_OCR_HEIGHT = 100
-
-    if h < 40:
-        scale = max(3, min(4, MIN_OCR_HEIGHT // h))
-        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
-    elif h < MIN_OCR_HEIGHT:
-        scale = max(2, min(3, MIN_OCR_HEIGHT // h))
-        upscaled = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LINEAR)
-    elif h < 200:
-        upscaled = cv2.resize(crop, (w * 2, h * 2), interpolation=cv2.INTER_LINEAR)
-    else:
-        upscaled = crop
-
-    lab = cv2.cvtColor(upscaled, cv2.COLOR_BGR2LAB)
-    l_ch, a_ch, b_ch = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-    cl = clahe.apply(l_ch)
-    enhanced = cv2.cvtColor(cv2.merge((cl, a_ch, b_ch)), cv2.COLOR_LAB2BGR)
-
-    gaussian = cv2.GaussianBlur(enhanced, (0, 0), 1.0)
-    sharpened = cv2.addWeighted(enhanced, 1.5, gaussian, -0.5, 0)
-
-    return sharpened
 
 
 
@@ -210,10 +194,16 @@ class PlateDetector:
 
             _patch_e2e_loss()
             self._model = YOLO(model_path, task="detect")
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
+            device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
             self._model.to(device)
             logger.info("PlateDetector: PyTorch loaded using %s", device.upper())
             self._engine_type = f"yolo_{device}"
+            # Warm up shader compilation so first detection does not lag
+            try:
+                dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+                _ = self._model(dummy, imgsz=640, device=device, verbose=False)
+            except Exception as e:
+                logger.debug("Warmup warning: %s", e)
             return
 
         rknn_path = cfg.RKNN_MODEL_PATH
@@ -294,7 +284,8 @@ class PlateDetector:
         return self._process_pred(pred, frame.shape[:2])
 
     def _detect_yolo(self, frame):
-        results = self._model(frame, imgsz=640, conf=0.25, verbose=False)
+        dev = "mps" if "mps" in self._engine_type else ("cuda" if "cuda" in self._engine_type else "cpu")
+        results = self._model(frame, imgsz=640, conf=0.25, device=dev, verbose=False)
         boxes = []
         for r in results:
             if not r.boxes: continue
@@ -340,6 +331,9 @@ class OCRReader:
 
     def read(self, crop):
         return self._ocr.read(crop)
+
+    def is_valid_vn_plate(self, text: str) -> bool:
+        return self._ocr.is_valid_vn_plate(text)
 
 class FaceRecognizer:
     def __init__(self):
@@ -909,8 +903,7 @@ class InferenceWorker:
         if not validate_plate_crop(crop):
             logger.debug("Crop rejected by plate validation (cam: %s)", cam_id)
             return
-        processed = enhance_plate(crop)
-        text, ocr_conf, p_type = self._ocr.read(processed)
+        text, ocr_conf, p_type = self._ocr.read(crop)
         if text:
             voter.add(text, ocr_conf)
             result.plate_type = p_type

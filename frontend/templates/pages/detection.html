@@ -770,7 +770,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
   gap: 10px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
   transition: transform 0.12s ease;
-  animation: slide-in-down 0.2s ease-out;
+}
+.cam-event-card.animate-in {
+  animation: slide-in-down 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .cam-event-avatar {
   width: 32px;
@@ -1032,10 +1034,15 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
           if (r.status === 'whitelist') {
             color = '#10b981';
             labelIcon = '🚗';
+            labelText = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
           } else {
-            color = '#f59e0b';
+            color = (r.text && r.text !== '(BIỂN SỐ ?)') ? '#10b981' : '#f59e0b';
             labelIcon = '🚗';
-            if (r.status === 'no_plate') labelText = 'Biển số';
+            if (!r.text || r.text === '(BIỂN SỐ ?)' || r.status === 'no_plate') {
+              labelText = 'Biển số';
+            } else {
+              labelText = r.text;
+            }
           }
         } else if (r.type === 'person') {
           color = '#8b5cf6';
@@ -1098,105 +1105,236 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       }
     }
 
+    // Bộ nhớ tích lũy các biển số và sự kiện đã phát hiện (không xóa biển cũ)
+    const detectedHistory = [];
+    const MAX_HISTORY_EVENTS = 50;
+
+    function createCardElement(r) {
+      const card = document.createElement('div');
+      card.id = `card-${r.key}`;
+      if (r.trackId) card.dataset.trackId = r.trackId;
+      card.className = 'cam-event-card animate-in';
+
+      let avatarClass = 'known';
+      let avatarIcon = '🚗';
+      let title = r.text || '';
+      let badgeClass = 'known';
+      let badgeText = `${Math.round(r.confidence)}%`;
+
+      if (r.type === 'face') {
+        avatarIcon = '👤';
+        if (r.status === 'known') {
+          avatarClass = 'known';
+          badgeClass = 'known';
+          title = r.text;
+          badgeText = `${Math.round(r.confidence)}%`;
+        } else {
+          avatarClass = 'stranger';
+          badgeClass = 'stranger';
+          title = 'Người lạ';
+          badgeText = 'Cảnh báo';
+        }
+      } else if (r.type === 'plate') {
+        avatarIcon = '🚗';
+        if (r.status === 'whitelist') {
+          avatarClass = 'whitelist';
+          badgeClass = 'whitelist';
+          title = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
+          badgeText = 'Whitelist';
+        } else {
+          avatarClass = r.is_recognized ? 'known' : 'unknown';
+          badgeClass = r.is_recognized ? 'known' : 'unknown';
+          title = (!r.is_recognized || r.text === '(BIỂN SỐ ?)') ? 'Chưa rõ biển' : r.text;
+          badgeText = r.is_recognized ? 'Xe lạ' : 'Đang quét';
+        }
+      }
+
+      card.innerHTML = `
+        <div class="cam-event-avatar ${avatarClass}">
+          ${avatarIcon}
+        </div>
+        <div class="cam-event-body">
+          <div class="cam-event-title" style="font-weight:700;letter-spacing:0.3px;">${title}</div>
+          <div class="cam-event-meta">${r.timeStr}</div>
+        </div>
+        <span class="cam-event-badge ${badgeClass}">${badgeText}</span>
+      `;
+      return card;
+    }
+
     function renderResults(data) {
       if (data.error) {
-        resultsDiv.innerHTML = `<div class="cam-event-card text-danger" style="border-color:#fecaca;">
-          <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
-          <span class="result-error-text"></span>
-        </div>`;
-        resultsDiv.querySelector('.result-error-text').textContent = data.error;
+        console.warn("Detection response warning:", data.error);
         return;
       }
 
-      const uniqueMap = {};
-      let faces = 0, plates = 0, alerts = 0;
-
-      data.results.forEach(r => {
-        const key = r.type + '_' + (r.text || '');
-        if (!uniqueMap[key] || r.confidence > uniqueMap[key].confidence) {
-          uniqueMap[key] = r;
-        }
-        if (r.type === 'face') {
-          faces++;
-          if (r.status === 'stranger') alerts++;
-        }
-        if (r.type === 'plate') {
-          plates++;
-          if (r.status === 'unknown') alerts++;
-        }
-      });
-
-      if (statFaceCount) statFaceCount.textContent = faces;
-      if (statPlateCount) statPlateCount.textContent = plates;
-      if (statAlertCount) statAlertCount.textContent = alerts;
-
-      const finalResults = Object.values(uniqueMap);
-      if (finalResults.length === 0) {
-        resultsDiv.innerHTML = `
-          <div class="cam-empty-feed">
-            <div class="cam-empty-radar-icon"><i class="bx bx-radar"></i></div>
-            <div class="cam-empty-title">Chưa có sự kiện</div>
-          </div>`;
-        return;
-      }
+      if (!Array.isArray(data.results) || data.results.length === 0) return;
 
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
       const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-      const html = finalResults.map(r => {
-        let avatarClass = 'known';
-        let avatarIcon = '🚗';
-        let title = r.text || '';
-        let badgeClass = 'known';
-        let badgeText = `${r.confidence}%`;
+      let hasNewEvent = false;
 
-        if (r.type === 'face') {
-          avatarIcon = '👤';
-          if (r.status === 'known') {
-            avatarClass = 'known';
-            badgeClass = 'known';
-            title = r.text;
-          } else {
-            avatarClass = 'stranger';
-            badgeClass = 'stranger';
-            title = 'Người lạ';
-            badgeText = 'Cảnh báo';
+      data.results.forEach(r => {
+        const isPlate = r.type === 'plate';
+        const rawText = (r.text || '').trim();
+        const isRecognizedPlate = isPlate && rawText && rawText !== '(BIỂN SỐ ?)' && rawText.length >= 3;
+
+        if (isRecognizedPlate) {
+          const cleanKey = 'plate_' + rawText.replace(/[^A-Z0-9]/g, '');
+          let existingCard = null;
+          if (r.track_id) {
+            existingCard = resultsDiv.querySelector(`.cam-event-card[data-track-id="${r.track_id}"]`);
           }
-        } else if (r.type === 'plate') {
-          avatarIcon = '🚗';
-          if (r.status === 'whitelist') {
-            avatarClass = 'whitelist';
-            badgeClass = 'whitelist';
-            title = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
-            badgeText = 'Whitelist';
-          } else {
-            avatarClass = 'unknown';
-            badgeClass = 'unknown';
-            title = r.text === '(BIỂN SỐ ?)' ? 'Chưa rõ biển' : r.text;
-            badgeText = 'Xe lạ';
+          if (!existingCard) {
+            existingCard = document.getElementById('card-' + cleanKey);
           }
-        } else if (r.type === 'person') {
-          avatarIcon = '🚶';
-          avatarClass = 'person';
-          badgeClass = 'person';
-          title = 'Người';
+
+          if (existingCard) {
+            // Gắn track_id nếu trước đó chưa có
+            if (r.track_id) existingCard.dataset.trackId = r.track_id;
+            // Nếu biển số được tinh chỉnh chính xác hơn ở các frame tiếp theo:
+            const titleEl = existingCard.querySelector('.cam-event-title');
+            const expectedTitle = (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown'))
+              ? `${rawText} • ${r.owner_name}`
+              : rawText;
+            if (titleEl && titleEl.textContent !== expectedTitle) {
+              titleEl.textContent = expectedTitle;
+              existingCard.id = 'card-' + cleanKey;
+              const hItem = detectedHistory.find(item => (r.track_id && item.trackId === r.track_id) || item.key === cleanKey);
+              if (hItem) {
+                hItem.text = rawText;
+                hItem.key = cleanKey;
+                hItem.owner_name = r.owner_name;
+                hItem.status = r.status;
+              }
+            }
+            // Cập nhật trạng thái whitelist nếu có
+            if (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown')) {
+              const badge = existingCard.querySelector('.cam-event-badge');
+              if (badge && !badge.classList.contains('whitelist')) {
+                badge.className = 'cam-event-badge whitelist';
+                badge.textContent = 'Whitelist';
+                const avatar = existingCard.querySelector('.cam-event-avatar');
+                if (avatar) avatar.className = 'cam-event-avatar whitelist';
+                hasNewEvent = true;
+              }
+            }
+          } else {
+            // Biển MỚI: Thêm vào đầu feed, giữ nguyên toàn bộ biển cũ
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const unresEl = document.getElementById('card-plate_unresolved');
+            if (unresEl) {
+              unresEl.remove();
+              const unresIdx = detectedHistory.findIndex(item => item.key === 'plate_unresolved');
+              if (unresIdx !== -1) detectedHistory.splice(unresIdx, 1);
+            }
+
+            const newCard = createCardElement({
+              key: cleanKey,
+              trackId: r.track_id,
+              type: 'plate',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'unknown',
+              owner_name: r.owner_name,
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            if (r.track_id) newCard.dataset.trackId = r.track_id;
+
+            resultsDiv.prepend(newCard);
+            detectedHistory.unshift({
+              key: cleanKey,
+              trackId: r.track_id || null,
+              type: 'plate',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'unknown',
+              owner_name: r.owner_name,
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            hasNewEvent = true;
+          }
+        } else if (r.type === 'face') {
+          const faceKey = 'face_' + rawText.replace(/[^A-Za-z0-9]/g, '');
+          const existingCard = document.getElementById('card-' + faceKey);
+
+          if (!existingCard) {
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const newCard = createCardElement({
+              key: faceKey,
+              type: 'face',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'stranger',
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+
+            resultsDiv.prepend(newCard);
+            detectedHistory.unshift({
+              key: faceKey,
+              type: 'face',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'stranger',
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            hasNewEvent = true;
+          }
+        } else if (isPlate && !isRecognizedPlate) {
+          // Chưa đọc được chữ trên biển: Chỉ hiển thị thẻ tạm thời nếu chưa có bất kỳ thẻ nào
+          if (detectedHistory.length === 0 && !document.getElementById('card-plate_unresolved')) {
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const newCard = createCardElement({
+              key: 'plate_unresolved',
+              type: 'plate',
+              text: '(BIỂN SỐ ?)',
+              confidence: r.confidence || 0,
+              status: 'unknown',
+              timeStr: timeStr,
+              is_recognized: false,
+            });
+            resultsDiv.prepend(newCard);
+          }
         }
+      });
 
-        return `
-          <div class="cam-event-card">
-            <div class="cam-event-avatar ${avatarClass}">
-              ${avatarIcon}
-            </div>
-            <div class="cam-event-body">
-              <div class="cam-event-title">${title}</div>
-              <div class="cam-event-meta">${timeStr}</div>
-            </div>
-            <span class="cam-event-badge ${badgeClass}">${badgeText}</span>
-          </div>`;
-      }).join('');
+      // Giới hạn số lượng thẻ hiển thị
+      while (resultsDiv.children.length > MAX_HISTORY_EVENTS) {
+        resultsDiv.removeChild(resultsDiv.lastElementChild);
+      }
+      if (detectedHistory.length > MAX_HISTORY_EVENTS) {
+        detectedHistory.length = MAX_HISTORY_EVENTS;
+      }
 
-      resultsDiv.innerHTML = html;
+      // Cập nhật số liệu thống kê khi có sự kiện mới
+      if (hasNewEvent) {
+        let countFaces = 0, countPlates = 0, countAlerts = 0;
+        detectedHistory.forEach(item => {
+          if (item.type === 'plate' && item.is_recognized) {
+            countPlates++;
+            if (item.status === 'unknown') countAlerts++;
+          } else if (item.type === 'face') {
+            countFaces++;
+            if (item.status === 'stranger') countAlerts++;
+          }
+        });
+
+        if (statFaceCount) statFaceCount.textContent = countFaces;
+        if (statPlateCount) statPlateCount.textContent = countPlates;
+        if (statAlertCount) statAlertCount.textContent = countAlerts;
+      }
     }
 
     async function sendFrame(blob, source = 'webcam') {
@@ -1517,6 +1655,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
     window.addEventListener('pagehide', stopActiveRtspStream);
 
     window.clearResults = function () {
+      detectedHistory.length = 0;
+      fetch('/admin/detection/api/reset-tracker', { method: 'POST' }).catch(() => {});
       if (statFaceCount) statFaceCount.textContent = '0';
       if (statPlateCount) statPlateCount.textContent = '0';
       if (statAlertCount) statAlertCount.textContent = '0';
@@ -1673,7 +1813,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       videoProcessing = true;
       videoCaptureCanvas.toBlob(async (blob) => {
         try {
-          const data = await sendFrame(blob, 'upload');
+          const data = await sendFrame(blob, 'video');
           if (data && !data.error && Array.isArray(data.results)) {
             videoLastResults = data.results;
             renderResults(data);
@@ -1683,7 +1823,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         } finally {
           videoProcessing = false;
         }
-      }, 'image/jpeg', 0.85);
+      }, 'image/jpeg', 0.75);
     };
 
     const runOneShotVideoDetection = async () => {
@@ -1694,7 +1834,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
       videoProcessing = true;
       videoCaptureCanvas.toBlob(async (blob) => {
         try {
-          const data = await sendFrame(blob, 'upload');
+          const data = await sendFrame(blob, 'video');
           if (data && !data.error && Array.isArray(data.results)) {
             videoLastResults = data.results;
             renderResults(data);
@@ -1720,7 +1860,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
 
     function startVideoDetection() {
       if (videoDetectionLoop) clearInterval(videoDetectionLoop);
-      videoDetectionLoop = setInterval(runVideoDetection, 500);
+      videoDetectionLoop = setInterval(runVideoDetection, 200);
       if (!videoAnimFrame) {
         videoAnimFrame = requestAnimationFrame(drawVideoOverlay);
       }
@@ -1750,6 +1890,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.clearResults) wi
         if (!file) return;
 
         window.stopVideo();
+        if (window.clearResults) window.clearResults();
         if (videoPlayer.src && videoPlayer.src.startsWith('blob:')) {
           URL.revokeObjectURL(videoPlayer.src);
         }

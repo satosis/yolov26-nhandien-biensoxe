@@ -49,8 +49,8 @@ class PlateCandidate:
 class VNPlateOCR:
     """
     Unified Vietnamese License Plate OCR Engine.
-    Combines direct detection, deskewing, line-splitting, and multi-variant enhancements
-    into a single debug-friendly recognition pipeline with detailed scoring and diagnostics.
+    Combines direct detection, deskewing, and line-splitting into a single
+    debug-friendly recognition pipeline with detailed scoring and diagnostics.
     """
 
     def __init__(self):
@@ -76,14 +76,19 @@ class VNPlateOCR:
             return False
         clean = text.strip().upper()
         if self.vn_civ_pattern.match(clean):
-            prefix_digits = clean[:2]
-            if prefix_digits.isdigit() and int(prefix_digits) in VALID_VN_PROVINCES:
-                return True
             return True
         if self.vn_temp_pattern.match(clean):
             return True
         if self.vn_mil_pattern.match(clean):
             return True
+        # Check valid province + valid suffix (must have series letter(s) between province code and numbers)
+        alphanumeric = re.sub(r"[^A-Z0-9]", "", clean)
+        if len(alphanumeric) >= 7 and alphanumeric[:2].isdigit():
+            if int(alphanumeric[:2]) in VALID_VN_PROVINCES:
+                series = alphanumeric[2:-5] if len(alphanumeric) >= 7 else alphanumeric[2:-4]
+                if series and any(c.isalpha() for c in series):
+                    if re.search(r"[0-9]{4,5}$", alphanumeric):
+                        return True
         return False
 
     def _parse_det_result(self, res) -> tuple[str, float]:
@@ -170,6 +175,17 @@ class VNPlateOCR:
             parts = clean.split("-", 1)
             prefix = re.sub(r"[^A-Z0-9]", "", parts[0])
             suffix = parts[1]
+
+            # Strip leading noise character before valid province code (e.g. M306 -> 30G/306)
+            if len(prefix) >= 3 and not prefix[:2].isdigit():
+                if prefix[0] != "T" and prefix[1:3].isdigit() and int(prefix[1:3]) in VALID_VN_PROVINCES:
+                    prefix = prefix[1:]
+
+            # Correct common OCR confusion where letter series was read as digit (e.g. 306 -> 30G)
+            if len(prefix) == 3 and prefix[:2].isdigit() and prefix[2] in "608":
+                conf_map = {"6": "G", "0": "D", "8": "B"}
+                prefix = prefix[:2] + conf_map.get(prefix[2], prefix[2])
+
             digits = re.sub(r"[^0-9]", "", suffix)
             if len(digits) == 5:
                 suffix = f"{digits[:3]}.{digits[3:]}"
@@ -178,6 +194,10 @@ class VNPlateOCR:
             return f"{prefix}-{suffix}"
 
         raw = re.sub(r"[^A-Z0-9]", "", clean)
+        # Strip leading single character noise before valid province code (e.g. M30693526 -> 30G-935.26)
+        if len(raw) >= 7 and not raw[:2].isdigit():
+            if raw[0] != "T" and raw[1:3].isdigit() and int(raw[1:3]) in VALID_VN_PROVINCES:
+                raw = raw[1:]
 
         # 1. Temporary plate: T + 2 digits (e.g. T6061956 -> T60-619.56)
         m_temp = re.match(r"^(T[0-9]{2})([0-9]{4,5})$", raw)
@@ -210,6 +230,19 @@ class VNPlateOCR:
             if len(num) == 5:
                 num = f"{num[:3]}.{num[3:]}"
             return f"{prefix}-{num}"
+
+        # 5. General Vietnamese recovery (starting with valid province code):
+        if len(raw) >= 6 and raw[:2].isdigit() and int(raw[:2]) in VALID_VN_PROVINCES:
+            prov = raw[:2]
+            rest = raw[2:]
+            if len(rest) >= 5 and rest[-5:].isdigit():
+                suffix = f"{rest[-5:-2]}.{rest[-2:]}"
+                series = rest[:-5]
+                return f"{prov}{series}-{suffix}" if series else f"{prov}-{suffix}"
+            elif len(rest) >= 4 and rest[-4:].isdigit():
+                suffix = rest[-4:]
+                series = rest[:-4]
+                return f"{prov}{series}-{suffix}" if series else f"{prov}-{suffix}"
 
         if len(raw) > 9:
             candidates = re.findall(r"(?:[0-9]{2}[A-Z]{1,2}|T[0-9]{2})[0-9]{4,5}", raw)
@@ -378,28 +411,6 @@ class VNPlateOCR:
             logger.debug("[VNPlateOCR] split_2line error: %s", e)
             return None
 
-    def _make_variants(self, img: np.ndarray) -> list[tuple[str, np.ndarray]]:
-        """Create image enhancement variants for robust OCR in low light/contrast."""
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        cl = clahe.apply(gray)
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 15, 5)
-
-        return [
-            ("sharpen", self._sharpen(img)),
-            ("clahe", cv2.cvtColor(cl, cv2.COLOR_GRAY2BGR)),
-            ("gamma_0.6", self._adjust_gamma(img, 0.6)),
-            ("adaptive_thresh", cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)),
-        ]
-
-    def _ocr_variants(self, img: np.ndarray) -> list[PlateCandidate]:
-        """Method: Test multiple enhancement variants."""
-        results = []
-        for var_name, var_img in self._make_variants(img):
-            cand = self._ocr_with_detection(var_img, f"variant_{var_name}")
-            if cand:
-                results.append(cand)
-        return results
 
     def _deskew(self, image: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -423,15 +434,6 @@ class VNPlateOCR:
         center = (w // 2, h // 2)
         M = cv2.getRotationMatrix2D(center, angle, 1.0)
         return cv2.warpAffine(image, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
-
-    def _adjust_gamma(self, image: np.ndarray, gamma: float = 1.0) -> np.ndarray:
-        inv = 1.0 / gamma
-        table = np.array([((i / 255.0) ** inv) * 255 for i in range(256)]).astype("uint8")
-        return cv2.LUT(image, table)
-
-    def _sharpen(self, image: np.ndarray) -> np.ndarray:
-        kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        return cv2.filter2D(image, -1, kernel)
 
     def detect_plate_type(self, crop: np.ndarray) -> str:
         """Detect plate background color: white, yellow, blue, red."""
@@ -457,8 +459,8 @@ class VNPlateOCR:
         return_debug: bool = False,
     ) -> Union[tuple[str, float, str], tuple[str, float, str, dict]]:
         """
-        Unified license plate decoder: combines all recognition methods (raw detection,
-        deskewing, line splitting, image enhancement variants) into a single pipeline.
+        Unified license plate decoder: combines raw detection, deskewing,
+        and line splitting into a single pipeline.
 
         Returns (cleaned_text, confidence, plate_type) or with debug info if requested.
         """
@@ -477,6 +479,10 @@ class VNPlateOCR:
 
         plate_type = self.detect_plate_type(crop)
         h, w = crop.shape[:2]
+        if h < 75:
+            scale = max(2, min(4, 75 // max(h, 1)))
+            crop = cv2.resize(crop, (w * scale, h * scale), interpolation=cv2.INTER_LANCZOS4)
+            h, w = crop.shape[:2]
         aspect = w / max(1, h)
 
         candidates: list[PlateCandidate] = []
@@ -487,8 +493,8 @@ class VNPlateOCR:
         c_raw = self._ocr_with_detection(crop, "raw_det")
         if c_raw:
             candidates.append(c_raw)
-            # Fast-path: high confidence and valid VN pattern -> return immediately
-            if c_raw.conf >= 0.88 and c_raw.is_valid_vn:
+            # Fast-path: reasonable confidence and valid VN pattern -> return immediately
+            if c_raw.conf >= 0.58 and c_raw.is_valid_vn:
                 return self._finalize_result(c_raw, candidates, plate_type, crop, t0, return_debug)
 
         # -------------------------------------------------------------
@@ -499,7 +505,7 @@ class VNPlateOCR:
         if c_deskew:
             candidates.append(c_deskew)
             # Fast-path for deskewed result
-            if c_deskew.conf >= 0.88 and c_deskew.is_valid_vn:
+            if c_deskew.conf >= 0.58 and c_deskew.is_valid_vn:
                 return self._finalize_result(c_deskew, candidates, plate_type, crop, t0, return_debug)
 
         # -------------------------------------------------------------
@@ -511,15 +517,6 @@ class VNPlateOCR:
                 candidates.append(c_split)
                 if c_split.conf >= 0.88 and c_split.is_valid_vn:
                     return self._finalize_result(c_split, candidates, plate_type, crop, t0, return_debug)
-
-        # -------------------------------------------------------------
-        # Method 4: Image enhancement variants (CLAHE, sharpen, gamma, adaptive threshold)
-        # Run if no high confidence valid plate was found yet
-        # -------------------------------------------------------------
-        best_so_far = max(candidates, key=lambda c: c.score) if candidates else None
-        if not best_so_far or best_so_far.score < 1.0 or not best_so_far.is_valid_vn:
-            var_candidates = self._ocr_variants(deskewed)
-            candidates.extend(var_candidates)
 
         # Select overall winner
         valid_candidates = [c for c in candidates if len(c.cleaned_text) >= 3 and c.conf >= 0.30]

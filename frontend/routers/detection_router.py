@@ -4,8 +4,10 @@ import os
 import re
 import uuid
 import asyncio
+import concurrent.futures
 import time
 import hashlib
+import math
 from contextlib import closing
 from collections import OrderedDict
 from http.client import HTTPConnection
@@ -17,7 +19,7 @@ from fastapi import APIRouter, Request, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse, StreamingResponse
 from frontend.deps import get_menu_context, require_menu, templates
 from backend.util.image_utils import save_snapshot, decode_image
-from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, enhance_plate, validate_plate_crop
+from backend.ai.inference import PlateDetector, OCRReader, FaceRecognizer, validate_plate_crop
 from backend.services import config as cfg
 from backend.services.database import db
 from backend.util.bbox_utils import merge_plate_boxes
@@ -45,7 +47,8 @@ def _ocr_crop_hash(crop):
 def _read_cached_ocr(ocr_reader, crop, crop_hash):
     with _ocr_lock:
         cached = _ocr_cache.get(crop_hash)
-        if cached and time.time() - cached[3] < 5:
+        ttl = 10 if (cached and cached[0]) else 0.8
+        if cached and time.time() - cached[3] < ttl:
             _ocr_cache.move_to_end(crop_hash)
             return cached[0], cached[1], cached[2]
         text, conf, ptype = ocr_reader.read(crop)
@@ -233,11 +236,12 @@ def _add_pending_plate_simple(plate_norm: str, plate_raw: str, camera_id: str = 
         return "existing"
 
     pid = str(uuid.uuid4())[:8]
+    s_id_val = int(site_id) if (site_id is not None and str(site_id).isdigit()) else None
     saved = db.execute_query("""
         INSERT INTO pending_plates (pending_id, plate_raw, plate_norm, first_seen_utc, status, site_id, image_path, plate_type)
         VALUES (%s, %s, %s, NOW(), 'pending', %s, %s, %s)
         ON CONFLICT (pending_id) DO NOTHING
-    """, (pid, plate_raw, plate_norm, site_id, image_path, plate_type), commit=True)
+    """, (pid, plate_raw, plate_norm, s_id_val, image_path, plate_type), commit=True)
     if not saved:
         logger.error("Pending plate insert returned no row for site %s", site_id)
         return None
@@ -272,6 +276,267 @@ _cached_plate_results = []
 _cached_plate_ts = 0
 
 
+class TrackedPlate:
+    def __init__(self, track_id: int, bbox: list, det_conf: float, ts: float, frame_bgr=None):
+        self.track_id = track_id
+        self.bbox = list(bbox)
+        self.det_conf = det_conf
+        self.first_ts = ts
+        self.last_ts = ts
+        self.text = ""
+        self.ocr_conf = 0.0
+        self.plate_type = "white"
+        self.status = "no_plate"
+        self.owner_name = "unknown"
+        self.confirmed = False
+        self.ocr_attempts = 0
+        self.missed_frames = 0
+        self.vx = 0.0
+        self.vy = 0.0
+        self.template = None
+        self.db_saved = False
+        self.plate_candidates = {}
+        if frame_bgr is not None:
+            self._save_template(frame_bgr, bbox)
+
+    def _save_template(self, frame_bgr, b):
+        h, w = frame_bgr.shape[:2]
+        x1, y1, x2, y2 = b
+        pw, ph = x2 - x1, y2 - y1
+        tx1 = max(0, x1 - int(pw * 0.15))
+        ty1 = max(0, y1 - int(ph * 0.15))
+        tx2 = min(w, x2 + int(pw * 0.15))
+        ty2 = min(h, y2 + int(ph * 0.15))
+        if tx2 > tx1 and ty2 > ty1:
+            self.template = frame_bgr[ty1:ty2, tx1:tx2].copy()
+
+    def update_bbox(self, new_bbox: list, det_conf: float, ts: float, frame_bgr=None):
+        dt = max(0.05, ts - self.last_ts)
+        old_cx = (self.bbox[0] + self.bbox[2]) / 2.0
+        old_cy = (self.bbox[1] + self.bbox[3]) / 2.0
+        new_cx = (new_bbox[0] + new_bbox[2]) / 2.0
+        new_cy = (new_bbox[1] + new_bbox[3]) / 2.0
+
+        curr_vx = (new_cx - old_cx) / dt * 0.2
+        curr_vy = (new_cy - old_cy) / dt * 0.2
+        self.vx = 0.6 * self.vx + 0.4 * curr_vx
+        self.vy = 0.6 * self.vy + 0.4 * curr_vy
+
+        self.bbox = list(new_bbox)
+        self.det_conf = max(self.det_conf, det_conf)
+        self.last_ts = ts
+        self.missed_frames = 0
+        if frame_bgr is not None and self.confirmed:
+            self._save_template(frame_bgr, new_bbox)
+
+    def set_ocr_result(self, text: str, conf: float, ptype: str, status: str, owner_name: str, frame_bgr=None):
+        self.ocr_attempts += 1
+        clean = (text or "").strip().upper()
+        if not clean or clean == "(BIỂN SỐ ?)":
+            return False
+
+        if clean not in self.plate_candidates:
+            self.plate_candidates[clean] = {
+                "count": 0, "max_conf": 0.0, "ptype": ptype, "status": status, "owner_name": owner_name
+            }
+        cand = self.plate_candidates[clean]
+        cand["count"] += 1
+        cand["max_conf"] = max(cand["max_conf"], conf)
+        if status != "unknown" and cand["status"] == "unknown":
+            cand["status"] = status
+            cand["owner_name"] = owner_name
+
+        def _candidate_score(c_txt):
+            c_data = self.plate_candidates[c_txt]
+            is_std_pattern = bool(re.match(r"^[0-9]{2}[A-Z]{1,2}-?[0-9]{3,5}", c_txt))
+            alphanumeric = re.sub(r"[^A-Z0-9]", "", c_txt)
+            has_letter = bool(re.search(r"[A-Z]", alphanumeric))
+            full_len = len(alphanumeric) >= 7
+
+            score = c_data["max_conf"] * math.sqrt(c_data["count"])
+            if is_std_pattern and full_len:
+                score *= 1.6
+            elif has_letter and full_len:
+                score *= 1.3
+            elif not has_letter:
+                score *= 0.6
+            return score
+
+        best_text = max(self.plate_candidates.keys(), key=_candidate_score)
+        best_data = self.plate_candidates[best_text]
+        old_text = self.text
+        self.text = best_text
+        self.ocr_conf = best_data["max_conf"]
+        self.plate_type = best_data["ptype"]
+        self.status = best_data["status"]
+        self.owner_name = best_data["owner_name"]
+
+        alphanumeric = re.sub(r"[^A-Z0-9]", "", best_text)
+        has_letter = bool(re.search(r"[A-Z]", alphanumeric))
+        if len(alphanumeric) >= 7 and has_letter:
+            if (best_data["count"] >= 2 and best_data["max_conf"] >= 0.88) or best_data["max_conf"] >= 0.96:
+                self.confirmed = True
+                if frame_bgr is not None:
+                    self._save_template(frame_bgr, self.bbox)
+
+        return (best_text != old_text)
+
+
+class SpatialPlateTracker:
+    def __init__(self, max_lost_seconds: float = 6.0):
+        self.next_id = 1
+        self.tracks: dict[int, TrackedPlate] = {}
+        self.max_lost_seconds = max_lost_seconds
+
+    @staticmethod
+    def _compute_iou(b1, b2) -> float:
+        x1 = max(b1[0], b2[0])
+        y1 = max(b1[1], b2[1])
+        x2 = min(b1[2], b2[2])
+        y2 = min(b1[3], b2[3])
+        inter = max(0, x2 - x1) * max(0, y2 - y1)
+        a1 = (b1[2] - b1[0]) * (b1[3] - b1[1])
+        a2 = (b2[2] - b2[0]) * (b2[3] - b2[1])
+        union = a1 + a2 - inter
+        return inter / union if union > 0 else 0.0
+
+    @staticmethod
+    def _center_dist(b1, b2) -> float:
+        c1x, c1y = (b1[0] + b1[2]) / 2, (b1[1] + b1[3]) / 2
+        c2x, c2y = (b2[0] + b2[2]) / 2, (b2[1] + b2[3]) / 2
+        return math.hypot(c1x - c2x, c1y - c2y)
+
+    def match_and_update(self, detections: list, now_ts: float, frame_bgr=None):
+        """
+        Khớp các detection biển số với tracks đã có bằng IoU, Centroid Distance
+        và Visual Coasting (bám vết bằng ảnh mẫu khi xe đi xa hoặc YOLO bỏ sót).
+        """
+        stale = [tid for tid, tr in self.tracks.items() if now_ts - tr.last_ts > self.max_lost_seconds]
+        for tid in stale:
+            del self.tracks[tid]
+
+        matched_detections = set()
+        matched_tracks = set()
+        results = []
+
+        # 1. Khớp IoU trước (vị trí gần hoặc xe đứng yên/chuyển động nhẹ)
+        for tid, track in list(self.tracks.items()):
+            best_iou = 0.20
+            best_d_idx = None
+            for d_idx, det in enumerate(detections):
+                if d_idx in matched_detections:
+                    continue
+                score = self._compute_iou(det[:4], track.bbox)
+                if score > best_iou:
+                    best_iou = score
+                    best_d_idx = d_idx
+
+            if best_d_idx is not None:
+                det = detections[best_d_idx]
+                track.update_bbox(det[:4], det[4], now_ts, frame_bgr=frame_bgr)
+                matched_detections.add(best_d_idx)
+                matched_tracks.add(tid)
+                results.append((track, det[:4], det[4], False))
+
+        # 2. Khớp bổ sung bằng Centroid Distance (cho xe di chuyển hoặc sau khi bị khuất 1-2 giây)
+        for tid, track in list(self.tracks.items()):
+            if tid in matched_tracks:
+                continue
+            tw = track.bbox[2] - track.bbox[0]
+            th = track.bbox[3] - track.bbox[1]
+            max_dist = max(tw, th) * 2.5
+
+            best_dist = max_dist
+            best_d_idx = None
+            for d_idx, det in enumerate(detections):
+                if d_idx in matched_detections:
+                    continue
+                d = self._center_dist(det[:4], track.bbox)
+                if d < best_dist:
+                    best_dist = d
+                    best_d_idx = d_idx
+
+            if best_d_idx is not None:
+                det = detections[best_d_idx]
+                track.update_bbox(det[:4], det[4], now_ts, frame_bgr=frame_bgr)
+                matched_detections.add(best_d_idx)
+                matched_tracks.add(tid)
+                results.append((track, det[:4], det[4], False))
+
+        # 3. Tạo track mới cho các phát hiện chưa từng khớp
+        for d_idx, det in enumerate(detections):
+            if d_idx not in matched_detections:
+                tid = self.next_id
+                self.next_id += 1
+                track = TrackedPlate(tid, det[:4], det[4], now_ts, frame_bgr=frame_bgr)
+                self.tracks[tid] = track
+                results.append((track, det[:4], det[4], True))
+
+        # 4. Visual Coasting: Giữ khóa vết xe đã nhận diện biển số khi YOLO bị miss do xe đi xa
+        for tid, track in list(self.tracks.items()):
+            if tid in matched_tracks:
+                continue
+            if not track.confirmed or not track.text or track.text == "(BIỂN SỐ ?)":
+                continue
+
+            track.missed_frames += 1
+            if track.missed_frames <= 30 and track.template is not None and frame_bgr is not None:
+                fh, fw = frame_bgr.shape[:2]
+                tcx = (track.bbox[0] + track.bbox[2]) // 2
+                tcy = (track.bbox[1] + track.bbox[3]) // 2
+
+                pred_cx = int(tcx + track.vx)
+                pred_cy = int(tcy + track.vy)
+
+                bw = track.bbox[2] - track.bbox[0]
+                bh = track.bbox[3] - track.bbox[1]
+                sr = max(70, int(max(bw, bh) * 2.5))
+                sx1, sy1 = max(0, pred_cx - sr), max(0, pred_cy - sr)
+                sx2, sy2 = min(fw, pred_cx + sr), min(fh, pred_cy + sr)
+
+                temp_h, temp_w = track.template.shape[:2]
+                if (sy2 - sy1) >= temp_h and (sx2 - sx1) >= temp_w:
+                    search_area = frame_bgr[sy1:sy2, sx1:sx2]
+                    match_res = cv2.matchTemplate(search_area, track.template, cv2.TM_CCOEFF_NORMED)
+                    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(match_res)
+
+                    if max_val >= 0.35:
+                        mx = sx1 + max_loc[0]
+                        my = sy1 + max_loc[1]
+                        new_bbox = [mx, my, mx + bw, my + bh]
+                        track.bbox = new_bbox
+                        track.last_ts = now_ts
+                        matched_tracks.add(tid)
+                        results.append((track, new_bbox, track.det_conf, False))
+                    elif track.missed_frames <= 8:
+                        # Nội suy theo vận tốc nếu mất dấu tạm thời trong 1-2 frame
+                        new_bbox = [track.bbox[0] + int(track.vx), track.bbox[1] + int(track.vy),
+                                    track.bbox[2] + int(track.vx), track.bbox[3] + int(track.vy)]
+                        if 0 <= new_bbox[0] < fw and 0 <= new_bbox[1] < fh:
+                            track.bbox = new_bbox
+                            track.last_ts = now_ts
+                            matched_tracks.add(tid)
+                            results.append((track, new_bbox, track.det_conf, False))
+
+        return results
+
+    def reset(self):
+        self.tracks.clear()
+        self.next_id = 1
+
+
+_trackers_lock = threading.Lock()
+_trackers: dict[str, SpatialPlateTracker] = {}
+
+
+def _get_spatial_tracker(source: str, s_id=None) -> SpatialPlateTracker:
+    key = f"{source}_{s_id or 'default'}"
+    with _trackers_lock:
+        if key not in _trackers:
+            _trackers[key] = SpatialPlateTracker(max_lost_seconds=4.0)
+        return _trackers[key]
+
+
 def _detect_plates(frame_bgr, s_id, source="webcam"):
     detector, ocr, _ = _get_models()
     detections = detector.detect(frame_bgr)
@@ -297,9 +562,76 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
 
         detections = _dedupe_detections(detections)
 
+    plate_dets = [d for d in detections if d[5] == 0]
+    other_dets = [d for d in detections if d[5] != 0]
+
     plate_res = []
-    for x1, y1, x2, y2, conf, cls_id in detections:
-        if cls_id == 0:
+
+    if source == "upload":
+        # Ảnh tĩnh tải lên: Xử lý độc lập từng ảnh, không dùng tracker thời gian
+        for x1, y1, x2, y2, conf, cls_id in plate_dets:
+            h_img, w_img = frame_bgr.shape[:2]
+            px = int((x2 - x1) * 0.15) + 10
+            py = int((y2 - y1) * 0.15) + 5
+            x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
+            x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
+            crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
+            text, ocr_conf, p_type = "", 0.0, "white"
+            if validate_plate_crop(crop):
+                ch = _ocr_crop_hash(crop)
+                text, ocr_conf, p_type = _read_cached_ocr(ocr, crop, ch)
+            status = "no_plate"
+            owner_name = "unknown"
+            if text:
+                normalized = cfg.normalize_plate(text)
+                wl = _check_whitelist(normalized)
+                if wl:
+                    status = "whitelist"
+                    owner_name = wl.get("owner_name", "Whitelist")
+                else:
+                    status = "unknown"
+            if not text and conf < 0.45:
+                continue
+            plate_res.append({
+                "type": "plate",
+                "text": text if text else "(BIỂN SỐ ?)",
+                "plate_type": p_type,
+                "confidence": round(conf * 100, 1),
+                "ocr_confidence": round(ocr_conf * 100, 1),
+                "status": status,
+                "owner_name": owner_name,
+                "is_confirmed": bool(text and text != "(BIỂN SỐ ?)"),
+                "bbox": [x1, y1, x2, y2],
+                "debug_ocr": getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
+            })
+    else:
+        tracker = _get_spatial_tracker(source, s_id)
+        now_ts = time.time()
+        matched_items = tracker.match_and_update(plate_dets, now_ts, frame_bgr=frame_bgr)
+
+        for track, (x1, y1, x2, y2), conf, is_new in matched_items:
+            # Nếu xe đã xác nhận biển số chắc chắn (confirmed và có ít nhất 2 lần đọc hoặc conf >= 0.96):
+            # -> DÙNG LẠI DỮ LIỆU CŨ NGAY LẬP TỨC!
+            # Tiết kiệm CPU, duy trì bám vết xe liên tục kể cả khi xe đi xa hoặc bị mờ.
+            if track.confirmed and (track.ocr_conf >= 0.96 or track.ocr_attempts >= 5):
+                plate_item = {
+                    "type": "plate",
+                    "text": track.text,
+                    "track_id": track.track_id,
+                    "plate_type": track.plate_type,
+                    "confidence": round(conf * 100, 1),
+                    "ocr_confidence": round(track.ocr_conf * 100, 1),
+                    "status": track.status,
+                    "owner_name": track.owner_name,
+                    "is_confirmed": True,
+                    "bbox": [x1, y1, x2, y2],
+                }
+                if source == "video":
+                    plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
+                plate_res.append(plate_item)
+                continue
+
+            # Nếu chưa xác nhận hoặc cần tinh chỉnh thêm ở các khung hình ban đầu:
             h_img, w_img = frame_bgr.shape[:2]
             px = int((x2 - x1) * 0.15) + 10
             py = int((y2 - y1) * 0.15) + 5
@@ -309,9 +641,8 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
             crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
             text, ocr_conf, p_type = "", 0.0, "white"
             if validate_plate_crop(crop):
-                processed = enhance_plate(crop)
-                ch = _ocr_crop_hash(processed)
-                text, ocr_conf, p_type = _read_cached_ocr(ocr, processed, ch)
+                ch = _ocr_crop_hash(crop)
+                text, ocr_conf, p_type = _read_cached_ocr(ocr, crop, ch)
 
             status = "no_plate"
             owner_name = "unknown"
@@ -324,27 +655,54 @@ def _detect_plates(frame_bgr, s_id, source="webcam"):
                 else:
                     status = "unknown"
 
-            if status == "unknown":
-                snap_path = save_snapshot(frame_bgr, source, normalized)
-                _add_pending_plate_simple(
-                    normalized, text, source, site_id=s_id,
-                    image_path=snap_path, plate_type=p_type,
-                )
+                track.set_ocr_result(text, ocr_conf, p_type, status, owner_name, frame_bgr=frame_bgr)
+
+                # Chỉ lưu snapshot vào pending_plates 1 lần duy nhất cho mỗi xe khi đã xác nhận biển chuẩn
+                if track.confirmed and not track.db_saved and track.status == "unknown":
+                    track.db_saved = True
+                    def _bg_save(f_copy, src, norm, txt, sid, pt):
+                        try:
+                            snap_path = save_snapshot(f_copy, src, norm)
+                            _add_pending_plate_simple(
+                                norm, txt, src, site_id=sid,
+                                image_path=snap_path, plate_type=pt,
+                            )
+                        except Exception as e:
+                            logger.debug("Background snapshot save error: %s", e)
+                    threading.Thread(
+                        target=_bg_save,
+                        args=(frame_bgr.copy(), source, cfg.normalize_plate(track.text), track.text, s_id, track.plate_type),
+                        daemon=True
+                    ).start()
+
+            display_text = track.text if track.text else (text if text else "")
+            display_conf = track.ocr_conf if track.text else ocr_conf
+            display_ptype = track.plate_type if track.text else p_type
+            display_status = track.status if track.text else status
+            display_owner = track.owner_name if track.text else owner_name
+
+            # Lọc bỏ các phát hiện rác ở vỉa hè / mặt đất không có chữ (dương tính giả)
+            if not display_text and not track.confirmed and conf < 0.45:
+                continue
 
             plate_item = {
                 "type": "plate",
-                "text": text if text else "(BIỂN SỐ ?)",
-                "plate_type": p_type,
+                "text": display_text if display_text else "(BIỂN SỐ ?)",
+                "track_id": track.track_id,
+                "plate_type": display_ptype,
                 "confidence": round(conf * 100, 1),
-                "ocr_confidence": round(ocr_conf * 100, 1),
-                "status": status,
-                "owner_name": owner_name,
+                "ocr_confidence": round(display_conf * 100, 1),
+                "status": display_status,
+                "owner_name": display_owner,
+                "is_confirmed": track.confirmed,
                 "bbox": [x1, y1, x2, y2],
             }
-            if source in ("upload", "video"):
+            if source == "video":
                 plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
             plate_res.append(plate_item)
-        elif cls_id == 1:
+
+    for x1, y1, x2, y2, conf, cls_id in other_dets:
+        if cls_id == 1:
             plate_res.append({
                 "type": "person", "text": "Person",
                 "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
@@ -398,8 +756,16 @@ async def detect_image(request: Request,
         global _plate_worker_busy, _cached_plate_results, _cached_plate_ts
         res = []
 
-        # 1. Run Face recognition synchronously on current frame (ULTRA FAST: ~70ms)
-        name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
+        s_id = request.session.get("active_site_id") or None
+        if source in ("upload", "video"):
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                face_future = executor.submit(face.identify, frame_bgr)
+                plate_future = executor.submit(_detect_plates, frame_bgr, s_id, source)
+                name, sim, f_bbox, emb, direction = face_future.result()
+                plate_res = plate_future.result()
+            res.extend(plate_res)
+        else:
+            name, sim, f_bbox, emb, direction = face.identify(frame_bgr)
         if name:
             display_text = name
             status = "stranger"
@@ -426,12 +792,7 @@ async def detect_image(request: Request,
                 "confidence": round(sim * 100, 1), "status": status, "bbox": f_bbox
             })
 
-        s_id = request.session.get("active_site_id") or None
-        if source in ("upload", "video"):
-            # For uploaded images and videos, run plate/vehicle detection synchronously
-            plate_res = _detect_plates(frame_bgr, s_id, source=source)
-            res.extend(plate_res)
-        else:
+        if source not in ("upload", "video"):
             # For live streams, trigger async plate detector in background
             now = time.time()
             start_worker = False
@@ -591,4 +952,12 @@ async def stream_camera(camera_id: int, request: Request, user: dict = Depends(r
                     logger.info("Camera %s: No active stream viewers, stopped camera streaming in backend.", camera_id)
 
     return StreamingResponse(frame_generator(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@router.post("/api/reset-tracker")
+async def reset_tracker(user: dict = Depends(require_menu("detection"))):
+    with _trackers_lock:
+        _trackers.clear()
+    return {"ok": True, "message": "Tracker cache cleared"}
+
 
