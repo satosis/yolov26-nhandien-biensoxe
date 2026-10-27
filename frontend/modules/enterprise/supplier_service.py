@@ -679,6 +679,34 @@ def record_supplier_payment(
         (company_id, clean_name, book_type.strip().lower(), pay_date, amt, invoice_number.strip(), payment_method.strip(), note.strip(), created_by),
         fetch=True, commit=True
     )
+
+    if res and company_id == 33 and (book_type or "").lower() != "bich":
+        try:
+            from frontend.modules.transport.cash_bank_service import record_cash_or_bank_entry
+            is_cash = "tiền mặt" in (payment_method or "").lower() or payment_method == "cash"
+            b_type = "cash" if is_cash else "bank"
+            desc = note.strip() or f"Thanh toán tiền hàng cho {clean_name}"
+            if invoice_number.strip():
+                desc += f" (HĐ {invoice_number.strip()})"
+            record_cash_or_bank_entry(
+                company_id=company_id,
+                book_type=b_type,
+                voucher_type="payment",
+                amount=amt,
+                voucher_date=pay_date,
+                voucher_no="",
+                description=desc,
+                offset_account="331",
+                partner_name=clean_name,
+                bank_account_no="38633888" if not is_cash else None,
+                bank_name="VietinBank" if not is_cash else None,
+                source_type="supplier_payments",
+                source_id=res.get("id"),
+                note=f"Thanh toán NCC {clean_name}",
+            )
+        except Exception as e:
+            logger.warning(f"Could not sync supplier payment to cash/bank book: {e}")
+
     return res or {}
 
 

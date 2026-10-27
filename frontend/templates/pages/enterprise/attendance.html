@@ -108,7 +108,7 @@
               <div class="small text-muted ">@{{ s.username }}{% if s.phone %} · {{ s.phone }}{% endif %}</div>
             </td>
             <td>
-              <div class="text-dark">{{ s.job_title or '--' }}</div>
+              <div class="text-dark">{{ s.job_title if s.job_title and s.job_title != '--' else '' }}</div>
               {% if s.department %}<div class="small text-muted">{{ s.department }}</div>{% endif %}
             </td>
             <td class="text-center">

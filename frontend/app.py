@@ -36,6 +36,10 @@ from frontend.modules.transport import (
     report_router as vehicle_monthly_report_router,
 )
 from frontend.modules.transport.tax_report_router import router as tax_report_router
+from frontend.modules.transport.depreciation_router import router as depreciation_router
+from frontend.modules.transport.trial_balance_router import router as trial_balance_router
+from frontend.modules.transport.cash_bank_router import router as cash_bank_router
+from frontend.modules.transport.prepaid_expenses_router import router as prepaid_expenses_router
 from frontend.modules.zalo import router as zalo_inbox_router
 
 from frontend.routers.cameras_router import router as cameras_router
@@ -128,6 +132,10 @@ ADMIN_ROUTERS = [
     staff_payroll_router,
     input_invoices_router,
     tax_report_router,
+    depreciation_router,
+    trial_balance_router,
+    cash_bank_router,
+    prepaid_expenses_router,
     service_accounts_router,
     service_accounts_alias_router,
     api_keys_router,

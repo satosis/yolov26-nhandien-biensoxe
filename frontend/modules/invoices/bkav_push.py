@@ -77,16 +77,6 @@ def is_configured(seller_tax: str | None = None) -> bool:
         return False
 
 
-
-
-def ensure_schema() -> None:
-    pass
-
-
-def ensure_saved_invoice_links_schema() -> None:
-    pass
-
-
 def push_state(trip_id: int) -> dict | None:
     return db._execute_query(
         "SELECT status, invoice_guid, invoice_form, invoice_serial, invoice_no, message, attempted_at "
@@ -367,7 +357,7 @@ def push_invoice(trip: dict, buyer: dict, seller: dict) -> dict:
     trip_id = int(trip["id"])
     previous = _reserve(trip_id, config["seller_tax"])
     if previous:
-        return previous
+        return {**previous, "already_sent": True}
     try:
         response = _send_command(command, config)
     except Exception as exc:
@@ -401,7 +391,9 @@ def push_invoice(trip: dict, buyer: dict, seller: dict) -> dict:
     if not item.get("InvoiceGUID"):
         _finish(trip_id, "uncertain", message="BKAV không trả về InvoiceGUID.")
         raise BkavUncertainError("BKAV chưa trả về mã hóa đơn; kiểm tra trên BKAV.")
-    return _finish(trip_id, "sent", item=item, message="Đã tạo hóa đơn nháp trên BKAV.")
+    return {**_finish(trip_id, "sent", item=item,
+                      message="Đã tạo hóa đơn nháp trên BKAV."),
+            "already_sent": False}
 
 
 def push_saved_invoice(invoice: dict, lines: list[dict], buyer: dict, seller: dict) -> dict:

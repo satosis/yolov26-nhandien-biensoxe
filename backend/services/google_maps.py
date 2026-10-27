@@ -10,12 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_google_maps_api_key() -> str:
-    """Retrieve the Google Maps API key from the environment only."""
-    key = os.getenv("GOOGLE_MAPS_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+    """Retrieve the shared Google API key from the environment."""
+    key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     if not key:
         load_dotenv(find_dotenv() or None)
-        key = os.getenv("GOOGLE_MAPS_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+        key = os.getenv("GOOGLE_API_KEY") or os.getenv("GOOGLE_MAPS_API_KEY") or ""
     return key.strip()
+
+
+def get_google_maps_referer() -> str:
+    """Retrieve the HTTP Referer header required for restricted Google Maps API keys."""
+    return (os.getenv("GOOGLE_MAPS_REFERER") or "http://localhost:8000/").strip()
 
 
 def _format_location_param(loc: Any) -> str:
@@ -32,6 +37,7 @@ async def compute_routes_api(
     origin: Any,
     destination: Any,
     api_key: Optional[str] = None,
+    referer: Optional[str] = None,
 ) -> Tuple[Optional[float], Optional[Dict[str, Any]]]:
     """
     Calculate driving distance using Google Routes API (New v2).
@@ -64,29 +70,44 @@ async def compute_routes_api(
     }
 
     url = "https://routes.googleapis.com/directions/v2:computeRoutes"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": key,
-        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
-    }
+
+    candidate_referers = []
+    if referer:
+        candidate_referers.append(referer)
+    default_ref = get_google_maps_referer()
+    if default_ref not in candidate_referers:
+        candidate_referers.append(default_ref)
+    for alt in ("http://localhost:8000/", "http://127.0.0.1:8000/"):
+        if alt not in candidate_referers:
+            candidate_referers.append(alt)
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(url, json=body, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                routes = data.get("routes")
-                if isinstance(routes, list) and routes:
-                    dist_meters = routes[0].get("distanceMeters")
-                    if dist_meters is not None:
-                        dist_km = round(float(dist_meters) / 1000.0, 1)
-                        return dist_km, {
-                            "provider": "google_routes",
-                            "distance_meters": dist_meters,
-                            "duration": routes[0].get("duration"),
-                        }
-            else:
-                logger.warning("Google Routes API HTTP %s: %s", resp.status_code, resp.text[:300])
+            for ref in candidate_referers:
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": key,
+                    "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+                    "Referer": ref,
+                }
+                resp = await client.post(url, json=body, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    routes = data.get("routes")
+                    if isinstance(routes, list) and routes:
+                        dist_meters = routes[0].get("distanceMeters")
+                        if dist_meters is not None:
+                            dist_km = round(float(dist_meters) / 1000.0, 1)
+                            return dist_km, {
+                                "provider": "google_routes",
+                                "distance_meters": dist_meters,
+                                "duration": routes[0].get("duration"),
+                            }
+                elif resp.status_code == 403 and "API_KEY_HTTP_REFERRER_BLOCKED" in resp.text:
+                    continue
+                else:
+                    logger.warning("Google Routes API HTTP %s: %s", resp.status_code, resp.text[:300])
+                    break
     except Exception as exc:
         logger.warning("Google Routes API request failed: %s", exc)
 
@@ -295,7 +316,7 @@ async def check_google_maps_services_status(api_key: Optional[str] = None) -> Di
     }
 
     if not key:
-        status_report["error"] = "Chưa cấu hình GOOGLE_MAPS_API_KEY trong .env"
+        status_report["error"] = "Chưa cấu hình GOOGLE_API_KEY trong .env"
         return status_report
 
     async with httpx.AsyncClient(timeout=6.0) as client:
@@ -312,6 +333,7 @@ async def check_google_maps_services_status(api_key: Optional[str] = None) -> Di
                     "Content-Type": "application/json",
                     "X-Goog-Api-Key": key,
                     "X-Goog-FieldMask": "routes.distanceMeters",
+                    "Referer": get_google_maps_referer(),
                 },
             )
             r_data = r_resp.json() if r_resp.content else {}

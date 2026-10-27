@@ -20296,3 +20296,156 @@ ALTER TABLE ONLY public.zalo_trip_requests
 
 \unrestrict Gs1RHaxJaitabgTapTg1ByCe1oVhl0iZnfB1qxUag4p6Nh99UI1Omg8edZIb4GZ
 
+
+
+--
+-- Additional enterprise & transport tables
+--
+
+CREATE TABLE IF NOT EXISTS public.schedule_reminders (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    due_date DATE NOT NULL,
+    due_time TIME,
+    category VARCHAR(50) DEFAULT 'other',
+    priority VARCHAR(20) DEFAULT 'medium',
+    status VARCHAR(20) DEFAULT 'pending',
+    is_recurring BOOLEAN DEFAULT FALSE,
+    recurrence_pattern VARCHAR(50),
+    company_id INT DEFAULT 33,
+    created_by VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    old_due_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_profiles (
+    id SERIAL PRIMARY KEY,
+    company_id INT DEFAULT 33,
+    supplier_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50),
+    address TEXT,
+    tax_code VARCHAR(50),
+    opening_balance NUMERIC DEFAULT 0,
+    opening_balance_date DATE,
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    book_type VARCHAR(50) DEFAULT 'bich'
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_purchases (
+    id SERIAL PRIMARY KEY,
+    company_id INT DEFAULT 33,
+    book_type VARCHAR(50) DEFAULT 'bich',
+    invoice_number VARCHAR(100),
+    purchase_date DATE NOT NULL,
+    supplier_name VARCHAR(255) NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    pieces NUMERIC,
+    unit VARCHAR(50) DEFAULT 'Kg',
+    quantity_kg NUMERIC NOT NULL DEFAULT 0,
+    qty_formula TEXT,
+    unit_price NUMERIC NOT NULL DEFAULT 0,
+    total_amount NUMERIC NOT NULL DEFAULT 0,
+    unit_weight NUMERIC,
+    note TEXT,
+    created_by VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_payments (
+    id SERIAL PRIMARY KEY,
+    company_id INT DEFAULT 33,
+    supplier_name VARCHAR(255) NOT NULL,
+    payment_date DATE NOT NULL,
+    amount NUMERIC NOT NULL DEFAULT 0,
+    invoice_number VARCHAR(100),
+    payment_method VARCHAR(50) DEFAULT 'bank',
+    note TEXT,
+    purchase_id INT,
+    created_by VARCHAR(100),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    book_type VARCHAR(50) DEFAULT 'bich'
+);
+
+CREATE TABLE IF NOT EXISTS public.tax_checklist_clients (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    tax_code VARCHAR(50),
+    contact_info VARCHAR(255),
+    note TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.tax_checklist_entries (
+    id SERIAL PRIMARY KEY,
+    client_id INT REFERENCES public.tax_checklist_clients(id) ON DELETE CASCADE,
+    period VARCHAR(20) NOT NULL,
+    item_key VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'not_done',
+    note TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(client_id, period, item_key)
+);
+
+CREATE TABLE IF NOT EXISTS public.tax_checklist_notes (
+    id SERIAL PRIMARY KEY,
+    client_id INT REFERENCES public.tax_checklist_clients(id) ON DELETE CASCADE,
+    period VARCHAR(20) NOT NULL,
+    general_note TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(client_id, period)
+);
+
+CREATE TABLE IF NOT EXISTS public.tax_checklist_urgent_tasks (
+    id SERIAL PRIMARY KEY,
+    period VARCHAR(20) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    client_name VARCHAR(255) NOT NULL,
+    deadline VARCHAR(50) NOT NULL,
+    is_completed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.transport_cash_book (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL DEFAULT 33,
+    book_type VARCHAR(20) NOT NULL DEFAULT 'cash',
+    entry_date DATE NOT NULL,
+    voucher_date DATE NOT NULL,
+    voucher_no VARCHAR(50) NOT NULL,
+    voucher_type VARCHAR(20) NOT NULL,
+    description TEXT NOT NULL,
+    offset_account VARCHAR(20) DEFAULT '131',
+    amount NUMERIC NOT NULL DEFAULT 0,
+    bank_account_no VARCHAR(50),
+    bank_name VARCHAR(100),
+    partner_name TEXT,
+    source_type VARCHAR(50),
+    source_id TEXT,
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.transport_prepaid_expenses (
+    id SERIAL PRIMARY KEY,
+    company_id INT NOT NULL DEFAULT 33,
+    item_code VARCHAR(50),
+    name TEXT NOT NULL,
+    unit VARCHAR(50) DEFAULT 'Chiếc',
+    quantity NUMERIC DEFAULT 1,
+    start_date DATE NOT NULL,
+    total_months INT NOT NULL DEFAULT 36,
+    original_cost NUMERIC NOT NULL DEFAULT 0,
+    accumulated_prev NUMERIC DEFAULT 0,
+    monthly_allocation NUMERIC DEFAULT 0,
+    offset_account VARCHAR(20) DEFAULT '642',
+    category VARCHAR(100) DEFAULT 'CCDC',
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);

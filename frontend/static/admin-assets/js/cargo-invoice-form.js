@@ -361,6 +361,15 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const vat = Number(document.getElementById('invoice-vat')?.value || 0);
       return Math.round(this.subtotal() * (1 + (Number.isFinite(vat) ? vat : 0) / 100));
     },
+    vatAmount() {
+      return Math.max(0, this.gross() - this.subtotal());
+    },
+    vatPercent() {
+      return Number(document.getElementById('invoice-vat')?.value || 0);
+    },
+    formatNumber(value) {
+      return Number(value || 0).toLocaleString('vi-VN');
+    },
     setPaymentStatus(value) {
       this.paymentStatus = value;
       if (value === 'debt') {

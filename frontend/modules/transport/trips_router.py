@@ -1256,6 +1256,71 @@ async def _fill_bkav_google_distances(invoices: list[dict]) -> None:
         segment["distance_km"] = distances.get(key)
 
 
+
+
+async def _resolve_location(address: str):
+    res = await geocode_address_google(address)
+    if res and "lat" in res and "lon" in res:
+        return res
+    return None
+
+
+async def _populate_bkav_invoice_distances(invoices: list[dict], selected_guids: list[str] | None = None) -> None:
+    target_invoices = invoices
+    if selected_guids is not None:
+        target_guids = set(selected_guids)
+        target_invoices = [inv for inv in invoices if inv.get("guid") in target_guids]
+
+    cache: dict[tuple[str, str], float] = {}
+
+    for invoice in target_invoices:
+        for segment in (invoice.get("segments") or []):
+            if segment.get("is_crane"):
+                continue
+            if segment.get("distance_km") not in (None, ""):
+                continue
+            origin = str(segment.get("origin") or "").strip()
+            destination = str(segment.get("destination") or "").strip()
+            if not origin or not destination:
+                continue
+            key = (origin.casefold(), destination.casefold())
+            if key in cache:
+                segment["distance_km"] = str(cache[key])
+                continue
+
+            dist = None
+            for api in (_gmaps_routes_distance, _gmaps_directions_distance):
+                try:
+                    d, _ = await api(origin, destination)
+                    if d is not None and math.isfinite(float(d)) and float(d) > 0:
+                        dist = round(float(d), 2)
+                        break
+                except Exception:
+                    pass
+
+            if dist is None:
+                try:
+                    loc1 = await _resolve_location(origin)
+                    loc2 = await _resolve_location(destination)
+                    if loc1 and loc2:
+                        lat1, lon1 = (loc1.get("lat"), loc1.get("lon"))
+                        lat2, lon2 = (loc2.get("lat"), loc2.get("lon"))
+                        if lat1 is not None and lat2 is not None:
+                            d_km, prov = await _gmaps_driving_distance(lat1, lon1, lat2, lon2)
+                            if d_km is not None and prov not in ("haversine_winding", "haversine", "estimated"):
+                                dist = round(float(d_km), 2)
+                except Exception:
+                    pass
+
+            if dist is not None:
+                cache[key] = dist
+                segment["distance_km"] = str(dist)
+            else:
+                raise ValueError(f"Không tính được quãng đường cho tuyến {origin} -> {destination}.")
+        total_d = sum((Decimal(str(seg["distance_km"])) for seg in (invoice.get("segments") or []) if seg.get("distance_km") not in (None, "")), Decimal(0))
+        invoice["distance_km"] = total_d
+
+
 @router.post("/cargo/bkav/preview", include_in_schema=False)
 @router.post("/cargo/invoices/preview")
 async def preview_bkav_cargo_invoices(
@@ -2660,10 +2725,6 @@ async def generate_and_save_trip_qr_endpoint(
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
 
-def ensure_bkav_history_schema():
-    pass
-
-
 def _get_next_invoice_number_and_serial(seller_company_id: int | None = None) -> tuple[str, str]:
     try:
         row = db._execute_query("""
@@ -3006,7 +3067,9 @@ async def push_saved_invoice_to_bkav_endpoint(
     )
     try:
         result = await run_in_threadpool(push_saved_invoice_to_bkav, invoice, lines, buyer, seller)
-        notice = ("Hóa đơn nháp đã được đồng bộ sang BKAV."
+        already_sent = bool(result.get("already_sent"))
+        notice = ("Hóa đơn này đã được đồng bộ sang BKAV trước đó."
+                  if already_sent else "Hóa đơn nháp đã được đồng bộ sang BKAV."
                   if result.get("status") == "sent" else "Đã kiểm tra trạng thái hóa đơn trên BKAV.")
         key, message = "bkav_notice", notice
 
@@ -3014,17 +3077,21 @@ async def push_saved_invoice_to_bkav_endpoint(
         if result.get("status") == "sent":
             try:
                 png_path, _ = await asyncio.to_thread(
-                    get_or_fetch_bkav_invoice_files, str(invoice_guid), force_refresh=True
+                    get_or_fetch_bkav_invoice_files, str(invoice_guid),
+                    force_refresh=not already_sent
                 )
                 if png_path and png_path.exists():
                     image_url = f"/upload/bkav_invoices/{png_path.name}?v={png_path.stat().st_mtime_ns}"
-                    try:
-                        from frontend.modules.zalo.trip_requests import send_saved_invoice_to_zalo
-                        z_ok, z_msg = await send_saved_invoice_to_zalo(str(invoice_guid), image_path=str(png_path))
-                        if z_ok:
-                            notice += f" {z_msg}"
-                    except Exception as z_err:
-                        logger.warning("Auto-send Zalo notice failed for %s: %s", invoice_guid, z_err)
+                    if not already_sent:
+                        try:
+                            from frontend.modules.zalo.trip_requests import send_saved_invoice_to_zalo
+                            z_ok, z_msg = await send_saved_invoice_to_zalo(
+                                str(invoice_guid), image_path=str(png_path)
+                            )
+                            if z_ok:
+                                notice += f" {z_msg}"
+                        except Exception as z_err:
+                            logger.warning("Auto-send Zalo notice failed for %s: %s", invoice_guid, z_err)
             except Exception as img_err:
                 logger.warning("Auto-fetch BKAV invoice image after push failed for %s: %s", invoice_guid, img_err)
 

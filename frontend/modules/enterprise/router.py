@@ -1397,6 +1397,7 @@ async def enterprise_debt_pay(
     recorded_date: str = Form(""),
     reference_doc: str = Form(""),
     note: str = Form(""),
+    payment_method: str = Form("bank"),
     user: dict = Depends(require_menu("debts")),
 ):
     owner_company_id = get_menu_context(request, user).get("active_company_id")
@@ -1419,6 +1420,32 @@ async def enterprise_debt_pay(
         recorded_date=recorded_date or None,
         user_id=user.get("id"),
     )
+
+    if ok:
+        try:
+            from frontend.modules.transport.cash_bank_service import record_cash_or_bank_entry
+            partner_row = db.select("invoice_companies", columns="name", conditions={"id": company_id}, fetchall=False)
+            partner_name = partner_row.get("name") if partner_row else ""
+            is_cash = "tiền mặt" in (payment_method or "").lower() or payment_method == "cash"
+            b_type = "cash" if is_cash else "bank"
+            record_cash_or_bank_entry(
+                company_id=owner_company_id,
+                book_type=b_type,
+                voucher_type="receipt",
+                amount=val,
+                voucher_date=recorded_date or None,
+                voucher_no=reference_doc.strip(),
+                description=note.strip() or f"Thu tiền công nợ đối tác {partner_name}",
+                offset_account="131",
+                partner_name=partner_name,
+                bank_account_no="38633888" if not is_cash else None,
+                bank_name="VietinBank" if not is_cash else None,
+                source_type="company_debt_logs",
+                note=f"Thu tiền công nợ {partner_name}",
+            )
+        except Exception as e:
+            logger.warning(f"Could not sync debt payment to cash/bank book: {e}")
+
     status_key = "message" if ok else "error"
     return RedirectResponse(f"/admin/enterprise/debts?{status_key}=" + urllib.parse.quote(msg), status_code=303)
 

@@ -150,16 +150,18 @@
     left: 222px;
     z-index: 5;
     background: #ffffff;
-    width: 130px;
-    min-width: 130px;
+    width: 88px;
+    min-width: 88px;
+    max-width: 90px;
+    padding: 4px 2px !important;
   }
   .bcc-freeze-4 {
     position: sticky !important;
-    left: 352px;
+    left: 310px;
     z-index: 5;
     background: #ffffff;
-    width: 75px;
-    min-width: 75px;
+    width: 65px;
+    min-width: 65px;
     box-shadow: 2px 0 4px -1px rgba(0,0,0,0.12);
   }
   thead .bcc-freeze-1, thead .bcc-freeze-2, thead .bcc-freeze-3, thead .bcc-freeze-4 {
@@ -366,7 +368,9 @@
                 <div class="small text-muted" style="font-size:12px;">@{{ s.username }}{% if s.department %} · {{ s.department }}{% endif %}</div>
               </td>
               <td rowspan="2" class="bcc-freeze-3 font-weight-medium">
-                <span class="badge badge-light border px-2 py-1" style="font-size:13px;">{{ s.job_title }}</span>
+                {% if s.job_title and s.job_title not in ('--', '-') %}
+                <span class="badge badge-light border" style="font-size:12px; padding:2px 5px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:middle;" title="{{ s.job_title }}">{{ s.job_title }}</span>
+                {% endif %}
               </td>
               <td class="bcc-freeze-4">
                 <span class="bcc-tag-hc">HC</span>

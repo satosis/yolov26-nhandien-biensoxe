@@ -307,11 +307,14 @@ def get_timesheet_matrix(month_str: str, company_id: int | None = None) -> dict:
         final_unpaid = calc_unpaid_leave if details else float(s["unpaid_leave_days"])
         final_ot = calc_ot if details else float(s["overtime_hours"])
 
+        raw_job_title = (s["job_title"] or "").strip()
+        cleaned_job_title = "" if raw_job_title in ("--", "-") else raw_job_title
+
         processed_rows.append({
             "user_id": s["user_id"],
             "username": s["username"],
             "full_name": s["full_name"],
-            "job_title": s["job_title"] or "--",
+            "job_title": cleaned_job_title,
             "department": s["department"] or "",
             "standard_days": float(s["standard_days"]),
             "actual_days": final_actual,

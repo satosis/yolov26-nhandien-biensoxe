@@ -4,6 +4,7 @@
 {% block page_title_row_class %}invoice-sticky-header{% endblock %}
 {% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
 {% block page_actions %}
+{% set bkav_sent = invoice and bkav_push and bkav_push.status == 'sent' %}
 <div class="d-flex align-items-center flex-wrap" style="gap:6px">
   <button type="button" id="btn-save-invoice" class="btn btn-success btn-sm font-weight-bold" onclick="submitInvoiceForm('save')">
     <i class="bx bx-save mr-1"></i>Lưu hóa đơn
@@ -11,8 +12,8 @@
   <button type="button" id="btn-export-invoice" class="btn btn-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('export')">
     <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
   </button>
-  <button type="button" id="btn-push-invoice-bkav" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('bkav')" {% if not bkav_configured %}disabled title="Chưa cấu hình tài khoản BKAV"{% endif %}>
-    <i class="bx bx-cloud-upload mr-1"></i>Đồng bộ sang BKAV
+  <button type="button" id="btn-push-invoice-bkav" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('bkav')" {% if not bkav_configured or bkav_sent %}disabled{% endif %}{% if not bkav_configured %} title="Chưa cấu hình tài khoản BKAV"{% elif bkav_sent %} title="Hóa đơn đã được đồng bộ sang BKAV"{% endif %}>
+    {% if bkav_sent %}<i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV{% else %}<i class="bx bx-cloud-upload mr-1"></i>Đồng bộ sang BKAV{% endif %}
   </button>
 </div>
 {% endblock %}
@@ -207,6 +208,7 @@ function updateInvoiceStickyTop() {
 window.addEventListener('resize', updateInvoiceStickyTop);
 
 let invoiceActionBusy = false;
+let bkavSyncCompleted = {{ 'true' if invoice and bkav_push and bkav_push.status == 'sent' else 'false' }};
 function invoiceToast(message, type) {
   window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: message, type: type || 'info'}}));
 }
@@ -226,6 +228,7 @@ async function submitInvoiceAction(event) {
   const buttons = [document.getElementById('btn-export-invoice'), document.getElementById('btn-push-invoice-bkav'), btnSave];
   const activeButton = action === 'bkav' ? buttons[1] : action === 'save' ? btnSave : buttons[0];
   const originalLabel = activeButton ? activeButton.innerHTML : '';
+  let actionSucceeded = false;
   invoiceActionBusy = true;
   buttons.forEach(button => { if (button) button.disabled = true; });
   const loadingLabel = action === 'bkav' ? 'Đang đồng bộ...' : action === 'save' ? 'Đang lưu...' : 'Đang tạo tệp...';
@@ -247,8 +250,11 @@ async function submitInvoiceAction(event) {
       if (data.redirect) setTimeout(() => { window.location.href = data.redirect; }, 700);
     } else if (action === 'bkav') {
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể đồng bộ hóa đơn sang BKAV.');
+      if (!response.ok || !data.ok) throw new Error(data.error || data.detail || ('Không thể đồng bộ hóa đơn sang BKAV (HTTP ' + response.status + ').'));
+      actionSucceeded = true;
+      bkavSyncCompleted = true;
       invoiceToast(data.message || 'Đã đồng bộ hóa đơn sang BKAV.', 'success');
+      if (activeButton) activeButton.innerHTML = '<i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV';
       if (data.image_url) {
         showSavedInvoiceImage(data.image_url);
       }
@@ -274,8 +280,10 @@ async function submitInvoiceAction(event) {
     invoiceToast(error.message || 'Có lỗi khi xử lý hóa đơn.', 'error');
   } finally {
     invoiceActionBusy = false;
-    buttons.forEach(button => { if (button) button.disabled = button.id === 'btn-push-invoice-bkav' && {{ 'true' if not bkav_configured else 'false' }}; });
-    if (activeButton) activeButton.innerHTML = originalLabel;
+    buttons.forEach(button => {
+      if (button) button.disabled = button.id === 'btn-push-invoice-bkav' && ({{ 'true' if not bkav_configured else 'false' }} || bkavSyncCompleted);
+    });
+    if (activeButton && !(action === 'bkav' && actionSucceeded)) activeButton.innerHTML = originalLabel;
   }
 }
 
@@ -498,6 +506,110 @@ document.addEventListener('DOMContentLoaded', function() {
               <button type="button" class="btn btn-link p-0 font-size-11 text-primary" @click="resetDebtToInvoice()" title="Đặt lại bằng tổng hóa đơn gồm VAT">↺ Bằng tổng hóa đơn</button>
             </div>
             <input id="invoice-debt" name="debt_amount" class="form-control invoice-money border-danger font-weight-bold text-danger" inputmode="numeric" value="{{ form_values.debt_amount or '' }}" placeholder="0 đ">
+          </div>
+        </div>
+
+        <!-- Hạch toán kế toán bán hàng / cước xe (Thông tư 133/2016/TT-BTC) kiểu phần mềm MISA / FAST -->
+        <div class="col-12 mt-3 pt-3 border-top">
+          <div class="card border mb-0 shadow-none" style="background:#f9fbfd; border-color:#d8e2ef!important;">
+            <div class="card-header py-2 px-3 bg-white border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+              <ul class="nav nav-pills card-header-pills m-0">
+                <li class="nav-item">
+                  <a class="nav-link active py-1 px-3 font-weight-bold font-size-12" href="javascript:void(0)" style="background:#2b579a; color:#fff; border-radius:3px;">
+                    <i class="bx bx-receipt mr-1"></i>B.toán bán hàng
+                  </a>
+                </li>
+                <li class="nav-item ml-1">
+                  <a class="nav-link py-1 px-3 text-muted font-size-12" href="javascript:void(0)" style="background:#eef1f5; border-radius:3px;">Chiết khấu</a>
+                </li>
+                <li class="nav-item ml-1">
+                  <a class="nav-link py-1 px-3 text-muted font-size-12" href="javascript:void(0)" style="background:#eef1f5; border-radius:3px;">Bút toán khác</a>
+                </li>
+              </ul>
+              <span class="badge badge-light border text-primary font-size-11 font-weight-normal px-2 py-1">
+                <i class="bx bx-check-double mr-1"></i>Tự động định khoản theo TT133/2016/TT-BTC
+              </span>
+            </div>
+            <div class="card-body p-3 bg-white">
+              <div class="row align-items-center">
+                <!-- Phân bổ thanh toán (Kiểu FAST/MISA) -->
+                <div class="col-md-5 mb-3 mb-md-0 border-right">
+                  <div class="p-2 rounded" style="background:#fffffa; border:1px solid #fae8a4;">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                      <span class="font-weight-bold font-size-12" style="color:#634a00;">Phân bổ thanh toán</span>
+                      <span class="badge" style="background:#fff3cd; color:#856404; border:1px solid #ffeeba;">&lt;Tự động&gt;</span>
+                    </div>
+                    <div class="font-size-12 text-muted mb-2">
+                      <template x-if="paymentStatus === 'debt'">
+                        <div><i class="bx bx-time mr-1 text-danger"></i>Ghi nhận <strong>Công nợ phải thu (TK 131)</strong></div>
+                      </template>
+                      <template x-if="paymentStatus === 'paid' && paymentMethod === 'CK'">
+                        <div><i class="bx bx-bank mr-1 text-success"></i>Thu ngay qua <strong>Ngân hàng (TK 1121)</strong></div>
+                      </template>
+                      <template x-if="paymentStatus === 'paid' && paymentMethod === 'TM'">
+                        <div><i class="bx bx-money mr-1 text-success"></i>Thu ngay bằng <strong>Tiền mặt (TK 1111)</strong></div>
+                      </template>
+                    </div>
+                    <div class="pt-1 border-top font-size-11 text-secondary d-flex justify-content-between">
+                      <span>Loại hình:</span>
+                      <strong class="text-dark">Doanh thu cước dịch vụ vận tải (TK 5113)</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bút toán chi tiết: Tiền cước, Thuế GTGT, Tiền thanh toán -->
+                <div class="col-md-7">
+                  <div class="d-flex flex-column" style="gap:6px;">
+                    <!-- Dòng 1: Tiền cước -->
+                    <div class="d-flex align-items-center justify-content-between font-size-12">
+                      <div style="width: 130px;">
+                        <span class="text-dark">Tiền cước xe:</span>
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <span class="badge badge-light border text-primary font-weight-bold px-2 py-1" style="width:36px; text-align:center;">Có</span>
+                        <input type="text" class="form-control form-control-sm text-center font-weight-bold bg-white" style="width:75px; font-size:12px; height:28px;" value="5113" readonly title="5113: Doanh thu cung cấp dịch vụ vận tải">
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <input type="text" class="form-control form-control-sm text-right font-weight-bold text-primary bg-white" style="width:135px; font-size:12px; height:28px;" :value="formatNumber(subtotal())" readonly>
+                        <span class="text-muted font-size-11" style="width:28px;">VND</span>
+                      </div>
+                    </div>
+
+                    <!-- Dòng 2: Thuế GTGT -->
+                    <div class="d-flex align-items-center justify-content-between font-size-12">
+                      <div class="d-flex align-items-center" style="width: 130px;">
+                        <span class="text-dark mr-1">Thuế GTGT</span>
+                        <span class="badge badge-secondary font-size-10 px-1" x-text="vatPercent() + '%'">8%</span>
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <span class="badge badge-light border text-primary font-weight-bold px-2 py-1" style="width:36px; text-align:center;">Có</span>
+                        <input type="text" class="form-control form-control-sm text-center font-weight-bold bg-white" style="width:75px; font-size:12px; height:28px;" value="33311" readonly title="33311: Thuế GTGT đầu ra">
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <input type="text" class="form-control form-control-sm text-right font-weight-bold text-primary bg-white" style="width:135px; font-size:12px; height:28px;" :value="formatNumber(vatAmount())" readonly>
+                        <span class="text-muted font-size-11" style="width:28px;">VND</span>
+                      </div>
+                    </div>
+
+                    <!-- Dòng 3: Tiền thanh toán -->
+                    <div class="d-flex align-items-center justify-content-between font-size-12 pt-1 border-top">
+                      <div class="d-flex align-items-center" style="width: 130px;">
+                        <span class="font-weight-bold text-dark">Tiền thanh toán</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 ml-1 font-size-10" style="line-height:1.2; height:18px;" title="Chi tiết thanh toán">...</button>
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <span class="badge badge-light border text-danger font-weight-bold px-2 py-1" style="width:36px; text-align:center;">Nợ</span>
+                        <input type="text" class="form-control form-control-sm text-center font-weight-bold bg-white" style="width:75px; font-size:12px; height:28px;" :value="paymentStatus === 'debt' ? '131' : (paymentMethod === 'CK' ? '1121' : '1111')" readonly title="131: Phải thu khách hàng, 1121: TGNH, 1111: Tiền mặt">
+                      </div>
+                      <div class="d-flex align-items-center" style="gap:4px;">
+                        <input type="text" class="form-control form-control-sm text-right font-weight-bold text-danger bg-white" style="width:135px; font-size:12px; height:28px;" :value="formatNumber(gross())" readonly>
+                        <span class="text-muted font-size-11" style="width:28px;">VND</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

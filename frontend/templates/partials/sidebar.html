@@ -24,7 +24,7 @@
   "payroll": "bx-money",
   "debts": "bx-receipt",
   "sales": "bx-receipt",
-  "suppliers": "bx-cart-download",
+  "suppliers": "bx-cart",
   "detection": "bx-scan",
   "recordings": "bx-video",
   "parking_dashboard": "bx-bar-chart-square",
@@ -51,6 +51,8 @@
 {% set transport_path = request.url.path %}
 {% set transport_active = 'contracts' if transport_path.startswith('/admin/transport/contracts') else
   'tax_checklist' if transport_path.startswith('/admin/enterprise/tax-checklist') else
+  'depreciation' if transport_path.startswith('/admin/transport/depreciation') else
+  'trial_balance' if transport_path.startswith('/admin/transport/trial-balance') else
   'catalog_' ~ (request.query_params.get('tab', 'service')) if transport_path.startswith('/admin/transport/catalog') or transport_path.startswith('/admin/vehicles/catalog') else
   'staff_payroll' if transport_path.startswith('/admin/transport/payroll') else
   'input_invoices' if transport_path.startswith('/admin/transport/input-invoices') else
@@ -101,7 +103,11 @@
               ('catalog_service', 'Danh mục dịch vụ', 'bx-list-ul', '/admin/transport/catalog?tab=service'),
               ('catalog_cargo_type', 'Danh mục hàng hóa', 'bx-box', '/admin/transport/catalog?tab=cargo_type'),
               ('input_invoices', 'Chi phí đầu vào', 'bx-receipt', '/admin/transport/input-invoices'),
-              ('tax_report', 'Báo cáo thuế theo quý', 'bx-calculator', '/admin/transport/tax-report')
+              ('cash_book', 'Sổ quỹ tiền mặt (S04a)', 'bx-wallet', '/admin/transport/cash-book'),
+              ('bank_book', 'Sổ tiền gửi NH (S05a)', 'bx-credit-card', '/admin/transport/bank-book'),
+              ('prepaid_expenses', 'Phân bổ CCDC (TK 242)', 'bx-layer', '/admin/transport/prepaid-expenses'),
+              ('depreciation', 'Bảng tính khấu hao TSCĐ', 'bx-spreadsheet', '/admin/transport/depreciation'),
+              ('trial_balance', 'Bảng cân đối tài khoản (F01)', 'bx-git-merge', '/admin/transport/trial-balance')
             ] %}
             <li class="{% if transport_active == menu_key %}mm-active{% endif %}">
               <a href="{{ menu_url }}" class="{% if transport_active == menu_key %}active{% endif %}"><i class="bx {{ menu_icon }}"></i> {{ menu_label }}</a>

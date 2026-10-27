@@ -1,0 +1,456 @@
+{% extends "layout.html" %}
+
+{% block title %}Bảng phân bổ CCDC (TK 242) | Đại Lộ Xanh{% endblock %}
+
+{% block content %}
+<style>
+  .pe-stat-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: transform 0.15s ease;
+  }
+  .pe-stat-card:hover { transform: translateY(-2px); }
+  .pe-table th {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #334155 !important;
+    padding: 5px 6px;
+  }
+  .pe-table td {
+    font-size: 11.5px;
+    vertical-align: middle;
+    border: 1px solid #e2e8f0;
+    padding: 5px 6px;
+  }
+  .pe-money {
+    text-align: right;
+    font-family: 'Consolas', 'Roboto Mono', monospace;
+  }
+</style>
+
+<div class="container-fluid px-3 py-3">
+  <!-- BREADCRUMB & HEADER -->
+  <div class="row align-items-center mb-3">
+    <div class="col-md-7">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <span class="badge badge-primary px-2 py-1 font-size-11">THÔNG TƯ 133/2016/TT-BTC</span>
+        <span class="badge badge-warning px-2 py-1 font-size-11 text-dark"><i class="bx bx-layer mr-1"></i>TK 242 (CHI PHÍ TRẢ TRƯỚC)</span>
+        <span class="badge badge-success px-2 py-1 font-size-11">CCDC & THIẾT BỊ PHÂN BỔ</span>
+      </div>
+      <h4 class="mb-0 mt-1 font-weight-bold text-dark" style="letter-spacing:-0.3px;">
+        <i class="bx bx-layer text-warning mr-1"></i>BẢNG PHÂN BỔ CÔNG CỤ DỤNG CỤ & CHI PHÍ TRẢ TRƯỚC (TK 242)
+      </h4>
+      <p class="text-muted font-size-12 mb-0">
+        {{ pe_data.company_name }} &bull; Phân bổ quả cân kiểm định, máy vi tính, điều hòa, tủ lạnh, tivi, thiết bị...
+      </p>
+    </div>
+    <div class="col-md-5 text-md-right mt-2 mt-md-0">
+      <a href="/admin/transport/prepaid-expenses/export?year={{ selected_year }}&period={{ active_period }}&date_from={{ date_from }}&date_to={{ date_to }}" 
+         class="btn btn-sm btn-success shadow-sm font-weight-bold mr-1">
+        <i class="bx bx-download mr-1"></i>Xuất Excel Bảng Phân Bổ
+      </a>
+      <button type="button" class="btn btn-sm btn-primary shadow-sm font-weight-bold" data-toggle="modal" data-target="#addCcdcModal">
+        <i class="bx bx-plus-circle mr-1"></i>Thêm CCDC Mới
+      </button>
+    </div>
+  </div>
+
+  <!-- BỘ LỌC KỲ BÁO CÁO PHÂN BỔ 242 -->
+  <div class="card mb-3 border-0 shadow-sm" style="background:#f8fafc; border:1px solid #e2e8f0 !important; border-radius:8px;">
+    <form id="peFilterForm" method="GET" action="/admin/transport/prepaid-expenses" class="card-body py-2 px-3">
+      <div class="row align-items-center">
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-weight-bold text-secondary font-size-12">
+            <i class="bx bx-calendar mr-1 text-primary"></i>Năm:
+          </span>
+          <select name="year" id="peYearSelect" class="form-control form-control-sm font-weight-bold" onchange="handlePeYearChange(this.value)" style="width:105px; height:32px;">
+            {% for y in available_years %}
+              <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>Năm {{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-weight-bold text-secondary font-size-12">
+            <i class="bx bx-calendar-event mr-1 text-primary"></i>Chọn theo kỳ:
+          </span>
+          <select name="period" id="pePeriodSelect" class="form-control form-control-sm font-weight-bold" onchange="handlePePeriodChange(this.value)" style="min-width:165px; height:32px;">
+            <option value="today" {% if active_period == 'today' %}selected{% endif %}>📅 Đến hiện tại (Hôm nay)</option>
+            <option value="all" {% if active_period == 'all' or active_period == 'year' %}selected{% endif %}>📆 Cả năm {{ selected_year }}</option>
+            <option value="q1" {% if active_period == 'q1' %}selected{% endif %}>Quý 1 (01/01 - 31/03)</option>
+            <option value="q2" {% if active_period == 'q2' %}selected{% endif %}>Quý 2 (01/04 - 30/06)</option>
+            <option value="q3" {% if active_period == 'q3' %}selected{% endif %}>Quý 3 (01/07 - 30/09)</option>
+            <option value="q4" {% if active_period == 'q4' %}selected{% endif %}>Quý 4 (01/10 - 31/12)</option>
+            <option value="m1" {% if active_period == 'm1' %}selected{% endif %}>Tháng 1</option>
+            <option value="m2" {% if active_period == 'm2' %}selected{% endif %}>Tháng 2</option>
+            <option value="m3" {% if active_period == 'm3' %}selected{% endif %}>Tháng 3</option>
+            <option value="m4" {% if active_period == 'm4' %}selected{% endif %}>Tháng 4</option>
+            <option value="m5" {% if active_period == 'm5' %}selected{% endif %}>Tháng 5</option>
+            <option value="m6" {% if active_period == 'm6' %}selected{% endif %}>Tháng 6</option>
+            <option value="m7" {% if active_period == 'm7' %}selected{% endif %}>Tháng 7</option>
+            <option value="m8" {% if active_period == 'm8' %}selected{% endif %}>Tháng 8</option>
+            <option value="m9" {% if active_period == 'm9' %}selected{% endif %}>Tháng 9</option>
+            <option value="m10" {% if active_period == 'm10' %}selected{% endif %}>Tháng 10</option>
+            <option value="m11" {% if active_period == 'm11' %}selected{% endif %}>Tháng 11</option>
+            <option value="m12" {% if active_period == 'm12' %}selected{% endif %}>Tháng 12</option>
+            <option value="custom" {% if active_period == 'custom' %}selected{% endif %}>Tùy chọn ngày...</option>
+          </select>
+        </div>
+
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-size-11 text-muted">Từ</span>
+          <input type="date" name="date_from" id="peDateFrom" value="{{ date_from }}" class="form-control form-control-sm font-weight-bold" style="width:135px; height:32px;">
+          <span class="font-size-11 text-muted">đến</span>
+          <input type="date" name="date_to" id="peDateTo" value="{{ date_to }}" class="form-control form-control-sm font-weight-bold" style="width:135px; height:32px;">
+          <button type="submit" class="btn btn-sm btn-primary py-1 px-3 shadow-sm" style="height:32px;">
+            <i class="bx bx-filter-alt mr-1"></i>Lọc phân bổ
+          </button>
+        </div>
+
+        <div class="col text-right font-size-12 text-muted">
+          Kỳ hiển thị: <strong class="text-primary font-monospace">{{ date_from_display }} &rarr; {{ date_to_display }}</strong>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- 4 THẺ THỐNG KÊ GIÁ TRỊ CCDC & PHÂN BỔ TRONG KỲ -->
+  <div class="row mb-3" style="margin-left:-6px; margin-right:-6px;">
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="pe-stat-card border-left border-primary" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">1. Tổng Nguyên giá CCDC</div>
+        <div class="h5 font-weight-bold text-primary mb-0 mt-1">{{ pe_data.totals.original_cost|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="pe-stat-card border-left border-info" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">2. Phân bổ trong kỳ lọc</div>
+        <div class="h5 font-weight-bold text-info mb-0 mt-1">{{ pe_data.totals.period_alloc|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="pe-stat-card border-left border-warning" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">3. Tổng PB năm nay (Có 242)</div>
+        <div class="h5 font-weight-bold text-warning mb-0 mt-1">{{ pe_data.totals.alloc_year|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="pe-stat-card border-left border-success" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">4. Giá trị còn lại cuối năm</div>
+        <div class="h5 font-weight-bold text-success mb-0 mt-1">{{ pe_data.totals.rem_end|format_currency }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BẢNG TĂNG GIẢM VÀ TÍNH PHÂN BỔ CHI TIẾT (CHUẨN FORM PHƯƠNG NAM) -->
+  <div class="card border-0 shadow-sm mb-4" style="border:1px solid #e2e8f0 !important; border-radius:8px; overflow:hidden;">
+    <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+      <strong class="font-size-13 text-dark">
+        <i class="bx bx-table mr-1 text-primary"></i>Bảng tính phân bổ chi phí trả trước CCDC chi tiết 12 tháng (Năm {{ selected_year }})
+      </strong>
+      <span class="badge badge-light border text-muted">Tổng cộng: {{ pe_data['items']|length }} CCDC & Thiết bị</span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 pe-table">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:40px;">STT</th>
+            <th rowspan="2" style="min-width:230px; text-align:left;">Tên CCDC / Thiết bị</th>
+            <th rowspan="2" style="width:55px;">ĐVT</th>
+            <th rowspan="2" style="width:85px;">Ngày SD</th>
+            <th rowspan="2" style="width:45px;">SL</th>
+            <th rowspan="2" style="width:65px;">TG PB<br>(tháng)</th>
+            <th rowspan="2" style="min-width:105px;">Nguyên giá</th>
+            <th colspan="2">Số đầu năm</th>
+            <th rowspan="2" style="min-width:95px;">PB 1 tháng</th>
+            <th colspan="12">Chi tiết phân bổ 12 tháng năm {{ selected_year }}</th>
+            <th rowspan="2" style="min-width:105px;">Tổng PB<br>năm nay</th>
+            <th rowspan="2" style="min-width:105px;">Giá trị còn lại<br>cuối năm</th>
+            <th rowspan="2" style="width:55px;">TK Nợ</th>
+            <th rowspan="2" style="width:50px;">Xóa</th>
+          </tr>
+          <tr>
+            <th style="min-width:95px;">Lũy kế ĐN</th>
+            <th style="min-width:95px;">Còn lại ĐN</th>
+            {% for m in range(1, 13) %}
+            <th style="min-width:70px; {% if m in pe_data.period_months %}background:#1e40af !important; color:#ffffff !important;{% endif %}">T{{ m }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in pe_data['items'] %}
+          <tr>
+            <td class="text-center font-weight-bold text-muted">{{ it.stt }}</td>
+            <td class="text-left font-weight-medium text-dark">
+              {{ it.name }}
+              {% if it.category %}
+                <span class="badge badge-light border text-muted ml-1 font-size-10">{{ it.category }}</span>
+              {% endif %}
+            </td>
+            <td class="text-center text-muted">{{ it.unit }}</td>
+            <td class="text-center text-secondary font-size-11">{{ it.start_date }}</td>
+            <td class="text-center font-weight-bold">{{ it.quantity }}</td>
+            <td class="text-center text-primary font-weight-bold">{{ it.total_months }}</td>
+            <td class="pe-money font-weight-bold text-primary">{{ it.original_cost|format_number }}</td>
+            <td class="pe-money text-muted">{{ it.acc_start|format_number if it.acc_start > 0 else '—' }}</td>
+            <td class="pe-money font-weight-bold text-dark">{{ it.rem_start|format_number if it.rem_start > 0 else '—' }}</td>
+            <td class="pe-money text-secondary font-size-11">{{ it.monthly_alloc|format_number if it.monthly_alloc > 0 else '—' }}</td>
+
+            {% for m in range(1, 13) %}
+            {% set m_val = it.months[m-1] %}
+            <td class="pe-money {% if m in pe_data.period_months %}bg-light text-primary font-weight-bold{% elif m_val > 0 %}text-dark font-weight-bold{% else %}text-muted{% endif %}" style="font-size:11px;">
+              {{ m_val|format_number if m_val > 0 else '—' }}
+            </td>
+            {% endfor %}
+
+            <td class="pe-money font-weight-bold text-warning">{{ it.alloc_year|format_number if it.alloc_year > 0 else '—' }}</td>
+            <td class="pe-money font-weight-bold text-success">{{ it.rem_end|format_number }}</td>
+            <td class="text-center font-weight-bold text-danger font-monospace font-size-11">{{ it.offset_account }}</td>
+            <td class="text-center">
+              <button type="button" onclick="deleteCcdc({{ it.id }}, '{{ it.name|replace('\'', '\\\'') }}')" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xóa">
+                <i class="bx bx-trash font-size-11"></i>
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="25" class="text-center py-4 text-muted">Chưa có CCDC nào trong danh mục.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <!-- Dòng Tổng cộng -->
+          <tr class="font-weight-bold" style="background:#fef3c7;">
+            <td colspan="6" class="text-center text-uppercase font-weight-bold text-dark">
+              <i class="bx bx-check-double mr-1 text-success"></i>Tổng cộng
+            </td>
+            <td class="pe-money text-primary font-weight-bold">{{ pe_data.totals.original_cost|format_number }}</td>
+            <td class="pe-money text-muted">{{ pe_data.totals.acc_start|format_number }}</td>
+            <td class="pe-money text-dark font-weight-bold">{{ pe_data.totals.rem_start|format_number }}</td>
+            <td></td>
+
+            {% for m in range(1, 13) %}
+            {% set m_tot = pe_data.totals.months[m-1] %}
+            <td class="pe-money {% if m in pe_data.period_months %}text-primary font-weight-bold bg-white{% else %}text-dark font-weight-bold{% endif %}" style="font-size:11px;">{{ m_tot|format_number if m_tot > 0 else '—' }}</td>
+            {% endfor %}
+
+            <td class="pe-money text-warning font-weight-bold" style="font-size:12px;">{{ pe_data.totals.alloc_year|format_number }}</td>
+            <td class="pe-money text-success font-weight-bold" style="font-size:12px;">{{ pe_data.totals.rem_end|format_number }}</td>
+            <td colspan="2"></td>
+          </tr>
+
+          <!-- Dòng Định khoản Nợ 642 / Có 242 -->
+          <tr style="background:#eff6ff; font-weight:bold;">
+            <td colspan="6" class="text-right text-primary">Định khoản Nợ 642 (Chi phí QLDN):</td>
+            <td colspan="4"></td>
+            {% for m_tot in pe_data.totals.months %}
+            <td class="pe-money text-primary" style="font-size:11px;">{{ m_tot|format_number if m_tot > 0 else '—' }}</td>
+            {% endfor %}
+            <td class="pe-money text-primary font-weight-bold">{{ pe_data.totals.alloc_year|format_number }}</td>
+            <td colspan="3"></td>
+          </tr>
+          <tr style="background:#eff6ff; font-weight:bold;">
+            <td colspan="6" class="text-right text-success">Định khoản Có 242 (Chi phí trả trước):</td>
+            <td colspan="4"></td>
+            {% for m_tot in pe_data.totals.months %}
+            <td class="pe-money text-success" style="font-size:11px;">{{ m_tot|format_number if m_tot > 0 else '—' }}</td>
+            {% endfor %}
+            <td class="pe-money text-success font-weight-bold">{{ pe_data.totals.alloc_year|format_number }}</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL THÊM CCDC MỚI -->
+<div class="modal fade" id="addCcdcModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-plus-circle mr-1"></i>Thêm Công Cụ Dụng Cụ Phân Bổ (TK 242)
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="ccdcForm" onsubmit="submitCcdc(event)">
+        <div class="modal-body p-3">
+          <div class="row">
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Mã CCDC</label>
+              <input type="text" name="item_code" placeholder="VD: CCDC-12" class="form-control form-control-sm font-monospace font-weight-bold">
+            </div>
+            <div class="col-md-8 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Tên CCDC / Thiết bị <span class="text-danger">*</span></label>
+              <input type="text" name="name" placeholder="VD: Quả cân chuẩn 20kg, Máy vi tính văn phòng..." class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Đơn vị tính</label>
+              <input type="text" name="unit" value="Chiếc" placeholder="Chiếc, Bộ, Quả..." class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số lượng</label>
+              <input type="number" name="quantity" value="1" min="1" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Phân loại</label>
+              <select name="category" class="form-control form-control-sm">
+                <option value="CCDC">CCDC</option>
+                <option value="Thiết bị văn phòng">Thiết bị VP (Máy tính, in)</option>
+                <option value="Dụng cụ cân xe">Dụng cụ trạm cân</option>
+                <option value="Điện lạnh & gia dụng">Điện lạnh (Điều hòa, tủ lạnh)</option>
+                <option value="Chi phí trả trước">Chi phí trả trước (Thuê kho)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ngày đưa vào SD <span class="text-danger">*</span></label>
+              <input type="date" name="start_date" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thời gian PB (tháng) <span class="text-danger">*</span></label>
+              <input type="number" name="total_months" value="36" min="1" max="120" placeholder="VD: 36 (3 năm)" class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Nguyên giá (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="original_cost" placeholder="VD: 15.000.000" class="form-control form-control-sm font-weight-bold text-primary" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Lũy kế đầu năm (nếu có)</label>
+              <input type="text" name="accumulated_prev" value="0" placeholder="0" class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Hạch toán vào TK chi phí</label>
+              <select name="offset_account" class="form-control form-control-sm font-weight-bold">
+                <option value="642">TK 642 - Chi phí Quản lý doanh nghiệp</option>
+                <option value="154">TK 154 - Chi phí SXKD dịch vụ vận tải</option>
+              </select>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+              <input type="text" name="note" placeholder="Số hóa đơn, người sử dụng..." class="form-control form-control-sm">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitCcdc">
+            <i class="bx bx-save mr-1"></i>Lưu CCDC
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function handlePeYearChange(val) {
+  document.getElementById('peFilterForm').submit();
+}
+
+function handlePePeriodChange(val) {
+  const year = document.getElementById('peYearSelect')?.value || '{{ selected_year }}';
+  const fromEl = document.getElementById('peDateFrom');
+  const toEl = document.getElementById('peDateTo');
+  const today = '{{ today.strftime("%Y-%m-%d") if today else date_to }}';
+
+  if (val === 'today') {
+    fromEl.value = year + '-01-01';
+    toEl.value = today;
+  } else if (val === 'all' || val === 'year') {
+    fromEl.value = year + '-01-01';
+    toEl.value = year + '-12-31';
+  } else if (val === 'q1') {
+    fromEl.value = year + '-01-01';
+    toEl.value = year + '-03-31';
+  } else if (val === 'q2') {
+    fromEl.value = year + '-04-01';
+    toEl.value = year + '-06-30';
+  } else if (val === 'q3') {
+    fromEl.value = year + '-07-01';
+    toEl.value = year + '-09-30';
+  } else if (val === 'q4') {
+    fromEl.value = year + '-10-01';
+    toEl.value = year + '-12-31';
+  } else if (val.startsWith('m') && !isNaN(parseInt(val.substring(1)))) {
+    const m = parseInt(val.substring(1));
+    const padM = String(m).padStart(2, '0');
+    const lastDay = (m === 2) ? 28 : ([4, 6, 9, 11].includes(m) ? 30 : 31);
+    fromEl.value = `${year}-${padM}-01`;
+    toEl.value = `${year}-${padM}-${String(lastDay).padStart(2, '0')}`;
+  }
+  if (val !== 'custom') {
+    document.getElementById('peFilterForm').submit();
+  }
+}
+
+async function submitCcdc(e) {
+  e.preventDefault();
+  const form = document.getElementById('ccdcForm');
+  const formData = new FormData(form);
+  const btn = document.getElementById('btnSubmitCcdc');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
+
+  try {
+    const res = await fetch('/admin/transport/prepaid-expenses/api/add', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert(data.message || 'Đã thêm CCDC thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể thêm CCDC'));
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu CCDC';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu CCDC';
+  }
+}
+
+async function deleteCcdc(id, name) {
+  if (!confirm(`Bạn có chắc chắn muốn xóa CCDC "${name}" không?`)) return;
+
+  try {
+    const res = await fetch(`/admin/transport/prepaid-expenses/api/${id}/delete`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      alert(data.message || 'Đã xóa thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể xóa'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+  }
+}
+</script>
+{% endblock %}

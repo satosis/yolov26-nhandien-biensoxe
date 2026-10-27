@@ -105,59 +105,6 @@ for g in CHECKLIST_GROUPS:
 STATUS_CYCLE = ["not_done", "in_progress", "done", "na"]
 
 
-def init_db():
-    """Ensure database tables are created."""
-    sql = """
-    CREATE TABLE IF NOT EXISTS tax_checklist_clients (
-        id SERIAL PRIMARY KEY,
-        code VARCHAR(50) NOT NULL UNIQUE,
-        name VARCHAR(255) NOT NULL,
-        tax_code VARCHAR(50),
-        contact_info VARCHAR(255),
-        note TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS tax_checklist_entries (
-        id SERIAL PRIMARY KEY,
-        client_id INT REFERENCES tax_checklist_clients(id) ON DELETE CASCADE,
-        period VARCHAR(20) NOT NULL,
-        item_key VARCHAR(50) NOT NULL,
-        status VARCHAR(20) DEFAULT 'not_done',
-        note TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(client_id, period, item_key)
-    );
-
-    CREATE TABLE IF NOT EXISTS tax_checklist_notes (
-        id SERIAL PRIMARY KEY,
-        client_id INT REFERENCES tax_checklist_clients(id) ON DELETE CASCADE,
-        period VARCHAR(20) NOT NULL,
-        general_note TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(client_id, period)
-    );
-
-    CREATE TABLE IF NOT EXISTS tax_checklist_urgent_tasks (
-        id SERIAL PRIMARY KEY,
-        period VARCHAR(20) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        client_name VARCHAR(255) NOT NULL,
-        deadline VARCHAR(50) NOT NULL,
-        is_completed BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """
-    for stmt in sql.strip().split(";"):
-        s = stmt.strip()
-        if s:
-            try:
-                db.execute_query(s, commit=True)
-            except Exception:
-                pass
-
-
 def get_available_periods() -> List[Dict[str, str]]:
     """Return selectable quarterly periods."""
     return [
@@ -171,8 +118,6 @@ def get_available_periods() -> List[Dict[str, str]]:
 
 def get_checklist_matrix(period: str, q_search: Optional[str] = None) -> Dict[str, Any]:
     """Retrieve complete checklist data for matrix table and dashboard."""
-    init_db()
-
     query = """
         SELECT id, code, name, tax_code, contact_info, note, is_active
         FROM tax_checklist_clients
@@ -358,8 +303,6 @@ def get_checklist_matrix(period: str, q_search: Optional[str] = None) -> Dict[st
 
 def cycle_item_status(client_id: int, period: str, item_key: str) -> Dict[str, Any]:
     """Toggle status to next in cycle: not_done -> in_progress -> done -> na -> not_done."""
-    init_db()
-
     current = db.execute_query(
         "SELECT status FROM tax_checklist_entries WHERE client_id = %s AND period = %s AND item_key = %s",
         (client_id, period, item_key),
@@ -404,8 +347,6 @@ def cycle_item_status(client_id: int, period: str, item_key: str) -> Dict[str, A
 
 def cycle_group_status(client_id: int, period: str, group_id: str) -> Dict[str, Any]:
     """Toggle all items in a group to next status: not_done -> in_progress -> done -> not_done."""
-    init_db()
-
     group = next((g for g in CHECKLIST_GROUPS if g["id"] == group_id), None)
     if not group:
         # Check if it's a single item key like 'tndn_bctc'
@@ -477,8 +418,10 @@ def cycle_group_status(client_id: int, period: str, group_id: str) -> Dict[str, 
         "total_count": total_cnt,
         "percentage": pct,
     }
+
+
+def set_item_status(client_id: int, period: str, item_key: str, status: str) -> Dict[str, Any]:
     """Explicitly set status."""
-    init_db()
     if status not in STATUS_CYCLE:
         status = "not_done"
 
@@ -494,7 +437,6 @@ def cycle_group_status(client_id: int, period: str, group_id: str) -> Dict[str, 
 
 def update_client_note(client_id: int, period: str, note: str) -> bool:
     """Save client's general note for period."""
-    init_db()
     db.execute_query("""
         INSERT INTO tax_checklist_notes (client_id, period, general_note, updated_at)
         VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
@@ -506,7 +448,6 @@ def update_client_note(client_id: int, period: str, note: str) -> bool:
 
 def add_client(code: str, name: str, tax_code: str = "", contact: str = "", note: str = "") -> Dict[str, Any]:
     """Add a new client to checklist."""
-    init_db()
     code = code.strip().upper()
     name = name.strip()
     if not code or not name:
@@ -527,7 +468,6 @@ def add_client(code: str, name: str, tax_code: str = "", contact: str = "", note
 
 def get_urgent_tasks(period: str) -> List[Dict[str, Any]]:
     """Get tasks due today or urgent for period."""
-    init_db()
     tasks = db.execute_query("""
         SELECT id, period, title, client_name, deadline, is_completed
         FROM tax_checklist_urgent_tasks
@@ -539,7 +479,6 @@ def get_urgent_tasks(period: str) -> List[Dict[str, Any]]:
 
 def toggle_urgent_task(task_id: int) -> bool:
     """Toggle completion status of an urgent task."""
-    init_db()
     db.execute_query("""
         UPDATE tax_checklist_urgent_tasks
         SET is_completed = NOT is_completed
@@ -550,7 +489,6 @@ def toggle_urgent_task(task_id: int) -> bool:
 
 def add_urgent_task(period: str, title: str, client_name: str, deadline: str) -> bool:
     """Add an urgent task."""
-    init_db()
     db.execute_query("""
         INSERT INTO tax_checklist_urgent_tasks (period, title, client_name, deadline)
         VALUES (%s, %s, %s, %s)

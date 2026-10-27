@@ -163,7 +163,7 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
     if not isinstance(row, dict) or not isinstance(row.get("Invoice"), dict):
         return None
     inv = row["Invoice"]
-    if inv.get("InvoiceStatusID") not in (2, 6) or inv.get("InvoiceTypeID") != 1:
+    if inv.get("InvoiceStatusID") != 2 or inv.get("InvoiceTypeID") != 1:
         return None
     if str(inv.get("CurrencyID") or "VND").upper() != "VND":
         return None

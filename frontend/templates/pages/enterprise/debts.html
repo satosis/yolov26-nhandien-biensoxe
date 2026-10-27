@@ -1030,8 +1030,26 @@
           </div>
 
           <div class="form-group mb-2">
+            <label class="small font-weight-bold">Dòng tiền ghi nhận vào sổ <span class="text-danger">*</span></label>
+            <div class="d-flex" style="gap:15px;">
+              <div class="custom-control custom-radio">
+                <input type="radio" id="payMethodBank" name="payment_method" value="bank" class="custom-control-input" checked>
+                <label class="custom-control-label small font-weight-bold text-primary" for="payMethodBank">
+                  <i class="bx bx-credit-card mr-1"></i>Sổ Tiền gửi NH (TK 112)
+                </label>
+              </div>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="payMethodCash" name="payment_method" value="cash" class="custom-control-input">
+                <label class="custom-control-label small font-weight-bold text-success" for="payMethodCash">
+                  <i class="bx bx-wallet mr-1"></i>Sổ Quỹ Tiền mặt (TK 111)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group mb-2">
             <label class="small font-weight-bold">Số phiếu thu / Ủy nhiệm chi / Mã giao dịch</label>
-            <input type="text" name="reference_doc" class="form-control form-control-sm" placeholder="VD: PT-0012, UNC-VIB-992...">
+            <input type="text" name="reference_doc" class="form-control form-control-sm" placeholder="VD: PT-0012, UNC-3865, BC-008...">
           </div>
 
           <div class="form-group mb-0">

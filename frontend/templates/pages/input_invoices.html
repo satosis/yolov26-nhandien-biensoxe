@@ -196,6 +196,127 @@
           <div>Tiền thuế GTGT<strong id="purchase-vat">0 đ</strong></div>
           <div class="grand-total">Tổng thanh toán<strong id="purchase-total">0 đ</strong></div>
         </div>
+
+        <!-- BÚT TOÁN HẠCH TOÁN KẾ TOÁN (THEO MẪU NHẬP MUA HÀNG) -->
+        <div class="card mb-3 border shadow-sm" style="border-radius:8px; border-color:#cbd5e1 !important; overflow:hidden;">
+          <!-- Tabs header -->
+          <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+            <ul class="nav nav-tabs card-header-tabs border-0" style="margin-bottom:-9px;">
+              <li class="nav-item">
+                <a class="nav-link active py-1 px-3 font-weight-bold text-dark border-bottom-0 bg-light" href="javascript:void(0);">
+                  <i class="bx bx-receipt mr-1 text-primary"></i>B.toán mua hàng
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link py-1 px-3 text-muted" href="javascript:void(0);">
+                  Chiết khấu
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link py-1 px-3 text-muted" href="javascript:void(0);">
+                  Bút toán khác
+                </a>
+              </li>
+            </ul>
+            <span class="badge badge-success px-2 py-1 font-weight-bold"><i class="bx bx-check-double mr-1"></i>Hạch toán tự động cân đối</span>
+          </div>
+
+          <div class="card-body p-3 bg-light">
+            <div class="row align-items-center">
+              <!-- Cột trái: Phân bổ thanh toán -->
+              <div class="col-md-5 border-right pr-md-3 mb-3 mb-md-0">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="font-weight-bold text-dark font-size-12">Phân bổ thanh toán</span>
+                  <span class="badge badge-warning text-dark font-size-11 font-weight-bold">&lt;Tự động&gt;</span>
+                </div>
+                <div class="mb-2">
+                  <label class="font-size-11 text-muted mb-1 d-block font-weight-bold">Hình thức thanh toán:</label>
+                  <select id="acc-payment-method" class="form-control form-control-sm font-weight-bold" onchange="syncAccountingMethod(this.value)">
+                    <option value="331" selected>Chưa thanh toán (Ghi nhận công nợ người bán 331)</option>
+                    <option value="1121">Chuyển khoản Ngân hàng (VietinBank 1121)</option>
+                    <option value="1111">Tiền mặt tại quỹ (1111)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="font-size-11 text-muted mb-1 d-block font-weight-bold">Mục đích chi phí / Khoản mục:</label>
+                  <select id="acc-expense-purpose" class="form-control form-control-sm" onchange="syncAccountingExpense(this.value)">
+                    <option value="154" selected>Chi phí dịch vụ vận tải xe tải (TK 154 / 632)</option>
+                    <option value="156">Mua hàng hóa nhập kho (TK 156)</option>
+                    <option value="242">Chi phí trả trước CCDC / Bảo hiểm (TK 242)</option>
+                    <option value="642">Chi phí quản lý doanh nghiệp (TK 642)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Cột phải: Bảng định khoản Nợ / Có kiểu như ảnh -->
+              <div class="col-md-7 pl-md-3">
+                <div class="border rounded bg-white p-2" style="border-color:#cbd5e1 !important;">
+                  <!-- Dòng 1: Tiền hàng Nợ 154 / 156 -->
+                  <div class="d-flex align-items-center justify-content-between py-1 border-bottom" style="gap:8px;">
+                    <div style="min-width:110px;" class="font-weight-bold text-dark font-size-12">
+                      Tiền hàng
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:6px;">
+                      <span class="text-muted font-weight-bold font-size-11">Nợ</span>
+                      <input type="text" id="tk-no-cost" name="tk_no_cost" value="154" class="form-control form-control-sm text-center font-weight-bold" style="width:70px; height:28px;" list="cost-accounts" title="Mã tài khoản Nợ chi phí">
+                      <datalist id="cost-accounts">
+                        <option value="154">Chi phí SXKD dịch vụ vận tải</option>
+                        <option value="156">Hàng hóa</option>
+                        <option value="242">Chi phí trả trước CCDC</option>
+                        <option value="642">Chi phí quản lý kinh doanh</option>
+                      </datalist>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-subtotal-val" readonly class="form-control form-control-sm text-right font-weight-bold text-dark bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+
+                  <!-- Dòng 2: Thuế GTGT Nợ 1331 -->
+                  <div class="d-flex align-items-center justify-content-between py-1 border-bottom" style="gap:8px;">
+                    <div style="min-width:110px;" class="d-flex align-items-center font-weight-bold text-dark font-size-12" style="gap:4px;">
+                      <span>Thuế GTGT</span>
+                      <span class="badge badge-light border text-primary ml-1 font-weight-bold" id="acc-vat-badge" style="font-size:10.5px;">10%</span>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:6px;">
+                      <span class="text-muted font-weight-bold font-size-11">Nợ</span>
+                      <input type="text" id="tk-no-vat" name="tk_no_vat" value="1331" class="form-control form-control-sm text-center font-weight-bold" style="width:70px; height:28px;" list="vat-accounts" title="Mã tài khoản Nợ thuế GTGT">
+                      <datalist id="vat-accounts">
+                        <option value="1331">Thuế GTGT được khấu trừ của HHDV</option>
+                        <option value="1332">Thuế GTGT được khấu trừ của TSCĐ</option>
+                      </datalist>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-vat-val" readonly class="form-control form-control-sm text-right font-weight-bold text-info bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+
+                  <!-- Dòng 3: Tiền thanh toán Có 331 / 112 / 111 -->
+                  <div class="d-flex align-items-center justify-content-between py-1" style="gap:8px;">
+                    <div style="min-width:110px;" class="font-weight-bold text-dark font-size-12">
+                      Tiền thanh toán
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:6px;">
+                      <span class="text-muted font-weight-bold font-size-11">Có</span>
+                      <input type="text" id="tk-co-pay" name="tk_co_pay" value="331" class="form-control form-control-sm text-center font-weight-bold text-danger" style="width:70px; height:28px;" list="pay-accounts" title="Mã tài khoản Có thanh toán">
+                      <datalist id="pay-accounts">
+                        <option value="331">Phải trả cho người bán (331)</option>
+                        <option value="1121">Tiền gửi VietinBank (1121)</option>
+                        <option value="1111">Tiền mặt tại quỹ (1111)</option>
+                      </datalist>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-total-val" readonly class="form-control form-control-sm text-right font-weight-bold text-success bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <button type="submit" class="btn btn-primary btn-sm"><i class="bx bx-save mr-1"></i>{{ 'Lưu thay đổi' if edit else 'Lưu hóa đơn' }}</button>
         <a href="/admin/transport/input-invoices?month={{ month }}" class="btn btn-light btn-sm ml-1">Hủy</a>
       </form>
@@ -1127,10 +1248,32 @@ function invoiceSyncState() {
       subtotal += amount;
     }
     const tax = subtotal * (Number(document.getElementById('vat-percent').value) || 0) / 100;
+    const total = subtotal + tax;
     document.getElementById('purchase-subtotal').textContent = money(subtotal);
     document.getElementById('purchase-vat').textContent = money(tax);
-    document.getElementById('purchase-total').textContent = money(subtotal + tax);
+    document.getElementById('purchase-total').textContent = money(total);
+
+    // Đồng bộ số tiền sang Bút toán mua hàng (Hạch toán kế toán)
+    const rawFmt = new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0});
+    const accSub = document.getElementById('acc-subtotal-val');
+    const accVat = document.getElementById('acc-vat-val');
+    const accTot = document.getElementById('acc-total-val');
+    const vatBadge = document.getElementById('acc-vat-badge');
+    const curVatRate = document.getElementById('vat-percent').value || 10;
+    if (accSub) accSub.value = rawFmt.format(Math.round(subtotal));
+    if (accVat) accVat.value = rawFmt.format(Math.round(tax));
+    if (accTot) accTot.value = rawFmt.format(Math.round(total));
+    if (vatBadge) vatBadge.textContent = curVatRate + '%';
   }
+
+  window.syncAccountingMethod = function(val) {
+    const tkCo = document.getElementById('tk-co-pay');
+    if (tkCo) tkCo.value = val;
+  };
+  window.syncAccountingExpense = function(val) {
+    const tkNo = document.getElementById('tk-no-cost');
+    if (tkNo) tkNo.value = val;
+  };
   document.getElementById('purchase-invoice-form').addEventListener('input', recalc);
   tbody.addEventListener('click', event => {
     if (!event.target.closest('.remove-line')) return;
