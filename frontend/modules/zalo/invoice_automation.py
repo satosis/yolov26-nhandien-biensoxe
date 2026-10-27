@@ -176,8 +176,8 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
         origin = buyer_addr
 
     # 4. Vehicle detection
-    vehicle_id = 6  # 19H-147.98 (Nguyễn Kim Quyết - "Xe bố")
     all_vehicles = db.select("plate_whitelist", order_by="plate_number ASC") or []
+    vehicle_id = all_vehicles[0]["id"] if all_vehicles else None
     from frontend.modules.transport.trips_router import _find_vehicle_by_nickname
     vehicle_nick = ""
     for t in texts:

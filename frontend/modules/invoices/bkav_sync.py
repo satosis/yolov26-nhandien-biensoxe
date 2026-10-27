@@ -868,12 +868,6 @@ def _pushed_local_invoice_guids(remote_guids: list[str]) -> dict[str, str]:
     """Match BKAV's remote GUID to an invoice this app already sent."""
     if not remote_guids:
         return {}
-    tables = db._execute_query("""
-        SELECT to_regclass('public.bkav_saved_invoice_links') AS links,
-               to_regclass('public.bkav_invoice_pushes') AS pushes
-    """, fetch=True, commit=False)
-    if not tables or not tables.get("links") or not tables.get("pushes"):
-        return {}
     rows = db._execute_query("""
         SELECT pushes.invoice_guid::text AS remote_guid,
                links.invoice_guid::text AS local_guid
@@ -934,11 +928,7 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
     fuel_dates = {by_guid[guid]["date"] for guid in selected_guids
                   if any(not seg.get("is_crane") and seg.get("origin") for seg in by_guid[guid].get("segments", []))}
     fuel_prices = {day: _fuel_price_for_date(day) for day in fuel_dates}
-    legacy_table = db._execute_query(
-        "SELECT to_regclass('public.bkav_invoice_imports') AS table_name",
-        fetch=True, commit=False,
-    )
-    has_legacy = bool(legacy_table and legacy_table["table_name"])
+    has_legacy = True
     counts = {"created": 0, "linked": 0, "already": 0, "conflicts": 0, "repaired": 0}
     plates = []
     with db._get_connection() as conn:

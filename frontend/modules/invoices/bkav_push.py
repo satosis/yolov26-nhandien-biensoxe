@@ -342,17 +342,12 @@ def push_invoice(trip: dict, buyer: dict, seller: dict) -> dict:
     config = configuration(seller_tax)
     if not seller or str(seller.get("tax_code") or "").strip() != config["seller_tax"]:
         raise ValueError("Mã số thuế bên bán của chuyến hàng không khớp tài khoản BKAV đã cấu hình.")
-    import_table = db._execute_query(
-        "SELECT to_regclass('public.bkav_invoice_imports') AS table_name",
-        fetch=True, commit=False,
+    imported = db._execute_query(
+        "SELECT 1 FROM public.bkav_invoice_imports WHERE trip_id = %s",
+        (trip["id"],), fetch=True, commit=False,
     )
-    if import_table and import_table["table_name"]:
-        imported = db._execute_query(
-            "SELECT 1 FROM public.bkav_invoice_imports WHERE trip_id = %s",
-            (trip["id"],), fetch=True, commit=False,
-        )
-        if imported:
-            raise ValueError("Hóa đơn của chuyến hàng này đã có trên BKAV; không thể gửi lại.")
+    if imported:
+        raise ValueError("Hóa đơn của chuyến hàng này đã có trên BKAV; không thể gửi lại.")
     command = build_command(trip, buyer)
     trip_id = int(trip["id"])
     previous = _reserve(trip_id, config["seller_tax"])

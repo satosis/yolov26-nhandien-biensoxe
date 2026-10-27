@@ -174,7 +174,7 @@ async def bank_book_page(
     period: str = Query("all"),
     date_from: str = Query(None),
     date_to: str = Query(None),
-    account_no: str = Query("38633888"),
+    account_no: str = Query(""),
     user: dict = Depends(require_menu("vehicles")),
 ):
     ctx = get_menu_context(request, user)
@@ -214,7 +214,7 @@ async def bank_book_export(
     period: str = Query("all"),
     date_from: str = Query(None),
     date_to: str = Query(None),
-    account_no: str = Query("38633888"),
+    account_no: str = Query(""),
     user: dict = Depends(require_menu("vehicles")),
 ):
     selected_year, _, d_from, d_to = _resolve_dates(year, period, date_from, date_to)
@@ -248,7 +248,7 @@ async def api_add_cash_bank_entry(
     description: str = Form(""),
     offset_account: str = Form("131"),
     partner_name: str = Form(""),
-    bank_account_no: str = Form("38633888"),
+    bank_account_no: str = Form(""),
     note: str = Form(""),
     user: dict = Depends(require_menu("vehicles")),
 ):

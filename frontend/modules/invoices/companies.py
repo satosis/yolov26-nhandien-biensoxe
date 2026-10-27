@@ -348,52 +348,6 @@ def _director_account_names(name: str, tax_code: str) -> tuple[str, str]:
     return name, f"{username}_{tax_suffix}"
 
 
-def _ensure_director_profile_cursor(cursor, user_id: int) -> None:
-    """Ensure that the company director has a salary profile with default Giám đốc title."""
-    cursor.execute(
-        """INSERT INTO public.staff_salary_profiles (user_id, job_title, department, updated_at)
-           VALUES (%s, 'Giám đốc', 'Ban Giám đốc', NOW())
-           ON CONFLICT (user_id) DO UPDATE SET
-               job_title = CASE 
-                   WHEN public.staff_salary_profiles.job_title IS NULL 
-                        OR TRIM(public.staff_salary_profiles.job_title) IN ('', '--', '-') 
-                   THEN 'Giám đốc' 
-                   ELSE public.staff_salary_profiles.job_title 
-               END,
-               department = CASE 
-                   WHEN public.staff_salary_profiles.department IS NULL 
-                        OR TRIM(public.staff_salary_profiles.department) IN ('', '--', '-') 
-                   THEN 'Ban Giám đốc' 
-                   ELSE public.staff_salary_profiles.department 
-               END""",
-        (user_id,),
-    )
-
-
-def _ensure_director_profile_db(user_id: int | None) -> None:
-    if not user_id:
-        return
-    db._execute_query(
-        """INSERT INTO public.staff_salary_profiles (user_id, job_title, department, updated_at)
-           VALUES (%s, 'Giám đốc', 'Ban Giám đốc', NOW())
-           ON CONFLICT (user_id) DO UPDATE SET
-               job_title = CASE 
-                   WHEN public.staff_salary_profiles.job_title IS NULL 
-                        OR TRIM(public.staff_salary_profiles.job_title) IN ('', '--', '-') 
-                   THEN 'Giám đốc' 
-                   ELSE public.staff_salary_profiles.job_title 
-               END,
-               department = CASE 
-                   WHEN public.staff_salary_profiles.department IS NULL 
-                        OR TRIM(public.staff_salary_profiles.department) IN ('', '--', '-') 
-                   THEN 'Ban Giám đốc' 
-                   ELSE public.staff_salary_profiles.department 
-               END""",
-        (user_id,),
-        commit=True,
-    )
-
-
 def _resolve_tax_director(cursor, representative_name: str, tax_code: str,
                           company_id: int | None, current_user_id: int | None) -> tuple[int, bool]:
     """Resolve or create one canonical user inside the company refresh transaction."""
@@ -404,7 +358,6 @@ def _resolve_tax_director(cursor, representative_name: str, tax_code: str,
     users = cursor.fetchall()
     current = next((user for user in users if user["id"] == current_user_id), None)
     if current and re.fullmatch(re.escape(username) + r"(?:_[0-9]+)?", current["username"], re.IGNORECASE):
-        _ensure_director_profile_cursor(cursor, current["id"])
         return current["id"], False
     names = {normalized_name, _normalized_person_name(full_name)}
     usernames = {username.casefold(), username.rsplit("_", 1)[0].casefold()}
@@ -414,7 +367,6 @@ def _resolve_tax_director(cursor, representative_name: str, tax_code: str,
     preferred = preferred or next((user for user in matches if user["username"].casefold() == username.casefold()), None)
     if preferred or len(matches) == 1:
         matched_id = (preferred or matches[0])["id"]
-        _ensure_director_profile_cursor(cursor, matched_id)
         return matched_id, False
 
     cursor.execute("SELECT id FROM public.roles WHERE LOWER(role_name) = 'admin' ORDER BY id LIMIT 1")
@@ -437,7 +389,6 @@ def _resolve_tax_director(cursor, representative_name: str, tax_code: str,
         (username, full_name, password_hash, role["id"], company_ids_val, None),
     )
     new_user_id = cursor.fetchone()["id"]
-    _ensure_director_profile_cursor(cursor, new_user_id)
     return new_user_id, True
 
 
@@ -677,8 +628,6 @@ def save_company(
         fetch=True,
         commit=True,
     )
-    if clean_director:
-        _ensure_director_profile_db(clean_director)
     return res
 
 
@@ -734,8 +683,6 @@ def update_company(
     )
     if not updated:
         raise ValueError("Không tìm thấy đơn vị.")
-    if clean_director:
-        _ensure_director_profile_db(clean_director)
     return updated
 
 

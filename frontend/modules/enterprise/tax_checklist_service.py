@@ -497,10 +497,19 @@ def add_urgent_task(period: str, title: str, client_name: str, deadline: str) ->
 
 
 def get_notifications(period: str) -> List[Dict[str, Any]]:
-    """Return reminders and warnings for the period."""
-    return [
-        {"title": "CÔNG TY TNHH TM VÀ DV PHƯƠNG NAM - Cần hoàn thiện tờ khai GTGT", "date": "23/10", "type": "warning"},
-        {"title": "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH - Cần bổ sung sao kê ngân hàng", "date": "23/10", "type": "warning"},
-        {"title": "Đến hạn nộp tạm nộp TNDN quý 3/2026", "date": "20/10", "type": "danger"},
-        {"title": "Cập nhật bảng lương TNCN tháng 10/2026", "date": "20/10", "type": "info"},
-    ]
+    """Return reminders and warnings for the period from schedule_reminders."""
+    rows = db._execute_query("""
+        SELECT id, title, due_date, priority, status
+        FROM public.schedule_reminders
+        WHERE status != 'completed'
+        ORDER BY due_date ASC
+        LIMIT 10
+    """, (), fetchall=True, commit=False) or []
+    notifications = []
+    for r in rows:
+        notifications.append({
+            "title": r.get("title") or "",
+            "date": r["due_date"].strftime("%d/%m") if r.get("due_date") else "",
+            "type": "danger" if r.get("priority") == "high" else ("warning" if r.get("priority") == "medium" else "info"),
+        })
+    return notifications

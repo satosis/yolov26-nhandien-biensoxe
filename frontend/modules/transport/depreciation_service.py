@@ -44,7 +44,7 @@ def get_depreciation_data(
         SELECT id, plate_number, vehicle_type, owner_name, purchase_price,
                depreciation_start_date, depreciation_years, company_id, note
         FROM public.plate_whitelist
-        WHERE company_id = %s OR id IN (6, 7)
+        WHERE company_id = %s
         ORDER BY id ASC
     """, (company_id,), fetchall=True, commit=False) or []
 

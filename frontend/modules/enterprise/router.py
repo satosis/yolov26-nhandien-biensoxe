@@ -1438,8 +1438,8 @@ async def enterprise_debt_pay(
                 description=note.strip() or f"Thu tiền công nợ đối tác {partner_name}",
                 offset_account="131",
                 partner_name=partner_name,
-                bank_account_no="38633888" if not is_cash else None,
-                bank_name="VietinBank" if not is_cash else None,
+                bank_account_no="" if not is_cash else None,
+                bank_name="" if not is_cash else None,
                 source_type="company_debt_logs",
                 note=f"Thu tiền công nợ {partner_name}",
             )

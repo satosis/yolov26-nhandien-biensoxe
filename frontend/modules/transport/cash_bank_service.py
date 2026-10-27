@@ -18,9 +18,24 @@ logger = logging.getLogger(__name__)
 
 DAI_LO_XANH_COMPANY_ID = 33
 
-# Số dư ban đầu mặc định theo Báo cáo tài chính F01-DNN
-CASH_DEFAULT_OPENING = Decimal("300000000")       # TK 111: 300.000.000 đ
-BANK_DEFAULT_OPENING = Decimal("0")               # TK 112: 0 đ (Số dư đầu kỳ VietinBank bắt đầu từ 0)
+# Số dư ban đầu mặc định
+CASH_DEFAULT_OPENING = Decimal("0")               # TK 111: 0 đ
+BANK_DEFAULT_OPENING = Decimal("0")               # TK 112: 0 đ
+
+
+def get_company_info(company_id: int = DAI_LO_XANH_COMPANY_ID) -> dict[str, str]:
+    """Retrieve company name, address, tax code and bank info from DB."""
+    comp = db._execute_query(
+        "SELECT name, address, tax_code, bank_account, bank_name FROM public.invoice_companies WHERE id = %s",
+        (company_id,), fetch=True, commit=False
+    ) or {}
+    return {
+        "name": comp.get("name") or "",
+        "address": comp.get("address") or "",
+        "tax_code": comp.get("tax_code") or "",
+        "bank_account": comp.get("bank_account") or "",
+        "bank_name": comp.get("bank_name") or "",
+    }
 
 
 def get_opening_balance_setting(book_type: str, company_id: int = DAI_LO_XANH_COMPANY_ID) -> Decimal:
@@ -130,15 +145,16 @@ def get_cash_book_data(
         })
 
     closing_balance = running_bal
+    comp_info = get_company_info(company_id)
 
     return {
         "title": "SỔ QUỸ TIỀN MẶT",
         "form_code": "Mẫu số S04a-DNN",
         "circular": "Ban hành theo Thông tư số 133/2016/TT-BTC ngày 26/8/2016 của Bộ Tài chính",
         "currency": "VND",
-        "company_name": "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH",
-        "company_address": "Xóm Cây Da, Thôn Yên Lạc, Xã Đồng Văn, Huyện Yên Lạc, Tỉnh Vĩnh Phúc",
-        "tax_code": "2500774911",
+        "company_name": comp_info["name"],
+        "company_address": comp_info["address"],
+        "tax_code": comp_info["tax_code"],
         "date_from": date_from.strftime("%Y-%m-%d"),
         "date_to": date_to.strftime("%Y-%m-%d"),
         "date_str": f"Từ ngày {date_from.strftime('%d/%m/%Y')} đến ngày {date_to.strftime('%d/%m/%Y')}",
@@ -156,10 +172,14 @@ def get_bank_book_data(
     year: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
-    bank_account_no: str = "38633888",
-    bank_name: str = "Ngân hàng TMCP Công Thương Việt Nam (VietinBank)",
+    bank_account_no: str = "",
+    bank_name: str = "",
 ) -> dict[str, Any]:
     """Retrieve Bank Deposit Book data (Mau S05a-DNN) with running balance."""
+    comp_info = get_company_info(company_id)
+    actual_bank_account = bank_account_no or comp_info["bank_account"]
+    actual_bank_name = bank_name or comp_info["bank_name"]
+
     today = date.today()
     if date_from is None:
         y = year or today.year
@@ -218,8 +238,8 @@ def get_bank_book_data(
             "deposit_amount": int(round(deposit_amt)),
             "withdraw_amount": int(round(withdraw_amt)),
             "balance": int(round(running_bal)),
-            "bank_account_no": r["bank_account_no"] or bank_account_no,
-            "bank_name": r["bank_name"] or bank_name,
+            "bank_account_no": r["bank_account_no"] or actual_bank_account,
+            "bank_name": r["bank_name"] or actual_bank_name,
             "partner_name": r["partner_name"] or "",
             "note": r["note"] or "",
         })
@@ -231,11 +251,11 @@ def get_bank_book_data(
         "form_code": "Mẫu số S05a-DNN",
         "circular": "Ban hành theo Thông tư số 133/2016/TT-BTC ngày 26/8/2016 của Bộ Tài chính",
         "currency": "VND",
-        "bank_account_no": bank_account_no,
-        "bank_name": bank_name,
-        "company_name": "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH",
-        "company_address": "Xóm Cây Da, Thôn Yên Lạc, Xã Đồng Văn, Huyện Yên Lạc, Tỉnh Vĩnh Phúc",
-        "tax_code": "2500774911",
+        "bank_account_no": actual_bank_account,
+        "bank_name": actual_bank_name,
+        "company_name": comp_info["name"],
+        "company_address": comp_info["address"],
+        "tax_code": comp_info["tax_code"],
         "date_from": date_from.strftime("%Y-%m-%d"),
         "date_to": date_to.strftime("%Y-%m-%d"),
         "date_str": f"Từ ngày {date_from.strftime('%d/%m/%Y')} đến ngày {date_to.strftime('%d/%m/%Y')}",
@@ -258,8 +278,8 @@ def record_cash_or_bank_entry(
     description: str = "",
     offset_account: str = "131",
     partner_name: str = "",
-    bank_account_no: str = "38633888",
-    bank_name: str = "VietinBank",
+    bank_account_no: str = "",
+    bank_name: str = "",
     source_type: str = "manual",
     source_id: str | int | None = None,
     note: str = "",
@@ -284,6 +304,10 @@ def record_cash_or_bank_entry(
         v_date = voucher_date
 
     b_type = "bank" if "ngân hàng" in book_type.lower() or "bank" in book_type.lower() or "chuyển khoản" in book_type.lower() or "ck" in book_type.lower() else "cash"
+    if b_type == "bank" and (not bank_account_no or not bank_name):
+        comp_info = get_company_info(company_id)
+        bank_account_no = bank_account_no or comp_info["bank_account"]
+        bank_name = bank_name or comp_info["bank_name"]
 
     if not voucher_no:
         # Tự sinh số chứng từ
@@ -839,7 +863,7 @@ def generate_bank_import_template() -> bytes:
     thin = Side(border_style="thin", color="CBD5E1")
     box_border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-    ws["A1"] = "MẪU NHẬP GIAO DỊCH TIỀN GỬI NGÂN HÀNG (VIETINBANK 38633888)"
+    ws["A1"] = "MẪU NHẬP GIAO DỊCH TIỀN GỬI NGÂN HÀNG"
     ws["A1"].font = font_title
     ws.merge_cells("A1:I1")
 
@@ -970,10 +994,15 @@ def generate_cash_import_template() -> bytes:
 def import_bank_transactions_from_excel(
     file_content: bytes,
     company_id: int = DAI_LO_XANH_COMPANY_ID,
-    bank_account_no: str = "38633888",
-    bank_name: str = "VietinBank",
+    bank_account_no: str = "",
+    bank_name: str = "",
 ) -> tuple[bool, str, int]:
     """Đọc file Excel và nạp hàng loạt giao dịch ngân hàng vào public.transport_cash_book."""
+    if not bank_account_no or not bank_name:
+        comp_info = get_company_info(company_id)
+        bank_account_no = bank_account_no or comp_info["bank_account"]
+        bank_name = bank_name or comp_info["bank_name"]
+
     try:
         wb = openpyxl.load_workbook(BytesIO(file_content), data_only=True)
     except Exception as e:

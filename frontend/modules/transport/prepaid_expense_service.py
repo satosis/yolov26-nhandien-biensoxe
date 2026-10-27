@@ -74,7 +74,7 @@ def get_prepaid_expenses_data(
             months_before = max(Decimal(0), min(Decimal(tot_m), Decimal(months_before)))
             
             # Nếu trong DB đã lưu accumulated_prev từ file cũ
-            if r["accumulated_prev"] and float(r["accumulated_prev"]) > 0 and selected_year == 2026:
+            if r["accumulated_prev"] and float(r["accumulated_prev"]) > 0:
                 acc_start = Decimal(str(r["accumulated_prev"]))
             else:
                 acc_start = min(orig, months_before * m_alloc)

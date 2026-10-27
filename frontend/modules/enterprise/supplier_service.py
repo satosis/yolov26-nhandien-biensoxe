@@ -390,8 +390,6 @@ def _create_single_purchase_item(company_id: int, data: dict, created_by: str = 
     if pieces and pieces > 0:
         unit_weight = (quantity_kg / pieces).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
-    ensure_supplier_profile(company_id, supplier_name, book_type=book_type)
-
     res = db._execute_query(
         """
         INSERT INTO public.supplier_purchases (
@@ -424,8 +422,6 @@ def create_purchase(company_id: int, data: dict, created_by: str = "") -> dict:
         purchase_date = data.get("purchase_date") or date.today()
         supplier_name = (data.get("supplier_name") or "").strip()
         common_note = (data.get("note") or "").strip()
-
-        ensure_supplier_profile(company_id, supplier_name, book_type=book_type)
 
         created_items = []
         for it in items:
@@ -487,8 +483,6 @@ def update_purchase(purchase_id: int, company_id: int, data: dict) -> dict | Non
     unit_weight = None
     if pieces and pieces > 0:
         unit_weight = (quantity_kg / pieces).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
-
-    ensure_supplier_profile(company_id, supplier_name)
 
     res = db._execute_query(
         """
@@ -664,8 +658,6 @@ def record_supplier_payment(
     if amt <= 0:
         raise ValueError("Số tiền thanh toán phải lớn hơn 0")
 
-    ensure_supplier_profile(company_id, clean_name)
-
     res = db._execute_query(
         """
         INSERT INTO public.supplier_payments (
@@ -698,8 +690,8 @@ def record_supplier_payment(
                 description=desc,
                 offset_account="331",
                 partner_name=clean_name,
-                bank_account_no="38633888" if not is_cash else None,
-                bank_name="VietinBank" if not is_cash else None,
+                bank_account_no="" if not is_cash else None,
+                bank_name="" if not is_cash else None,
                 source_type="supplier_payments",
                 source_id=res.get("id"),
                 note=f"Thanh toán NCC {clean_name}",
@@ -727,9 +719,6 @@ def update_supplier_payment(
     amt = parse_decimal(data.get("amount", 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     if amt <= 0:
         raise ValueError("Số tiền thanh toán phải lớn hơn 0")
-
-    if clean_name:
-        ensure_supplier_profile(company_id, clean_name)
 
     res = db._execute_query(
         """
@@ -1021,8 +1010,6 @@ def import_excel_book(
                 if pieces and pieces > 0:
                     unit_weight = (qty_dec / pieces).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
 
-                ensure_supplier_profile(company_id, supp_str)
-
                 db._execute_query(
                     """
                     INSERT INTO public.supplier_purchases (
@@ -1048,7 +1035,6 @@ def import_excel_book(
 
             # If row had a payment amount (either pure payment or deduction/payment on purchase)
             if payment_amount:
-                ensure_supplier_profile(company_id, supp_str)
                 db._execute_query(
                     """
                     INSERT INTO public.supplier_payments (

@@ -21,9 +21,6 @@ import os
 from typing import Any
 
 import openpyxl
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-import xlrd
-
 from backend.services.database import db
 
 DAI_LO_XANH_COMPANY_ID = 33
@@ -35,6 +32,7 @@ def read_f01_dnn_sample(file_path: str = SAMPLE_EXCEL_PATH) -> dict[str, Any] | 
     if not os.path.exists(file_path):
         return None
     try:
+        import xlrd
         wb = xlrd.open_workbook(file_path)
         sheet = wb.sheet_by_index(0)
 
@@ -110,12 +108,7 @@ def get_trial_balance_data(
     total_revenue_511 = int(round(float(out_inv.get("sub") or 0)))
     total_vat_out_3331 = int(round(float(out_inv.get("vat") or 0)))
     total_receivable_131 = int(round(float(out_inv.get("gross") or 0)))
-
-    # Fallback to standard operating totals if DB query yields 0
-    if total_revenue_511 == 0:
-        total_revenue_511 = 802750000
-        total_vat_out_3331 = 64220000
-        total_receivable_131 = 866970000
+    count_inv_out = int(out_inv.get("count_inv") or 0)
 
     # 2. Input invoices (TK 154/632, 133, 331)
     in_inv = db._execute_query("""
@@ -130,29 +123,29 @@ def get_trial_balance_data(
     total_cost_154 = int(round(float(in_inv.get("sub") or 0)))
     total_vat_in_133 = int(round(float(in_inv.get("vat") or 0)))
     total_payable_331 = total_cost_154 + total_vat_in_133
+    count_inv_in = int(in_inv.get("count_inv") or 0)
 
-    if total_cost_154 == 0:
-        total_cost_154 = 619256747
-        total_vat_in_133 = 40118206
-        total_payable_331 = 659374953
+    company = db._execute_query(
+        "SELECT * FROM public.invoice_companies WHERE id = %s",
+        (company_id,), fetch=True, commit=False,
+    ) or {}
+    company_name = company.get("name") or "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH"
+    director_name = company.get("director_name") or "Chủ sở hữu"
 
-    # 3. Fixed assets & depreciation (2 xe tai: 19H-147.98 & 19H-209.07)
-    total_original_211 = 400000000
-    total_original_14798 = 200000000
-    total_original_20907 = 200000000
-    depr_14798 = 19999998
-    depr_20907 = 3333333
-    total_accum_depr_214 = depr_14798 + depr_20907  # 23.333.331
-
-    # 4. Cash, banking & CCDC 242 flows
+    # 3. Cash, banking & CCDC 242 flows
     from frontend.modules.transport.cash_bank_service import get_cash_book_data, get_bank_book_data
     from frontend.modules.transport.prepaid_expense_service import get_prepaid_expenses_data
+    from frontend.modules.transport.depreciation_service import get_depreciation_data
 
     selected_year = year or (date_from.year if date_from else date.today().year)
     cash_data = get_cash_book_data(company_id=company_id, year=selected_year, date_from=date_from, date_to=date_to)
     bank_data = get_bank_book_data(company_id=company_id, year=selected_year, date_from=date_from, date_to=date_to)
     pe_data = get_prepaid_expenses_data(company_id=company_id, year=selected_year)
     pe_tot = pe_data["totals"]
+
+    depr_data = get_depreciation_data(company_id=company_id, year=selected_year)
+    total_original_211 = depr_data["totals"]["original_price"]
+    total_accum_depr_214 = depr_data["totals"]["cumulative_depreciation"]
 
     cash_open = cash_data["opening_balance"]
     cash_ps_dr = cash_data["total_receipt"]
@@ -169,13 +162,48 @@ def get_trial_balance_data(
     prepaid_242_rem_start = pe_tot["rem_start"]
     prepaid_242_alloc = pe_tot["alloc_year"]
     prepaid_242_rem_end = pe_tot["rem_end"]
-    other_admin_exp = 150000000
+    other_admin_exp = 0
 
-    # Chi tiet chi phi xe tai (TK nho cua 154)
-    cost_fuel_1541 = int(round(total_cost_154 * 0.70))       # ~433.479.723 xang dau
-    cost_driver_1542 = 85000000                              # Luong truc tiep lai xe
-    cost_repair_1543 = int(round(total_cost_154 * 0.10))     # ~60.777.024 sua chua bao duong
-    cost_other_1547 = total_cost_154 - cost_fuel_1541 - cost_driver_1542 - cost_repair_1543 # cau duong BOT
+    # Chi tiet chi phi truc tiep tu DB (TK nho cua 154)
+    vexp_rows = db._execute_query('''
+        SELECT expense_type, COALESCE(SUM(amount), 0) as total_amt
+        FROM public.vehicle_expenses
+        WHERE expense_date >= %s AND expense_date <= %s
+        GROUP BY expense_type
+    ''', (date_from, date_to), fetchall=True, commit=False) or []
+    vexp_map = {str(r.get("expense_type") or "").lower(): int(round(float(r.get("total_amt") or 0))) for r in vexp_rows}
+
+    db_fuel = vexp_map.get("fuel", 0)
+    db_repair = vexp_map.get("repair", 0) + vexp_map.get("maintenance", 0) + vexp_map.get("parts", 0)
+    db_toll = vexp_map.get("toll", 0) + vexp_map.get("bot", 0) + vexp_map.get("other", 0)
+
+    pay_row = db._execute_query('''
+        SELECT COALESCE(SUM(trip_wage + bonus_amount + overtime_pay), 0) as total_driver_wage
+        FROM public.staff_payroll_months m
+        JOIN public.users u ON u.id = m.user_id
+        JOIN public.invoice_companies c ON c.id = ANY(u.company_ids)
+        WHERE c.id = %s AND m.month >= %s AND m.month <= %s
+    ''', (company_id, date_from, date_to), fetch=True, commit=False) or {}
+    db_driver = int(round(float(pay_row.get("total_driver_wage") or 0)))
+
+    if total_cost_154 > 0:
+        cost_fuel_1541 = db_fuel
+        cost_driver_1542 = db_driver
+        cost_repair_1543 = db_repair
+        allocated = cost_fuel_1541 + cost_driver_1542 + cost_repair_1543
+        if allocated <= total_cost_154:
+            cost_other_1547 = total_cost_154 - allocated
+        else:
+            ratio = float(total_cost_154) / float(allocated)
+            cost_fuel_1541 = int(round(cost_fuel_1541 * ratio))
+            cost_driver_1542 = int(round(cost_driver_1542 * ratio))
+            cost_repair_1543 = int(round(cost_repair_1543 * ratio))
+            cost_other_1547 = total_cost_154 - (cost_fuel_1541 + cost_driver_1542 + cost_repair_1543)
+    else:
+        cost_fuel_1541 = 0
+        cost_driver_1542 = 0
+        cost_repair_1543 = 0
+        cost_other_1547 = 0
 
     # Base Parent Accounts (TK Cap 1: 3 chu so)
     parent_accounts = [
@@ -330,27 +358,22 @@ def get_trial_balance_data(
             "ps_cr": 0,
             "close_dr": total_original_211,
             "close_cr": 0,
-            "source_note": "Bảng tính khấu hao TSCĐ (2 xe tải)",
+            "source_note": "Bảng tính khấu hao TSCĐ",
             "source_url": "/admin/transport/depreciation",
             "sub_accounts": [
                 {
                     "code": "2113",
-                    "name": "Phương tiện vận tải: Xe tải 19H-147.98 (Đại Lộ Xanh)",
-                    "open_dr": total_original_14798, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": 0,
-                    "close_dr": total_original_14798, "close_cr": 0,
-                    "source_note": "Nguyên giá xe 19H-147.98",
+                    "name": f"Phương tiện vận tải: {r.get('plate_number') or r.get('name') or 'Xe tải'}",
+                    "open_dr": int(r.get("original_price") or 0),
+                    "open_cr": 0,
+                    "ps_dr": 0,
+                    "ps_cr": 0,
+                    "close_dr": int(r.get("original_price") or 0),
+                    "close_cr": 0,
+                    "source_note": f"Nguyên giá {r.get('plate_number') or ''}".strip(),
                     "source_url": "/admin/transport/depreciation",
-                },
-                {
-                    "code": "2113",
-                    "name": "Phương tiện vận tải: Xe tải 19H-209.07 (Đại Lộ Xanh)",
-                    "open_dr": total_original_20907, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": 0,
-                    "close_dr": total_original_20907, "close_cr": 0,
-                    "source_note": "Nguyên giá xe 19H-209.07",
-                    "source_url": "/admin/transport/depreciation",
-                },
+                }
+                for r in depr_data.get("rows", [])
             ]
         },
         {
@@ -367,22 +390,17 @@ def get_trial_balance_data(
             "sub_accounts": [
                 {
                     "code": "2141",
-                    "name": "Hao mòn TSCĐ hữu hình: Xe 19H-147.98",
-                    "open_dr": 0, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": depr_14798,
-                    "close_dr": 0, "close_cr": depr_14798,
-                    "source_note": "Khấu hao lũy kế xe 19H-147.98",
+                    "name": f"Hao mòn TSCĐ hữu hình: {r.get('plate_number') or r.get('name') or 'Xe tải'}",
+                    "open_dr": 0,
+                    "open_cr": 0,
+                    "ps_dr": 0,
+                    "ps_cr": int(r.get("cumulative_depreciation") or 0),
+                    "close_dr": 0,
+                    "close_cr": int(r.get("cumulative_depreciation") or 0),
+                    "source_note": f"Khấu hao lũy kế {r.get('plate_number') or ''}".strip(),
                     "source_url": "/admin/transport/depreciation",
-                },
-                {
-                    "code": "2141",
-                    "name": "Hao mòn TSCĐ hữu hình: Xe 19H-209.07",
-                    "open_dr": 0, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": depr_20907,
-                    "close_dr": 0, "close_cr": depr_20907,
-                    "source_note": "Khấu hao lũy kế xe 19H-209.07",
-                    "source_url": "/admin/transport/depreciation",
-                },
+                }
+                for r in depr_data.get("rows", [])
             ]
         },
         {
@@ -417,12 +435,12 @@ def get_trial_balance_data(
             "ps_cr": total_payable_331,
             "close_dr": 0,
             "close_cr": total_payable_331 - supplier_paid_bank,
-            "source_note": "Công nợ 175 HĐ mua vào",
+            "source_note": f"Công nợ {count_inv_in} HĐ mua vào",
             "source_url": "/admin/transport/input-invoices",
             "sub_accounts": [
                 {
                     "code": "3311",
-                    "name": "Phải trả người bán ngắn hạn (175 HĐ xăng dầu, vật tư)",
+                    "name": f"Phải trả người bán ngắn hạn ({count_inv_in} HĐ mua vào)",
                     "open_dr": 0, "open_cr": 0,
                     "ps_dr": supplier_paid_bank, "ps_cr": total_payable_331,
                     "close_dr": 0, "close_cr": total_payable_331 - supplier_paid_bank,
@@ -445,7 +463,7 @@ def get_trial_balance_data(
             "sub_accounts": [
                 {
                     "code": "33311",
-                    "name": "Thuế GTGT đầu ra (64.220.000 ₫ bù trừ 40.118.206 ₫)",
+                    "name": f"Thuế GTGT đầu ra ({total_vat_out_3331:,.0f} đ bù trừ {total_vat_in_133:,.0f} đ)",
                     "open_dr": 0, "open_cr": 0,
                     "ps_dr": total_vat_in_133, "ps_cr": total_vat_out_3331,
                     "close_dr": 0, "close_cr": total_vat_out_3331 - total_vat_in_133,
@@ -468,7 +486,7 @@ def get_trial_balance_data(
             "sub_accounts": [
                 {
                     "code": "4111",
-                    "name": "Vốn góp của chủ sở hữu (Giám đốc Nguyễn Kim Quyết)",
+                    "name": f"Vốn góp của chủ sở hữu ({director_name})",
                     "open_dr": 0, "open_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
                     "ps_dr": 0, "ps_cr": 0,
                     "close_dr": 0, "close_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
@@ -509,7 +527,7 @@ def get_trial_balance_data(
             "ps_cr": total_revenue_511,
             "close_dr": 0,
             "close_cr": total_revenue_511,
-            "source_note": "Doanh thu cước vận chuyển (92 HĐ)",
+            "source_note": f"Doanh thu cước vận chuyển ({count_inv_out} HĐ)",
             "source_url": "/admin/vehicles/cargo",
             "sub_accounts": [
                 {
@@ -518,7 +536,7 @@ def get_trial_balance_data(
                     "open_dr": 0, "open_cr": 0,
                     "ps_dr": 0, "ps_cr": total_revenue_511,
                     "close_dr": 0, "close_cr": total_revenue_511,
-                    "source_note": "92 HĐ cước vận chuyển đã phát hành",
+                    "source_note": f"{count_inv_out} HĐ cước vận chuyển đã phát hành",
                     "source_url": "/admin/vehicles/cargo",
                 }
             ]
@@ -560,7 +578,7 @@ def get_trial_balance_data(
             "sub_accounts": [
                 {
                     "code": "6422",
-                    "name": "Chi phí khấu hao phương tiện vận tải (2 xe tải)",
+                    "name": f"Chi phí khấu hao phương tiện vận tải ({len(depr_data.get('rows', []))} xe tải)",
                     "open_dr": 0, "open_cr": 0,
                     "ps_dr": total_accum_depr_214, "ps_cr": 0,
                     "close_dr": total_accum_depr_214, "close_cr": 0,
@@ -640,10 +658,10 @@ def get_trial_balance_data(
 
     return {
         "company_id": company_id,
-        "company_name": "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH",
-        "address": "Số nhà 306, đường 303, thôn Giã Bàng, Xã Tề Lỗ, Tỉnh Phú Thọ, Việt Nam",
-        "tax_code": "2500774911",
-        "director_name": "NGUYỄN KIM QUYẾT",
+        "company_name": company_name,
+        "address": company.get("address") or "",
+        "tax_code": company.get("tax_code") or "",
+        "director_name": director_name,
         "year": year,
         "date_from": date_from,
         "date_to": date_to,
@@ -868,6 +886,21 @@ def get_account_ledger_data(
     acc_name = account_row["name"] if account_row else f"Tài khoản {code_clean}"
     is_parent = account_row.get("is_parent", False) if account_row else True
 
+    director_name = tb_data.get("director_name") or "Chủ sở hữu"
+    tax_code = tb_data.get("tax_code") or ""
+
+    out_cnt_row = db._execute_query(
+        "SELECT COUNT(*) as cnt FROM public.bkav_invoices WHERE seller_company_id = %s AND invoice_date >= %s AND invoice_date <= %s",
+        (company_id, date_from, date_to), fetch=True, commit=False
+    ) or {}
+    count_inv_out = int(out_cnt_row.get("cnt") or 0)
+
+    in_cnt_row = db._execute_query(
+        "SELECT COUNT(*) as cnt FROM public.transport_input_invoices WHERE buyer_company_id = %s AND invoice_date >= %s AND invoice_date <= %s",
+        (company_id, date_from, date_to), fetch=True, commit=False
+    ) or {}
+    count_inv_in = int(in_cnt_row.get("cnt") or 0)
+
     items = []
     transactions = []
     external_link = None
@@ -990,61 +1023,62 @@ def get_account_ledger_data(
     elif code_clean.startswith("154") or code_clean == "632":
         title = "SỔ TẬP HỢP CHI PHÍ & GIÁ VỐN VẬN TẢI"
         external_link = "/admin/transport/input-invoices"
-        external_label = "Mở 175 Hóa đơn chi phí đầu vào"
-        cat_info = [
-            ("1541", "Chi phí nhiên liệu, dầu mỡ xe tải", "Petrolimex, PVOIL, Cửa hàng xăng dầu", 433479723),
-            ("1542", "Chi phí nhân công trực tiếp (Lương lái xe)", "Lương tài xế vận hành 2 xe tải", 85000000),
-            ("1543", "Chi phí sửa chữa, bảo dưỡng thay phụ tùng", "Gara ô tô, lốp xe, phụ tùng thay thế", 60777024),
-            ("1547", "Chi phí bến bãi, cầu đường BOT, đăng kiểm", "Vé trạm thu phí BOT, VETC, ePass", 40000000),
-        ]
+        external_label = f"Mở {count_inv_in} Hóa đơn chi phí đầu vào"
+        row_154 = next((p for p in tb_data.get("parent_rows", []) if p["code"] == "154"), None)
+        sub_list = row_154.get("sub_accounts", []) if row_154 else []
+
+        for sub in sub_list:
+            if code_clean == "154" or code_clean == "632" or code_clean == sub["code"]:
+                items.append({
+                    "code": sub["code"],
+                    "name": sub["name"],
+                    "account_code": sub["code"],
+                    "open_dr": sub.get("open_dr", 0),
+                    "open_cr": sub.get("open_cr", 0),
+                    "ps_dr": sub.get("ps_dr", 0),
+                    "ps_cr": sub.get("ps_cr", 0) if code_clean == "154" else 0,
+                    "close_dr": sub.get("close_dr", 0),
+                    "close_cr": sub.get("close_cr", 0),
+                    "inv_count": sub.get("source_note") or "",
+                })
+
         if code_clean == "632":
             title = "SỔ CHI TIẾT GIÁ VỐN DỊCH VỤ VẬN TẢI"
-            cat_info.append(("632", "Kết chuyển giá vốn dịch vụ cước từ TK 154 sang", "Toàn bộ chi phí xe tải đã hoàn thành", tb_data["totals"]["ps_dr"]))
-        for c_code, c_name, c_desc, c_amt in cat_info:
-            if code_clean == "154" or code_clean == "632" or code_clean == c_code:
-                items.append({
-                    "code": c_code,
-                    "name": c_name,
-                    "account_code": c_code,
-                    "open_dr": 0,
-                    "open_cr": 0,
-                    "ps_dr": int(c_amt),
-                    "ps_cr": int(c_amt) if code_clean == "154" else 0,
-                    "close_dr": 0,
-                    "close_cr": 0,
-                    "inv_count": c_desc,
-                })
+            ps_154 = row_154.get("ps_dr", 0) if row_154 else 0
+            items.append({
+                "code": "632",
+                "name": "Giá vốn dịch vụ vận tải (Kết chuyển toàn bộ từ 154)",
+                "account_code": "632",
+                "open_dr": 0, "open_cr": 0,
+                "ps_dr": ps_154, "ps_cr": 0,
+                "close_dr": ps_154, "close_cr": 0,
+                "inv_count": "Kết chuyển chi phí 154",
+            })
 
     elif code_clean.startswith("211") or code_clean.startswith("214"):
         title = "SỔ THEO DÕI TÀI SẢN CỐ ĐỊNH & KHẤU HAO XE TẢI"
         external_link = "/admin/transport/depreciation"
         external_label = "Mở Bảng tính khấu hao TSCĐ"
-        items = [
-            {
-                "code": "19H-147.98",
-                "name": "Xe ô tô tải Thaco Ollin 19H-147.98 (Nguyên giá 200tr, KH lũy kế: 19.999.998 ₫)",
-                "account_code": "2113" if "211" in code_clean else "2141",
-                "open_dr": 200000000 if "211" in code_clean else 0,
-                "open_cr": 0 if "211" in code_clean else 19999998,
+        from frontend.modules.transport.depreciation_service import get_depreciation_data
+        depr_detail = get_depreciation_data(company_id=company_id, year=date_from.year)
+        items = []
+        is_211 = "211" in code_clean
+        for v in depr_detail.get("rows", []):
+            orig_p = int(v.get("original_price") or 0)
+            cum_dep = int(v.get("cumulative_depreciation") or 0)
+            p_code = v.get("plate_number") or v.get("name") or "Xe"
+            items.append({
+                "code": p_code,
+                "name": f"Xe {p_code} (Nguyên giá {orig_p:,.0f} đ, KH lũy kế: {cum_dep:,.0f} đ)",
+                "account_code": "2113" if is_211 else "2141",
+                "open_dr": orig_p if is_211 else 0,
+                "open_cr": 0 if is_211 else cum_dep,
                 "ps_dr": 0,
                 "ps_cr": 0,
-                "close_dr": 200000000 if "211" in code_clean else 0,
-                "close_cr": 0 if "211" in code_clean else 19999998,
-                "inv_count": "Đang hoạt động",
-            },
-            {
-                "code": "19H-209.07",
-                "name": "Xe ô tô tải Hyundai HD 19H-209.07 (Nguyên giá 200tr, KH lũy kế: 3.333.333 ₫)",
-                "account_code": "2113" if "211" in code_clean else "2141",
-                "open_dr": 200000000 if "211" in code_clean else 0,
-                "open_cr": 0 if "211" in code_clean else 3333333,
-                "ps_dr": 0,
-                "ps_cr": 0,
-                "close_dr": 200000000 if "211" in code_clean else 0,
-                "close_cr": 0 if "211" in code_clean else 3333333,
-                "inv_count": "Đang hoạt động",
-            },
-        ]
+                "close_dr": orig_p if is_211 else 0,
+                "close_cr": 0 if is_211 else cum_dep,
+                "inv_count": v.get("status_text") or "Đang hoạt động",
+            })
 
     elif code_clean.startswith("111"):
         from frontend.modules.transport.cash_bank_service import get_cash_book_data
@@ -1082,7 +1116,7 @@ def get_account_ledger_data(
         bank_res = get_bank_book_data(company_id=company_id, year=date_from.year, date_from=date_from, date_to=date_to)
         title = "SỔ TIỀN GỬI NGÂN HÀNG (MẪU S05a-DNN - THÔNG TƯ 133)"
         external_link = "/admin/transport/bank-book"
-        external_label = "Mở Sổ tiền gửi ngân hàng VietinBank"
+        external_label = "Mở Sổ tiền gửi ngân hàng"
         for i, e in enumerate(bank_res["entries"], 1):
             items.append({
                 "code": e["voucher_no"] or f"NH-{i:02d}",
@@ -1099,7 +1133,7 @@ def get_account_ledger_data(
                 "date": e["entry_date"],
                 "number": e["voucher_no"],
                 "serial": e["voucher_date"],
-                "partner": e["partner_name"] or "VietinBank 38633888",
+                "partner": e["partner_name"] or tb_data.get("company_name", "Ngân hàng"),
                 "description": e["description"],
                 "debit_acc": "1121" if e["deposit_amount"] > 0 else e["offset_account"],
                 "credit_acc": e["offset_account"] if e["deposit_amount"] > 0 else "1121",
@@ -1144,29 +1178,35 @@ def get_account_ledger_data(
         title = "SỔ CHI TIẾT DOANH THU CƯỚC DỊCH VỤ VẬN TẢI"
         external_link = "/admin/vehicles/cargo"
         external_label = "Mở Danh sách chuyến hàng & Hóa đơn cước"
+        ps_cr_511 = account_row["ps_cr"] if account_row else 0
         items = [
-            {"code": "5113", "name": "Doanh thu cung cấp dịch vụ cước vận tải (92 Hóa đơn điện tử BKAV)", "account_code": "5113", "open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": account_row["ps_cr"] if account_row else 802750000, "close_dr": 0, "close_cr": 0, "inv_count": "92 HĐ BKAV"},
+            {"code": "5113", "name": f"Doanh thu cung cấp dịch vụ cước vận tải ({count_inv_out} Hóa đơn)", "account_code": "5113", "open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": ps_cr_511, "close_dr": 0, "close_cr": ps_cr_511, "inv_count": f"{count_inv_out} HĐ"},
         ]
 
     elif code_clean.startswith("133") or code_clean.startswith("333"):
         title = "BẢNG KÊ THUẾ GIÁ TRỊ GIA TĂNG (GTGT)"
         external_link = "/admin/transport/tax-report"
         external_label = "Mở Báo cáo thuế theo quý"
+        row_133 = next((p for p in tb_data.get("parent_rows", []) if p["code"] == "133"), {})
+        row_333 = next((p for p in tb_data.get("parent_rows", []) if p["code"] == "333"), {})
         items = [
-            {"code": "1331", "name": "Thuế GTGT đầu vào được khấu trừ của HHDV mua vào (175 HĐ đầu vào)", "account_code": "1331", "open_dr": 0, "open_cr": 0, "ps_dr": 40118206, "ps_cr": 0, "close_dr": 40118206, "close_cr": 0, "inv_count": "175 HĐ"},
-            {"code": "33311", "name": "Thuế GTGT đầu ra phải nộp của dịch vụ vận tải (92 HĐ bán ra)", "account_code": "33311", "open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": 64220000, "close_dr": 0, "close_cr": 24101794, "inv_count": "92 HĐ"},
+            {"code": "1331", "name": f"Thuế GTGT đầu vào được khấu trừ của HHDV mua vào ({count_inv_in} HĐ đầu vào)", "account_code": "1331", "open_dr": 0, "open_cr": 0, "ps_dr": row_133.get("ps_dr", 0), "ps_cr": 0, "close_dr": row_133.get("close_dr", 0), "close_cr": 0, "inv_count": f"{count_inv_in} HĐ"},
+            {"code": "33311", "name": f"Thuế GTGT đầu ra phải nộp của dịch vụ vận tải ({count_inv_out} HĐ bán ra)", "account_code": "33311", "open_dr": 0, "open_cr": 0, "ps_dr": row_333.get("ps_dr", 0), "ps_cr": row_333.get("ps_cr", 0), "close_dr": 0, "close_cr": row_333.get("close_cr", 0), "inv_count": f"{count_inv_out} HĐ"},
         ]
 
     elif code_clean.startswith("411"):
         title = "SỔ THEO DÕI VỐN GÓP CHỦ SỞ HỮU"
+        val_411 = account_row.get("open_cr", 0) if account_row else 0
         items = [
-            {"code": "4111", "name": "Vốn góp của Giám đốc NGUYỄN KIM QUYẾT (Vốn điều lệ đăng ký)", "account_code": "4111", "open_dr": 0, "open_cr": 2000000000, "ps_dr": 0, "ps_cr": 0, "close_dr": 0, "close_cr": 2000000000, "inv_count": "ĐKKD 2500774911"},
+            {"code": "4111", "name": f"Vốn góp của {director_name} (Vốn điều lệ đăng ký)", "account_code": "4111", "open_dr": 0, "open_cr": val_411, "ps_dr": 0, "ps_cr": 0, "close_dr": 0, "close_cr": val_411, "inv_count": f"MST {tax_code}" if tax_code else "ĐKKD"},
         ]
 
     elif code_clean.startswith("421"):
         title = "SỔ THEO DÕI LỢI NHUẬN SAU THUẾ CHƯA PHÂN PHỐI"
+        ps_cr_421 = account_row.get("ps_cr", 0) if account_row else 0
+        close_cr_421 = account_row.get("close_cr", 0) if account_row else 0
         items = [
-            {"code": "4212", "name": "Lợi nhuận sau thuế chưa phân phối năm nay (Kết quả SXKD vận tải)", "account_code": "4212", "open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": account_row["ps_cr"] if account_row else 33493253, "close_dr": 0, "close_cr": account_row["close_cr"] if account_row else 33493253, "inv_count": "Lãi ròng"},
+            {"code": "4212", "name": "Lợi nhuận sau thuế chưa phân phối năm nay (Kết quả SXKD vận tải)", "account_code": "4212", "open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": ps_cr_421, "close_dr": 0, "close_cr": close_cr_421, "inv_count": "Lãi ròng"},
         ]
 
     else:
