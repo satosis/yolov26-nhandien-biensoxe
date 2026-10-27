@@ -790,7 +790,8 @@ def invoice_vehicle_groups(invoice: dict, vehicles: dict[str, dict],
             plate = segment.get("vehicle_plate")
             vehicle = vehicles.get(_plate_key(plate)) if plate else None
             if not vehicle:
-                raise ValueError(f"Bi\u1ec3n s\u1ed1 {plate or '(tr\u1ed1ng)'} tr\u00ean h\u00f3a đ\u01a1n {invoice['number']} ch\u01b0a li\u00ean k\u1ebft v\u1edbi xe trong danh m\u1ee5c.")
+                plate_label = plate or "(trống)"
+                raise ValueError(f"Biển số {plate_label} trên hóa đơn {invoice['number']} chưa liên kết với xe trong danh mục.")
             grouped_crane.setdefault(vehicle["id"], (vehicle, []))[1].append(segment)
         groups = []
         for vehicle, crane_lines in grouped_crane.values():
