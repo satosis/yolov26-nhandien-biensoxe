@@ -9,24 +9,37 @@ from frontend.deps import get_current_user, get_menu_context, templates
 router = APIRouter(prefix="/cms", tags=["cms"], dependencies=[Depends(get_current_user)])
 
 
-def get_projects(limit: int = 10) -> list:
+from frontend.pagination import paginate_counts
+
+
+def count_projects() -> int:
+    row = db._execute_query("SELECT COUNT(*) AS total FROM projects", fetch=True, commit=False)
+    return row.get("total", 0) if row else 0
+
+
+def get_projects(limit: int = 20, offset: int = 0) -> list:
     query = """
         SELECT id, name, location, area, height, bays, load_capacity, image, description
         FROM projects
         ORDER BY created_at DESC
-        LIMIT %s
+        LIMIT %s OFFSET %s
     """
-    return db._execute_query(query, (limit,), fetchall=True, commit=False)
+    return db._execute_query(query, (limit, offset), fetchall=True, commit=False) or []
 
 
-def get_news(limit: int = 5) -> list:
+def count_news() -> int:
+    row = db._execute_query("SELECT COUNT(*) AS total FROM news", fetch=True, commit=False)
+    return row.get("total", 0) if row else 0
+
+
+def get_news(limit: int = 20, offset: int = 0) -> list:
     query = """
         SELECT id, slug, title, category, summary, image, publish_date
         FROM news
         ORDER BY publish_date DESC
-        LIMIT %s
+        LIMIT %s OFFSET %s
     """
-    rows = db._execute_query(query, (limit,), fetchall=True, commit=False)
+    rows = db._execute_query(query, (limit, offset), fetchall=True, commit=False) or []
     for row in rows:
         if row.get("publish_date") and not isinstance(row["publish_date"], str):
             row["publish_date"] = row["publish_date"].isoformat()
@@ -64,10 +77,35 @@ def get_landing_settings() -> dict:
     return {row["key"]: row["value"] for row in rows}
 
 
+@router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
-async def cms_dashboard(request: Request, user: dict = Depends(get_current_user)):
-    projects = get_projects()
-    news = get_news(limit=100)
+async def cms_dashboard(
+    request: Request,
+    section: str = "projects",
+    page: int = 1,
+    user: dict = Depends(get_current_user),
+):
+    page = max(1, page)
+    per_page = 20
+    offset = (page - 1) * per_page
+
+    if section == "news":
+        total_items = count_news()
+        news = get_news(limit=per_page, offset=offset)
+        projects = []
+    else:
+        section = "projects"
+        total_items = count_projects()
+        projects = get_projects(limit=per_page, offset=offset)
+        news = []
+
+    pagination = paginate_counts(
+        total=total_items,
+        page=page,
+        per_page=per_page,
+        base_url="/admin/cms",
+        extra_params={"section": section},
+    )
 
     ctx = get_menu_context(request, user)
     return templates.TemplateResponse(
@@ -77,6 +115,8 @@ async def cms_dashboard(request: Request, user: dict = Depends(get_current_user)
             "user": user,
             "projects": projects,
             "news": news,
+            "section": section,
+            "pagination": pagination,
             "current_menu": "cms",
             **ctx
         }

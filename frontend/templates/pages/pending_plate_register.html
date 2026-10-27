@@ -1,6 +1,9 @@
 {% extends "layout.html" %}
 {% block title %}Đăng ký phương tiện{% endblock %}
 {% block page_title %}Đăng ký phương tiện{% endblock %}
+{% block page_back_button %}
+<a href="/admin/pending_plates" class="btn btn-light btn-sm font-weight-bold"><i class="fas fa-arrow-left mr-1"></i> Quay lại</a>
+{% endblock %}
 
 {% block head %}
 <link href="/static/admin/css/tom-select.css" rel="stylesheet">
@@ -52,12 +55,6 @@
 {% endblock %}
 
 {% block content %}
-<div class="mb-3">
-  <a href="/admin/pending_plates" class="text-muted" style="font-size:13px;">
-    <i class="fas fa-arrow-left mr-1"></i> Quay lại
-  </a>
-</div>
-
 <div class="d-flex align-items-center justify-content-between mb-4">
   <h4 class="mb-0 font-weight-bold">Đăng ký phương tiện</h4>
   <span class="badge badge-pill badge-secondary" style="font-size:12px;letter-spacing:1px;">
@@ -89,11 +86,8 @@
         <label class="text-muted font-weight-bold" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;">Biển số nhận diện *</label>
         <input type="text" name="plate_number" value="{{ plate.plate_norm }}" readonly
                class="form-control font-weight-bold text-primary"
-               style="font-family:monospace;font-size:1.4rem;letter-spacing:2px;">
-        <small class="text-muted">
-          <i class="fas fa-exclamation-circle text-warning mr-1"></i>
-          Biển số đã xác thực. Không thể thay đổi trong quá trình đăng ký.
-        </small>
+               style="font-size:1.4rem;letter-spacing:2px;">
+
       </div>
     </div>
 

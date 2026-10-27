@@ -17,10 +17,13 @@
 
         {% set _pt %}{% block page_title %}{% endblock %}{% endset %}
         {% if _pt|trim %}
-        <div class="row">
+        <div class="row {% block page_title_row_class %}{% endblock %}">
           <div class="col-12">
-            <div class="page-title-box d-flex align-items-center justify-content-between">
-              <h4 class="mb-0 font-size-18">{{ _pt|safe }}</h4>
+            <div class="page-title-box d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+              <div class="d-flex align-items-center flex-wrap" style="gap:8px;min-width:0;">
+                {% block page_back_button %}{% endblock %}
+                <h4 class="mb-0 font-size-18">{{ _pt|safe }}</h4>
+              </div>
               {% block page_actions %}{% endblock %}
             </div>
           </div>

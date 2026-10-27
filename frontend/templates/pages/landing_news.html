@@ -15,5 +15,22 @@
             </div>
         </article>
         {% endfor %}
-    </div></div></section>
+    </div>
+    {% if pagination.total_pages > 1 %}
+    <nav aria-label="Phân trang tin tức" style="display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;margin-top:32px;">
+        {% if pagination.page > 1 %}
+        <a href="{{ pagination.page_base_url }}page={{ pagination.page - 1 }}" style="padding:8px 14px;border:1px solid #d5dbe5;border-radius:6px;color:inherit;text-decoration:none;">← Trước</a>
+        {% endif %}
+        {% set start_page = [1, pagination.page - 2]|max %}
+        {% set end_page = [pagination.total_pages, pagination.page + 2]|min %}
+        {% for p in range(start_page, end_page + 1) %}
+        <a href="{{ pagination.page_base_url }}page={{ p }}" aria-current="{{ 'page' if p == pagination.page else 'false' }}" style="padding:8px 12px;border:1px solid {{ '#635bff' if p == pagination.page else '#d5dbe5' }};border-radius:6px;background:{{ '#635bff' if p == pagination.page else '#fff' }};color:{{ '#fff' if p == pagination.page else 'inherit' }};text-decoration:none;">{{ p }}</a>
+        {% endfor %}
+        {% if pagination.page < pagination.total_pages %}
+        <a href="{{ pagination.page_base_url }}page={{ pagination.page + 1 }}" style="padding:8px 14px;border:1px solid #d5dbe5;border-radius:6px;color:inherit;text-decoration:none;">Tiếp →</a>
+        {% endif %}
+        <span style="color:#64748b;font-size:13px;margin-left:8px;">Trang {{ pagination.page }}/{{ pagination.total_pages }} · {{ pagination.total }} tin</span>
+    </nav>
+    {% endif %}
+    </div></section>
 {% endblock %}

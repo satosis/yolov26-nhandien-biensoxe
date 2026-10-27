@@ -45,6 +45,7 @@ class DatabaseManager:
         return result
 
     execute_query = _execute_query
+    get_connection = _get_connection
 
     def insert(self, table_name, data: dict, returning=None):
         columns = ', '.join(data.keys())

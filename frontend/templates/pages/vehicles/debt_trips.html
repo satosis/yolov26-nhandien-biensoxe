@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block title %}Chuyến hàng còn nợ — {{ selected_vehicle.plate_number }}{% endblock %}
+{% block page_title %}Chuyến hàng còn nợ — {{ selected_vehicle.plate_number }}{% endblock %}
+{% block page_back_button %}<a href="/admin/vehicles/cargo?vehicle_id={{ vehicle_id }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Chuyến hàng</a>{% endblock %}
+{% block content %}
+{% include "partials/vehicle_module_filter.html" %}
+
+<div class="row mb-3">
+  <div class="col-6 col-md-4 mb-2 mb-md-0"><div class="card mb-0"><div class="card-body py-2">
+    <div class="text-muted small">Chuyến còn nợ</div><strong>{{ debt_rows|length|format_number }}</strong>
+  </div></div></div>
+  <div class="col-6 col-md-4 mb-2 mb-md-0"><div class="card mb-0"><div class="card-body py-2">
+    <div class="text-muted small">Doanh thu chuyến</div><strong>{{ total_revenue|format_currency }}</strong>
+  </div></div></div>
+  <div class="col-12 col-md-4"><div class="card mb-0"><div class="card-body py-2">
+    <div class="text-muted small">Tổng tiền còn nợ</div><strong class="text-danger">{{ total_debt|format_currency }}</strong>
+  </div></div></div>
+</div>
+
+<div class="card">
+  <div class="card-header font-weight-bold">Lịch sử chuyến hàng còn nợ — {{ month[5:7] }}/{{ month[:4] }}</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered mb-0" data-bulk-select="1" style="font-size:11px;min-width:1120px;">
+      <thead class="thead-light"><tr>
+        <th style="width:45px;" class="text-center">STT</th>
+        <th>Ngày</th><th>Biển số xe</th><th>Nơi bốc</th><th>Nơi trả</th>
+        <th>Loại hàng hóa</th><th>Khách hàng</th><th class="text-right">Số chuyến</th>
+        <th class="text-right">Doanh thu chuyến (đ)</th><th class="text-right">Còn nợ (đ)</th>
+        <th>Ghi chú</th><th></th>
+      </tr></thead>
+      <tbody>
+        {% for t in debt_rows %}
+        <tr>
+          <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
+          <td class="text-nowrap">{{ t.invoice_date.strftime('%d/%m/%Y') }}</td>
+          <td class="text-nowrap">{{ selected_vehicle.plate_number }}
+            {% if t.vehicle_owner_type %}<div class="text-muted">{{ 'Xe công ty' if t.vehicle_owner_type == 'company' else 'Xe thuê ngoài' }}</div>{% endif %}
+          </td>
+          <td style="min-width:150px;">{{ t.origin or '—' }}</td>
+          <td style="min-width:150px;">{{ t.destination or '—' }}</td>
+          <td>{{ t.cargo_description or '—' }}</td>
+          <td>{{ t.tax_code or '—' }}</td>
+          <td class="text-right">{{ t.trip_quantity|format_number('—') }}</td>
+          <td class="text-right text-nowrap">{{ (t.freight_revenue * (1 + (t.vat_rate or 0)))|format_number('—') if t.freight_revenue is not none else '—' }}</td>
+          <td class="text-right text-nowrap text-danger font-weight-bold">{{ t.debt_amount|format_number }}</td>
+          <td>{{ t.trip_note or '—' }}</td>
+          <td class="text-nowrap"><a href="/admin/vehicles/cargo/{{ t.id }}/edit" class="btn btn-light btn-sm">Sửa chuyến</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" class="text-center text-muted py-3">Xe không có chuyến còn nợ trong tháng này.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+{% endblock %}
+

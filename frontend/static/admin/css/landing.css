@@ -1,5 +1,6 @@
 
    :root {
+    font-family: 'Times New Roman', Times, serif !important;
 
     --c-primary: #004b41;
     --c-primary-light: #3a6e64;
@@ -17,11 +18,6 @@
     --c-bg-dark: #0b1c30;
 
     --c-border: #e5e7eb;
-
-
-    --font-heading: 'Outfit', sans-serif;
-    --font-body: 'Inter', sans-serif;
-
 
     --space-xs: 0.5rem;
     --space-sm: 1rem;
@@ -55,17 +51,13 @@ html {
     scroll-padding-top: 80px;
 }
 
-body {
-    font-family: var(--font-body);
-    color: var(--c-text-main);
+body {    color: var(--c-text-main);
     background-color: var(--c-bg-main);
     line-height: 1.6;
     overflow-x: hidden;
 }
 
-h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading);
-    font-weight: 700;
+h1, h2, h3, h4, h5, h6 {    font-weight: 700;
     line-height: 1.2;
     color: var(--c-primary);
 }
@@ -184,9 +176,7 @@ ul {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    font-family: var(--font-heading);
-    font-weight: 600;
+    padding: 0.75rem 1.5rem;    font-weight: 600;
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: var(--transition);
@@ -280,9 +270,7 @@ ul {
     flex-direction: column;
 }
 
-.logo-text {
-    font-family: var(--font-heading);
-    font-weight: 800;
+.logo-text {    font-weight: 800;
     font-size: 1.25rem;
     color: var(--c-primary);
     letter-spacing: -0.5px;
@@ -325,9 +313,7 @@ ul {
     align-items: center;
     height: 44px;
     color: var(--c-text-main);
-    font-weight: 500;
-    font-family: var(--font-heading);
-    position: relative;
+    font-weight: 500;    position: relative;
     padding: 0;
 }
 
@@ -409,9 +395,7 @@ ul {
     display: block;
     padding: 0.75rem 1rem;
     border-radius: var(--radius-sm);
-    color: var(--c-text-main);
-    font-family: var(--font-heading);
-    font-weight: 600;
+    color: var(--c-text-main);    font-weight: 600;
     white-space: nowrap;
 }
 
@@ -646,9 +630,7 @@ ul {
 }
 
 .stat-value {
-    font-size: 3rem;
-    font-family: var(--font-heading);
-    font-weight: 800;
+    font-size: 3rem;    font-weight: 800;
     color: var(--c-accent);
     line-height: 1;
 }
@@ -809,9 +791,7 @@ ul {
     padding: 1.5rem;
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.7);
-    font-family: var(--font-heading);
-    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);    font-weight: 600;
     font-size: 1rem;
     text-align: left;
     display: flex;
@@ -1263,9 +1243,7 @@ ul {
     width: 100%;
     padding: 0.75rem 1rem;
     border: 1px solid var(--c-border);
-    border-radius: var(--radius-md);
-    font-family: var(--font-body);
-    font-size: 1rem;
+    border-radius: var(--radius-md);    font-size: 1rem;
     transition: var(--transition);
 }
 

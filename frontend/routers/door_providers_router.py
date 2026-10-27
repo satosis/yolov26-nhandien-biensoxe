@@ -1,14 +1,28 @@
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from typing import Optional
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 
 router = APIRouter(prefix="/door_providers")
 
 
-def get_all_door_providers() -> list:
-    return db.select("door_providers", order_by="name ASC")
+def get_all_door_providers(limit=None, offset=None) -> list:
+    query = "SELECT * FROM door_providers ORDER BY name ASC"
+    params = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True)
+
+
+def count_door_providers() -> int:
+    row = db.execute_query("SELECT COUNT(*) AS total FROM door_providers", fetch=True)
+    return int((row or {}).get("total") or 0)
 
 
 def get_door_provider(provider_key: str) -> dict | None:
@@ -38,10 +52,20 @@ def delete_door_provider(provider_key: str) -> bool:
 
 
 @router.get("")
-async def door_providers_page(request: Request, user: dict = Depends(require_menu("door_providers"))):
+async def door_providers_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("door_providers")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "door_providers"
-    ctx["providers"] = get_all_door_providers()
+    total_providers = count_door_providers()
+    page_data = paginate_counts(total_providers, page=page, per_page=20, base_url="/admin/door_providers")
+    ctx["providers"] = get_all_door_providers(
+        limit=page_data["per_page"], offset=(page_data["page"] - 1) * page_data["per_page"],
+    ) or []
+    ctx["pagination"] = page_data
+    ctx["total_providers"] = total_providers
     return templates.TemplateResponse("pages/door_providers.html", {"request": request, **ctx})
 
 

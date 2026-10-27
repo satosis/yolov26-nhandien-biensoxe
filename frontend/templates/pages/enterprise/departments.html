@@ -1,0 +1,161 @@
+{% extends "layout.html" %}
+
+{% block title %}Cơ cấu phòng ban & Đội xe — {{ company.name if company else 'Doanh nghiệp' }}{% endblock %}
+{% block page_title %}Cơ cấu phòng ban & Đội xe{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold">
+            Danh sách phòng ban & Đội nhóm ({{ pagination.total }})
+          </span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddDeptModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm phòng ban / Đội xe
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:120px;">Mã bộ phận</th>
+            <th style="width:240px;">Tên phòng ban / Đội xe</th>
+            <th>Trưởng bộ phận / Đội trưởng</th>
+            <th style="width:140px;" class="text-center">Số nhân sự</th>
+            <th>Mô tả / Chức năng</th>
+            <th style="width:150px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for d in departments %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else loop.index }}
+            </td>
+            <td>
+              {% if d.code %}
+                <code class="text-dark font-weight-bold">{{ d.code }}</code>
+              {% else %}
+                <span class="text-muted small">--</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="font-weight-bold text-dark">{{ d.name }}</div>
+            </td>
+            <td>
+              {% if d.manager_name or d.manager_username %}
+                <div class="font-weight-medium text-dark">
+                  <i class="bx bx-user mr-1 text-muted"></i>{{ d.manager_name or d.manager_username }}
+                </div>
+              {% else %}
+                <span class="text-muted small">Chưa chỉ định</span>
+              {% endif %}
+            </td>
+            <td class="text-center align-middle">
+              <span class="badge badge-light border text-dark">{{ d.member_count or 0 }} người</span>
+            </td>
+            <td class="small text-muted align-middle">
+              {{ d.description or '--' }}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1"
+                      onclick="openEditDeptModal({{ d.id }}, '{{ d.name|escape }}', '{{ (d.code or '')|escape }}', '{{ d.manager_user_id or '' }}', '{{ (d.description or '')|escape }}')">
+                Sửa
+              </button>
+              <form method="post" action="/admin/enterprise/departments/{{ d.id }}/delete" class="d-inline"
+                    onsubmit="return confirm('Bạn có chắc muốn xóa phòng ban/đội xe này?')">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">Chưa có phòng ban hoặc đội xe.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm / Sửa Phòng ban -->
+<div class="modal fade" id="deptModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="deptModalTitle">Thêm phòng ban / Đội xe</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="deptForm" method="post" action="/admin/enterprise/departments/create">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Tên phòng ban / Đội xe <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="dept-name" class="form-control form-control-sm" placeholder="VD: Đội xe vận tải 1, Phòng kế toán..." required>
+          </div>
+          <div class="form-row">
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Mã viết tắt</label>
+              <input type="text" name="code" id="dept-code" class="form-control form-control-sm" placeholder="VD: DX-01, KT...">
+            </div>
+            <div class="col-md-7 mb-2">
+              <label class="small font-weight-bold">Trưởng bộ phận / Đội trưởng</label>
+              <select name="manager_user_id" id="dept-manager" class="form-control form-control-sm">
+                <option value="">-- Chưa chỉ định --</option>
+                {% for u in staff_users %}
+                <option value="{{ u.id }}">{{ u.full_name or u.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Mô tả / Chức năng nhiệm vụ</label>
+            <textarea name="description" id="dept-desc" class="form-control form-control-sm" rows="3" placeholder="Ghi chú thêm về bộ phận..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu thông tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAddDeptModal() {
+  document.getElementById('deptModalTitle').textContent = 'Thêm phòng ban / Đội xe';
+  document.getElementById('deptForm').action = '/admin/enterprise/departments/create';
+  document.getElementById('dept-name').value = '';
+  document.getElementById('dept-code').value = '';
+  document.getElementById('dept-manager').value = '';
+  document.getElementById('dept-desc').value = '';
+  $('#deptModal').modal('show');
+}
+
+function openEditDeptModal(id, name, code, managerId, desc) {
+  document.getElementById('deptModalTitle').textContent = 'Chỉnh sửa phòng ban / Đội xe';
+  document.getElementById('deptForm').action = '/admin/enterprise/departments/' + id + '/edit';
+  document.getElementById('dept-name').value = name;
+  document.getElementById('dept-code').value = code;
+  document.getElementById('dept-manager').value = managerId || '';
+  document.getElementById('dept-desc').value = desc;
+  $('#deptModal').modal('show');
+}
+</script>
+{% endblock %}

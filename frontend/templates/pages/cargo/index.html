@@ -1,0 +1,699 @@
+{% extends "layout.html" %}
+{% block title %}Hóa đơn vận chuyển{% if vehicle %} — {{ vehicle.plate_number }}{% endif %}{% if company %} — {{ company.name }}{% endif %}{% endblock %}
+{% block head %}<link href="/static/admin-assets/css/cargo-history.css?v=20261025-unified-1" rel="stylesheet">{% endblock %}
+{% block page_title %}
+Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badge-success ml-1" style="font-size:14px;vertical-align:middle;">{{ vehicle.plate_number }}</span>{% if vehicle.owner_name %} <span class="text-muted ml-1 font-weight-normal" style="font-size:14px;">({{ vehicle.owner_name }})</span>{% endif %}{% endif %}
+{% endblock %}
+{% block page_back_button %}{% endblock %}
+{% block page_actions %}
+<div class="cargo-page-actions" x-data="{ scanning: false }">
+  <form method="post" action="/admin/vehicles/cargo/scan"
+        enctype="multipart/form-data" class="d-inline"
+        @submit="scanning = true">
+    {% if vehicle_id %}<input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">{% endif %}
+    {% if company_id %}<input type="hidden" name="company_id" value="{{ company_id }}">{% endif %}
+    <label class="btn btn-secondary btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <span x-show="!scanning"><i class="bx bx-camera mr-1"></i> Quét văn bản</span>
+      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
+             class="d-none" @change="$el.closest('form').submit(); scanning = true">
+    </label>
+  </form>
+
+  <form method="post" action="/admin/vehicles/cargo/scan"
+        enctype="multipart/form-data" class="d-inline"
+        @submit="scanning = true">
+    {% if vehicle_id %}<input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">{% endif %}
+    {% if company_id %}<input type="hidden" name="company_id" value="{{ company_id }}">{% endif %}
+    <label class="btn btn-light btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <span x-show="!scanning"><i class="bx bx-file-blank mr-1"></i> File scan</span>
+      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
+             class="d-none" @change="$el.closest('form').submit(); scanning = true">
+    </label>
+  </form>
+
+  <a href="/admin/vehicles/cargo/add?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}{% endif %}"
+     class="btn btn-success btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Tạo đơn hàng mới
+  </a>
+
+  <a href="/admin/vehicles/cargo/invoices/add?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}{% endif %}"
+     class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-download mr-1"></i> Xuất hóa đơn theo mẫu
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div x-data="{
+  qrModalOpen: false,
+  qrLoading: false,
+  qrError: '',
+  qrTripId: null,
+  qrUrl: '',
+  qrDetails: {},
+  copied: false,
+  selectedTrips: [],
+  bulkDeleting: false,
+  loadingBkav: false,
+  importingBkav: false,
+  bkavSyncModalOpen: false,
+  bkavInvoices: [],
+  bkavSelectedGuids: [],
+  bkavSyncCounts: {found: 0, unavailable: 0, ignored: 0},
+  bkavMonth: {{ month|tojson|forceescape }},
+  allTripIds: {{ all_trip_ids|tojson|forceescape }},
+  entryTripIds: {{ entry_trip_ids|tojson|forceescape }},
+  toggleSelectAll(e) {
+    this.selectedTrips = e.target.checked ? [...this.allTripIds] : [];
+  },
+  toggleInvoice(ids, checked) {
+    const selected = new Set(this.selectedTrips);
+    ids.forEach(id => checked ? selected.add(id) : selected.delete(id));
+    this.selectedTrips = [...selected];
+  },
+  selectedEntryCount() {
+    return this.entryTripIds.filter(ids => ids.every(id => this.selectedTrips.includes(id))).length;
+  },
+  async deleteSelectedTrips() {
+    if (!this.selectedTrips.length || this.bulkDeleting) return;
+    if (!confirm('Xóa vĩnh viễn ' + this.selectedEntryCount() + ' chứng từ đã chọn?')) return;
+    this.bulkDeleting = true;
+    try {
+      const resp = await fetch(`/admin/vehicles/cargo/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ ids: this.selectedTrips })
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { msg: `Đã xóa thành công ${data.count} chứng từ.`, type: 'success' }
+        }));
+        setTimeout(() => { window.location.reload(); }, 400);
+      } else {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { msg: data.message || 'Không thể xóa các chứng từ đã chọn.', type: 'error' }
+        }));
+        this.bulkDeleting = false;
+      }
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: { msg: 'Lỗi kết nối khi xóa chứng từ.', type: 'error' }
+      }));
+      this.bulkDeleting = false;
+    }
+  },
+  async loadBkavInvoices() {
+    if (this.loadingBkav) return;
+    const messages = document.getElementById('cargo-bkav-sync-messages').dataset;
+    if (!this.bkavMonth || this.bkavMonth === 'all' || this.bkavMonth.endsWith('-all')) {
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:messages.month, type:'warning'}}));
+      return;
+    }
+    this.loadingBkav = true;
+    try {
+      const vehicleId = Number(document.getElementById('cargo-filter-vehicle')?.value || 0);
+      const companyId = Number(document.getElementById('cargo-filter-company')?.value || 0);
+      const response = await fetch('/admin/vehicles/cargo/invoices/preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type':'application/json', 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({vehicle_id: vehicleId, company_id: companyId || null, month: this.bkavMonth})
+      });
+      if (!response.ok) throw await response.text();
+      const data = await response.json();
+      if (!data.ok) throw data;
+      this.bkavInvoices = data.invoices || [];
+      this.bkavSelectedGuids = this.bkavInvoices
+        .filter(invoice => !invoice.already_imported && !invoice.unavailable_reason)
+        .map(invoice => invoice.guid);
+      this.bkavSyncCounts = {
+        found: Number(data.found || 0),
+        unavailable: Number(data.unavailable || 0),
+        ignored: Number(data.ignored || 0)
+      };
+      if (!this.bkavSyncCounts.found) {
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:messages.none, type:'warning'}}));
+        return;
+      }
+      this.bkavSyncModalOpen = true;
+      const msg = messages.foundPrefix + this.bkavSyncCounts.found + messages.foundSuffix;
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg, type:'success'}}));
+    } finally {
+      this.loadingBkav = false;
+    }
+  },
+  formatBkavDate(value) {
+    return value ? value.slice(8, 10) + '/' + value.slice(5, 7) + '/' + value.slice(0, 4) : '';
+  },
+  formatBkavMoney(value) {
+    return new Intl.NumberFormat('vi-VN').format(Number(value || 0)) + '\u00a0\u20ab';
+  },
+  importableBkavCount() {
+    return this.bkavInvoices.filter(invoice => !invoice.already_imported && !invoice.unavailable_reason).length;
+  },
+  toggleBkavInvoice(guid, checked) {
+    const selected = new Set(this.bkavSelectedGuids);
+    checked ? selected.add(guid) : selected.delete(guid);
+    this.bkavSelectedGuids = [...selected];
+  },
+  async importBkavSelected() {
+    if (this.importingBkav || !this.bkavSelectedGuids.length) return;
+    const messages = document.getElementById('cargo-bkav-sync-messages').dataset;
+    this.importingBkav = true;
+    try {
+      const vehicleId = Number(document.getElementById('cargo-filter-vehicle')?.value || 0);
+      const companyId = Number(document.getElementById('cargo-filter-company')?.value || 0);
+      const response = await fetch('/admin/vehicles/cargo/invoices/import', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type':'application/json', 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({
+          vehicle_id: vehicleId, company_id: companyId || null, month: this.bkavMonth,
+          guids: [...this.bkavSelectedGuids], payment_status: 'debt'
+        })
+      });
+      if (!response.ok) throw await response.text();
+      const data = await response.json();
+      if (!data.ok) throw data;
+      const imported = Number(data.created || 0);
+      const already = Number(data.already || 0);
+      this.bkavSyncModalOpen = false;
+      const msg = messages.importPrefix + imported + messages.importSuffix +
+        (already ? messages.alreadyPrefix + already + messages.alreadySuffix : '');
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg, type:'success'}}));
+      await this.refreshCargoHistory(messages);
+    } finally {
+      this.importingBkav = false;
+    }
+  },
+  async refreshCargoHistory(messages) {
+    try {
+      const response = await fetch(window.location.href, {
+        credentials: 'same-origin', headers: {'Accept':'text/html', 'X-Requested-With':'XMLHttpRequest'}
+      });
+      if (!response.ok) throw new Error('refresh failed');
+      const html = await response.text();
+      const page = new DOMParser().parseFromString(html, 'text/html');
+      const currentTable = document.querySelector('.cargo-history-table');
+      const nextTable = page.querySelector('.cargo-history-table');
+      if (!currentTable || !nextTable) throw new Error('history table missing');
+      currentTable.replaceWith(nextTable);
+      window.Alpine?.initTree(nextTable);
+      const keys = [...nextTable.querySelectorAll('tbody tr[id^=trip-]')].map(row => {
+        const id = row.id.slice(5);
+        return id.includes('-') ? `invoice:${id}` : `trip:${id}`;
+      });
+      this.allTripIds = keys;
+      this.entryTripIds = keys.map(key => [key]);
+      this.selectedTrips = [];
+      const replacements = [
+        ['.cargo-history-count', '.cargo-history-count'],
+        ['.cargo-history-status', '.cargo-history-status']
+      ];
+      replacements.forEach(([selector, sourceSelector]) => {
+        const current = document.querySelector(selector);
+        const next = page.querySelector(sourceSelector);
+        if (current && next) current.replaceWith(next);
+      });
+      const currentNav = document.querySelector('ul.pagination')?.closest('nav');
+      const nextNav = page.querySelector('ul.pagination')?.closest('nav');
+      if (currentNav && nextNav) currentNav.replaceWith(nextNav);
+      else if (currentNav) currentNav.remove();
+      else if (nextNav) document.querySelector('.card')?.after(nextNav);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail:{msg:messages.refreshError, type:'warning'}
+      }));
+    }
+  },
+  async openQrModal(tripId) {
+    this.qrTripId = tripId;
+    this.qrModalOpen = true;
+    this.qrLoading = true;
+    this.qrError = '';
+    this.copied = false;
+    try {
+      const resp = await fetch(`/admin/vehicles/cargo/${tripId}/qr`);
+      const data = await resp.json();
+      if (data.ok) {
+        this.qrUrl = data.qr_url;
+        this.qrDetails = data.details || {};
+        const btn = document.getElementById(`qr-btn-${tripId}`);
+        if (btn) {
+          btn.classList.remove('btn-light', 'text-primary');
+          btn.classList.add('btn-info', 'text-white');
+        }
+      } else {
+        this.qrError = data.error || 'Không thể lấy mã QR.';
+      }
+    } catch (err) {
+      this.qrError = 'Lỗi kết nối khi lấy mã QR.';
+    } finally {
+      this.qrLoading = false;
+    }
+  },
+  async regenerateQr() {
+    if (!this.qrTripId) return;
+    this.qrLoading = true;
+    this.qrError = '';
+    this.copied = false;
+    try {
+      const resp = await fetch(`/admin/vehicles/cargo/${this.qrTripId}/qr`, { method: 'POST' });
+      const data = await resp.json();
+      if (data.ok) {
+        this.qrUrl = data.qr_url;
+        this.qrDetails = data.details || {};
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã tạo mới mã QR và lưu vào DB thành công.', type:'success'}}));
+      } else {
+        this.qrError = data.error || 'Không thể tạo mới mã QR.';
+      }
+    } catch (err) {
+      this.qrError = 'Lỗi kết nối khi tạo mã QR.';
+    } finally {
+      this.qrLoading = false;
+    }
+  },
+  copyQrLink() {
+    if (!this.qrUrl) return;
+    navigator.clipboard.writeText(this.qrUrl).then(() => {
+      this.copied = true;
+      setTimeout(() => { this.copied = false; }, 2500);
+    });
+  }
+}" x-init="
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
+  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
+  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
+">
+  <span id="cargo-bkav-sync-messages" hidden
+        data-month="Ch&#7885;n m&#7897;t th&#225;ng c&#7909; th&#7875; &#273;&#7875; tra c&#7913;u BKAV."
+        data-none="BKAV kh&#244;ng c&#243; h&#243;a &#273;&#417;n trong th&#225;ng n&#224;y."
+        data-found-prefix="T&#236;m th&#7845;y " data-found-suffix=" h&#243;a &#273;&#417;n tr&#234;n BKAV."
+        data-import-prefix="&#272;&#227; &#273;&#7891;ng b&#7897; v&#7873; h&#7879; th&#7889;ng: " data-import-suffix=" h&#243;a &#273;&#417;n."
+        data-already-prefix=" &#272;&#227; c&#243; s&#7861;n: " data-already-suffix=" h&#243;a &#273;&#417;n."
+        data-refresh-error="&#272;&#227; &#273;&#7891;ng b&#7897; xong nh&#432;ng ch&#432;a c&#7853;p nh&#7853;t &#273;&#432;&#7907;c danh s&#225;ch. H&#227;y t&#7843;i l&#7841;i trang."
+        data-local-note="D&#7919; li&#7879;u &#273;&#432;&#7907;c &#273;&#7885;c t&#7915; BKAV. Ch&#7885;n h&#243;a &#273;&#417;n c&#7847;n &#273;&#7891;ng b&#7897; v&#7873; h&#7879; th&#7889;ng."></span>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cargo-history-toolbar border-bottom">
+        <div class="cargo-history-toolbar-main">
+          <form method="get" action="/admin/vehicles/cargo" class="cargo-history-month-filter d-flex align-items-center flex-wrap" style="gap:6px;"
+                onsubmit="const mp=document.getElementById('cargo-filter-month-part').value; const yr=(document.getElementById('cargo-filter-year').value || '').trim(); this.elements['month'].value = (mp === 'all') ? (yr ? yr + '-all' : 'all') : (yr ? yr + '-' + mp : 'all');">
+            <input type="hidden" name="month" value="{{ month }}">
+            {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+            <select name="vehicle_id" id="cargo-filter-vehicle" class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:145px; max-width:210px;" onchange="this.form.requestSubmit()">
+              <option value="">Tất cả xe</option>
+              {% for v in vehicles %}
+                <option value="{{ v.id }}" {% if vehicle_id == v.id %}selected{% endif %}>
+                  {{ v.plate_number }}{% if v.owner_name %} ({{ v.owner_name }}){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+
+            <select name="company_id" id="cargo-filter-company" class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:160px; max-width:380px; padding-right:24px;" onchange="this.form.requestSubmit()">
+              <option value="">Tất cả công ty</option>
+              {% if company and (not companies or company.id not in companies|map(attribute='id')) %}
+                <option value="{{ company.id }}" selected>
+                  {{ company.name }}
+                </option>
+              {% endif %}
+              {% for c in companies %}
+                <option value="{{ c.id }}" {% if (company_id and company_id|string == c.id|string) or (company and company.id|string == c.id|string) %}selected{% endif %}>
+                  {{ c.name }}
+                </option>
+              {% endfor %}
+            </select>
+
+            <select id="cargo-filter-month-part" class="form-control form-control-sm" style="width:auto;" aria-label="Tháng báo cáo" onchange="this.form.requestSubmit()">
+              <option value="all" {% if month == 'all' or month.endswith('-all') or month == month[:4] %}selected{% endif %}>Tất cả tháng</option>
+              {% for m in range(1, 13) %}<option value="{{ '%02d'|format(m) }}" {% if month != 'all' and not month.endswith('-all') and m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>{% endfor %}
+            </select>
+            <input type="number" id="cargo-filter-year" value="{{ month[:4] if month != 'all' and month[:4].isdigit() else now_year }}" min="1000" max="9999"
+                   class="form-control form-control-sm" style="width:70px;" aria-label="Năm báo cáo" onchange="this.form.requestSubmit()">
+            <input type="search" name="q" value="{{ search_query }}" class="form-control form-control-sm cargo-history-document-search"
+                   placeholder="Tìm theo mã hợp đồng" aria-label="Tìm theo mã hợp đồng">
+            <button type="submit" class="btn btn-outline-primary btn-sm" aria-label="Tìm kiếm"><i class="bx bx-search mr-1"></i> Tìm</button>
+          </form>
+          <span class="cargo-history-count">{{ total }} chứng từ nội bộ</span>
+          {% if current_status == 'debt' and total_vehicle_debt_fmt and total_vehicle_debt_fmt != '0' %}
+          <span class="badge badge-danger cargo-history-debt-total">Tổng nợ: {{ total_vehicle_debt_fmt }}</span>
+          {% endif %}
+          <div x-show="selectedTrips.length > 0" x-cloak class="d-inline-flex align-items-center ml-2" style="gap:6px;">
+            <span class="badge badge-light border text-danger font-weight-bold" style="font-size:12px; padding:5px 8px;">
+              Đã chọn <span x-text="selectedEntryCount()"></span>
+            </span>
+            <button type="button" @click="deleteSelectedTrips()" :disabled="bulkDeleting"
+                    class="btn btn-danger btn-sm font-weight-bold shadow-sm">
+              <i class="bx bx-trash mr-1"></i>
+              <span x-text="bulkDeleting ? 'Đang xóa...' : 'Xóa đã chọn'"></span>
+            </button>
+          </div>
+        </div>
+        <div class="cargo-history-toolbar-actions">
+          <div class="btn-group btn-group-sm cargo-history-status" role="group" aria-label="Lọc trạng thái thanh toán">
+            <a href="/admin/vehicles/cargo?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}&amp;{% endif %}month={{ month }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+               class="btn {% if not current_status %}btn-primary font-weight-bold{% else %}btn-light text-muted{% endif %}">
+              Tất cả ({{ all_count }})
+            </a>
+            <a href="/admin/vehicles/cargo?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}&amp;{% endif %}month={{ month }}&amp;status=debt{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+               class="btn {% if current_status == 'debt' %}btn-danger font-weight-bold text-white{% else %}btn-light text-danger{% endif %}">
+              <i class="bx bx-error-circle mr-1"></i>Còn nợ ({{ debt_count }})
+            </a>
+            <a href="/admin/vehicles/cargo?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}&amp;{% endif %}month={{ month }}&amp;status=paid{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+               class="btn {% if current_status == 'paid' %}btn-success font-weight-bold text-white{% else %}btn-light text-muted{% endif %}">
+              <i class="bx bx-check mr-1"></i>Đã trả ({{ paid_count }})
+            </a>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold" @click="loadBkavInvoices()" :disabled="loadingBkav">
+            <i class="bx bx-cloud-download mr-1" x-show="!loadingBkav"></i><i class="bx bx-loader-alt bx-spin mr-1" x-show="loadingBkav"></i>&#272;&#7891;ng b&#7897; BKAV
+          </button>
+          <a href="/admin/vehicles/monthly-report/export?month={{ month }}{% if vehicle_id %}&amp;vehicle_id={{ vehicle_id }}{% endif %}"
+             class="btn btn-success btn-sm font-weight-bold cargo-history-export"><i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu</a>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="cargo-history-table">
+          <colgroup>
+            <col style="width:38px;">
+            <col style="width:50px;">
+            <col style="width:130px;">
+            <col>
+            <col style="width:170px;">
+            <col style="width:160px;">
+            <col style="width:95px;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th style="width:38px; text-align:center; padding-left:10px; padding-right:6px;">
+                <input type="checkbox" @change="toggleSelectAll($event)"
+                       :checked="selectedTrips.length === allTripIds.length && allTripIds.length > 0"
+                       style="width:16px; height:16px; cursor:pointer;" title="Chọn tất cả">
+              </th>
+              <th style="width:50px;" class="text-center">STT</th>
+              <th>Ngày / Số HĐ</th>
+              <th>Đơn vị / Dịch vụ</th>
+              <th class="text-right">Cước sau VAT</th>
+              <th>Nợ</th>
+              <th class="text-right">Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in trips %}
+            <tr id="trip-{{ t.id }}" :class="selectedTrips.includes({{ t.selection_key|tojson|forceescape }}) ? 'table-active' : ''">
+              <td data-label="Chọn" class="cargo-check-cell" style="text-align:center; padding-left:10px; padding-right:6px; vertical-align:middle;">
+                <input type="checkbox" :checked="selectedTrips.includes({{ t.selection_key|tojson|forceescape }})"
+                       @change="toggleInvoice([{{ t.selection_key|tojson|forceescape }}], $event.target.checked)"
+                       style="width:16px; height:16px; cursor:pointer;">
+              </td>
+              <td class="text-center text-muted font-weight-medium align-middle" style="width:50px;">
+                {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else ( (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) ) }}
+              </td>
+              <td data-label="Ngày / Số HĐ" class="font-weight-bold" style="white-space:nowrap;">
+                {% if not vehicle and t.plate_number %}
+                  <div class="mb-1">
+                    <span class="badge badge-primary " style="font-size:11px; font-weight:600; letter-spacing:0.5px;">{{ t.plate_number }}</span>
+                  </div>
+                {% endif %}
+                {% if t.invoice_date %}
+                  <div>{{ t.invoice_date[8:10] }}/{{ t.invoice_date[5:7] }}/{{ t.invoice_date[:4] }}</div>
+                {% else %}<div>—</div>{% endif %}
+                {% if t.document_number %}
+                  <div class="mt-1"><span class="badge badge-light border text-primary" style=" font-size:11px; letter-spacing:0.5px;">HĐ {{ t.document_number }}</span></div>
+                {% endif %}
+              </td>
+              <td data-label="Đơn vị" class="cargo-text">
+                <div class="cargo-cell-content">
+                  <div class="font-weight-bold">{{ t.company_name or 'Chưa chọn đơn vị' }}</div>
+                  <div class="cargo-detail">{{ t.service_name or 'Chưa chọn dịch vụ' }}</div>
+                </div>
+              </td>
+              <td data-label="Cước sau VAT" class="text-right">
+                <div class="cargo-cell-content text-right">
+                  <div class="cargo-money text-nowrap font-weight-bold text-dark" style="font-size:13px;">
+                    {{ t.current_revenue_gross_fmt or t.source_revenue_gross_fmt or '—' }}
+                  </div>
+                  {% if t.vat_percent_fmt is not none %}
+                  <div class="text-muted small" style="font-size:11px;">(VAT {{ t.vat_percent_fmt }}%)</div>
+                  {% endif %}
+                </div>
+              </td>
+              <td data-label="Nợ">
+                <div class="cargo-cell-content">
+                  <div class="cargo-finance-status">
+                  {% if t.payment_status == 'debt' %}
+                    <span class="badge badge-danger" title="Còn nợ" style="font-size:11px; padding:4px 6px;">
+                      Nợ: {{ t.debt_amount_fmt }}
+                    </span>
+                  {% elif t.payment_status == 'unknown' %}
+                    <span class="badge badge-warning" title="Chưa đối soát thanh toán" style="font-size:11px; padding:4px 6px;">Chưa đối soát</span>
+                  {% else %}
+                    <span class="badge badge-success" title="Đã thanh toán" style="font-size:11px; padding:4px 6px;">
+                      ✓ Đã trả
+                    </span>
+                  {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td data-label="Thao tác" class="cargo-actions-cell">
+                <div class="cargo-actions">
+                  {% if t.invoice_guid %}
+                  <button type="button" class="btn btn-sm btn-outline-info" title="Xem ảnh hóa đơn BKAV" onclick="openInvoiceBkavImage('{{ t.invoice_guid }}')"><i class="bx bx-image"></i></button>
+                  <a href="/admin/vehicles/cargo/invoices/{{ t.invoice_guid }}/edit"
+                     class="btn btn-sm btn-light" title="Sửa hóa đơn"><i class="bx bx-edit-alt"></i></a>
+                  {% else %}
+                  <a href="/admin/vehicles/cargo/{{ t.id }}/edit"
+                     class="btn btn-sm btn-light"
+                     title="Sửa"><i class="bx bx-edit-alt"></i></a>
+                  {% endif %}
+                  <button class="btn btn-sm btn-danger"
+                          title="Xóa {{ 'hóa đơn' if t.invoice_guid else 'chuyến' }}"
+                          @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa {{ 'hóa đơn' if t.invoice_guid else 'chuyến hàng' }}',
+                              message: 'Xóa {{ 'toàn bộ các dòng xe của hóa đơn' if t.invoice_guid else 'chuyến hàng' }} {{ t.document_number or '' }}?',
+                              confirmText: 'Xóa vĩnh viễn',
+                              confirmUrl: '/admin/vehicles/cargo/{% if t.invoice_guid %}invoices/{{ t.invoice_guid }}{% else %}{{ t.id }}{% endif %}/delete',
+                              confirmMethod: 'POST',
+                              reload: true
+                            }
+                          }))"><i class="bx bx-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not trips %}
+            <tr>
+              <td colspan="7" class="cargo-empty text-center text-muted py-5" style="font-size:13px;">
+                {% if search_query %}
+                  Không tìm thấy chứng từ theo mã đã nhập.
+                {% elif current_status == 'debt' %}
+                  Không có hóa đơn nào còn nợ.
+                {% elif current_status == 'paid' %}
+                  Không có hóa đơn nào đã trả.
+                {% else %}
+                  Chưa có hóa đơn lưu trong hệ thống.
+                {% endif %}
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  {% include "partials/pagination.html" %}
+
+  <div x-show="bkavSyncModalOpen" x-cloak class="modal-backdrop fade show"
+       style="z-index:1060;background:rgba(15,23,42,.55);" @click="bkavSyncModalOpen=false"></div>
+  <div x-show="bkavSyncModalOpen" x-cloak class="modal fade show d-block" style="z-index:1065;"
+       role="dialog" aria-modal="true" @keydown.escape.window="bkavSyncModalOpen=false">
+    <div class="modal-dialog modal-dialog-centered modal-xl" style="max-width:1100px;">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <div>
+            <h5 class="modal-title mb-1">H&#243;a &#273;&#417;n &#273;&#227; ph&#225;t h&#224;nh tr&#234;n BKAV</h5>
+            <small class="text-muted" x-text="bkavSyncCounts.found + ' h&#243;a &#273;&#417;n trong th&#225;ng ' + bkavMonth"></small>
+          </div>
+          <button type="button" class="close" aria-label="&#272;&#243;ng" @click="bkavSyncModalOpen=false"><span>&times;</span></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="px-3 py-2 border-bottom small text-muted">
+            <span x-text="document.getElementById('cargo-bkav-sync-messages').dataset.localNote"></span>
+            <span x-show="bkavSyncCounts.unavailable" class="ml-2">
+              <span x-text="bkavSyncCounts.unavailable"></span> ch&#432;a gh&#233;p &#273;&#432;&#7907;c xe/tuy&#7871;n.
+            </span>
+          </div>
+          <div class="table-responsive" style="max-height:60vh;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="thead-light" style="position:sticky;top:0;z-index:1;">
+                <tr>
+                  <th style="width:36px;text-align:center;">
+                    <input type="checkbox" :checked="importableBkavCount() > 0 && bkavSelectedGuids.length === importableBkavCount()"
+                           @change="bkavSelectedGuids = $event.target.checked ? bkavInvoices.filter(invoice => !invoice.already_imported && !invoice.unavailable_reason).map(invoice => invoice.guid) : []">
+                  </th>
+                  <th style="width:45px;text-align:center;">STT</th>
+                  <th>Ng&#224;y / S&#7889; h&#243;a &#273;&#417;n</th><th>Kh&#225;ch h&#224;ng / N&#7897;i dung</th>
+                  <th>Xe</th><th>Tuy&#7871;n</th><th class="text-right">T&#7893;ng thanh to&#225;n</th><th>Tr&#7841;ng th&#225;i</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(invoice, idx) in bkavInvoices" :key="invoice.guid">
+                  <tr>
+                    <td style="text-align:center;">
+                      <input type="checkbox" :checked="bkavSelectedGuids.includes(invoice.guid)"
+                             :disabled="invoice.already_imported || !!invoice.unavailable_reason"
+                             @change="toggleBkavInvoice(invoice.guid, $event.target.checked)">
+                    </td>
+                    <td style="text-align:center;" class="text-muted font-weight-medium" x-text="idx + 1"></td>
+                    <td class="text-nowrap">
+                      <div x-text="formatBkavDate(invoice.date)"></div>
+                      <strong x-text="'H&#272; ' + invoice.number"></strong>
+                      <small class="d-block text-muted" x-text="invoice.serial"></small>
+                    </td>
+                    <td style="min-width:260px;max-width:380px;">
+                      <strong x-text="invoice.buyer || '\u2014'"></strong>
+                      <small class="d-block text-muted" style="white-space:pre-wrap;" x-text="invoice.description || ''"></small>
+                    </td>
+                    <td x-text="((invoice.target_vehicles && invoice.target_vehicles.length) ? invoice.target_vehicles.join(', ') : ((invoice.invoice_plates || []).join(', ') || '\u2014'))"></td>
+                    <td style="min-width:200px;" x-text="invoice.is_crane_by_shift ? '\u2014' : ((invoice.origin || '\u2014') + ' \u2192 ' + (invoice.destination || '\u2014'))"></td>
+                    <td class="text-right text-nowrap" x-text="formatBkavMoney(invoice.gross)"></td>
+                    <td>
+                      <span x-show="!invoice.already_imported && invoice.unavailable_reason" class="text-warning" x-text="invoice.unavailable_reason"></span>
+                      <span x-show="!invoice.already_imported && !invoice.unavailable_reason" class="text-success" x-text="invoice.is_crane_by_shift ? 'Đã ghép được xe (ca cẩu)' : 'Đã ghép được xe/tuyến'"></span>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="bkavInvoices.length === 0">
+                  <td colspan="7" class="text-center text-muted py-4">BKAV c&#243; h&#243;a &#273;&#417;n nh&#432;ng ch&#432;a c&#243; d&#242;ng n&#224;o &#273;&#7875; hi&#7875;n th&#7883;.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <span class="small text-muted mr-auto"><span x-text="bkavSelectedGuids.length"></span> h&#243;a &#273;&#417;n &#273;&#432;&#7907;c ch&#7885;n</span>
+          <button type="button" class="btn btn-secondary btn-sm" @click="bkavSyncModalOpen=false">&#272;&#243;ng</button>
+          <button type="button" class="btn btn-primary btn-sm" @click="importBkavSelected()"
+                  :disabled="importingBkav || bkavSelectedGuids.length === 0">
+            <i class="bx bx-loader-alt bx-spin mr-1" x-show="importingBkav"></i>
+            <i class="bx bx-cloud-download mr-1" x-show="!importingBkav"></i>
+            <span x-show="!importingBkav">&#272;&#7891;ng b&#7897; v&#7873; h&#7879; th&#7889;ng</span>
+            <span x-show="importingBkav">&#272;ang &#273;&#7891;ng b&#7897;...</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL MÃ QR THANH TOÁN VIETQR -->
+  <div x-show="qrModalOpen" x-cloak
+       class="modal-backdrop fade show" style="z-index: 1050; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(2px);"></div>
+  <div x-show="qrModalOpen" x-cloak
+       class="modal fade show d-block" style="z-index: 1055;"
+       tabindex="-1" role="dialog" aria-modal="true"
+       @keydown.escape.window="qrModalOpen = false"
+       @click.self="qrModalOpen = false">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+      <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+        <div class="modal-header py-3 px-4 bg-light border-bottom d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center" style="gap:8px;">
+            <div class="d-inline-flex align-items-center justify-content-center text-primary"
+                 style="width:32px; height:32px; background:#e0e7ff; border-radius:8px; font-size:18px;">
+              <i class="fas fa-qrcode"></i>
+            </div>
+            <h5 class="modal-title mb-0 font-weight-bold" style="font-size:15px; color:#1e293b;">Mã QR thanh toán VietQR</h5>
+          </div>
+          <button type="button" class="close text-muted" @click="qrModalOpen = false" aria-label="Đóng" style="font-size:24px; padding:0; margin:0; line-height:1;">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+
+        <div class="modal-body p-4 text-center">
+          <div x-show="qrLoading" class="py-5 text-center">
+            <i class="bx bx-loader-alt bx-spin text-primary" style="font-size:36px;"></i>
+            <div class="text-muted font-size-13 mt-2">Đang tải mã QR chuyển khoản...</div>
+          </div>
+
+          <div x-show="!qrLoading && qrError" class="alert alert-danger py-3 text-left font-size-13 mb-0" style="border-radius:8px;">
+            <div class="font-weight-bold mb-1"><i class="bx bx-error-circle mr-1"></i>Không thể lấy mã QR:</div>
+            <div x-text="qrError"></div>
+            <div class="mt-2 text-right">
+              <button type="button" @click="openQrModal(qrTripId)" class="btn btn-outline-danger btn-sm">Thử lại</button>
+            </div>
+          </div>
+
+          <div x-show="!qrLoading && !qrError">
+            <div class="p-2 bg-white d-inline-block border shadow-sm" style="border-radius:12px; max-width:100%;">
+              <img :src="qrUrl" alt="Mã QR thanh toán VietQR"
+                   class="img-fluid"
+                   style="max-width: 290px; height: auto; border-radius: 8px; display: block; margin: 0 auto;">
+            </div>
+
+            <div class="mt-3 text-left p-3 bg-light border" style="border-radius:8px; font-size:12px;">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Ngân hàng:</span>
+                <strong style="color:#1e293b;" x-text="qrDetails.bank_name || 'VIETINBANK'"></strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Số tài khoản:</span>
+                <strong class="text-primary font-weight-bold font-size-13" x-text="qrDetails.account_no"></strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Chủ tài khoản:</span>
+                <strong style="color:#1e293b;" x-text="qrDetails.account_name"></strong>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Số tiền:</span>
+                <strong class="text-success font-size-14" x-text="formatCurrency(qrDetails.amount)"></strong>
+              </div>
+              <div class="d-flex justify-content-between align-items-start border-top pt-2 mt-2">
+                <span class="text-muted mr-2" style="white-space:nowrap;">Nội dung:</span>
+                <strong class="text-dark text-right" style="word-break: break-word;" x-text="qrDetails.work_content"></strong>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-center mt-3" style="gap:8px;">
+              <button type="button" @click="copyQrLink()" class="btn btn-outline-primary btn-sm font-weight-bold">
+                <i class="bx" :class="copied ? 'bx-check text-success' : 'bx-copy'"></i>
+                <span x-text="copied ? 'Đã sao chép link ảnh!' : 'Sao chép link QR'"></span>
+              </button>
+              <button type="button" @click="regenerateQr()" class="btn btn-light btn-sm font-weight-bold" title="Tạo lại mã QR mới">
+                <i class="bx bx-refresh mr-1"></i> Tạo lại
+              </button>
+              <a :href="qrUrl" target="_blank" download="vietqr.png" class="btn btn-primary btn-sm font-weight-bold">
+                <i class="bx bx-download mr-1"></i> Tải ảnh QR
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer py-2 px-3 bg-light border-top d-flex justify-content-end">
+          <button type="button" class="btn btn-secondary btn-sm font-weight-bold px-3" @click="qrModalOpen = false">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+async function openInvoiceBkavImage(guid) {
+  try {
+    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đang tải ảnh hóa đơn từ BKAV...', type: 'info'}}));
+    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info', {credentials: 'same-origin'});
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tải ảnh hóa đơn từ BKAV.');
+    window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tải ảnh hóa đơn.', type: 'error'}}));
+  }
+}
+</script>
+{% endblock %}

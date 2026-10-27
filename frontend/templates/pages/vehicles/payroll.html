@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block title %}Lương tài xế — Quản lý xe{% endblock %}
+{% block page_title %}Lương tài xế{% endblock %}
+{% block page_back_button %}<a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block content %}
+{% include "partials/vehicle_module_filter.html" %}
+<div class="card mb-3">
+  <div class="card-header font-weight-bold">Lương tài xế tháng {{ month[5:7] }}/{{ month[:4] }}</div>
+  <div class="table-responsive"><table class="table table-sm mb-0" data-bulk-select="1" style="font-size:11px;white-space:nowrap;">
+    <thead><tr><th style="width:45px;" class="text-center">STT</th><th>Mã lái xe</th><th>Tài xế</th><th>Xe</th><th class="text-right">Lương chính theo công</th><th class="text-right">Ngày công</th><th class="text-right">Phụ cấp theo công</th><th class="text-right">Lương chuyến</th><th class="text-right">Thưởng / tăng ca</th><th class="text-right">Tổng thu nhập</th><th class="text-right">Tạm ứng</th><th class="text-right">Khấu trừ</th><th class="text-right">Thực lĩnh</th></tr></thead>
+    <tbody>{% for p in payroll_rows %}<tr>
+      <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
+      <td>{{ p.driver_code or '—' }}</td><td>{{ p.driver_name or '—' }}</td><td>{{ p.plate_number }}</td>
+      <td class="text-right">{{ p.base_salary|format_number('—') }}</td>
+      <td class="text-right">{{ p.work_days|format_number('0') }}</td>
+      <td class="text-right">{{ p.meal_allowance|format_number('—') }}</td>
+      <td class="text-right">{{ p.trip_wage|format_number }}</td>
+      <td class="text-right">{{ p.bonus_pay|format_number }}</td>
+      <td class="text-right font-weight-bold">{{ p.total_salary|format_number }}</td>
+      <td class="text-right">{{ p.advance_amount|format_number }}</td>
+      <td class="text-right">{{ p.salary_deductions|format_number }}</td>
+      <td class="text-right font-weight-bold">{{ p.net_salary|format_number }}</td>
+    </tr>{% else %}<tr><td colspan="13" class="text-center text-muted py-3">Xe chưa gắn tài xế.</td></tr>{% endfor %}</tbody>
+  </table></div>
+
+</div>
+
+{% endblock %}

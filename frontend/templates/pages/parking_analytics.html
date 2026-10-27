@@ -44,19 +44,20 @@
     <h6 class="card-title font-weight-bold mb-3">
       <i class="bx bx-history mr-1 text-primary"></i>Hoạt động gần đây
     </h6>
-    {% for e in recent_events[:10] %}
+    {% for e in recent_events %}
     {% set event_time = e.entry_time or e.detected_at or e.event_time %}
     {% set plate_text = e.plate_number or e.plate_norm or '—' %}
     {% set cam_text = e.camera_name or e.cam_in or e.cam_out or '' %}
     <div class="d-flex align-items-center py-2 border-bottom" style="gap:12px;">
-      <span class="text-muted font-monospace" style="font-size:11px; width:80px; flex-shrink:0;">{{ event_time.strftime('%H:%M:%S') if event_time and event_time.strftime is defined else '' }}</span>
-      <span class="badge badge-pill badge-warning font-monospace font-weight-bold" style="font-size:12px;">{{ plate_text }}</span>
+      <span class="text-muted " style="font-size:11px; width:80px; flex-shrink:0;">{{ event_time.strftime('%H:%M:%S') if event_time and event_time.strftime is defined else '' }}</span>
+      <span class="badge badge-pill badge-warning font-weight-bold" style="font-size:12px;">{{ plate_text }}</span>
       <span class="text-muted" style="font-size:11px;">{{ cam_text }}</span>
     </div>
     {% endfor %}
     {% if not recent_events %}
     <div class="text-muted" style="font-size:14px;">Chưa có hoạt động.</div>
     {% endif %}
+    {% with pagination=recent_pagination %}{% include "partials/pagination.html" %}{% endwith %}
   </div>
 </div>
 

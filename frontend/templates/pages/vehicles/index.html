@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block title %}Phương tiện — Parking Camera{% endblock %}
+{% block page_title %}Phương tiện (Whitelist){% endblock %}
+{% block page_actions %}
+<a href="/admin/vehicles/add" class="btn btn-primary btn-sm font-weight-bold">
+  <i class="bx bx-plus mr-1"></i> Thêm xe
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" id="vehicles-list">
+  <div class="card-body p-0">
+    <div class="cx-overflow-x-auto">
+      <table class="table-cinema">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:180px;">BIỂN SỐ</th>
+            <th style="width:180px;">CHỦ XE</th>
+            <th style="width:160px;">ĐỊA ĐIỂM</th>
+            <th style="width:150px;">TIÊU HAO (L/100KM)</th>
+            <th style="min-width:230px;">VẬN CHUYỂN</th>
+            <th style="width:90px;" class="text-right">HÀNH ĐỘNG</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in vehicles %}
+          <tr id="vehicle-{{ v.id }}">
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+            </td>
+            <td>
+              <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;">{{ v.plate_number }}</span>
+            </td>
+            <td>{{ v.owner_name or '—' }}</td>
+            <td>
+              <div class="d-flex flex-wrap" style="gap:4px;">
+                {% for s in (v.site_names or []) %}<span class="badge badge-secondary">{{ s }}</span>{% endfor %}
+                {% if not v.site_names %}—{% endif %}
+              </div>
+            </td>
+            <td>
+              {% if v.fuel_consumption is not none %}<span class="font-weight-bold">{{ "%g"|format(v.fuel_consumption|float) }}</span> <span class="text-muted small">L/100km</span>{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              <div class="d-flex flex-wrap" style="gap:4px;">
+                <a href="/admin/vehicles/cargo?vehicle_id={{ v.id }}" class="btn btn-sm btn-light">Chuyến hàng</a>
+                <a href="/admin/vehicles/expenses?vehicle_id={{ v.id }}" class="btn btn-sm btn-light">Chi phí xe</a>
+              </div>
+            </td>
+            <td class="text-right">
+              <div class="d-flex justify-content-end" style="gap:6px;">
+                <a href="/admin/vehicles/{{ v.id }}/edit" class="btn btn-sm btn-light" title="Sửa">
+                  <i class="bx bx-edit-alt"></i>
+                </a>
+                <button class="btn btn-sm btn-danger" data-bulk-action="delete" data-bulk-url="/admin/vehicles/{{ v.id }}/delete" data-bulk-method="POST"
+                        @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                          detail: {
+                            title: 'Xóa phương tiện',
+                            message: 'Bạn chắc chắn muốn xóa xe {{ v.plate_number }}?',
+                            confirmText: 'Xác nhận xóa',
+                            confirmUrl: '/admin/vehicles/{{ v.id }}/delete',
+                            confirmMethod: 'POST',
+                            confirmTarget: '#vehicle-{{ v.id }}'
+                          }
+                        }))"
+                        title="Xóa">
+                  <i class="bx bx-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not vehicles %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">Chưa có phương tiện nào.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+{% endblock %}

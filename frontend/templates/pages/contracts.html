@@ -1,0 +1,162 @@
+{% extends "layout.html" %}
+
+{% block title %}Xuất hợp đồng{% endblock %}
+{% block page_title %}Hợp đồng{% endblock %}
+
+{% block page_back_button %}
+<a href="/admin/transport/catalog?tab=companies" class="btn btn-light btn-sm font-weight-bold">
+  <i class="bx bx-buildings mr-1"></i> Danh mục đơn vị
+</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  .quick-contract-card { background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:18px; }
+  .quick-contract-card .form-control,
+  .quick-contract-card .ts-wrapper .ts-control { min-height:30px; height:30px; font-size:12px; }
+  .quick-contract-card label { font-size:12px; font-weight:600; color:#475569; margin-bottom:5px; }
+  .quick-contract-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .quick-contract-actions .btn { min-height:30px; white-space:nowrap; }
+  .quick-contract-actions[aria-busy="true"] .btn { opacity:.65; pointer-events:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="contracts-page-root" class="container-fluid px-0">
+  {% if seller_missing %}
+  <div id="contracts-seller-missing" class="alert alert-danger py-2 px-3 small font-weight-bold">
+    Chọn công ty đang làm việc ở thanh trên cùng để chèn thông tin, chữ ký và con dấu vào hợp đồng.
+  </div>
+  {% endif %}
+
+  <div class="quick-contract-card">
+    <h6 class="font-weight-bold mb-3"><i class="bx bxs-file-export text-primary mr-1"></i> Xuất hợp đồng</h6>
+    <div class="row align-items-end" style="row-gap:12px;">
+      <div class="col-12 col-lg-4">
+        <label for="quick-company-select">Đơn vị / Khách hàng (Bên A) *</label>
+        <select id="quick-company-select" class="form-control" required onchange="updateQuickContractNumber()">
+          <option value="">-- Chọn đơn vị khách hàng --</option>
+          {% for company in companies %}
+          <option value="{{ company.id }}" data-name="{{ company.name }}" {% if selected_company_id == company.id %}selected{% endif %}>
+            {{ company.name }}{% if company.tax_code %} (MST: {{ company.tax_code }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label for="quick-date-input">Ngày ký hợp đồng *</label>
+        <input type="date" id="quick-date-input" class="form-control" value="{{ today_str }}" required onchange="updateQuickContractNumber()">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label for="quick-no-input">Số hợp đồng</label>
+        <input type="text" id="quick-no-input" class="form-control font-weight-bold text-danger" autocomplete="off">
+      </div>
+      <div class="col-12 col-lg-3">
+        <label for="quick-category-select">Danh mục hợp đồng</label>
+        <select id="quick-category-select" class="form-control" onchange="updateQuickContractNumber()">
+          {% for cat in contract_categories %}
+          <option value="{{ cat.code }}" data-name="{{ cat.name }}">{{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="quick-contract-actions mt-3" aria-busy="false">
+      <button type="button" class="btn btn-primary btn-sm px-3" onclick="exportQuickContract('html')">
+        <i class="bx bx-show mr-1"></i> Xem trước
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="contractPreviewModal" tabindex="-1" role="dialog" aria-label="Xem trước hợp đồng" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width:1120px;width:95vw;height:92vh;margin:1.5rem auto;" role="document">
+    <div class="modal-content shadow-lg border-0" style="height:92vh;overflow:hidden;">
+      <div class="modal-header py-2">
+        <h6 class="modal-title mb-0" id="contractPreviewModalTitle">Xem trước hợp đồng</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <iframe id="contractPreviewFrame" title="Nội dung hợp đồng" style="width:100%;height:100%;border:0;" src="about:blank"></iframe>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function contractCompanyCode(name) {
+  const clean = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd').toUpperCase()
+    .replace(/^(CONG TY|DOANH NGHIEP|TAP DOAN)\s+/, '')
+    .replace(/^(TNHH|CO PHAN|MOT THANH VIEN)\s+/, '');
+  const words = clean.match(/[A-Z0-9]+/g) || [];
+  const digits = words.find(word => /^\d+$/.test(word));
+  const initials = words.filter(word => !/^\d+$/.test(word))
+    .filter(word => !['VA', 'THE', 'OF', 'AND'].includes(word))
+    .map(word => word[0]).join('').slice(0, 6);
+  return (initials || 'KH') + (digits || '');
+}
+
+function updateQuickContractNumber() {
+  const company = document.getElementById('quick-company-select');
+  const dateInput = document.getElementById('quick-date-input');
+  const number = document.getElementById('quick-no-input');
+  const category = document.getElementById('quick-category-select')?.value || 'hdvc';
+  if (!company?.value || !dateInput?.value || !number) return;
+  const [year, month, day] = dateInput.value.split('-');
+  const name = company.selectedOptions[0]?.dataset.name || '';
+  const compCode = contractCompanyCode(name);
+  const sellerCode = "{{ seller_code or '' }}" || "SELLER";
+  let generated = `${day}${month}-${year}/${compCode}-${sellerCode}`;
+  if (category === 'hdnt') {
+    generated = `${day}${month}${year.slice(-2)}/HĐNT/${compCode}-${sellerCode}`;
+  } else if (category === 'bbvc') {
+    generated = `${day}${month}/${year}/BBVC`;
+  } else if (category === 'bbbg') {
+    generated = `${day}${month}${year.slice(-2)}/BBBG/${compCode}-${sellerCode}`;
+  } else if (category === 'bbtl') {
+    generated = `${day}${month}-${year}/BBTL/${compCode}-${sellerCode}`;
+  } else if (category === 'dntt') {
+    generated = `01/ĐNTT-${sellerCode}`;
+  }
+  if (!number.value || number.value === number.dataset.generated) number.value = generated;
+  number.dataset.generated = generated;
+}
+
+function contractToast(message) {
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:message,type:'error'}}));
+}
+
+async function exportQuickContract(format) {
+  if (document.getElementById('contracts-seller-missing')) {
+    contractToast('Chọn công ty đang làm việc trước khi xuất hợp đồng.');
+    return;
+  }
+  const company = document.getElementById('quick-company-select');
+  const dateInput = document.getElementById('quick-date-input');
+  const number = document.getElementById('quick-no-input');
+  const category = document.getElementById('quick-category-select');
+  if (!company.value) { company.reportValidity(); return; }
+  if (!dateInput.value) { dateInput.reportValidity(); return; }
+  const url = new URL('/admin/transport/contracts/export', location.origin);
+  url.searchParams.set('company_id', company.value);
+  url.searchParams.set('date', dateInput.value);
+  if (category?.value) url.searchParams.set('kind', category.value);
+  if (number.value.trim()) url.searchParams.set('contract_no', number.value.trim());
+
+  const selectedCatText = category?.selectedOptions[0]?.textContent?.trim() || 'hợp đồng';
+  const modalTitle = document.getElementById('contractPreviewModalTitle');
+  if (modalTitle) modalTitle.textContent = `Xem trước ${selectedCatText}`;
+
+  url.searchParams.set('view', 'html');
+  document.getElementById('contractPreviewFrame').src = url.toString();
+  window.jQuery('#contractPreviewModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateQuickContractNumber();
+  window.jQuery?.('#contractPreviewModal').on('hidden.bs.modal', () => {
+    document.getElementById('contractPreviewFrame').src = 'about:blank';
+  });
+});
+</script>
+{% endblock %}

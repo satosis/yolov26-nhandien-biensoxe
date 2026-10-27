@@ -1,0 +1,845 @@
+{% extends "layout.html" %}
+{% block title %}Thêm chuyến hàng{% endblock %}
+{% block page_title %}Thêm chuyến hàng mới{% endblock %}
+{% block page_back_button %}
+<a href="{% if zalo_draft %}/admin/zalo_inbox{% else %}/admin/vehicles/cargo{% if vehicle %}?vehicle_id={{ vehicle.id }}{% endif %}{% endif %}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>
+{% endblock %}
+{% block head %}<link href="/static/admin-assets/css/cargo-form.css?v=7" rel="stylesheet">{% endblock %}
+
+{% block content %}
+{% if zalo_draft %}
+<div class="alert alert-info" style="max-width:900px;">
+  <strong>Bản nháp từ {{ zalo_draft.message_ids|length }} tin nhắn Zalo.</strong>
+  {% if zalo_draft.missing %}<div class="mt-2"><strong>Cần bổ sung:</strong> {{ zalo_draft.missing|join('; ') }}.</div>{% endif %}
+  {% if zalo_draft.map_locations %}<div class="mt-2 small"><strong>Maps khách gửi:</strong>
+    {% for place in zalo_draft.map_locations %}
+      <span class="ml-2">{{ 'Lấy' if loop.first else ('Giao' if loop.last else 'Vị trí ' ~ loop.index) }}:
+      {% if place.url %}<a href="{{ place.url }}" target="_blank" rel="noopener noreferrer">{{ place.label or place.url }}</a>{% else %}{{ place.label }}{% endif %}</span>
+    {% endfor %}
+  </div>{% endif %}
+  {% if zalo_draft.source_note and zalo_draft.source_note != zalo_draft.note %}<div class="small mt-1">Khách ghi: “{{ zalo_draft.source_note }}”. Nội dung hóa đơn đã chuẩn hóa ở form bên dưới.</div>{% endif %}
+  <div class="mt-2 small">Chưa rõ trạng thái thanh toán; form tạm chọn “Còn nợ”. Hãy xác nhận trước khi lưu.</div>
+</div>
+{% endif %}
+<div class="cargo-form" x-data="{
+  loadingPrice: false,
+  fromZaloDraft: {{ 'true' if zalo_draft else 'false' }},
+  serviceName: {{ service_name|tojson|forceescape }},
+  revenue: {{ (zalo_draft.amount if zalo_draft else 0)|tojson|forceescape }},
+  firstLegRevenue: {{ (zalo_draft.amount if zalo_draft else 0)|tojson|forceescape }},
+  extraSegments: [],
+  get totalDistance() {
+    const values = [this.distance_km, ...this.extraSegments.map(s => s.distance_km)];
+    return values.every(v => v !== '' && v !== null && v !== undefined)
+      ? values.reduce((sum, v) => sum + Number(v), 0) : 0;
+  },
+  syncRouteTotals() {
+    this.revenue = Number(this.firstLegRevenue || 0)
+      + this.extraSegments.reduce((sum, segment) => sum + Number(segment.amount || 0), 0);
+    this.onRevenueChange();
+    if (!this.fuelLitersUserEdited) this.calcLitersFromRate();
+  },
+  addSegment() {
+    const previous = this.extraSegments.at(-1) || {
+      origin: this.origin, destination: this.destination, distance_km: this.distance_km,
+      amount: this.firstLegRevenue,
+      cargo_description: document.getElementById('cargo-description')?.value || '',
+      cargo_weight_tons: document.getElementById('cargo-weight')?.value || '',
+      description: document.getElementById('cargo-trip-note')?.value.trim() || ''
+    };
+    this.extraSegments.push({
+      origin: previous.origin || '', destination: previous.destination || '',
+      cargo_description: previous.cargo_description || '',
+      cargo_weight_tons: previous.cargo_weight_tons || '',
+      distance_km: previous.distance_km ?? '', amount: previous.amount ?? '',
+      description: previous.description || ''
+    });
+    this.syncRouteTotals();
+  },
+  removeSegment(index) { this.extraSegments.splice(index, 1); this.syncRouteTotals(); },
+  routeSegmentChanged(segment) {
+    segment.distanceRequestId = (segment.distanceRequestId || 0) + 1;
+    segment.distance_km = '';
+    segment.distanceError = '';
+    segment.calculating = false;
+    this.syncRouteTotals();
+  },
+  formatSegmentAmount(event, segment) {
+    const input = event.target;
+    const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
+    const digits = input.value.replace(/\D/g, '');
+    segment.amount = digits ? Number(digits) : '';
+    input.value = digits ? formatNumber(digits) : '';
+    let cursor = 0;
+    let digitCount = 0;
+    while (cursor < input.value.length && digitCount < digitsBeforeCursor) {
+      if (/\d/.test(input.value[cursor])) digitCount++;
+      cursor++;
+    }
+    input.setSelectionRange(cursor, cursor);
+    this.syncRouteTotals();
+  },
+  async calculateSegmentDistance(index, silent = false) {
+    const segment = this.extraSegments[index];
+    if (!segment) return;
+    const origin = segment.origin?.trim();
+    const destination = segment.destination?.trim();
+    if (!origin || !destination) return;
+    const requestId = segment.distanceRequestId = (segment.distanceRequestId || 0) + 1;
+    segment.calculating = true;
+    segment.distanceError = '';
+    const url = '/admin/vehicles/api/calculate-distance-by-address?origin='
+      + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+    try {
+      const result = await apiRequest(url);
+      if (segment.distanceRequestId !== requestId || !this.extraSegments.includes(segment)
+          || segment.origin?.trim() !== origin || segment.destination?.trim() !== destination) return;
+      const distance = Number(result.distance_km);
+      if (result.ok && result.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+        segment.distance_km = distance;
+        this.syncRouteTotals();
+      } else {
+        segment.distanceError = result.message || 'Không tìm được quãng đường. Bạn có thể nhập km thủ công.';
+        if (!silent) this.showRequestError(result, segment.distanceError);
+      }
+    } catch {
+      if (segment.distanceRequestId === requestId) {
+        segment.distanceError = 'Không kết nối được bản đồ. Bạn có thể nhập km thủ công.';
+      }
+    } finally {
+      if (segment.distanceRequestId === requestId) segment.calculating = false;
+    }
+  },
+  routeSegmentsPayload() {
+    if (!this.extraSegments.length) return '';
+    return JSON.stringify([
+      {origin: this.origin, destination: this.destination, distance_km: this.distance_km,
+       amount: this.firstLegRevenue, description: document.getElementById('cargo-trip-note')?.value.trim() || ''},
+      ...this.extraSegments
+    ]);
+  },
+  vatPercent: {{ vat_percent }},
+  fuelRate: {{ vehicle.fuel_consumption or 0 }},
+  fuelPrice: 0,
+  fuelLiters: 0,
+  fuelLitersTouched: false,
+  fuelLitersUserEdited: false,
+  calcLitersFromRate() {
+    const km = this.totalDistance;
+    const r = parseFloat(this.fuelRate) || 0;
+    if (r > 0 && km > 0) {
+      this.fuelLiters = Math.round(r * km / 100 * 100) / 100;
+    }
+  },
+  get fuelTotal() { return (parseFloat(this.fuelLiters) || 0) * (parseFloat(this.fuelPrice) || 0); },
+  get profit() { return (parseFloat(this.revenue) || 0) - this.fuelTotal; },
+  get invoiceTotal() { return Math.round((parseFloat(this.revenue) || 0) * (1 + (parseFloat(this.vatPercent) || 0) / 100)); },
+  paymentStatus: '{{ 'debt' if zalo_draft else 'paid' }}',
+  debtAmount: {{ ((zalo_draft.amount * 108 + 50) // 100) if zalo_draft else 0 }},
+  debtManuallyEdited: false,
+  paymentMethod: 'CK',
+
+  setPaymentStatus(status) {
+    this.paymentStatus = status;
+    if (status === 'debt' && !this.debtManuallyEdited) {
+      this.debtAmount = this.invoiceTotal;
+      this.$nextTick(() => this.syncDebtInput());
+    }
+  },
+  setPaymentMethod(method) {
+    this.paymentMethod = method;
+  },
+  syncDebtInput() {
+    const el = document.getElementById('add-debt-amount');
+    if (el) el.value = this.debtAmount ? formatNumber(this.debtAmount) : '';
+  },
+  resetDebtToInvoice() {
+    this.debtAmount = this.invoiceTotal;
+    this.debtManuallyEdited = false;
+    this.syncDebtInput();
+  },
+  formatDebtInput(event) {
+    const input = event.target;
+    const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
+    const digits = input.value.replace(/\D/g, '');
+    this.debtAmount = digits ? Number(digits) : 0;
+    this.debtManuallyEdited = true;
+    input.value = digits ? formatNumber(this.debtAmount) : '';
+    let cursor = 0;
+    let digitCount = 0;
+    while (cursor < input.value.length && digitCount < digitsBeforeCursor) {
+      if (/\d/.test(input.value[cursor])) digitCount++;
+      cursor++;
+    }
+    input.setSelectionRange(cursor, cursor);
+  },
+  onRevenueChange() {
+    if (this.paymentStatus === 'debt' && !this.debtManuallyEdited) {
+      this.debtAmount = this.invoiceTotal;
+      this.syncDebtInput();
+    }
+  },
+  formatRevenueInput(event) {
+    const input = event.target;
+    const digitsBeforeCursor = input.value.slice(0, input.selectionStart).replace(/\D/g, '').length;
+    const digits = input.value.replace(/\D/g, '');
+    this.firstLegRevenue = digits ? Number(digits) : 0;
+    input.value = digits ? formatNumber(this.firstLegRevenue) : '';
+    this.syncRouteTotals();
+    let cursor = 0;
+    let digitCount = 0;
+    while (cursor < input.value.length && digitCount < digitsBeforeCursor) {
+      if (/\d/.test(input.value[cursor])) digitCount++;
+      cursor++;
+    }
+    input.setSelectionRange(cursor, cursor);
+    this.onRevenueChange();
+  },
+  origin: {{ (zalo_draft.origin if zalo_draft else '')|tojson|forceescape }},
+  originFollowsCompany: true,
+  destination: {{ (zalo_draft.destination if zalo_draft else '')|tojson|forceescape }},
+  originCoords: null,
+  destCoords: null,
+  calculatingKM: false,
+  distance_km: '',
+  mapMatch: null,
+  distanceTimer: null,
+  mapsTimers: {origin: null, dest: null},
+  distanceSeq: 0,
+  lastDistanceKey: '',
+  {% set safe_companies = [] %}
+  {% for c in companies %}
+    {% do safe_companies.append({
+      'id': c.id,
+      'name': c.name|string,
+      'tax_code': c.tax_code|string,
+      'address': c.address|string,
+      'email': (c.email or '')|string,
+      'bank_account': (c.bank_account or '')|string,
+      'director_name': (c.director_name or '')|string
+    }) %}
+  {% endfor %}
+  companies: {{ safe_companies|tojson|forceescape }},
+  companySelectionReady: false,
+  newCompanyOpen: false,
+  companyDraft: {tax_code: '', name: '', address: '', email: ''},
+  selectedCompany: null,
+  editingCompany: false,
+  lookupMessage: '',
+  lookupSuccess: false,
+  lookingUpCompany: false,
+  savingCompany: false,
+  initCatalogSelects() {
+    if (typeof TomSelect === 'undefined') return;
+    new TomSelect('#cargo-service', {
+      create: false, maxItems: 1, placeholder: 'Chọn dịch vụ...',
+      onChange: value => {
+        this.serviceName = value;
+        window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+      }
+    });
+    new TomSelect('#cargo-description', {
+      create: false, maxItems: 1, placeholder: 'Chọn loại hàng hóa...',
+      onChange: () => {
+        window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+      }
+    });
+  },
+  initCompanySelect() {
+    const select = document.getElementById('cargo-company');
+    if (!select) return;
+    this.selectedCompany = this.companies.find(item => String(item.id) === String(select.value)) || null;
+    this.originFollowsCompany = !this.fromZaloDraft && (!this.origin || this.origin === (this.selectedCompany?.address || ''));
+    if (this.originFollowsCompany) this.origin = this.selectedCompany?.address || '';
+    if (typeof TomSelect === 'undefined') {
+      select.addEventListener('change', event => this.selectCompany(event.target.value));
+      return;
+    }
+    new TomSelect(select, {
+      create: false,
+      maxItems: 1,
+      plugins: {
+        clear_button: {
+          title: 'Xóa đơn vị đã chọn',
+          html: data => `<button type='button' class='${data.className}' title='${data.title}' aria-label='${data.title}'>×</button>`
+        }
+      },
+      placeholder: 'Tìm theo tên hoặc mã số thuế...',
+      onChange: (value) => {
+        if (this.companySelectionReady) this.selectCompany(value);
+      }
+    });
+    const sellerSelect = document.getElementById('cargo-seller-company');
+    if (sellerSelect && typeof TomSelect !== 'undefined') {
+      new TomSelect(sellerSelect, {
+        create: false,
+        maxItems: 1,
+        placeholder: 'Tìm theo tên hoặc mã số thuế...',
+      });
+    }
+    this.companySelectionReady = true;
+  },
+
+  selectCompany(value) {
+    if (!value || String(this.selectedCompany?.id) === String(value)) return;
+    const company = this.companies.find(item => String(item.id) === String(value));
+    this.selectedCompany = company || null;
+    if (company?.address) {
+      this.origin = company.address;
+      this.originFollowsCompany = true;
+      this.handleLocationChange(this.origin, 'origin');
+    }
+  },
+
+  startNewCompany() {
+    this.companyDraft = {tax_code: '', name: '', address: '', email: ''};
+    this.editingCompany = false;
+    this.lookupMessage = '';
+    this.newCompanyOpen = true;
+  },
+
+  editSelectedCompany() {
+    const company = this.selectedCompany;
+    this.companyDraft = {tax_code: company.tax_code, name: company.name,
+                         address: company.address, email: company.email || ''};
+    this.editingCompany = true;
+    this.lookupMessage = '';
+    this.newCompanyOpen = true;
+  },
+
+  async lookupCompany() {
+    const taxCode = this.companyDraft.tax_code.trim();
+    if (!taxCode) {
+      this.lookupMessage = 'Nhập mã số thuế để tra cứu.';
+      this.lookupSuccess = false;
+      return;
+    }
+    this.lookingUpCompany = true;
+    this.lookupMessage = '';
+    const result = await apiRequest('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
+    this.lookingUpCompany = false;
+    if (result.ok && result.name) {
+      this.companyDraft.tax_code = String(result.tax_code || taxCode);
+      this.companyDraft.name = String(result.name).trim();
+      this.companyDraft.address = String(result.address || '').trim();
+      const email = String(result.email || '').trim();
+      if (email) this.companyDraft.email = email;
+      this.lookupMessage = 'Đã tìm thấy đơn vị. Kiểm tra thông tin rồi lưu.';
+      this.lookupSuccess = true;
+    } else {
+      this.lookupMessage = (result.message || 'Không tìm thấy đơn vị. Nhập tên và địa chỉ để lưu thủ công.');
+      this.lookupSuccess = false;
+    }
+  },
+
+  async refreshCompany() {
+    const previous = this.selectedCompany;
+    if (!previous?.id || this.lookingUpCompany) return;
+    this.lookingUpCompany = true;
+    this.lookupMessage = '';
+    const result = await apiRequest('/admin/vehicles/api/invoice-companies/' + encodeURIComponent(previous.id) + '/refresh', {
+      method: 'POST'
+    });
+    this.lookingUpCompany = false;
+    if (!result.ok || !result.company) {
+      this.lookupMessage = result.message || 'Không cập nhật được thông tin đơn vị.';
+      this.lookupSuccess = false;
+      return;
+    }
+    const saved = result.company;
+    this.companyDraft = {tax_code: saved.tax_code, name: saved.name,
+                         address: saved.address, email: saved.email || ''};
+    const index = this.companies.findIndex(item => String(item.id) === String(saved.id));
+    if (index === -1) this.companies.push(saved);
+    else this.companies[index] = saved;
+    this.selectedCompany = saved;
+    const select = document.getElementById('cargo-company');
+    const label = saved.name + ' — ' + saved.tax_code;
+    if (select.tomselect) select.tomselect.updateOption(String(saved.id), {value: String(saved.id), text: label});
+    else {
+      const option = Array.from(select.options).find(item => item.value === String(saved.id));
+      if (option) option.textContent = label;
+    }
+    if (this.originFollowsCompany) this.origin = saved.address;
+    this.handleLocationChange(this.origin, 'origin');
+    this.lookupMessage = 'Đã cập nhật tên và địa chỉ theo MST. Email đã nhập được giữ nguyên.';
+    this.lookupSuccess = true;
+  },
+
+  async saveCompany() {
+    const emailInput = document.getElementById('new-company-email');
+    if (!emailInput.checkValidity()) {
+      emailInput.reportValidity();
+      return;
+    }
+    const company = {
+      tax_code: this.companyDraft.tax_code.trim(),
+      name: this.companyDraft.name.trim(),
+      address: this.companyDraft.address.trim(),
+      email: this.companyDraft.email.trim()
+    };
+    if (!company.tax_code || !company.name || !company.address) {
+      this.lookupMessage = 'Nhập đủ mã số thuế, tên và địa chỉ đơn vị.';
+      this.lookupSuccess = false;
+      return;
+    }
+    this.savingCompany = true;
+    const result = await apiRequest('/admin/vehicles/api/invoice-companies', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(company)
+    });
+    this.savingCompany = false;
+    if (!result.ok || !result.company || !result.company.id) {
+      this.lookupMessage = result.message || 'Không lưu được đơn vị.';
+      this.lookupSuccess = false;
+      return;
+    }
+    const saved = result.company;
+    const index = this.companies.findIndex(item => String(item.id) === String(saved.id));
+    if (index === -1) this.companies.push(saved);
+    else this.companies[index] = saved;
+    const select = document.getElementById('cargo-company');
+    const value = String(saved.id);
+    const label = saved.name + ' — ' + saved.tax_code;
+    if (select.tomselect) {
+      if (select.tomselect.options[value]) select.tomselect.updateOption(value, {value, text: label});
+      else select.tomselect.addOption({value, text: label});
+      select.tomselect.setValue(value);
+    } else {
+      let option = Array.from(select.options).find(item => item.value === value);
+      if (!option) {
+        option = new Option(label, value);
+        select.add(option);
+      } else {
+        option.textContent = label;
+      }
+      select.value = value;
+      select.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+    this.selectCompany(saved.id);
+    this.newCompanyOpen = false;
+    this.lookupMessage = '';
+    window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu đơn vị ' + saved.name, type:'success'}}));
+  },
+
+  showRequestError(result, fallback, silent = false) {
+    if (silent) return;
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: result.message || fallback, type: 'error' }
+    }));
+  },
+
+  async handleLocationChange(val, type) {
+    this.distanceSeq++;
+    this.lastDistanceKey = '';
+    this.distance_km = '';
+    this.mapMatch = null;
+    clearTimeout(this.mapsTimers[type]);
+    window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+    if (!val) {
+      if (type === 'origin') this.originCoords = null;
+      else this.destCoords = null;
+      this.calculatingKM = false;
+      this.scheduleDistanceCalculation();
+      return;
+    }
+    if (type === 'origin') this.originCoords = null;
+    else this.destCoords = null;
+    if (this.isMapsLink(val) && /^https?:\/\/\S+$/.test(val)) {
+      this.mapsTimers[type] = setTimeout(() => this.resolveMaps(val, type), 500);
+    }
+    this.scheduleDistanceCalculation();
+  },
+
+  scheduleDistanceCalculation(silent = false) {
+    clearTimeout(this.distanceTimer);
+    const origin = (this.origin || '').trim();
+    const destination = (this.destination || '').trim();
+    if (!origin || !destination) return;
+    this.distanceTimer = setTimeout(() => this.calculateKMFromAddresses(silent), 700);
+  },
+
+  async calculateKMFromAddresses(silent = false) {
+    const origin = (this.origin || '').trim();
+    const destination = (this.destination || '').trim();
+    if (!origin || !destination) return;
+    const key = origin + '|' + destination;
+    if (key === this.lastDistanceKey) return;
+
+    const seq = ++this.distanceSeq;
+    this.calculatingKM = true;
+    const url = '/admin/vehicles/api/calculate-distance-by-address?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+    const json = await apiRequest(url);
+    if (seq !== this.distanceSeq) return;
+    const distance = Number(json.distance_km);
+    if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      this.distance_km = distance;
+      this.mapMatch = {origin: json.origin.label, destination: json.destination.label};
+      if (json.origin && json.origin.lat != null && json.origin.lon != null) {
+        this.originCoords = {lat: json.origin.lat, lon: json.origin.lon};
+      }
+      if (json.destination && json.destination.lat != null && json.destination.lon != null) {
+        this.destCoords = {lat: json.destination.lat, lon: json.destination.lon};
+      }
+      if (!this.fuelLitersTouched || !this.fuelLiters) this.calcLitersFromRate();
+      if (this.isMapsLink(origin) && typeof json.origin?.label === 'string') {
+        this.origin = json.origin.label;
+        window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+      }
+      if (this.isMapsLink(destination) && typeof json.destination?.label === 'string') {
+        this.destination = json.destination.label;
+        window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+      }
+      this.lastDistanceKey = key;
+      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+    } else {
+      this.showRequestError(json, 'Không tính được quãng đường.', silent);
+    }
+    this.calculatingKM = false;
+  },
+
+  get googleMapsUrl() {
+    let o = '';
+    if (this.originCoords && this.originCoords.lat != null && this.originCoords.lon != null) {
+      o = `${this.originCoords.lat},${this.originCoords.lon}`;
+    } else if (this.origin && !this.isMapsLink(this.origin)) {
+      o = this.origin.trim();
+    } else if (this.mapMatch && this.mapMatch.origin) {
+      o = this.mapMatch.origin;
+    }
+
+    let d = '';
+    if (this.destCoords && this.destCoords.lat != null && this.destCoords.lon != null) {
+      d = `${this.destCoords.lat},${this.destCoords.lon}`;
+    } else if (this.destination && !this.isMapsLink(this.destination)) {
+      d = this.destination.trim();
+    } else if (this.mapMatch && this.mapMatch.destination) {
+      d = this.mapMatch.destination;
+    }
+
+    if (o && d) {
+      return 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(o) + '&destination=' + encodeURIComponent(d);
+    }
+    if (d) {
+      return this.destCoords ? `https://www.google.com/maps/search/?api=1&query=${this.destCoords.lat},${this.destCoords.lon}` : (this.isMapsLink(d) ? d : ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(d)));
+    }
+    if (o) {
+      return this.originCoords ? `https://www.google.com/maps/search/?api=1&query=${this.originCoords.lat},${this.originCoords.lon}` : (this.isMapsLink(o) ? o : ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(o)));
+    }
+    return '';
+  },
+
+  isMapsLink(value) {
+    return value.includes('google.com') || value.includes('goo.gl') || value.includes('maps.app');
+  },
+
+  async resolveMaps(url, type, silent = false) {
+    const json = await apiRequest('/admin/vehicles/api/resolve-maps?url=' + encodeURIComponent(url));
+    if ((type === 'origin' ? this.origin : this.destination) !== url) return;
+    if (!json.ok || typeof json.label !== 'string' || !json.label.trim()) {
+      this.showRequestError(json, 'Không đọc được địa điểm từ liên kết Maps.', silent);
+      return;
+    }
+    const lat = Number(json.lat);
+    const lon = Number(json.lon);
+    const coords = json.lat != null && json.lon != null && Number.isFinite(lat) && Number.isFinite(lon)
+      ? {lat, lon} : null;
+    if (type === 'origin') {
+      this.origin = json.label;
+      this.originCoords = coords;
+    } else {
+      this.destination = json.label;
+      this.destCoords = coords;
+    }
+    this.scheduleDistanceCalculation(true);
+    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
+  },
+
+  async geocodeOnly(q, type) {
+    const json = await apiRequest('/admin/vehicles/api/geocode?q=' + encodeURIComponent(q));
+    const lat = Number(json.lat);
+    const lon = Number(json.lon);
+    if (!json.ok || json.lat == null || json.lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      this.showRequestError(json, 'Không tìm được tọa độ địa điểm.');
+      return;
+    }
+    if (type === 'origin') this.originCoords = {lat, lon};
+    if (type === 'dest') this.destCoords = {lat, lon};
+  },
+
+  async calculateKM() {
+    if (!this.originCoords || !this.destCoords) {
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Cần tọa độ của cả hai địa điểm để tính quãng đường.', type:'warning'}}));
+      return;
+    }
+    this.calculatingKM = true;
+    const url = `/admin/vehicles/api/calculate-distance?lat1=${this.originCoords.lat}&lon1=${this.originCoords.lon}&lat2=${this.destCoords.lat}&lon2=${this.destCoords.lon}`;
+    const json = await apiRequest(url);
+    const distance = Number(json.distance_km);
+    if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      this.distance_km = distance;
+      if (!this.fuelLitersTouched || !this.fuelLiters) this.calcLitersFromRate();
+      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+    } else {
+      this.showRequestError(json, 'Không tính được quãng đường.');
+    }
+    this.calculatingKM = false;
+  },
+
+  async fetchFuelPrice(dateVal, silent = false) {
+    if (!dateVal) return;
+    const d = dateVal.substring(0, 10);
+    this.loadingPrice = true;
+    const json = await apiRequest('/admin/vehicles/api/fuel-price?target_date=' + d);
+    const price = Number(json.price);
+    if (json.ok && json.price != null && Number.isFinite(price) && price > 0) {
+      this.fuelPrice = price;
+      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', type:'info'}}));
+    } else {
+      this.showRequestError(json, 'Không lấy được giá dầu.', silent);
+    }
+    this.loadingPrice = false;
+  }
+}" x-init="
+  initCompanySelect();
+  initCatalogSelects();
+  if (isMapsLink(destination)) resolveMaps(destination, 'dest', true);
+  if (origin && !originCoords) handleLocationChange(origin, 'origin');
+  scheduleDistanceCalculation(true);
+  if (!(parseFloat(fuelPrice) > 0)) fetchFuelPrice('{{ today_iso }}', true);
+  if (!fuelLiters) calcLitersFromRate();
+">
+
+
+
+
+
+  <div class="card" style="max-width:900px;">
+    <div class="card-body">
+        <form method="post" action="/admin/vehicles/cargo/add"
+              @submit="$el.querySelector('input[name=route_segments]').value = routeSegmentsPayload()">
+        {% if zalo_draft %}<input type="hidden" name="zalo_draft_token" value="{{ zalo_draft.token }}">{% endif %}
+
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted" for="cargo-vehicle">Xe vận chuyển *</label>
+            <select id="cargo-vehicle" name="vehicle_id" class="form-control font-weight-bold" required
+                    @change="
+                      const opt = $el.options[$el.selectedIndex];
+                      const r = opt.getAttribute('data-fuel-rate');
+                      if (r) { fuelRate = parseFloat(r) || 0; calcLitersFromRate(); }
+                    ">
+              {% if zalo_draft and not zalo_draft.vehicle_id %}<option value="" selected>— Chọn xe theo yêu cầu Zalo —</option>{% endif %}
+              {% for v in vehicles %}
+              <option value="{{ v.id }}" data-fuel-rate="{{ v.fuel_consumption or 0 }}" {% if (zalo_draft and zalo_draft.vehicle_id == v.id) or (not zalo_draft and ((vehicle and vehicle.id == v.id) or (not vehicle and loop.first))) %}selected{% endif %}>
+                {{ v.plate_number }}{% if v.owner_name %} ({{ v.owner_name }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted" for="cargo-service">Dịch vụ *</label>
+            <select id="cargo-service" name="service_name" x-model="serviceName" required class="form-control">
+              <option value="">— Chọn dịch vụ —</option>
+              {% for service in service_presets %}<option value="{{ service }}" {% if service == service_name %}selected{% endif %}>{{ service }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="font-size-13 text-muted" for="add-invoice-date">Ngày hóa đơn *</label>
+            <input type="date" name="invoice_date" required
+                    id="add-invoice-date" value="{{ zalo_draft.invoice_date if zalo_draft and zalo_draft.invoice_date else today_iso }}"
+                   @change="fetchFuelPrice($event.target.value)"
+                   class="form-control" style="height:38px;">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="font-size-13 text-muted" for="add-document-number">Số hóa đơn</label>
+            <input type="text" name="document_number"
+                   id="add-document-number"
+                   value="{{ document_number or '' }}"
+                   maxlength="20"
+                   class="form-control font-weight-bold text-primary"
+                   style="height:38px;  letter-spacing:1px;"
+                   @blur="if ($el.value.trim() && /^\d+$/.test($el.value.trim())) { $el.value = $el.value.trim().padStart(8, '0'); }">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="font-size-13 text-muted" for="add-vat-percent">Thuế suất GTGT (%)</label>
+            <input id="add-vat-percent" type="number" name="vat_percent" class="form-control"
+                   x-model="vatPercent" @input="onRevenueChange()" min="0" max="100" step="0.01" required
+                   style="height:38px;">
+          </div>
+        </div>
+
+        <input type="hidden" name="seller_company_id" value="{{ active_company.id if active_company else (seller_company_id or '') }}">
+
+        <div class="row">
+          <div class="col-12 mb-3">
+            <label class="font-size-13 text-muted" for="cargo-company">Tên đơn vị *</label>
+            <div class="d-flex align-items-center" style="gap:8px;">
+              <div style="flex:1;min-width:0;">
+                <select id="cargo-company" name="company_id" required class="form-control">
+                  <option value="">— Chọn đơn vị —</option>
+                  {% for company in companies %}
+                   <option value="{{ company.id }}" {% if zalo_draft and zalo_draft.company_id == company.id %}selected{% endif %}>{{ company.name }}{% if company.tax_code %} — {{ company.tax_code }}{% endif %}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mt-1" x-show="selectedCompany" style="display:none;gap:8px;">
+              <small class="text-muted" x-text="selectedCompany && selectedCompany.email ? 'Email: ' + selectedCompany.email : 'Chưa có email'"></small>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="d-flex align-items-center justify-content-between mb-2 border-top pt-3">
+          <strong class="font-size-13">Đoạn đường 1</strong>
+        </div>
+        {% include "partials/cargo_transport_fields.html" %}
+        <div class="cargo-route-card mb-3 bg-white">
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted">Điểm lấy hàng · đoạn 1</label>
+            <textarea name="origin" x-model="origin" rows="2" maxlength="500"
+                   @input="originFollowsCompany = false; handleLocationChange($event.target.value, 'origin')"
+                   class="form-control cargo-long-text"></textarea>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted">Điểm giao hàng · đoạn 1</label>
+            <textarea name="destination" x-model="destination" rows="2" maxlength="500"
+                   @input="handleLocationChange($event.target.value, 'dest')"
+                   class="form-control cargo-long-text"></textarea>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted d-flex align-items-center justify-content-between">
+              Quãng đường đoạn 1 (km)
+              <span x-show="calculatingKM" class="text-primary" style="font-size:11px;">⏳ Đang tính...</span>
+            </label>
+            <input type="number" name="distance_km" step="0.1"
+                   x-model="distance_km"
+                   @input="if (extraSegments.length) syncRouteTotals()"
+                   class="form-control" style="height:38px;">
+            <div class="d-flex align-items-center flex-wrap mt-1" style="gap:6px;" x-show="googleMapsUrl">
+              <small class="text-muted" x-show="mapMatch" x-text="mapMatch ? 'Bản đồ: ' + mapMatch.origin + ' → ' + mapMatch.destination : ''"></small>
+              <a :href="googleMapsUrl" target="_blank" rel="noopener noreferrer"
+                 class="btn btn-outline-primary cargo-field-action text-nowrap"
+                 style="height:22px !important; min-height:22px !important; line-height:18px !important; font-size:11px !important; padding:1px 6px !important; border-radius:3px; text-decoration:none;"
+                 title="Mở chỉ đường trên Google Maps">
+                <i class="bx bx-map-pin mr-1"></i> Google Maps <i class="bx bx-link-external ml-1" style="font-size:10px;"></i>
+              </a>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <div class="row no-gutters" style="gap:0;">
+              <div class="col-6 pr-2">
+                 <label class="font-size-13 text-muted" x-text="extraSegments.length ? 'Cước đoạn 1 (₫)' : 'Cước vận chuyển (₫)'"></label>
+                <input type="text" inputmode="numeric" x-init="$el.value = firstLegRevenue ? formatNumber(firstLegRevenue) : ''"
+                       @input="formatRevenueInput($event)"
+                       class="form-control" style="height:38px;">
+                <input type="hidden" name="freight_revenue" :value="revenue">
+              </div>
+              <div class="col-6 pl-2">
+                <label class="font-size-13 text-muted">Lợi nhuận dự tính</label>
+                <div class="form-control cargo-field-output d-flex align-items-center font-weight-bold"
+                     style="height:38px;"
+                     :class="profit >= 0 ? 'text-success' : 'text-danger'"
+                     x-text="formatCurrency(profit, '₫')"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        </div>
+
+        {% include "partials/cargo_route_segments.html" %}
+
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted d-block mb-2 font-weight-bold">Trạng thái thanh toán</label>
+            <div class="btn-group w-100" role="group" style="height:38px;">
+              <button type="button" class="btn d-flex align-items-center justify-content-center"
+                      :class="paymentStatus === 'paid' ? 'btn-success font-weight-bold shadow-sm' : 'btn-outline-secondary'"
+                      style="height:38px;font-size:13px;"
+                      @click="setPaymentStatus('paid')">
+                <i class="bx bx-check-circle mr-1"></i> Đã trả tiền
+              </button>
+              <button type="button" class="btn d-flex align-items-center justify-content-center"
+                      :class="paymentStatus === 'debt' ? 'btn-danger font-weight-bold shadow-sm' : 'btn-outline-secondary'"
+                      style="height:38px;font-size:13px;"
+                      @click="setPaymentStatus('debt')">
+                <i class="bx bx-time-five mr-1"></i> Còn nợ
+              </button>
+            </div>
+            <input type="hidden" name="payment_status" :value="paymentStatus">
+            {% if zalo_draft %}
+            <label class="small mt-2 mb-0 d-block">
+              <input type="checkbox" name="zalo_payment_confirmed" value="true" required>
+              Tôi đã kiểm tra trạng thái thanh toán và số tiền công nợ.
+            </label>
+            {% endif %}
+
+            <!-- Block Còn nợ bao nhiêu -->
+            <div class="mt-2 p-2 bg-light rounded border border-danger" x-show="paymentStatus === 'debt'" x-transition>
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="font-size-12 text-danger font-weight-bold mb-0" for="add-debt-amount">
+                  Còn nợ bao nhiêu (₫) *
+                </label>
+                <button type="button" class="btn btn-link p-0 text-primary font-size-11"
+                        @click="resetDebtToInvoice()"
+                        title="Đặt lại bằng tổng tiền hóa đơn gồm VAT">
+                  ↺ Bằng tổng hóa đơn
+                </button>
+              </div>
+              <input type="text" id="add-debt-amount" inputmode="numeric"
+                     x-init="$el.value = debtAmount ? formatNumber(debtAmount) : ''"
+                     @input="formatDebtInput($event)"
+                     class="form-control text-danger font-weight-bold"
+                     style="font-size:15px;height:38px;">
+              <input type="hidden" name="debt_amount" :value="debtAmount">
+            </div>
+          </div>
+
+          <div class="col-12 col-md-6 mb-3">
+            <label class="font-size-13 text-muted d-block mb-2 font-weight-bold">Hình thức trả tiền</label>
+            <div class="btn-group w-100" role="group" style="height:38px;">
+              <button type="button" class="btn d-flex align-items-center justify-content-center"
+                      :class="paymentMethod === 'CK' ? 'btn-primary font-weight-bold shadow-sm' : 'btn-outline-secondary'"
+                      style="height:38px;font-size:13px;"
+                      @click="setPaymentMethod('CK')">
+                Chuyển khoản (CK)
+              </button>
+              <button type="button" class="btn d-flex align-items-center justify-content-center"
+                      :class="paymentMethod === 'TM' ? 'btn-primary font-weight-bold shadow-sm' : 'btn-outline-secondary'"
+                      style="height:38px;font-size:13px;"
+                      @click="setPaymentMethod('TM')">
+                Tiền mặt (TM)
+              </button>
+            </div>
+            <input type="hidden" name="payment_method" :value="paymentMethod">
+          </div>
+        </div>
+
+        {% set fuel_field_prefix = 'add' %}
+        {% include "partials/cargo_fuel_fields.html" %}
+
+        <div class="d-flex align-items-center mt-2" style="gap:12px;">
+          <button type="submit" class="btn btn-primary px-4">
+            🚀 Tạo chuyến hàng
+          </button>
+          <a href="/admin/vehicles/cargo{% if vehicle %}?vehicle_id={{ vehicle.id }}{% endif %}"
+             class="btn btn-light px-4">
+            Hủy
+          </a>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

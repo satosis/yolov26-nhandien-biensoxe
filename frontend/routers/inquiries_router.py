@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+import math
 
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, Query
 from fastapi.responses import HTMLResponse
 import logging
 from backend.services.database import db
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inquiries")
@@ -21,12 +23,18 @@ class InquiryInput:
     source_page: str
 
 
-def get_inquiries(limit: int = 100, offset: int = 0, unread_only: bool = False) -> list:
+def get_inquiries(limit: int = 20, offset: int = 0, unread_only: bool = False) -> list:
     where = "WHERE is_read = FALSE" if unread_only else ""
     return db._execute_query(
         f"SELECT * FROM inquiries {where} ORDER BY created_at DESC LIMIT %s OFFSET %s",
         (limit, offset), fetchall=True, commit=False
     )
+
+
+def count_all_inquiries(unread_only: bool = False) -> int:
+    where = "WHERE is_read = FALSE" if unread_only else ""
+    row = db._execute_query(f"SELECT COUNT(*) AS cnt FROM inquiries {where}", fetch=True, commit=False)
+    return row["cnt"] if row else 0
 
 
 def count_unread_inquiries() -> int:
@@ -70,10 +78,23 @@ def save_inquiry(inquiry: InquiryInput) -> int | None:
 
 
 @router.get("")
-async def inquiries_page(request: Request, user: dict = Depends(require_menu("inquiries"))):
+async def inquiries_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("inquiries")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "inquiries"
-    ctx["inquiries"] = get_inquiries(limit=200)
+    total = count_all_inquiries()
+    total_pages = max(1, math.ceil(total / 20))
+    page_num = max(1, min(page, total_pages))
+    offset = (page_num - 1) * 20
+
+    ctx["inquiries"] = get_inquiries(limit=20, offset=offset)
+    ctx["page"] = page_num
+    ctx["total_pages"] = total_pages
+    ctx["total"] = total
+    ctx["page_base_url"] = "/admin/inquiries?"
     ctx["unread_count"] = count_unread_inquiries()
     return templates.TemplateResponse("pages/inquiries.html", {"request": request, **ctx})
 

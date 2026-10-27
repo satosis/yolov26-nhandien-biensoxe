@@ -1,0 +1,390 @@
+{% extends "layout.html" %}
+{% block title %}Thêm đơn vị / Công ty{% endblock %}
+{% block page_title %}Thêm đơn vị / Công ty{% endblock %}
+{% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block head %}
+<style>
+  /* Combobox styling for Business Activity */
+  .company-activity-wrapper .ts-wrapper { width: 100%; }
+  .company-activity-wrapper .ts-control {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 4px 8px !important;
+    line-height: 22px !important;
+    font-size: 12.5px !important;
+    border-radius: 6px;
+    background-color: #fff;
+  }
+  .company-activity-wrapper .ts-control input {
+    font-size: 12.5px !important;
+    height: 22px !important;
+    line-height: 22px !important;
+  }
+  .company-activity-wrapper .ts-dropdown {
+    border-radius: 12px !important;
+    border: 1px solid #EAECF0 !important;
+    box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12) !important;
+    max-height: 240px !important;
+    overflow-y: auto !important;
+    font-size: 13px !important;
+    z-index: 1050 !important;
+    margin-top: 4px !important;
+    background: #ffffff !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option {
+    padding: 8px 14px !important;
+    color: #232A2F !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid #f8fafc !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    transition: background-color 0.15s ease;
+  }
+  .company-activity-wrapper .ts-dropdown .option:last-child {
+    border-bottom: none !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option:hover,
+  .company-activity-wrapper .ts-dropdown .option.active {
+    background-color: #EDF4F8 !important;
+    color: #232A2F !important;
+  }
+  .company-activity-wrapper .ts-dropdown .option.selected {
+    background-color: #e8f0fe !important;
+    font-weight: 600 !important;
+    color: #1967d2 !important;
+  }
+  .company-activity-wrapper .ts-dropdown .create {
+    padding: 8px 14px !important;
+    color: #1a73e8 !important;
+    background-color: #f8f9fa !important;
+    cursor: pointer !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100" style="max-width:860px;">
+
+  <div class="card">
+    <div class="card-header font-weight-bold">Thông tin đơn vị / Công ty</div>
+    <div class="card-body">
+      <form method="post" action="/admin/transport/catalog/companies" id="company-add-form" class="company-form" enctype="multipart/form-data">
+        <input type="hidden" name="back" value="{{ back_url }}">
+
+        <div class="form-row">
+          <div class="col-md-4 mb-3">
+            <label for="add-tax-code" class="small font-weight-bold">Mã số thuế <span class="text-danger">*</span></label>
+            <div class="input-group">
+              <input id="add-tax-code" name="tax_code" maxlength="14" required
+                     class="form-control" placeholder="VD: 0100109106"
+                     value="{{ tax_code or '' }}"
+                     oninput="clearLookupMessage()">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-secondary" onclick="lookupTaxCode()" id="lookup-btn">
+                  <i class="bx bx-search-alt-2"></i>
+                </button>
+              </div>
+            </div>
+            <small id="lookup-message" class="d-block mt-1 text-muted" aria-live="polite"></small>
+          </div>
+          <div class="col-md-8 mb-3">
+            <label for="add-name" class="small font-weight-bold">Tên công ty / Đơn vị <span class="text-danger">*</span></label>
+            <input id="add-name" name="name" maxlength="255" required class="form-control">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="col-md-6 mb-3">
+            <label for="add-director" class="small font-weight-bold">Giám đốc</label>
+            <select id="add-director" name="director_user_id" class="form-control" aria-describedby="add-director-help" onchange="onCompanyDirectorSelect(this)">
+              <option value="">-- Chọn người dùng làm giám đốc --</option>
+              {% for u in users_list or [] %}
+                {% set u_val = u.full_name or u.username %}
+                <option value="{{ u.id }}"
+                        data-email="{{ u.email or '' }}"
+                        data-phone="{{ u.phone or '' }}"
+                        data-bank-account="{{ u.bank_account or '' }}"
+                        data-bank-name="{{ u.bank_name or '' }}">
+                  {{ u_val }}{% if u.username and u.full_name and u.username != u.full_name %} ({{ u.username }}){% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label for="add-phone" class="small font-weight-bold">Số điện thoại</label>
+            <input id="add-phone" name="phone" type="tel" class="form-control" placeholder="VD: 0912345678">
+          </div>
+        </div>
+        {% set bank_prefix = 'add' %}
+        {% include "partials/company_bank_accounts.html" %}
+
+        <div class="form-row">
+          <div class="col-md-4 mb-3">
+            <label for="add-email" class="small font-weight-bold">Email</label>
+            <input id="add-email" name="email" type="email" class="form-control">
+          </div>
+          <div class="col-md-8 mb-3">
+            <label for="add-address" class="small font-weight-bold">Địa chỉ <span class="text-danger">*</span></label>
+            <input id="add-address" name="address" maxlength="500" required class="form-control">
+          </div>
+        </div>
+
+        <div class="form-group mb-3 company-activity-wrapper">
+          <label for="add-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger">*</span></label>
+          <input id="add-business-activity" name="business_activity" value="" maxlength="500" required class="form-control" placeholder="Nhập hoặc chọn ngành nghề hoạt động" list="business-activities-list">
+          <datalist id="business-activities-list">
+            {% for act in business_activities or [
+              "Thương mại", "Công nghiệp chế biến, chế tạo", "Kinh doanh bất động sản", "Vận tải, kho bãi",
+              "Hoạt động Tài chính, ngân hàng, bảo hiểm", "Giáo dục & Đào tạo", "Xây dựng", "Dịch vụ lưu trú & ăn uống",
+              "Khai khoáng", "Nông nghiệp", "Ngư nghiệp", "Lâm nghiệp",
+              "Sản xuất và phân phối điện, khí đốt, nước nóng, hơi nước và điều hòa không khí",
+              "Cung cấp nước, hoạt động quản lý và xử lý rác thải", "Hoạt động chuyên môn, KHCN", "Hoạt động dịch vụ khác",
+              "Hoạt động các tổ chức và cơ quan quốc tế", "Hoạt động hành chính và dịch vụ Hỗ trợ",
+              "Hoạt động làm thuê các công việc trong các hộ gia đình, sản xuất sản phẩm vật chất và dịch vụ tự tiêu dùng của hộ gia đình",
+              "Nghệ thuật, vui chơi, giải trí", "Thông tin & truyền thông",
+              "Hoạt động của Đảng Cộng Sản tổ chức Chính Trị - Xã Hội, Quản lý nhà nước, An ninh quốc phòng, Đảm bảo xã hội bắt buộc",
+              "Y tế và hoạt động trợ giúp Xã Hội", "Sản phẩm bán lẻ", "Chưa xác định mã ngành"
+            ] %}
+              <option value="{{ act }}"></option>
+            {% endfor %}
+          </datalist>
+        </div>
+
+        <!-- Chữ ký & Con dấu -->
+        <div class="card bg-light border-0 mb-3" style="border-radius:8px;">
+          <div class="card-body p-3">
+            <div class="font-weight-bold mb-3 small text-uppercase text-secondary">
+              <i class="bx bx-check-shield mr-1"></i> Chữ ký &amp; Con dấu đơn vị
+            </div>
+            <div class="form-row">
+              <!-- Chữ ký -->
+              <div class="col-md-6 mb-3 mb-md-0">
+                <label class="small font-weight-bold d-block mb-1">
+                  <i class="bx bx-pen text-primary mr-1"></i> Hình ảnh Chữ ký
+                </label>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="add-signature-file" name="signature_file" accept="image/png,image/jpeg,image/webp,image/gif" onchange="previewUploadImage(this, 'preview-signature')">
+                  <label class="custom-file-label text-truncate" for="add-signature-file">Tải lên chữ ký...</label>
+                </div>
+                <div id="preview-signature" class="mt-2 text-center" style="display:none;">
+                  <div class="small text-muted mb-1">Xem trước chữ ký:</div>
+                  <img src="" alt="Xem trước chữ ký" style="max-height:80px; max-width:100%; object-fit:contain; border:1px dashed #007bff; border-radius:4px; padding:4px; background:#fff;">
+                </div>
+              </div>
+
+              <!-- Con dấu -->
+              <div class="col-md-6">
+                <label class="small font-weight-bold d-block mb-1">
+                  <i class="bx bx-certification text-danger mr-1"></i> Hình ảnh Đóng dấu / Con dấu
+                </label>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="add-stamp-file" name="stamp_file" accept="image/png,image/jpeg,image/webp,image/gif" onchange="previewUploadImage(this, 'preview-stamp')">
+                  <label class="custom-file-label text-truncate" for="add-stamp-file">Tải lên con dấu...</label>
+                </div>
+                <div id="preview-stamp" class="mt-2 text-center" style="display:none;">
+                  <div class="small text-muted mb-1">Xem trước con dấu:</div>
+                  <img src="" alt="Xem trước con dấu" style="max-height:80px; max-width:100%; object-fit:contain; border:1px dashed #dc3545; border-radius:4px; padding:4px; background:#fff;">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+
+        <div class="d-flex align-items-center" style="gap:8px; margin-top:4px;">
+          <button type="submit" class="btn btn-primary">
+            <i class="bx bx-plus mr-1"></i>Thêm đơn vị
+          </button>
+          <a href="{{ back_url }}" class="btn btn-light">Hủy</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if message or error %}
+window.dispatchEvent(new CustomEvent('showToast', {
+  detail: {msg: {{ (error or message)|tojson }}, type: {{ ('error' if error else 'success')|tojson }}}
+}));
+{% endif %}
+
+function clearLookupMessage() {
+  document.getElementById('lookup-message').textContent = '';
+}
+
+function onCompanyDirectorSelect(selectEl) {
+  const form = selectEl.closest('form');
+  if (!form) return;
+  const opt = selectEl.options[selectEl.selectedIndex];
+  if (!opt || !opt.value) return;
+
+  const email = opt.getAttribute('data-email');
+  const phone = opt.getAttribute('data-phone');
+  const bankAccount = opt.getAttribute('data-bank-account');
+  const bankName = opt.getAttribute('data-bank-name');
+
+  if (form.elements['email'] && (email || !form.elements['email'].value)) {
+    form.elements['email'].value = email || '';
+  }
+  if (form.elements['phone'] && phone && !form.elements['phone'].value) {
+    form.elements['phone'].value = phone;
+  }
+  const firstAccount = document.getElementById('add-bank-account');
+  if (firstAccount && !firstAccount.value) firstAccount.value = bankAccount || '';
+  const firstBank = document.getElementById('add-bank-name');
+  if (firstBank && !firstBank.value) setCompanyBankSelect(firstBank, bankName || '');
+}
+
+async function lookupTaxCode() {
+  const taxCode = document.getElementById('add-tax-code').value.trim();
+  const message = document.getElementById('lookup-message');
+  const btn = document.getElementById('lookup-btn');
+  if (!taxCode) {
+    message.className = 'd-block mt-1 text-danger small';
+    message.textContent = 'Vui lòng nhập mã số thuế.';
+    return;
+  }
+  message.className = 'd-none';
+  message.textContent = '';
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
+    const result = await resp.json();
+    if (!resp.ok || !result.ok) throw new Error(result.message || 'Không tra cứu được.');
+    document.getElementById('add-name').value = result.name || '';
+    const addr = (result.address || '').trim();
+    document.getElementById('add-address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;
+    if (result.business_activity) setCompanyActivitySelect(document.getElementById('add-business-activity'), result.business_activity);
+    if (result.email) document.getElementById('add-email').value = result.email;
+    if (result.phone) document.getElementById('add-phone').value = result.phone;
+
+    const dirSelect = document.getElementById('add-director');
+    if (dirSelect && result.director_user_id != null) {
+      const directorId = String(result.director_user_id);
+      const directorLabel = result.director_label || (result.director_name ? (result.director_username ? `${result.director_name} (${result.director_username})` : result.director_name) : `ID ${result.director_user_id}`);
+      let option = Array.from(dirSelect.options).find(opt => opt.value === directorId);
+      if (!option) {
+        option = new Option(directorLabel, directorId, true, true);
+        if (result.director_email) option.setAttribute('data-email', result.director_email);
+        if (result.director_phone) option.setAttribute('data-phone', result.director_phone);
+        if (result.director_bank_account) option.setAttribute('data-bank-account', result.director_bank_account);
+        if (result.director_bank_name) option.setAttribute('data-bank-name', result.director_bank_name);
+        dirSelect.add(option);
+      }
+      if (dirSelect.tomselect) {
+        if (!dirSelect.tomselect.options[directorId]) {
+          dirSelect.tomselect.addOption({
+            value: directorId,
+            text: directorLabel,
+            email: result.director_email || '',
+            phone: result.director_phone || '',
+            bank_account: result.director_bank_account || '',
+            bank_name: result.director_bank_name || ''
+          });
+        }
+        dirSelect.tomselect.sync();
+        dirSelect.tomselect.setValue(directorId, false);
+      } else {
+        dirSelect.value = directorId;
+        dirSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      onCompanyDirectorSelect(dirSelect);
+    }
+    if (result.bank_account) document.getElementById('add-bank-account').value = result.bank_account;
+    if (result.bank_name) setCompanyBankSelect(document.getElementById('add-bank-name'), result.bank_name);
+    message.className = 'd-none';
+    message.textContent = '';
+  } catch (err) {
+    message.className = 'd-block mt-1 text-danger small';
+    message.textContent = err.message || 'Không tra cứu được mã số thuế.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function previewUploadImage(input, previewId) {
+  const container = document.getElementById(previewId);
+  if (!container) return;
+  const label = input.nextElementSibling;
+  if (input.files && input.files[0]) {
+    const file = input.files[0];
+    if (label && label.classList.contains('custom-file-label')) {
+      label.textContent = file.name;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = container.querySelector('img');
+      if (img) img.src = e.target.result;
+      container.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+function initCompanyActivitySelect(select) {
+  if (!select || select.tagName === 'INPUT') return;
+  if (typeof TomSelect !== 'undefined' && !select.tomselect) {
+    new TomSelect(select, {
+      create: true,
+      createOnBlur: true,
+      placeholder: 'Chọn hoặc tìm/nhập ngành nghề hoạt động',
+      maxOptions: 50,
+      allowEmptyOption: true,
+      shouldSort: false,
+      score: function(search) {
+        const normSearch = (search || '').trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+        if (!normSearch) return () => 1;
+        return function(item) {
+          const text = (item.text || item.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+          const idx = text.indexOf(normSearch);
+          if (idx === -1) return 0;
+          return (100 - idx) + (text === normSearch ? 100 : 0);
+        };
+      },
+      render: {
+        option_create: function(data, escape) {
+          return '<div class="create">Thêm mới: <strong>' + escape(data.input) + '</strong>...</div>';
+        },
+        no_results: function(data, escape) {
+          return '<div class="no-results" style="padding: 8px 12px; color: #6c757d; font-size: 12px;">Không tìm thấy ngành nghề phù hợp</div>';
+        }
+      }
+    });
+  }
+}
+
+function setCompanyActivitySelect(select, value) {
+  if (!select) return;
+  const val = (value || '').trim();
+  if (select.tagName === 'INPUT' || select.tagName === 'TEXTAREA') {
+    select.value = val;
+    return;
+  }
+  if (select.tomselect) {
+    if (val && !select.tomselect.options[val]) {
+      select.tomselect.addOption({value: val, text: val});
+    }
+    select.tomselect.setValue(val);
+  } else {
+    if (val && !Array.from(select.options).some(o => o.value === val)) {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      select.add(opt);
+    }
+    select.value = val;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.company-activity-select').forEach(initCompanyActivitySelect);
+});
+</script>
+{% endblock %}

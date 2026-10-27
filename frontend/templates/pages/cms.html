@@ -2,21 +2,20 @@
 {% block title %}Quản lý Nội dung (CMS){% endblock %}
 {% block page_title %}Quản lý Nội dung{% endblock %}
 {% block content %}
-<div x-data="{ section: 'projects' }">
-
+<div>
 
   <div class="card mb-4">
     <div class="card-body p-0">
       <ul class="nav nav-tabs" style="border-bottom:0;">
         <li class="nav-item">
-          <a class="nav-link" :class="section==='projects' ? 'active' : ''"
-             href="#" @click.prevent="section='projects'">
+          <a class="nav-link {% if section == 'projects' %}active{% endif %}"
+             href="/admin/cms?section=projects">
             <i class="bx bx-buildings mr-1"></i> Dự án Nhà xưởng
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" :class="section==='news' ? 'active' : ''"
-             href="#" @click.prevent="section='news'">
+          <a class="nav-link {% if section == 'news' %}active{% endif %}"
+             href="/admin/cms?section=news">
             <i class="bx bx-news mr-1"></i> Tin tức &amp; Báo cáo
           </a>
         </li>
@@ -24,8 +23,8 @@
     </div>
   </div>
 
-
-  <div x-show="section==='projects'">
+  {% if section == 'projects' %}
+  <div>
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0 font-weight-bold">Danh sách Dự án</h5>
       <button @click="$dispatch('open-modal', 'add-project-modal')"
@@ -72,12 +71,16 @@
           </div>
         </div>
       </div>
+      {% else %}
+      <div class="col-12 text-center text-muted py-4">Chưa có dự án nào.</div>
       {% endfor %}
     </div>
+
+    {% include "partials/pagination.html" %}
   </div>
 
-
-  <div x-show="section==='news'">
+  {% elif section == 'news' %}
+  <div>
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="mb-0 font-weight-bold">Tin tức mới nhất</h5>
       <a href="/admin/cms/news/new" class="btn btn-primary btn-sm">
@@ -91,14 +94,18 @@
           <table class="table-cinema">
             <thead>
               <tr>
-                <th>Ngày</th>
+                <th style="width:50px;" class="text-center">STT</th>
+                <th style="width:130px;">Ngày</th>
                 <th>Tiêu đề</th>
-                <th class="text-right">Thao tác</th>
+                <th class="text-right" style="width:120px;">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {% for item in news %}
               <tr id="news-{{ item.id }}">
+                <td class="text-center text-muted font-weight-medium align-middle">
+                  {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+                </td>
                 <td class="text-muted small">{{ item.publish_date }}</td>
                 <td class="font-weight-medium">{{ item.title }}</td>
                 <td class="text-right">
@@ -115,13 +122,17 @@
                   </button>
                 </td>
               </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-4">Chưa có tin tức nào.</td></tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
+      {% include "partials/pagination.html" %}
     </div>
   </div>
+  {% endif %}
 
 </div>
 

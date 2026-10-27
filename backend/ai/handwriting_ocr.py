@@ -6,6 +6,7 @@ import logging
 import difflib
 import calendar
 import math
+import time
 import unicodedata
 from datetime import datetime, timedelta
 from functools import lru_cache
@@ -16,59 +17,96 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from backend.util.image_utils import decode_image
+from backend.util.ocr_pipeline import assess_image, best_prediction, iter_ocr_variants
 
 logger = logging.getLogger(__name__)
 
 
-_VN_PROVINCES = [
-    "An Giang", "Bà Rịa Vũng Tàu", "Bắc Giang", "Bắc Kạn", "Bạc Liêu",
-    "Bắc Ninh", "Bến Tre", "Bình Định", "Bình Dương", "Bình Phước",
-    "Bình Thuận", "Cà Mau", "Cần Thơ", "Cao Bằng", "Đà Nẵng",
-    "Đắk Lắk", "Đắk Nông", "Điện Biên", "Đồng Nai", "Đồng Tháp",
-    "Gia Lai", "Hà Giang", "Hà Nam", "Hà Nội", "Hà Tĩnh",
-    "Hải Dương", "Hải Phòng", "Hậu Giang", "Hòa Bình", "Hưng Yên",
-    "Khánh Hòa", "Kiên Giang", "Kon Tum", "Lai Châu", "Lạng Sơn",
-    "Lào Cai", "Lâm Đồng", "Long An", "Nam Định", "Nghệ An",
-    "Ninh Bình", "Ninh Thuận", "Phú Thọ", "Phú Yên", "Quảng Bình",
-    "Quảng Nam", "Quảng Ngãi", "Quảng Ninh", "Quảng Trị", "Sóc Trăng",
-    "Sơn La", "Tây Ninh", "Thái Bình", "Thái Nguyên", "Thanh Hóa",
-    "Thừa Thiên Huế", "Huế", "Tiền Giang", "TP Hồ Chí Minh", "Sài Gòn",
-    "Trà Vinh", "Tuyên Quang", "Vĩnh Long", "Vĩnh Phúc", "Yên Bái",
-    "Biên Hòa", "Nha Trang", "Đà Lạt", "Buôn Ma Thuột", "Vinh",
-    "Huế", "Hội An", "Tam Kỳ", "Quy Nhơn", "Pleiku", "Bảo Lộc",
-    "Phan Thiết", "Phan Rang", "Mỹ Tho", "Cần Thơ", "Long Xuyên",
-    "Rạch Giá", "Cà Mau", "Bến Tre", "Tân An", "Vũng Tàu",
-    "Thủ Dầu Một", "Tây Ninh", "Đồng Xoài", "Bảo Lộc", "Gia Nghĩa",
-    "Tề Lỗ", "Yên Lạc", "Vĩnh Phúc",
-]
+def _fold_text(text: str) -> str:
+    text = unicodedata.normalize("NFD", text or "")
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    return text.replace("đ", "d").replace("Đ", "D")
 
-_CARGO_TYPES = [
-    "gạo", "lúa", "ngô", "bắp", "sắn", "khoai", "cám", "trấu",
-    "phân bón", "phân NPK", "phân urê", "phân đạm", "vôi bột",
-    "xi măng", "cát", "đá", "sỏi", "gạch", "ngói", "cát xây",
-    "thép", "sắt", "tôn", "nhôm", "đồng", "dây điện",
-    "gỗ", "ván", "ván ép", "tre", "nứa", "lồ ô", "củi",
-    "mía", "mủ cao su", "cao su", "mủ", "latex",
-    "cà phê", "tiêu", "điều", "hạt điều", "dứa", "chuối",
-    "thanh long", "xoài", "nhãn", "vải", "chôm chôm",
-    "thủy sản", "tôm", "cá", "mực", "hải sản",
-    "hàng đông lạnh", "hàng khô", "hàng bách hóa", "hàng tạp hóa",
-    "hàng hóa", "hàng tổng hợp", "vật liệu xây dựng", "nông sản",
-    "phế liệu", "giấy", "bìa", "nhựa", "bao bì", "chai lọ",
-    "thiết bị", "máy móc", "linh kiện", "đồ điện", "hàng gia dụng",
-]
 
-_CARGO_LIST_LOWER = [c.lower() for c in _CARGO_TYPES]
+_DB_PLACES_CACHE: list[str] | None = None
+_DB_PLACES_FOLDED: dict[str, str] | None = None
+_DB_PLACES_TIMESTAMP: float = 0
+_CACHE_TTL = 300  # 5 phút tự động làm mới từ DB
+
+
+def _get_places_from_db() -> tuple[list[str], dict[str, str]]:
+    """Tải toàn bộ danh mục tỉnh thành và xã/phường từ database (administrative_provinces và administrative_communes)."""
+    global _DB_PLACES_CACHE, _DB_PLACES_FOLDED, _DB_PLACES_TIMESTAMP
+    now = time.time()
+    if _DB_PLACES_CACHE is not None and (now - _DB_PLACES_TIMESTAMP < _CACHE_TTL):
+        return _DB_PLACES_CACHE, _DB_PLACES_FOLDED
+
+    places: list[str] = []
+    try:
+        from backend.services.database import db
+        # 1. Tỉnh / Thành phố từ DB
+        p_rows = db._execute_query(
+            "SELECT name FROM public.administrative_provinces WHERE is_active = TRUE ORDER BY name",
+            fetchall=True, commit=False,
+        ) or []
+        for r in p_rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            places.append(name)
+            short = re.sub(r"^(Thành phố|Tỉnh)\s+", "", name, flags=re.IGNORECASE).strip()
+            if short and short != name:
+                places.append(short)
+
+        # 2. Xã / Phường từ DB
+        c_rows = db._execute_query(
+            "SELECT name FROM public.administrative_communes WHERE is_active = TRUE ORDER BY name",
+            fetchall=True, commit=False,
+        ) or []
+        for r in c_rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            places.append(name)
+            short = re.sub(r"^(Xã|Phường|Thị trấn|Đặc khu)\s+", "", name, flags=re.IGNORECASE).strip()
+            if short and short != name:
+                places.append(short)
+    except Exception as e:
+        logger.warning("Không thể tải danh mục tỉnh xã từ DB: %s", e)
+
+    seen = set()
+    unique_places: list[str] = []
+    for p in places:
+        plow = p.lower()
+        if plow not in seen:
+            seen.add(plow)
+            unique_places.append(p)
+
+    folded_lookup: dict[str, str] = {}
+    for place in unique_places:
+        fk = _fold_text(place).lower()
+        if fk not in folded_lookup:
+            folded_lookup[fk] = place
+
+    _DB_PLACES_CACHE = unique_places
+    _DB_PLACES_FOLDED = folded_lookup
+    _DB_PLACES_TIMESTAMP = now
+    return _DB_PLACES_CACHE, _DB_PLACES_FOLDED
+
+
+
 
 
 def _correct_place(text: str) -> str:
     if len(text) < 3:
         return text
-    folded_lookup = {_fold_text(place).lower(): place for place in _VN_PROVINCES}
+    places, folded_lookup = _get_places_from_db()
+    if not places:
+        return text
     folded_text = _fold_text(text).lower()
     if folded_text in folded_lookup:
         return folded_lookup[folded_text]
-    matches = difflib.get_close_matches(text, _VN_PROVINCES, n=1, cutoff=0.72)
+    matches = difflib.get_close_matches(text, places, n=1, cutoff=0.72)
     if matches:
         logger.debug("place correction: '%s' → '%s'", text, matches[0])
         return matches[0]
@@ -78,20 +116,6 @@ def _correct_place(text: str) -> str:
         logger.debug("place folded correction: '%s' → '%s'", text, corrected)
         return corrected
     return text
-
-
-def _correct_cargo(text: str) -> str:
-    if len(text) < 3:
-        return text
-    tl = text.lower()
-    matches = difflib.get_close_matches(tl, _CARGO_LIST_LOWER, n=1, cutoff=0.68)
-    if matches:
-        idx = _CARGO_LIST_LOWER.index(matches[0])
-        corrected = _CARGO_TYPES[idx]
-        logger.debug("cargo correction: '%s' → '%s'", text, corrected)
-        return corrected
-    return text
-
 
 
 @lru_cache(maxsize=1)
@@ -177,13 +201,15 @@ def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
 
 
 def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
-    variants = [normalized_crop]
+    bgr = cv2.cvtColor(np.array(normalized_crop.convert("RGB")), cv2.COLOR_RGB2BGR)
+    variants = [
+        Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        for image in iter_ocr_variants(bgr, profile="handwriting", max_variants=3)
+    ]
 
-    gray = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
-    variants.append(Image.fromarray(cv2.cvtColor(eq, cv2.COLOR_GRAY2RGB)))
-
     binary = cv2.adaptiveThreshold(
         eq, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY, 31, 11,
@@ -194,28 +220,16 @@ def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
     normalized = cv2.divide(eq, background, scale=255)
     variants.append(Image.fromarray(cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)))
 
-    bgr = cv2.cvtColor(np.array(normalized_crop), cv2.COLOR_RGB2BGR)
-    denoised = cv2.fastNlMeansDenoisingColored(bgr, None, 10, 10, 7, 21)
-    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-    sharpened = cv2.filter2D(denoised, -1, kernel)
-    variants.append(Image.fromarray(cv2.cvtColor(sharpened, cv2.COLOR_BGR2RGB)))
-
     return variants
 
 
 def _ocr_best_result(normalized_crop: Image.Image, predictor) -> dict:
-    best_text = ""
-    best_prob = -1.0
-
+    predictions = []
     for variant in _make_variants(normalized_crop):
         text, prob = predictor.predict(variant, return_prob=True)
-        text = (text or "").strip()
-        logger.debug("OCR variant prob=%.3f text=%r", prob, text[:40])
-        if prob > best_prob:
-            best_prob = prob
-            best_text = text
-
-    return {"text": best_text, "confidence": max(0.0, float(best_prob))}
+        logger.debug("OCR variant prob=%r text=%r", prob, str(text or "")[:40])
+        predictions.append({"text": text, "confidence": prob})
+    return best_prediction(predictions) or {"text": "", "confidence": 0.0}
 
 
 def _image_to_data_uri(pil_img: Image.Image) -> str:
@@ -318,11 +332,14 @@ def _prepare_page_bgr(img_bgr: np.ndarray) -> np.ndarray:
 
 
 def _assess_image_quality(img_bgr: np.ndarray) -> dict:
+    assessment = assess_image(img_bgr)
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    brightness = float(np.mean(gray))
+    brightness = assessment["brightness"]
     contrast = float(np.std(gray))
+    # The existing warning threshold was calibrated on native page pixels.
+    # Shared sharpness uses a bounded preview and remains a separate metric.
     blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
-    h, w = gray.shape[:2]
+    h, w = assessment["height"], assessment["width"]
 
     warnings: list[str] = []
     if min(h, w) < 900:
@@ -342,6 +359,9 @@ def _assess_image_quality(img_bgr: np.ndarray) -> dict:
         "brightness": round(brightness, 1),
         "contrast": round(contrast, 1),
         "blur_score": round(blur_score, 1),
+        "sharpness": assessment["sharpness"],
+        "quality_score": assessment["quality_score"],
+        "valid": assessment["valid"],
         "warnings": warnings,
     }
 
@@ -493,10 +513,6 @@ def _decode_image_bgr(image_bytes: bytes) -> np.ndarray:
     return decoded
 
 
-def _ocr_line_results(image_bytes: bytes) -> list[dict]:
-    return _ocr_line_results_from_bgr(_decode_image_bgr(image_bytes))
-
-
 def _is_pdf(filename: str = "", content_type: str = "") -> bool:
     return (content_type or "").lower().startswith("application/pdf") or (filename or "").lower().endswith(".pdf")
 
@@ -595,10 +611,6 @@ _OCR_DIGIT_TRANS = str.maketrans({
 })
 
 
-def _fold_text(text: str) -> str:
-    text = unicodedata.normalize("NFD", text or "")
-    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
-    return text.replace("đ", "d").replace("Đ", "D")
 
 
 def _normalize_ocr_digits(text: str) -> str:
@@ -776,112 +788,7 @@ def _extract_unlabeled_trip_numbers(line: str) -> dict:
 
 
 
-def _extract_weight(line: str) -> Optional[float]:
-    m = _WEIGHT_RE.search(line)
-    if not m:
-        return None
-    val = _parse_number(m.group(1))
-    if val is None:
-        return None
-    raw = m.group(0).lower()
-    if "tạ" in raw:
-        val = val / 10.0
-    elif "kg" in raw:
-        val = val / 1000.0
-    return val
 
-
-def _lines_to_trips(lines: list[str]) -> list[dict]:
-    trips: list[dict] = []
-    current: Optional[dict] = None
-    year_hint = datetime.now().year
-
-    def _flush():
-        if current and current.get("departure_time"):
-            trips.append(dict(current))
-
-    def _enrich(line: str, trip: dict, overwrite: bool = False):
-        folded_line = _fold_text(line)
-        origin, dest = _parse_route(line)
-        if origin and (overwrite or not trip.get("origin")):
-            trip["origin"] = origin
-        if dest and (overwrite or not trip.get("destination")):
-            trip["destination"] = dest
-
-        fm = _FUEL_FOLD_RE.search(folded_line) or _FUEL_RE.search(line)
-        if fm and not trip.get("fuel_liters"):
-            trip["fuel_liters"] = _parse_number(fm.group(1))
-
-        rm = _REVENUE_FOLD_RE.search(folded_line) or _REVENUE_RE.search(line)
-        if rm and not trip.get("freight_revenue"):
-            trip["freight_revenue"] = _parse_number(rm.group(1))
-
-        dm = _DISTANCE_FOLD_RE.search(folded_line)
-        if dm and not trip.get("distance_km"):
-            trip["distance_km"] = _parse_number(dm.group(1))
-
-        inferred = _extract_unlabeled_trip_numbers(line)
-        if not trip.get("fuel_liters") and inferred.get("fuel_liters") is not None:
-            trip["fuel_liters"] = inferred["fuel_liters"]
-        if not trip.get("freight_revenue") and inferred.get("freight_revenue") is not None:
-            trip["freight_revenue"] = inferred["freight_revenue"]
-        if not trip.get("distance_km") and inferred.get("distance_km") is not None:
-            trip["distance_km"] = inferred["distance_km"]
-
-        wm = _extract_weight(line)
-        if wm is not None and not trip.get("weight_tons"):
-            trip["weight_tons"] = wm
-
-
-        tn = _TRIP_NO_RE.search(line)
-        if tn and not trip.get("trip_no"):
-            trip["trip_no"] = int(tn.group(1))
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        dep = _parse_date(line, year_hint)
-
-        if dep and current is not None and _RETURN_KEYWORD_RE.search(line):
-            if not current.get("return_time"):
-                current["return_time"] = dep
-            continue
-
-        if dep:
-            _flush()
-            current = {"departure_time": dep}
-            _enrich(line, current)
-
-        elif current is not None:
-            if _RETURN_KEYWORD_RE.search(line):
-                ret = _parse_date(line, year_hint)
-                if ret and not current.get("return_time"):
-                    current["return_time"] = ret
-                    continue
-
-            _enrich(line, current)
-
-            has_arrow = bool(_ARROW_RE.search(line))
-            has_number = bool(_NUMBER_RE.search(line))
-            if not has_arrow and not has_number and len(line) > 2:
-                if not current.get("note") and line != current.get("departure_time"):
-                    current["note"] = line
-
-    _flush()
-    return trips
-
-
-_TRIP_FIELDS = (
-    "departure_time", "return_time", "origin", "destination",
-    "fuel_liters", "fuel_price_per_liter", "freight_revenue",
-    "distance_km", "note",
-)
-
-
-def _public_trip(candidate: dict) -> dict:
-    return {k: candidate.get(k) for k in _TRIP_FIELDS if candidate.get(k) not in (None, "")}
 
 
 def _set_candidate_field(candidate: dict, field: str, value, line_item: dict, overwrite: bool = False):
@@ -1036,24 +943,7 @@ def _lines_to_trip_candidates(line_items: list[dict]) -> list[dict]:
 
 
 
-def extract_trips_from_image(image_bytes: bytes) -> list[dict]:
-    lines = _ocr_line_results(image_bytes)
-    if not lines:
-        return []
-    trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]
-    logger.info("handwriting_ocr: parse được %d chuyến từ %d dòng", len(trips), len(lines))
-    return trips
 
-
-def extract_trips_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> list[dict]:
-    if _is_pdf(filename, content_type):
-        lines = _ocr_pdf_line_results(file_bytes)
-        if not lines:
-            return []
-        trips = [_public_trip(t) for t in _lines_to_trip_candidates(lines)]
-        logger.info("handwriting_ocr: parse được %d chuyến từ %d dòng PDF", len(trips), len(lines))
-        return trips
-    return extract_trips_from_image(file_bytes)
 
 
 def extract_trip_candidates_from_document(file_bytes: bytes, filename: str = "", content_type: str = "") -> dict:

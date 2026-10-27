@@ -1,0 +1,271 @@
+{% extends "layout.html" %}
+
+{% block title %}Tạm ứng & Hoàn ứng chi phí — {{ company.name if company else 'Doanh nghiệp' }}{% endblock %}
+{% block page_title %}Tạm ứng & Hoàn ứng chi phí nội bộ{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+          <span class="font-weight-bold" style="white-space:nowrap;">
+            Phiếu tạm ứng chi phí ({{ pagination.total }})
+          </span>
+          <span class="text-muted small d-none d-md-inline">
+            · Tổng ứng: <strong>{{ total_advance_fmt }}</strong>
+            · Đã hoàn ứng: <strong>{{ total_settled_fmt }}</strong>
+            · Còn phải thu hồi: <strong class="text-danger">{{ total_remaining_fmt }}</strong>
+          </span>
+        </div>
+        <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+          <select class="form-control form-control-sm" style="width:140px;"
+                  onchange="window.location.href='/admin/enterprise/advances?status=' + this.value">
+            <option value="all" {% if selected_status == 'all' %}selected{% endif %}>Tất cả trạng thái</option>
+            <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Chờ chi tiền</option>
+            <option value="paid" {% if selected_status == 'paid' %}selected{% endif %}>Đã chi (chưa quyết toán)</option>
+            <option value="settled" {% if selected_status == 'settled' %}selected{% endif %}>Đã hoàn ứng xong</option>
+          </select>
+
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="$('#addAdvanceModal').modal('show')">
+            <i class="bx bx-plus mr-1"></i>Tạo phiếu tạm ứng
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 280px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:180px;">Nhân sự nhận</th>
+            <th style="width:130px;">Loại tạm ứng</th>
+            <th style="width:120px;">Ngày tạm ứng</th>
+            <th class="text-right" style="width:130px;">Số tiền ứng</th>
+            <th class="text-right" style="width:130px;">Đã quyết toán</th>
+            <th class="text-right" style="width:130px;">Còn lại</th>
+            <th>Lý do & Nội dung</th>
+            <th style="width:120px;" class="text-center">Trạng thái</th>
+            <th style="width:160px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for a in advances %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else loop.index }}
+            </td>
+            <td>
+              <div class="font-weight-bold text-dark">{{ a.full_name or a.username }}</div>
+              {% if a.bank_account %}
+              <div class="small text-muted " style="font-size:11px;">
+                {{ a.bank_account }} · {{ a.bank_name or '' }}
+              </div>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge badge-light border text-dark">{{ a.advance_type }}</span>
+            </td>
+            <td class="small text-dark font-weight-medium">
+              {{ a.advance_date.strftime('%d/%m/%Y') }}
+            </td>
+            <td class="text-right font-weight-bold text-dark">
+              {{ a.amount_fmt }}
+            </td>
+            <td class="text-right text-muted">
+              {{ a.settled_amount_fmt }}
+            </td>
+            <td class="text-right font-weight-bold text-danger">
+              {{ a.remaining_fmt }}
+            </td>
+            <td class="small text-muted">
+              {{ a.reason or '--' }}
+              {% if a.settled_date %}
+              <div class="text-muted font-italic" style="font-size:11px;">
+                QT ngày: {{ a.settled_date.strftime('%d/%m/%Y') }}
+              </div>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if a.status == 'settled' %}
+                <span class="badge badge-light border text-success font-weight-bold">Đã hoàn ứng</span>
+              {% elif a.status == 'paid' %}
+                <span class="badge badge-light border text-primary font-weight-bold">Đã chi tiền</span>
+              {% elif a.status == 'cancelled' %}
+                <span class="badge badge-light border text-muted">Đã hủy</span>
+              {% else %}
+                <span class="badge badge-light border text-warning font-weight-bold">Chờ chi</span>
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              {% if a.status == 'pending' %}
+                <form method="post" action="/admin/enterprise/advances/{{ a.id }}/status" class="d-inline">
+                  <input type="hidden" name="status" value="paid">
+                  <button type="submit" class="btn btn-sm btn-light border text-primary mr-1" title="Xác nhận đã chi tiền">
+                    Đã chi
+                  </button>
+                </form>
+              {% elif a.status == 'paid' %}
+                <button type="button" class="btn btn-sm btn-light border text-success mr-1"
+                        onclick="openSettleModal({{ a.id }}, '{{ a.full_name or a.username }}', '{{ a.amount_fmt }}', '{{ a.amount }}')">
+                  Hoàn ứng
+                </button>
+              {% endif %}
+              <form method="post" action="/admin/enterprise/advances/{{ a.id }}/delete" class="d-inline"
+                    onsubmit="return confirm('Bạn có chắc muốn xóa phiếu tạm ứng này?')">
+                <button type="submit" class="btn btn-sm btn-light border text-muted">
+                  Xóa
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="10" class="text-center py-4 text-muted">Chưa có phiếu tạm ứng.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Tạo Tạm Ứng -->
+<div class="modal fade" id="addAdvanceModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Tạo phiếu tạm ứng nội bộ</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form method="post" action="/admin/enterprise/advances/create">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Nhân sự nhận tạm ứng <span class="text-danger">*</span></label>
+            <select name="user_id" id="adv-user-select" class="form-control form-control-sm" required onchange="onUserSelectChange(this)">
+              <option value="">-- Chọn nhân sự --</option>
+              {% for u in all_staff %}
+              <option value="{{ u.id }}" data-bank-acc="{{ u.bank_account or '' }}" data-bank-name="{{ u.bank_name or '' }}">
+                {{ u.full_name or u.username }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Loại tạm ứng</label>
+              <select name="advance_type" class="form-control form-control-sm">
+                <option value="tiền dầu">Tiền nhiên liệu / Dầu xe</option>
+                <option value="cầu đường">Vé cầu đường / BOT / Cảng</option>
+                <option value="công tác phí">Công tác phí / Lưu trú</option>
+                <option value="tạm ứng lương">Tạm ứng lương tháng</option>
+                <option value="khác">Chi phí nội bộ khác</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Ngày tạm ứng</label>
+              <input type="date" name="advance_date" class="form-control form-control-sm" value="{{ current_date or '' }}" required id="adv-date-field">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số tiền tạm ứng (đ) <span class="text-danger">*</span></label>
+            <input type="text" name="amount" class="form-control form-control-sm font-weight-bold "
+                   placeholder="VD: 2.000.000" oninput="formatCurrencyInput(this)" required>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Số tài khoản chuyển khoản</label>
+              <input type="text" name="bank_account" id="adv-bank-acc" class="form-control form-control-sm " placeholder="Số TK...">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Ngân hàng</label>
+              <input type="text" name="bank_name" id="adv-bank-name" class="form-control form-control-sm" placeholder="VD: Vietcombank">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Lý do / Nội dung chuyến đi</label>
+            <textarea name="reason" class="form-control form-control-sm" rows="2" placeholder="VD: Ứng tiền dầu chuyến hàng Hải Phòng..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Tạo phiếu tạm ứng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Quyết Toán / Hoàn Ứng -->
+<div class="modal fade" id="settleModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Quyết toán / Hoàn ứng chi phí</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="settleForm" method="post" action="">
+        <div class="modal-body">
+          <div class="alert alert-light border small py-2 mb-3">
+            Nhân sự: <strong id="settle-user-name">--</strong><br>
+            Số tiền đã tạm ứng: <strong id="settle-adv-amount" class="">--</strong>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số tiền thực tế quyết toán (chứng từ/hóa đơn) <span class="text-danger">*</span></label>
+            <input type="text" name="settled_amount" id="settle-amount-input"
+                   class="form-control form-control-sm font-weight-bold "
+                   placeholder="Nhập số tiền thực tế..." oninput="formatCurrencyInput(this)" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Ngày quyết toán chứng từ</label>
+            <input type="date" name="settled_date" class="form-control form-control-sm" required id="settle-date-field">
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú quyết toán (số hóa đơn, vé BOT...)</label>
+            <textarea name="settle_note" class="form-control form-control-sm" rows="2" placeholder="Ghi chú chứng từ kèm theo..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Xác nhận hoàn ứng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const today = new Date().toISOString().split('T')[0];
+  const advDateField = document.getElementById('adv-date-field');
+  if (advDateField) advDateField.value = today;
+  const settleDateField = document.getElementById('settle-date-field');
+  if (settleDateField) settleDateField.value = today;
+});
+
+function onUserSelectChange(select) {
+  const opt = select.options[select.selectedIndex];
+  if (!opt) return;
+  document.getElementById('adv-bank-acc').value = opt.getAttribute('data-bank-acc') || '';
+  document.getElementById('adv-bank-name').value = opt.getAttribute('data-bank-name') || '';
+}
+
+function openSettleModal(advId, userName, advFmt, rawAmount) {
+  document.getElementById('settleForm').action = '/admin/enterprise/advances/' + advId + '/settle';
+  document.getElementById('settle-user-name').textContent = userName;
+  document.getElementById('settle-adv-amount').textContent = advFmt;
+  const amtInput = document.getElementById('settle-amount-input');
+  amtInput.value = formatNumber(rawAmount || 0);
+  $('#settleModal').modal('show');
+}
+</script>
+{% endblock %}

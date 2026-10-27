@@ -1,0 +1,759 @@
+{% extends "layout.html" %}
+{% block title %}{% if active_tab == 'timesheet' %}Bảng chấm công (BCC) — Tháng {{ month[5:7] }}/{{ month[:4] }}{% else %}Bảng lương nhân sự — Tháng {{ month[5:7] }}/{{ month[:4] }}{% endif %}{% endblock %}
+{% block page_title %}{% if active_tab == 'timesheet' %}Bảng chấm công{% else %}Lương nhân sự{% endif %}{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  {% if active_tab == 'timesheet' %}
+  <a href="/admin/transport/payroll?tab=payroll&month={{ month }}" class="btn btn-outline-primary btn-sm font-weight-bold shadow-sm" style="font-size:14px; padding:6px 14px;">
+    <i class="bx bx-money mr-1"></i> Bảng tính lương
+  </a>
+  {% else %}
+  <a href="/admin/transport/payroll?tab=timesheet&month={{ month }}" class="btn btn-primary btn-sm font-weight-bold shadow-sm" style="font-size:14px; padding:6px 14px;">
+    <i class="bx bx-calendar-check mr-1"></i> Bảng chấm công
+  </a>
+  {% endif %}
+  <a href="/admin/transport/payroll/export?month={{ month }}" class="btn btn-success btn-sm font-weight-bold shadow-sm" style="font-size:14px; padding:6px 14px;">
+    <i class="bx bx-download mr-1"></i> Xuất Excel theo mẫu
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* Base typography and sizing */
+  .payroll-container {
+    font-size: 15px;
+  }
+  .payroll-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+  }
+  .payroll-month-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .payroll-stat-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .payroll-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  .payroll-table {
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .payroll-table th {
+    background: #f1f5f9;
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: .02em;
+    padding: 12px 10px;
+    border-bottom: 2px solid #cbd5e1;
+    vertical-align: middle !important;
+  }
+  .payroll-table td {
+    padding: 12px 10px;
+    vertical-align: middle !important;
+    color: #1e293b;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 15px;
+  }
+  .payroll-table tbody tr:hover {
+    background-color: #f8fafc;
+  }
+  .payroll-money {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Timesheet (BCC) Matrix Table Styles */
+  .bcc-table-container {
+    max-height: calc(100vh - 220px);
+    overflow: auto;
+    position: relative;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .bcc-table {
+    font-size: 14px;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+  }
+  .bcc-table th, .bcc-table td {
+    border-right: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 4px 6px;
+    vertical-align: middle;
+    text-align: center;
+  }
+  .bcc-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f1f5f9;
+    color: #1e293b;
+    z-index: 10;
+    font-weight: 700;
+  }
+  .bcc-table thead tr:first-child th {
+    top: 0;
+  }
+  .bcc-table thead tr:nth-child(2) th {
+    top: 36px;
+  }
+
+  /* Frozen left columns */
+  .bcc-freeze-1 {
+    position: sticky !important;
+    left: 0;
+    z-index: 5;
+    background: #ffffff;
+    width: 42px;
+    min-width: 42px;
+  }
+  .bcc-freeze-2 {
+    position: sticky !important;
+    left: 42px;
+    z-index: 5;
+    background: #ffffff;
+    width: 180px;
+    min-width: 180px;
+    text-align: left !important;
+    padding-left: 10px !important;
+  }
+  .bcc-freeze-3 {
+    position: sticky !important;
+    left: 222px;
+    z-index: 5;
+    background: #ffffff;
+    width: 130px;
+    min-width: 130px;
+  }
+  .bcc-freeze-4 {
+    position: sticky !important;
+    left: 352px;
+    z-index: 5;
+    background: #ffffff;
+    width: 75px;
+    min-width: 75px;
+    box-shadow: 2px 0 4px -1px rgba(0,0,0,0.12);
+  }
+  thead .bcc-freeze-1, thead .bcc-freeze-2, thead .bcc-freeze-3, thead .bcc-freeze-4 {
+    background: #f1f5f9 !important;
+    z-index: 15 !important;
+  }
+
+  /* Day cells & inputs */
+  .bcc-day-col {
+    width: 40px;
+    min-width: 40px;
+    max-width: 40px;
+    padding: 3px !important;
+  }
+  .bcc-day-input {
+    width: 100%;
+    height: 30px;
+    padding: 2px 0;
+    text-align: center;
+    font-weight: bold;
+    font-size: 14.5px;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 4px;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+  .bcc-day-input:focus, .bcc-day-input:hover {
+    border-color: #3b82f6;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    outline: none;
+  }
+  .bcc-day-ot-input {
+    width: 100%;
+    height: 30px;
+    padding: 2px 0;
+    text-align: center;
+    font-weight: 600;
+    font-size: 13.5px;
+    color: #d97706;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+  .bcc-day-ot-input:focus, .bcc-day-ot-input:hover {
+    border-color: #f59e0b;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    outline: none;
+  }
+
+  /* Weekend styling */
+  .bcc-sunday {
+    background-color: #fff1f2 !important;
+    color: #e11d48 !important;
+  }
+  .bcc-saturday {
+    background-color: #f8fafc !important;
+  }
+
+  /* Summary columns */
+  .bcc-sum-col {
+    font-weight: bold;
+    font-size: 14.5px;
+    background: #f8fafc;
+    min-width: 85px;
+  }
+  .bcc-tag-hc {
+    background: #e0f2fe;
+    color: #0369a1;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12.5px;
+  }
+  .bcc-tag-ot {
+    background: #fef3c7;
+    color: #b45309;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12.5px;
+  }
+</style>
+
+<div class="container-fluid px-0 w-100 payroll-container">
+
+  <!-- NAVIGATION TABS -->
+  <div class="card mb-3 shadow-sm border-0">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+        <ul class="nav nav-pills" style="gap:6px;">
+          <li class="nav-item">
+            <a class="nav-link py-2 px-3 {{ 'active font-weight-bold shadow-sm' if active_tab != 'timesheet' else 'text-dark border bg-white' }}"
+               style="font-size:15px;"
+               href="/admin/transport/payroll?tab=payroll&month={{ month }}">
+              <i class="bx bx-money mr-1"></i> Bảng lương nhân sự
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link py-2 px-3 {{ 'active font-weight-bold shadow-sm' if active_tab == 'timesheet' else 'text-dark border bg-white' }}"
+               style="font-size:15px;"
+               href="/admin/transport/payroll?tab=timesheet&month={{ month }}">
+              <i class="bx bx-calendar-check mr-1"></i> Bảng chấm công (BCC theo mẫu)
+            </a>
+          </li>
+        </ul>
+
+        <!-- THANH LỌC THỜI GIAN -->
+        <div class="payroll-month-form">
+          <form method="get" action="/admin/transport/payroll" class="d-flex align-items-center" style="gap:6px;"
+                onsubmit="const mp=document.getElementById('payroll-month-part').value; const yr=(document.getElementById('payroll-year').value || '').trim(); this.elements['month'].value = yr + '-' + mp;">
+            <input type="hidden" name="month" value="{{ month }}">
+            <input type="hidden" name="tab" value="{{ active_tab }}">
+            <label class="text-muted mb-0 mr-1 font-weight-bold" style="font-size:14px;">Kỳ tháng:</label>
+            <select id="payroll-month-part" class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:115px; font-size:14px; height:34px;" onchange="this.form.requestSubmit()">
+              {% for m in range(1, 13) %}
+              <option value="{{ '%02d'|format(m) }}" {% if m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+              {% endfor %}
+            </select>
+            <input id="payroll-year" type="number" value="{{ month[:4] }}" min="1000" max="9999" required
+                   class="form-control form-control-sm font-weight-bold" style="width:78px; font-size:14px; height:34px;" onchange="this.form.requestSubmit()">
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if active_tab == 'timesheet' %}
+  <!-- ===================================================================== -->
+  <!-- TAB 2: BẢNG CHẤM CÔNG (BCC) MATRIX CHUẨN MẪU                         -->
+  <!-- ===================================================================== -->
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+      <div>
+        <div class="font-weight-bold text-dark" style="font-size:17px;">
+          <i class="bx bx-calendar text-primary mr-1"></i> BẢNG CHẤM CÔNG — THÁNG {{ timesheet.month_num }}/{{ timesheet.year }}
+        </div>
+        <div class="small text-muted mt-1" style="font-size:13.5px;">
+          Công chuẩn: <strong>{{ timesheet.standard_days }} ngày</strong> · Nhân sự: <strong>{{ timesheet.rows|length }} người</strong> · Tự động đồng bộ số ngày công sang bảng tính lương.
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <form method="post" action="/admin/transport/payroll/timesheet/quick-fill" class="d-inline"
+              onsubmit="return confirm('Điền nhanh làm việc thứ 2 - thứ 7 (x) cho tất cả nhân sự tháng {{ month }}?')">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="mode" value="weekdays">
+          <button type="submit" class="btn btn-sm btn-light border font-weight-bold shadow-sm" style="font-size:13.5px; padding:6px 12px;">
+            <i class="bx bx-bolt-circle mr-1 text-warning"></i>Điền ngày thường (T2-T7)
+          </button>
+        </form>
+
+        <form method="post" action="/admin/transport/payroll/timesheet/quick-fill" class="d-inline"
+              onsubmit="return confirm('Điền nhanh 26 ngày công chuẩn cho tất cả nhân sự tháng {{ month }}?')">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="mode" value="26days">
+          <button type="submit" class="btn btn-sm btn-light border font-weight-bold shadow-sm" style="font-size:13.5px; padding:6px 12px;">
+            <i class="bx bx-check-double mr-1 text-success"></i>Điền 26 công chuẩn
+          </button>
+        </form>
+
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold shadow-sm" onclick="saveTimesheetMatrix()" style="font-size:13.5px; padding:6px 16px;">
+          <i class="bx bx-save mr-1"></i>Lưu bảng chấm công
+        </button>
+      </div>
+    </div>
+
+    <div class="card-body p-0">
+      <div class="bcc-table-container">
+        <table class="bcc-table" id="bccMatrixTable">
+          <thead>
+            <tr>
+              <th rowspan="2" class="bcc-freeze-1">STT</th>
+              <th rowspan="2" class="bcc-freeze-2">Họ và tên</th>
+              <th rowspan="2" class="bcc-freeze-3">Chức vụ</th>
+              <th rowspan="2" class="bcc-freeze-4">Loại</th>
+              <th colspan="{{ timesheet.num_days }}" style="background:#e2e8f0; color:#0f172a; padding:6px 0;">Ngày trong tháng {{ timesheet.month_num }}/{{ timesheet.year }}</th>
+              <th rowspan="2" class="bcc-sum-col text-primary" style="min-width:90px;" title="Tổng công làm việc thực tế (*)">Công TT (*)</th>
+              <th rowspan="2" class="bcc-sum-col" style="min-width:90px;" title="Nghỉ phép, lễ, hội nghị, nghỉ bù có hưởng lương">Nghỉ có lương</th>
+              <th rowspan="2" class="bcc-sum-col text-warning" style="min-width:85px;" title="Tổng số giờ tăng ca (OT)">Tăng ca (h)</th>
+              <th rowspan="2" class="bcc-sum-col" style="min-width:90px;" title="Nghỉ không hưởng lương (KL, OM, CO, TS, LĐ)">Nghỉ K.Lương</th>
+              <th rowspan="2" style="min-width:130px;">Ghi chú</th>
+              <th rowspan="2" style="min-width:95px;" title="Kiểm tra trần tăng ca ≤40h/tháng">Trần TC</th>
+            </tr>
+            <tr>
+              {% for d in timesheet.days_info %}
+              <th class="bcc-day-col {{ 'bcc-sunday' if d.is_sunday else ('bcc-saturday' if d.is_saturday else '') }}">
+                <div style="font-size:11.5px; color:#64748b; line-height:1;">{{ d.weekday }}</div>
+                <div style="font-size:14px; font-weight:700; margin-top:2px;">{{ d.day }}</div>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in timesheet.rows %}
+            <!-- DÒNG 1: HÀNH CHÍNH (CÔNG THƯỜNG / PHÉP) -->
+            <tr id="bcc-row-hc-{{ s.user_id }}" data-user-id="{{ s.user_id }}">
+              <td rowspan="2" class="bcc-freeze-1 font-weight-bold text-muted">{{ loop.index }}</td>
+              <td rowspan="2" class="bcc-freeze-2">
+                <div class="font-weight-bold text-dark" style="font-size:15px;">{{ s.full_name }}</div>
+                <div class="small text-muted" style="font-size:12px;">@{{ s.username }}{% if s.department %} · {{ s.department }}{% endif %}</div>
+              </td>
+              <td rowspan="2" class="bcc-freeze-3 font-weight-medium">
+                <span class="badge badge-light border px-2 py-1" style="font-size:13px;">{{ s.job_title }}</span>
+              </td>
+              <td class="bcc-freeze-4">
+                <span class="bcc-tag-hc">HC</span>
+              </td>
+              {% for c in s.daily_cells %}
+              <td class="bcc-day-col {{ 'bcc-sunday' if c.is_sunday else ('bcc-saturday' if c.is_saturday else '') }}">
+                <input type="text" class="bcc-day-input bcc-input-hc"
+                       data-user="{{ s.user_id }}" data-day="{{ c.day }}"
+                       value="{{ c.hc }}" maxlength="4"
+                       onchange="recalcRow({{ s.user_id }})" oninput="this.value = this.value.toUpperCase(); recalcRow({{ s.user_id }});">
+              </td>
+              {% endfor %}
+              <td rowspan="2" class="bcc-sum-col text-primary font-weight-bold text-center" style="font-size:16px;" id="stat-actual-{{ s.user_id }}">
+                {{ s.actual_days|format_number('0') }}
+              </td>
+              <td rowspan="2" class="bcc-sum-col text-center" style="font-size:15px;" id="stat-paid-{{ s.user_id }}">
+                {{ s.paid_leave_days|format_number('0') }}
+              </td>
+              <td rowspan="2" class="bcc-sum-col text-warning text-center" style="font-size:15px;" id="stat-ot-{{ s.user_id }}">
+                {{ s.overtime_hours|format_number('0') }}
+              </td>
+              <td rowspan="2" class="bcc-sum-col text-center" style="font-size:15px;" id="stat-unpaid-{{ s.user_id }}">
+                {{ s.unpaid_leave_days|format_number('0') }}
+              </td>
+              <td rowspan="2" class="text-left" style="padding:4px 6px;">
+                <input type="text" class="form-control form-control-sm bcc-note-input"
+                       data-user="{{ s.user_id }}" value="{{ s.att_note or '' }}"
+                       placeholder="Ghi chú..." style="font-size:13px; height:32px;">
+              </td>
+              <td rowspan="2" class="text-center" id="stat-status-{{ s.user_id }}">
+                <span class="badge {{ 'badge-success' if s.ot_status == 'Đạt' else 'badge-danger' }} px-2 py-1 font-weight-bold" style="font-size:12.5px;">
+                  {{ s.ot_status }}
+                </span>
+              </td>
+            </tr>
+
+            <!-- DÒNG 2: TĂNG CA (SỐ GIỜ OT) -->
+            <tr id="bcc-row-ot-{{ s.user_id }}" data-user-id="{{ s.user_id }}">
+              <td class="bcc-freeze-4">
+                <span class="bcc-tag-ot">T.Ca</span>
+              </td>
+              {% for c in s.daily_cells %}
+              <td class="bcc-day-col {{ 'bcc-sunday' if c.is_sunday else ('bcc-saturday' if c.is_saturday else '') }}">
+                <input type="number" step="0.5" min="0" max="24" class="bcc-day-ot-input bcc-input-ot"
+                       data-user="{{ s.user_id }}" data-day="{{ c.day }}"
+                       value="{{ c.ot }}" placeholder="0"
+                       onchange="recalcRow({{ s.user_id }})" oninput="recalcRow({{ s.user_id }})">
+              </td>
+              {% endfor %}
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="{{ timesheet.num_days + 10 }}" class="text-center py-5 text-muted">
+                Chưa có nhân sự nào trong danh sách chấm công tháng này.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHÚ GIẢI KÝ HIỆU CHẤM CÔNG THEO MẪU -->
+  <div class="card shadow-sm border-0 mb-4 bg-light">
+    <div class="card-body py-3 px-4">
+      <div class="font-weight-bold text-dark mb-2" style="font-size:14.5px;">
+        <i class="bx bx-help-circle mr-1 text-primary"></i> QUY ƯỚC & KÝ HIỆU CHẤM CÔNG (Chuẩn mẫu):
+      </div>
+      <div class="row" style="font-size:13.5px; line-height:1.7;">
+        <div class="col-md-4">
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-1">I. Tính lương ngày đi làm</div>
+          <div><strong class="badge badge-light border text-primary">X</strong> : Chấm công làm việc cả ngày (1 công)</div>
+          <div><strong class="badge badge-light border text-primary">X/2</strong> : Chấm công làm việc 1/2 ngày thường (0.5 công)</div>
+          <div><strong class="badge badge-light border text-muted">O / —</strong> : Ngày nghỉ không làm việc</div>
+        </div>
+        <div class="col-md-4">
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-1">II. Nghỉ có hưởng lương</div>
+          <div><strong class="badge badge-light border text-success">P</strong> : Phép năm (1 công có lương) · <strong class="badge badge-light border text-success">P/2</strong> : 1/2 phép</div>
+          <div><strong class="badge badge-light border text-success">L</strong> : Nghỉ ngày Lễ, Tết hưởng nguyên lương</div>
+          <div><strong class="badge badge-light border text-success">NB</strong> : Nghỉ bù · <strong class="badge badge-light border text-success">H</strong> : Hội nghị/học tập · <strong class="badge badge-light border text-success">T</strong> : Tai nạn</div>
+        </div>
+        <div class="col-md-4">
+          <div class="font-weight-bold text-dark border-bottom pb-1 mb-1">III. Nghỉ không hưởng lương</div>
+          <div><strong class="badge badge-light border text-danger">KL</strong> : Nghỉ việc riêng không hưởng lương</div>
+          <div><strong class="badge badge-light border text-danger">OM</strong> : Nghỉ bản thân ốm đau · <strong class="badge badge-light border text-danger">CO</strong> : Con ốm</div>
+          <div><strong class="badge badge-light border text-danger">TS</strong> : Nghỉ thai sản · <strong class="badge badge-light border text-danger">LĐ</strong> : Lao động nghĩa vụ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- ===================================================================== -->
+  <!-- TAB 1: BẢNG LƯƠNG NHÂN SỰ CHÍNH THỨC                                  -->
+  <!-- ===================================================================== -->
+
+  <!-- THỐNG KÊ TỔNG QUAN QUỸ LƯƠNG -->
+  <div class="row mb-3">
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+      <div class="payroll-stat-card shadow-sm">
+        <div class="payroll-stat-icon bg-soft-primary text-primary">
+          <i class="bx bx-group"></i>
+        </div>
+        <div>
+          <div class="text-muted text-uppercase font-weight-bold" style="font-size:12.5px;">Tổng nhân sự</div>
+          <div class="font-weight-bold text-dark" style="font-size:19px;">{{ rows|length }} người</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+      <div class="payroll-stat-card shadow-sm">
+        <div class="payroll-stat-icon bg-soft-info text-info">
+          <i class="bx bx-calendar-check"></i>
+        </div>
+        <div>
+          <div class="text-muted text-uppercase font-weight-bold" style="font-size:12.5px;">Tổng ngày công</div>
+          <div class="font-weight-bold text-dark" style="font-size:19px;">{{ total_days }} công</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+      <div class="payroll-stat-card shadow-sm">
+        <div class="payroll-stat-icon bg-soft-warning text-warning">
+          <i class="bx bx-wallet-alt"></i>
+        </div>
+        <div>
+          <div class="text-muted text-uppercase font-weight-bold" style="font-size:12.5px;">Tổng quỹ lương (Gross)</div>
+          <div class="font-weight-bold text-dark payroll-money" style="font-size:19px;">{{ total_gross|format_currency }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3 mb-2 mb-md-0">
+      <div class="payroll-stat-card shadow-sm" style="background:#f0fdf4; border-color:#86efac;">
+        <div class="payroll-stat-icon text-success" style="background:#dcfce7;">
+          <i class="bx bx-check-double"></i>
+        </div>
+        <div>
+          <div class="text-uppercase font-weight-bold" style="color:#166534; font-size:12.5px;">Tổng thực lĩnh (Net)</div>
+          <div class="font-weight-bold text-success payroll-money" style="font-size:20px;">{{ total_net|format_currency }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DANH SÁCH BẢNG LƯƠNG NHÂN SỰ -->
+  <div class="card shadow-sm mb-3 border-0">
+    <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between">
+      <div class="font-weight-bold" style="color:#1e293b; font-size:16px;">
+        <i class="bx bx-list-ul text-primary mr-1"></i> Danh sách lương nhân sự — Tháng {{ month[5:7] }}/{{ month[:4] }}
+      </div>
+      <span class="badge badge-light border text-muted px-2 py-1" style="font-size:13.5px;">{{ rows|length }} bản ghi</span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 payroll-table">
+        <thead>
+          <tr>
+            <th style="width:42px; text-align:center;">STT</th>
+            <th style="min-width:180px;">Nhân sự</th>
+            <th style="min-width:130px;">Chức vụ</th>
+            <th class="text-right" style="min-width:120px;">Công TT / Chuẩn</th>
+            <th class="text-right" style="min-width:130px;">Lương + Phụ cấp</th>
+            <th class="text-right" style="min-width:120px;">Lương chuyến</th>
+            <th class="text-right" style="min-width:130px;">Thưởng + Tăng ca</th>
+            <th class="text-right font-weight-bold" style="min-width:150px;">Tổng lương (Gross)</th>
+            <th class="text-right" style="min-width:120px;">BH trừ lương</th>
+            <th class="text-right" style="min-width:120px;">Tạm ứng</th>
+            <th class="text-right" style="min-width:130px;">Thuế + Trừ khác</th>
+            <th class="text-right font-weight-bold" style="min-width:150px;">Thực lĩnh</th>
+            <th class="text-center" style="width:140px;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in rows %}
+          <tr>
+            <td class="text-center text-muted font-weight-bold">{{ loop.index }}</td>
+            <td>
+              <div class="font-weight-bold text-dark" style="font-size:15.5px;">{{ p.full_name }}</div>
+              <div class="text-muted" style="font-size:13px;">{{ p.department or 'Chưa phân bộ phận' }}</div>
+            </td>
+            <td>
+              <span class="badge badge-light border font-weight-bold text-dark px-2 py-1" style="font-size:13.5px;">
+                {{ p.job_title or '—' }}
+              </span>
+            </td>
+            <td class="text-right font-weight-bold" style="font-size:15.5px;">
+              {{ p.work_days|format_number('0') }} <span class="text-muted font-weight-normal" style="font-size:13px;">/ {{ p.standard_days|format_number('0') }}</span>
+            </td>
+            <td class="text-right payroll-money" style="font-size:15px;">
+              {{ p.fixed_pay|format_number }}
+            </td>
+            <td class="text-right payroll-money" style="font-size:15px;">
+              {{ p.trip_wage|format_number }}
+            </td>
+            <td class="text-right payroll-money" style="font-size:15px;">
+              {{ (p.bonus_amount + p.overtime_pay)|format_number }}
+            </td>
+            <td class="text-right font-weight-bold text-dark payroll-money" style="font-size:15.5px;">
+              {{ p.gross_pay|format_number }}
+            </td>
+            <td class="text-right text-danger payroll-money" style="font-size:15px;">
+              {{ p.employee_insurance|format_number }}
+            </td>
+            <td class="text-right text-danger payroll-money" style="font-size:15px;">
+              {{ p.advance_amount|format_number }}
+            </td>
+            <td class="text-right text-danger payroll-money" style="font-size:15px;">
+              {{ (p.tax_deduction + p.other_deduction + p.union_fee)|format_number }}
+            </td>
+            <td class="text-right font-weight-bold text-success payroll-money" style="font-size:16px;">
+              {{ p.net_pay|format_currency }}
+            </td>
+            <td class="text-center">
+              <a href="/admin/transport/payroll/{{ p.user_id }}?month={{ month }}"
+                 class="btn btn-primary btn-sm font-weight-bold shadow-sm px-2 py-1"
+                 style="font-size:13.5px;"
+                 title="Xem chi tiết phiếu lương và tính lương">
+                <i class="bx bx-edit mr-1"></i>Chi tiết lương
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="13" class="text-center text-muted py-5">
+              <i class="bx bx-info-circle font-size-24 d-block mb-2"></i>
+              Chưa có hồ sơ lương nhân sự trong tháng này.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if rows %}
+        <tfoot>
+          <tr class="font-weight-bold" style="background:#f1f5f9; border-top:2px solid #cbd5e1; font-size:15px;">
+            <td colspan="4" class="text-uppercase" style="letter-spacing:.04em;">Tổng cộng</td>
+            <td class="text-right payroll-money">{{ total_fixed|format_number }}</td>
+            <td class="text-right payroll-money">{{ total_trip_wage|format_number }}</td>
+            <td class="text-right payroll-money">{{ (rows|sum(attribute='bonus_amount') + rows|sum(attribute='overtime_pay'))|format_number }}</td>
+            <td class="text-right text-dark font-size-15 payroll-money">{{ total_gross|format_number }}</td>
+            <td class="text-right text-danger payroll-money">{{ total_insurance|format_number }}</td>
+            <td class="text-right text-danger payroll-money">{{ total_advance|format_number }}</td>
+            <td class="text-right text-danger payroll-money">{{ (rows|sum(attribute='tax_deduction') + rows|sum(attribute='other_deduction') + rows|sum(attribute='union_fee'))|format_number }}</td>
+            <td class="text-right text-success font-size-16 payroll-money">{{ total_net|format_currency }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if saved %}
+<script>
+window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu dữ liệu thành công.', type:'success'}}));
+const url = new URL(window.location.href);
+url.searchParams.delete('saved');
+window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+</script>
+{% endif %}
+
+<script>
+// Client-side parser for attendance marks matching template formula
+function parseMark(mark) {
+  const m = (mark || '').trim().toUpperCase();
+  if (!m || m === '-' || m === 'O' || m === '0') return { work: 0, paid: 0, unpaid: 0 };
+  if (m === 'X' || m === 'NL') return { work: 1, paid: 0, unpaid: 0 };
+  if (m === 'X/2' || m === 'NL/2') return { work: 0.5, paid: 0, unpaid: 0 };
+  if (m === 'P') return { work: 1, paid: 1, unpaid: 0 };
+  if (m === 'P/2') return { work: 0.5, paid: 0.5, unpaid: 0 };
+  if (['L', 'H', 'NB', 'T', 'TN'].includes(m)) return { work: 1, paid: 1, unpaid: 0 };
+  if (['KL', 'OM', 'CO', 'TS', 'LD', 'LĐ'].includes(m)) return { work: 0, paid: 0, unpaid: 1 };
+  const num = parseFloat(m);
+  if (!isNaN(num)) return { work: num, paid: 0, unpaid: 0 };
+  return { work: 0, paid: 0, unpaid: 0 };
+}
+
+// Recalculate row totals in real-time
+function recalcRow(userId) {
+  const hcInputs = document.querySelectorAll(`.bcc-input-hc[data-user="${userId}"]`);
+  const otInputs = document.querySelectorAll(`.bcc-input-ot[data-user="${userId}"]`);
+
+  let totalWork = 0;
+  let totalPaid = 0;
+  let totalUnpaid = 0;
+  let totalOt = 0;
+
+  hcInputs.forEach(input => {
+    const p = parseMark(input.value);
+    totalWork += p.work;
+    totalPaid += p.paid;
+    totalUnpaid += p.unpaid;
+  });
+
+  otInputs.forEach(input => {
+    const val = parseFloat(input.value);
+    if (!isNaN(val) && val > 0) {
+      totalOt += val;
+    }
+  });
+
+  const elActual = document.getElementById(`stat-actual-${userId}`);
+  const elPaid = document.getElementById(`stat-paid-${userId}`);
+  const elOt = document.getElementById(`stat-ot-${userId}`);
+  const elUnpaid = document.getElementById(`stat-unpaid-${userId}`);
+  const elStatus = document.getElementById(`stat-status-${userId}`);
+
+  if (elActual) elActual.textContent = totalWork.toLocaleString('vi-VN');
+  if (elPaid) elPaid.textContent = totalPaid.toLocaleString('vi-VN');
+  if (elOt) elOt.textContent = totalOt.toLocaleString('vi-VN');
+  if (elUnpaid) elUnpaid.textContent = totalUnpaid.toLocaleString('vi-VN');
+
+  if (elStatus) {
+    if (totalOt <= 40) {
+      elStatus.innerHTML = '<span class="badge badge-success px-2 py-1 font-weight-bold" style="font-size:12.5px;">Đạt</span>';
+    } else {
+      elStatus.innerHTML = '<span class="badge badge-danger px-2 py-1 font-weight-bold" style="font-size:12.5px;">Vượt trần!</span>';
+    }
+  }
+}
+
+// Save all rows to backend
+async function saveTimesheetMatrix() {
+  const rows = document.querySelectorAll('#bccMatrixTable tbody tr[id^="bcc-row-hc-"]');
+  const updates = [];
+
+  rows.forEach(r => {
+    const userId = parseInt(r.getAttribute('data-user-id'), 10);
+    if (!userId) return;
+
+    const details = {};
+    const hcInputs = document.querySelectorAll(`.bcc-input-hc[data-user="${userId}"]`);
+    const otInputs = document.querySelectorAll(`.bcc-input-ot[data-user="${userId}"]`);
+
+    hcInputs.forEach(input => {
+      const day = input.getAttribute('data-day');
+      if (!details[day]) details[day] = {};
+      details[day].hc = (input.value || '').trim().toUpperCase();
+    });
+
+    otInputs.forEach(input => {
+      const day = input.getAttribute('data-day');
+      if (!details[day]) details[day] = {};
+      const val = parseFloat(input.value);
+      details[day].ot = (!isNaN(val) && val > 0) ? val : 0;
+    });
+
+    const noteInput = document.querySelector(`.bcc-note-input[data-user="${userId}"]`);
+    const note = noteInput ? noteInput.value.trim() : '';
+
+    updates.push({
+      user_id: userId,
+      daily_details: details,
+      standard_days: 26,
+      note: note
+    });
+  });
+
+  try {
+    const res = await fetch('/admin/transport/payroll/timesheet/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        month: '{{ month }}',
+        updates: updates
+      })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: { msg: data.message || 'Đã lưu bảng chấm công thành công.', type: 'success' }
+      }));
+    } else {
+      alert(data.message || 'Lỗi khi lưu bảng chấm công.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Lỗi kết nối khi lưu bảng chấm công.');
+  }
+}
+</script>
+{% endblock %}

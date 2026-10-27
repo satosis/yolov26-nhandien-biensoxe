@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Request, Depends
+import math
+import re
+from fastapi import APIRouter, Request, Depends, Query
+from fastapi.responses import JSONResponse
 from backend.services.database import db
+from backend.services.config import normalize_plate
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import build_page_base_url, paginate_counts
 
 router = APIRouter(prefix="/parking")
 
@@ -23,13 +28,23 @@ def get_occupancy_stats(site_id=None) -> list[dict]:
     return db.execute_query(query, tuple(params) if params else None, fetchall=True)
 
 
-def get_parking_history(limit=50, date_filter=None) -> list[dict]:
+def count_parking_history(date_filter=None) -> int:
     where = ""
     params = []
     if date_filter:
         where = "WHERE vs.entry_time::date = %s"
         params.append(date_filter)
-    params.append(limit)
+    row = db.execute_query(f"SELECT COUNT(*) AS total FROM vehicle_sessions vs {where}", tuple(params) if params else None, fetch=True)
+    return row.get("total", 0) if row else 0
+
+
+def get_parking_history(limit=20, offset=0, date_filter=None) -> list[dict]:
+    where = ""
+    params = []
+    if date_filter:
+        where = "WHERE vs.entry_time::date = %s"
+        params.append(date_filter)
+    params.extend((limit, offset))
     query = f"""
         SELECT
             vs.*,
@@ -44,7 +59,7 @@ def get_parking_history(limit=50, date_filter=None) -> list[dict]:
         LEFT JOIN cameras c_out ON c_out.id::text = vs.camera_id_out
         {where}
         ORDER BY vs.entry_time DESC
-        LIMIT %s
+        LIMIT %s OFFSET %s
     """
     return db.execute_query(query, tuple(params), fetchall=True)
 
@@ -116,16 +131,68 @@ async def dashboard(request: Request, user: dict = Depends(require_menu("parking
 
 
 @router.get("_logs")
-async def logs(request: Request, date: str = None, user: dict = Depends(require_menu("parking_logs"))):
+async def logs(
+    request: Request,
+    date: str = None,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("parking_logs")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_logs"
-    ctx["logs"] = get_parking_history(limit=100, date_filter=date or None)
+    total = count_parking_history(date_filter=date or None)
+    total_pages = max(1, math.ceil(total / 20))
+    page_num = max(1, min(page, total_pages))
+    offset = (page_num - 1) * 20
+
+    ctx["logs"] = get_parking_history(limit=20, offset=offset, date_filter=date or None)
+    ctx["page"] = page_num
+    ctx["total_pages"] = total_pages
+    ctx["total"] = total
     ctx["filter_date"] = date or ""
+    extra = {"date": date} if date else None
+    ctx["page_base_url"] = build_page_base_url("/admin/parking_logs", extra)
     return templates.TemplateResponse("pages/parking_logs.html", {"request": request, **ctx})
 
 
+@router.put("/logs/{session_id}")
+async def update_parking_history_plate(
+    session_id: int,
+    request: Request,
+    user: dict = Depends(require_menu("parking_logs")),
+):
+    data = await request.json()
+    plate = normalize_plate(str(data.get("plate") or ""))
+    if not re.fullmatch(r"[A-Z0-9]{4,16}", plate):
+        return JSONResponse({"ok": False, "message": "Biển số không hợp lệ."}, status_code=400)
+    updated = db._execute_query(
+        "UPDATE vehicle_sessions SET plate_norm = %s WHERE id = %s RETURNING id",
+        (plate, session_id), fetch=True, commit=True,
+    )
+    if not updated:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy bản ghi."}, status_code=404)
+    return JSONResponse({"ok": True, "plate": plate})
+
+
+@router.delete("/logs/{session_id}")
+async def delete_parking_history(
+    session_id: int,
+    user: dict = Depends(require_menu("parking_logs")),
+):
+    deleted = db._execute_query(
+        "DELETE FROM vehicle_sessions WHERE id = %s RETURNING id",
+        (session_id,), fetch=True, commit=True,
+    )
+    if not deleted:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy bản ghi."}, status_code=404)
+    return JSONResponse({"ok": True, "message": "Đã xóa bản ghi."})
+
+
 @router.get("_analytics")
-async def analytics(request: Request, user: dict = Depends(require_menu("parking_analytics"))):
+async def analytics(
+    request: Request,
+    page: int = Query(1, ge=1),
+    user: dict = Depends(require_menu("parking_analytics")),
+):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "parking_analytics"
     site_id = request.session.get("active_site_id") or None
@@ -135,5 +202,13 @@ async def analytics(request: Request, user: dict = Depends(require_menu("parking
     kpi_stats.update(_aggregate_stats(rows))
     ctx["stats"] = kpi_stats
     ctx["peak_hours"] = _build_peak_hours(history)
-    ctx["recent_events"] = get_parking_history(limit=10)
+    recent_pagination = paginate_counts(
+        count_parking_history(), page=page, per_page=10,
+        base_url="/admin/parking_analytics",
+    )
+    ctx["recent_events"] = get_parking_history(
+        limit=recent_pagination["per_page"],
+        offset=(recent_pagination["page"] - 1) * recent_pagination["per_page"],
+    )
+    ctx["recent_pagination"] = recent_pagination
     return templates.TemplateResponse("pages/parking_analytics.html", {"request": request, **ctx})

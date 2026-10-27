@@ -11,12 +11,11 @@
   <link href="/static/admin-assets/css/bootstrap.min.css?v=opatix" rel="stylesheet" type="text/css" />
   <link href="/static/admin-assets/css/icons.min.css?v=opatix" rel="stylesheet" type="text/css" />
   <link href="/static/admin-assets/css/theme.min.css?v=opatix" rel="stylesheet" type="text/css" />
-  <link href="/static/admin-assets/css/admin-custom.css?v=opatix" rel="stylesheet" type="text/css" />
   <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css" />
   <link href="/static/vendor/fonts-inter/index.css" rel="stylesheet">
   <link rel="stylesheet" href="/static/vendor/toastr/toastr.min.css" />
   <link rel="stylesheet" href="/static/admin/css/tom-select.css?v=opatix">
-
+  <link href="/static/admin-assets/css/admin-custom.css?v=20261025-unified-ui-1" rel="stylesheet" type="text/css" />
 
   <script src="/static/admin/js/htmx.min.js?v=2.1"></script>
   <script src="/static/admin/js/api-client.js?v=1.1"></script>
@@ -30,7 +29,95 @@
     .x-modal-overlay{display:flex}
 
     .hidden{display:none!important}
+    #toast-container { z-index: 999999 !important; }
   </style>
+  <script>
+    // Global formatNumber & formatCurrency helpers (available everywhere)
+    window.formatNumber = function(value, defaultVal = '0') {
+      if (value === null || value === undefined || value === '') return defaultVal;
+      if (typeof value === 'number') {
+        if (isNaN(value)) return defaultVal;
+        return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(value);
+      }
+      let clean = String(value).trim();
+      if (!clean) return defaultVal;
+      // Handle Vietnamese formatting: 1.000.000 or 1.000.000,50
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes('.') && !clean.includes(',')) {
+        const parts = clean.split('.');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/\./g, '');
+        }
+      } else if (clean.includes(',')) {
+        const parts = clean.split(',');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/,/g, '');
+        } else {
+          clean = clean.replace(',', '.');
+        }
+      }
+      const cleanNum = clean.replace(/[^\d.-]/g, '');
+      const num = Number(cleanNum);
+      if (isNaN(num)) return defaultVal;
+      return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(num);
+    };
+
+    window.formatCurrency = function(value, symbol = 'đ', defaultVal = '0 đ') {
+      if (value === null || value === undefined || value === '') return defaultVal;
+      const formatted = window.formatNumber(value, null);
+      if (formatted === null) return defaultVal;
+      return formatted + (symbol ? ' ' + symbol : '');
+    };
+
+    window.parseNumber = function(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number') return isNaN(value) ? 0 : value;
+      let clean = String(value).trim();
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes('.') && !clean.includes(',')) {
+        const parts = clean.split('.');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/\./g, '');
+        }
+      } else if (clean.includes(',')) {
+        const parts = clean.split(',');
+        if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+          clean = clean.replace(/,/g, '');
+        } else {
+          clean = clean.replace(',', '.');
+        }
+      }
+      const cleanNum = clean.replace(/[^\d.-]/g, '');
+      return parseFloat(cleanNum) || 0;
+    };
+
+    window.formatCurrencyInput = function(el) {
+      if (!el) return;
+      const cursor = el.selectionStart;
+      const prevLen = el.value.length;
+      const raw = el.value.replace(/[^\d-]/g, '');
+      if (!raw || raw === '-') {
+        el.value = raw;
+        return;
+      }
+      const isNeg = raw.startsWith('-');
+      const digits = raw.replace(/-/g, '');
+      const num = parseInt(digits, 10);
+      if (isNaN(num)) {
+        el.value = '';
+        return;
+      }
+      const formatted = (isNeg ? '-' : '') + new Intl.NumberFormat('vi-VN').format(num);
+      el.value = formatted;
+      const diff = formatted.length - prevLen;
+      if (cursor !== null) {
+        el.setSelectionRange(Math.max(0, cursor + diff), Math.max(0, cursor + diff));
+      }
+    };
+    window.formatNumberInput = window.formatCurrencyInput;
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -52,7 +139,7 @@
     <div x-show="open" x-transition class="position-relative" style="max-width:90vw;max-height:90vh;">
       <button @click="open=false" class="btn btn-light btn-sm position-absolute"
               style="top:-40px;right:0;"><i class="bx bx-x"></i></button>
-      <img :src="imgSrc" class="rounded shadow-lg" style="max-width:90vw;max-height:85vh;object-fit:contain;">
+      <img :src="imgSrc" class="rounded shadow-lg" style="max-width:90vw;max-height:85vh;object-fit:contain;background:#fff;">
     </div>
   </div>
 
@@ -61,7 +148,7 @@
 
   <div x-data="{
     open:false, title:'', message:'', confirmText:'Xác nhận', cancelText:'Hủy',
-    confirmUrl:'', confirmTarget:'', confirmMethod:'POST', confirmSwap:'outerHTML',
+    confirmUrl:'', confirmTarget:'', confirmMethod:'POST', confirmSwap:'outerHTML', redirectUrl:'',
     reload:false, isAlert:false,
     showConfirm(e){
       const d=e.detail||{};
@@ -71,11 +158,20 @@
       this.cancelText=d.cancelText||'Hủy';
       this.confirmUrl=d.confirmUrl||''; this.confirmTarget=d.confirmTarget||'';
       this.confirmMethod=d.confirmMethod||'POST'; this.confirmSwap=d.confirmSwap||'outerHTML';
+      this.redirectUrl=d.redirectUrl||'';
       this.reload=d.reload||false; this.isAlert=d.isAlert||false; this.open=true;
     },
     confirm(){
       if(this.confirmUrl){
-        if(this.reload){
+        if(this.redirectUrl){
+          apiRequest(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
+            .then(result=>{
+              if(result.ok){ window.location.assign(this.redirectUrl); return; }
+              window.dispatchEvent(new CustomEvent('showToast', {
+                detail:{msg:result.message || 'Không thể thực hiện thao tác.',type:'error'}
+              }));
+            });
+        } else if(this.reload){
           apiRequest(this.confirmUrl,{method:this.confirmMethod,headers:{'Content-Type':'application/x-www-form-urlencoded'}})
             .then(result=>{
               if(result.ok){ window.location.reload(); return; }
@@ -91,7 +187,7 @@
             .then(d=>{
               const ok = d.ok;
               const msg = d.message || (ok ? 'Thành công' : 'Thất bại');
-              if(window.toastr){ toastr[ok?'success':'error'](msg); } else { alert(msg); }
+              window.dispatchEvent(new CustomEvent('showToast', {detail:{msg,type:ok?'success':'error'}}));
             });
         }
       }
@@ -128,35 +224,108 @@
   <script src="/static/admin-assets/js/bootstrap.bundle.min.js"></script>
   <script src="/static/admin-assets/js/waves.js"></script>
   <script src="/static/admin-assets/js/simplebar.min.js"></script>
-  <script src="/static/admin-assets/js/theme.js"></script>
+  <script src="/static/admin-assets/js/theme.js?v=20261019-multimenu"></script>
   <script src="/static/vendor/toastr/toastr.min.js"></script>
   <script>
     if (window.toastr) {
       toastr.options = {
-        closeButton:true, progressBar:true, positionClass:"toast-top-right",
-        escapeHtml:true,
-        timeOut:"4000", extendedTimeOut:"1000",
-        showMethod:"fadeIn", hideMethod:"fadeOut"
+        closeButton: true,
+        progressBar: true,
+        positionClass: "toast-top-right",
+        escapeHtml: true,
+        timeOut: "4000",
+        extendedTimeOut: "1000",
+        showMethod: "fadeIn",
+        hideMethod: "fadeOut"
       };
     }
+
+    window.showNotify = function(msg, type) {
+      type = (type || 'success').toLowerCase();
+      if (!msg) return;
+      if (window.toastr) {
+        if (type === 'error' && toastr.error) toastr.error(msg);
+        else if (type === 'warning' && toastr.warning) toastr.warning(msg);
+        else if (type === 'info' && toastr.info) toastr.info(msg);
+        else if (toastr.success) toastr.success(msg);
+        else toastr(msg);
+      } else {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { msg: msg, type: type }
+        }));
+      }
+    };
+    window.notify = window.showNotify;
+
     window.addEventListener("showToast", (e) => {
       const d = e.detail || {};
       const msg = d.msg || d.value || "";
       const type = (d.type || "success");
       if (window.toastr && toastr[type]) { toastr[type](msg); }
-      else { alert(msg); }
+      else { console.error('Không thể hiển thị toastr:', msg); }
     });
     document.body.addEventListener("htmx:responseError", () => {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail:{msg:'Không thể thực hiện thao tác. Vui lòng thử lại.',type:'error'}
-      }));
+      window.showNotify('Không thể thực hiện thao tác. Vui lòng thử lại.', 'error');
     });
     document.body.addEventListener("htmx:sendError", () => {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail:{msg:'Không thể kết nối tới máy chủ.',type:'error'}
-      }));
+      window.showNotify('Không thể kết nối tới máy chủ.', 'error');
     });
+
+    // Tự động kiểm tra query params thông báo và hiển thị toastr
+    (function() {
+      try {
+        const url = new URL(window.location.href);
+        const err = url.searchParams.get('error') || url.searchParams.get('error_msg');
+        const msg = url.searchParams.get('message') || url.searchParams.get('msg') || url.searchParams.get('success');
+        const warn = url.searchParams.get('warning');
+        const info = url.searchParams.get('info') || url.searchParams.get('notice');
+        let shouldClean = false;
+        if (err) {
+          window.showNotify(err, 'error');
+          url.searchParams.delete('error');
+          url.searchParams.delete('error_msg');
+          shouldClean = true;
+        } else if (warn) {
+          window.showNotify(warn, 'warning');
+          url.searchParams.delete('warning');
+          shouldClean = true;
+        } else if (msg) {
+          window.showNotify(msg, 'success');
+          url.searchParams.delete('message');
+          url.searchParams.delete('msg');
+          url.searchParams.delete('success');
+          shouldClean = true;
+        } else if (info) {
+          window.showNotify(info, 'info');
+          url.searchParams.delete('info');
+          url.searchParams.delete('notice');
+          shouldClean = true;
+        }
+        if (shouldClean) {
+          window.history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + url.hash);
+        }
+      } catch (_) {}
+    })();
+
+    // Chuyển tiếp window.alert sang Toastr
+    if (!window._nativeAlert) {
+      window._nativeAlert = window.alert;
+      window.alert = function(msg) {
+        if (window.toastr) {
+          const text = String(msg || '');
+          if (/lỗi|error|thất bại|không thể|cảnh báo|chưa|vui lòng/i.test(text)) {
+            toastr.error(text);
+          } else {
+            toastr.info(text);
+          }
+        } else if (window._nativeAlert) {
+          window._nativeAlert(msg);
+        }
+      };
+    }
   </script>
   {% block scripts %}{% endblock %}
+  <script src="/static/admin-assets/js/admin-searchable-selects.js?v=20261021-searchable-selects-2"></script>
+  <script src="/static/admin-assets/js/admin-bulk-actions.js?v=20261022-bulk-actions-1"></script>
 </body>
 </html>

@@ -148,20 +148,21 @@ class CameraReader:
                     t_last = time.monotonic()
 
                     if frame.shape[1] != cfg.GRAB_WIDTH or frame.shape[0] != cfg.GRAB_HEIGHT:
+                        is_downscale = (
+                            frame.shape[1] > cfg.GRAB_WIDTH or frame.shape[0] > cfg.GRAB_HEIGHT
+                        )
                         frame = cv2.resize(
-                            frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT), interpolation=cv2.INTER_NEAREST
+                            frame, (cfg.GRAB_WIDTH, cfg.GRAB_HEIGHT),
+                            interpolation=cv2.INTER_AREA if is_downscale else cv2.INTER_CUBIC,
                         )
 
-                    alpha = cfg.DENOISE_TEMPORAL_ALPHA
-                    if alpha < 1.0:
-                        if hasattr(self, '_prev_f32'):
-                            cv2.accumulateWeighted(frame, self._prev_f32, alpha)
-                            frame = cv2.convertScaleAbs(self._prev_f32)
-                        else:
-                            self._prev_f32 = frame.astype(np.float32)
-
+                    writing = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+                    if writing == 0:
+                        writing = 1
+                    self._counter[0] = writing  # odd means the shared frame is being replaced
                     np.copyto(self._buf, frame)
-                    self._counter[0] = (int(self._counter[0]) + 1) & 0xFFFFFFFF
+                    completed = (writing + 1) & 0xFFFFFFFF
+                    self._counter[0] = completed if completed else 2
 
                     if self.recorder_queue:
                         _enqueue_recording_frame(

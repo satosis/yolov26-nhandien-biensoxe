@@ -47,9 +47,9 @@
   </div>
 
 
-  <div>
+  <div data-bulk-list>
     {% for r in roles %}
-    <div class="card mb-3" id="role-card-{{ r.id }}">
+    <div class="card mb-3" id="role-card-{{ r.id }}" data-bulk-item>
       <div class="card-body">
 
         <div class="d-flex align-items-center justify-content-between mb-3">
@@ -68,7 +68,7 @@
                     class="btn btn-sm btn-light" title="Sửa quyền"><i class="bx bx-edit-alt"></i></button>
             {% endif %}
             {% if r.role_name not in ['Admin', 'admin'] %}
-            <button type="button" class="btn btn-sm btn-danger" title="Xóa"
+            <button type="button" class="btn btn-sm btn-danger" title="Xóa" data-bulk-action="delete" data-bulk-url="/admin/rbac/{{ r.id }}" data-bulk-method="DELETE"
                     onclick="deleteRole({{ r.id }}, '{{ r.role_name }}')"><i class="bx bx-trash"></i></button>
             {% endif %}
           </div>
@@ -119,6 +119,7 @@
       </div>
     </div>
     {% endfor %}
+    {% include "partials/pagination.html" %}
   </div>
 </div>
 
@@ -135,7 +136,9 @@ async function deleteRole(roleId, roleName) {
   if (result.ok) {
     window.location.href = '/admin/rbac';
   } else {
-    alert(result.message || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.');
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: {msg: result.message || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.', type: 'error'}
+    }));
   }
 }
 </script>

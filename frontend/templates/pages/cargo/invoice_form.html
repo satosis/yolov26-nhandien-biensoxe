@@ -1,0 +1,559 @@
+{% extends "layout.html" %}
+{% block title %}Xuất hóa đơn vận tải{% endblock %}
+{% block page_title %}Xuất hóa đơn vận tải{% endblock %}
+{% block page_title_row_class %}invoice-sticky-header{% endblock %}
+{% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:6px">
+  <button type="button" id="btn-save-invoice" class="btn btn-success btn-sm font-weight-bold" onclick="submitInvoiceForm('save')">
+    <i class="bx bx-save mr-1"></i>Lưu hóa đơn
+  </button>
+  <button type="button" id="btn-export-invoice" class="btn btn-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('export')">
+    <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
+  </button>
+  <button type="button" id="btn-push-invoice-bkav" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('bkav')" {% if not bkav_configured %}disabled title="Chưa cấu hình tài khoản BKAV"{% endif %}>
+    <i class="bx bx-cloud-upload mr-1"></i>Đồng bộ sang BKAV
+  </button>
+</div>
+{% endblock %}
+{% block head %}
+<link href="/static/admin-assets/css/cargo-form.css?v=7" rel="stylesheet">
+<style>
+  .main-content:has(.invoice-sticky-header){overflow:visible}
+  .invoice-sticky-header{position:sticky;top:40px;z-index:1002;background:#f8fafc;padding-top:8px;border-bottom:1px solid #e2e8f0}
+  .invoice-sticky-header .page-title-box{margin-bottom:8px!important}
+  .invoice-form-card{max-width:none;width:100%}
+  .invoice-form-card .input-group-append .btn{height:28px;font-size:11.5px}
+  .invoice-form-card label{font-size:12px;font-weight:600;color:#566579;margin-bottom:4px}
+  .invoice-form-card .invoice-line{border:1px solid #d8e1ee;border-radius:7px;padding:14px;margin-bottom:12px}
+  .invoice-form-card .invoice-section-title{font-size:13px;font-weight:700;color:#334155}
+  .invoice-form-card .invoice-money{font-variant-numeric:tabular-nums}
+  .invoice-form-card .invoice-field-output{display:flex;align-items:center;background:#f7f9fc}
+  .invoice-form-card .invoice-fuel{border-top:1px solid #d8e1ee;margin-top:2px;padding-top:12px}
+  .invoice-form-card .invoice-debt{background:#f5f7fb;border:1px solid #f05b60;border-radius:5px;padding:9px}
+  .invoice-page-layout{display:grid;grid-template-columns:100%;gap:16px;align-items:start;margin-top:0;width:100%;max-width:100%}
+  .invoice-page-layout.has-side-panel,
+  .invoice-page-layout:has(.invoice-side-panel){grid-template-columns:minmax(0,1fr) clamp(360px,28vw,480px);width:100%;max-width:100%}
+  .invoice-page-layout .invoice-form-card{max-width:none;min-width:0;width:100%;margin-top:0!important}
+  .invoice-side-panel{position:sticky;top:var(--invoice-sticky-top,86px);max-height:calc(100vh - var(--invoice-sticky-top,86px) - 16px);overflow-y:auto;min-width:0;margin-top:0}
+  .invoice-side-panel > .card:first-child{margin-top:0!important}
+  .invoice-side-panel .card-header{padding:9px 12px;background:#fff}
+  .invoice-bkav-preview{display:block;width:auto;max-width:100%;max-height:min(55vh,520px);height:auto;margin:0 auto;border:1px solid #d8e1ee;border-radius:4px;object-fit:contain;cursor:pointer}
+  .invoice-qr-preview{display:block;max-width:320px;width:100%;height:auto;margin:auto;cursor:pointer}
+  .invoice-side-panel [hidden]{display:none!important}
+  @media (max-width:1080px){
+    .invoice-page-layout{grid-template-columns:100%}
+    .invoice-page-layout.has-side-panel,
+    .invoice-page-layout:has(.invoice-side-panel){grid-template-columns:100%}
+  }
+</style>
+<script src="/static/admin-assets/js/cargo-invoice-form.js?v=20"></script>
+<script>
+function showSavedInvoiceImage(src) {
+  const image = document.getElementById('saved-bkav-invoice-image');
+  const empty = document.getElementById('saved-bkav-invoice-empty');
+  const download = document.getElementById('saved-bkav-invoice-download');
+  const refresh = document.getElementById('saved-bkav-invoice-refresh');
+  const sendZalo = document.getElementById('saved-bkav-invoice-send-zalo');
+  if (image) {
+    image.src = src;
+    image.hidden = false;
+  }
+  if (empty) empty.hidden = true;
+  if (download) download.hidden = false;
+  if (sendZalo) sendZalo.hidden = false;
+  if (refresh) refresh.hidden = true;
+}
+
+async function handlePushBkav(event, guid) {
+  if (event) event.preventDefault();
+  const form = document.getElementById('push-bkav-form');
+  const button = document.getElementById('btn-push-bkav');
+  const originalHtml = button ? button.innerHTML : '';
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang đồng bộ BKAV...';
+  }
+  window.dispatchEvent(new CustomEvent('showToast', {
+    detail: { msg: 'Đang đồng bộ hóa đơn sang BKAV và tải ảnh về...', type: 'info' }
+  }));
+
+  try {
+    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/push-bkav', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Đồng bộ BKAV thất bại.');
+    }
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: data.message || 'Hóa đơn nháp đã được đồng bộ sang BKAV.', type: 'success' }
+    }));
+    if (data.image_url) {
+      showSavedInvoiceImage(data.image_url);
+    } else {
+      await openInvoiceBkavImage(guid, false, true);
+    }
+    if (form) {
+      form.outerHTML = '<span class="badge badge-light border text-success py-1 px-2"><i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV</span>';
+    }
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: error.message || 'Lỗi khi đồng bộ BKAV.', type: 'error' }
+    }));
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    }
+  }
+}
+
+async function openSavedInvoiceQr(guid, showModal = true) {
+  const image = document.getElementById('saved-invoice-payment-qr');
+  if (showModal && image && !image.hidden && image.src) {
+    window.dispatchEvent(new CustomEvent('show-image', {detail: {src: image.src}}));
+    return;
+  }
+  try {
+    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/qr', {credentials: 'same-origin'});
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tạo mã QR.');
+    const empty = document.getElementById('saved-invoice-payment-qr-empty');
+    if (image) { image.src = data.qr_url; image.hidden = false; }
+    if (empty) empty.hidden = true;
+    if (showModal) window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.qr_url}}));
+  } catch (error) {
+    if (showModal) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tạo mã QR.', type: 'error'}}));
+  }
+}
+
+async function openInvoiceBkavImage(guid, showModal = true, silent = false) {
+  const buttons = document.querySelectorAll('[data-bkav-refresh]');
+  buttons.forEach(button => { button.disabled = true; });
+  try {
+    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đang tải ảnh hóa đơn từ BKAV...', type: 'info'}}));
+    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info', {credentials: 'same-origin'});
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tải ảnh hóa đơn từ BKAV.');
+    showSavedInvoiceImage(data.image_url);
+    if (showModal) window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
+  } catch (error) {
+    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tải ảnh hóa đơn.', type: 'error'}}));
+  } finally {
+    buttons.forEach(button => { button.disabled = false; });
+  }
+}
+
+async function sendInvoiceToZalo(guid) {
+  const btn = document.getElementById('saved-bkav-invoice-send-zalo');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang gửi Zalo...';
+  }
+  window.dispatchEvent(new CustomEvent('showToast', {
+    detail: { msg: 'Đang gửi thông tin và ảnh hóa đơn vào nhóm Zalo...', type: 'info' }
+  }));
+  try {
+    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/send-zalo', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Không thể gửi hóa đơn vào nhóm Zalo.');
+    }
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: data.message || 'Đã gửi ảnh hóa đơn vào nhóm Zalo thành công!', type: 'success' }
+    }));
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: { msg: error.message || 'Lỗi gửi tin nhắn Zalo.', type: 'error' }
+    }));
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
+function previewInvoiceDocument(guid, kind) {
+  var url = '/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/export-document?kind=' + encodeURIComponent(kind || 'hdvc') + '&view=html';
+  var modal = $('#documentPreviewModal');
+  var iframe = document.getElementById('documentPreviewFrame');
+  var loader = document.getElementById('documentPreviewLoading');
+  if (loader) loader.style.display = 'flex';
+  if (iframe) iframe.src = url;
+  if (modal.length) modal.modal('show');
+}
+
+function updateInvoiceStickyTop() {
+  const header = document.querySelector('.invoice-sticky-header');
+  if (header) {
+    const top = 40 + header.offsetHeight;
+    document.documentElement.style.setProperty('--invoice-sticky-top', top + 'px');
+  }
+}
+window.addEventListener('resize', updateInvoiceStickyTop);
+
+let invoiceActionBusy = false;
+function invoiceToast(message, type) {
+  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: message, type: type || 'info'}}));
+}
+function submitInvoiceForm(action) {
+  if (invoiceActionBusy) return;
+  const form = document.getElementById('invoice-form');
+  if (!form) return;
+  form.dataset.invoiceAction = action;
+  form.requestSubmit();
+}
+async function submitInvoiceAction(event) {
+  event.preventDefault();
+  if (invoiceActionBusy) return;
+  const form = event.currentTarget;
+  const action = form.dataset.invoiceAction || 'export';
+  const btnSave = document.getElementById('btn-save-invoice');
+  const buttons = [document.getElementById('btn-export-invoice'), document.getElementById('btn-push-invoice-bkav'), btnSave];
+  const activeButton = action === 'bkav' ? buttons[1] : action === 'save' ? btnSave : buttons[0];
+  const originalLabel = activeButton ? activeButton.innerHTML : '';
+  invoiceActionBusy = true;
+  buttons.forEach(button => { if (button) button.disabled = true; });
+  const loadingLabel = action === 'bkav' ? 'Đang đồng bộ...' : action === 'save' ? 'Đang lưu...' : 'Đang tạo tệp...';
+  if (activeButton) activeButton.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>' + loadingLabel;
+  try {
+    const endpoint = action === 'bkav'
+      ? '/admin/vehicles/cargo/invoices/push-bkav'
+      : action === 'save'
+        ? '/admin/vehicles/cargo/invoices/save'
+        : '/admin/vehicles/cargo/invoices/add';
+    const response = await fetch(endpoint, {
+      method: 'POST', body: new FormData(form), credentials: 'same-origin',
+      headers: {'Accept': action === 'export' ? '*/*' : 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
+    });
+    if (action === 'save') {
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể lưu hóa đơn.');
+      invoiceToast('Đã lưu hóa đơn thành công.', 'success');
+      if (data.redirect) setTimeout(() => { window.location.href = data.redirect; }, 700);
+    } else if (action === 'bkav') {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể đồng bộ hóa đơn sang BKAV.');
+      invoiceToast(data.message || 'Đã đồng bộ hóa đơn sang BKAV.', 'success');
+      if (data.image_url) {
+        showSavedInvoiceImage(data.image_url);
+      }
+      if (data.redirect && (!form.invoice_guid || !form.invoice_guid.value || !window.location.pathname.includes(data.invoice_guid))) {
+        setTimeout(() => { window.location.href = data.redirect; }, 1000);
+      }
+    } else {
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Không thể xuất hóa đơn theo mẫu.');
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match ? match[1] : 'Hoa_don_van_chuyen.xlsx';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      invoiceToast('Đã xuất tệp hóa đơn theo mẫu.', 'success');
+    }
+  } catch (error) {
+    invoiceToast(error.message || 'Có lỗi khi xử lý hóa đơn.', 'error');
+  } finally {
+    invoiceActionBusy = false;
+    buttons.forEach(button => { if (button) button.disabled = button.id === 'btn-push-invoice-bkav' && {{ 'true' if not bkav_configured else 'false' }}; });
+    if (activeButton) activeButton.innerHTML = originalLabel;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  updateInvoiceStickyTop();
+
+  if (window.$) {
+    $('#documentPreviewModal').on('hidden.bs.modal', function () {
+      var frame = document.getElementById('documentPreviewFrame');
+      if (frame) frame.src = 'about:blank';
+      var loader = document.getElementById('documentPreviewLoading');
+      if (loader) loader.style.display = 'flex';
+    });
+  }
+
+  {% if bkav_notice %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_notice|tojson }}, type: 'success'}}));
+  {% endif %}
+  {% if bkav_error %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_error|tojson }}, type: 'error'}}));
+  {% endif %}
+  {% if saved %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đã lưu hóa đơn thành công.', type: 'success'}}));
+  {% endif %}
+  {% if error %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ error|tojson }}, type: 'error'}}));
+  {% endif %}
+
+  if (window.location.search) {
+    const searchUrl = new URL(window.location.href);
+    if (searchUrl.searchParams.has('bkav_notice') || searchUrl.searchParams.has('bkav_error') || searchUrl.searchParams.has('saved') || searchUrl.searchParams.has('error')) {
+      searchUrl.searchParams.delete('bkav_notice');
+      searchUrl.searchParams.delete('bkav_error');
+      searchUrl.searchParams.delete('saved');
+      searchUrl.searchParams.delete('error');
+      const cleanSearch = searchUrl.searchParams.toString();
+      window.history.replaceState({}, document.title, searchUrl.pathname + (cleanSearch ? '?' + cleanSearch : '') + searchUrl.hash);
+    }
+  }
+
+  {% if invoice %}openSavedInvoiceQr({{ invoice.invoice_guid|string|tojson }}, false);{% endif %}
+  {% if invoice and not bkav_image_url and (invoice.entry_origin != 'manual' or (bkav_push and bkav_push.status == 'sent')) %}openInvoiceBkavImage({{ invoice.invoice_guid|string|tojson }}, false, true);{% endif %}
+});
+</script>
+{% endblock %}
+{% block content %}
+<div class="invoice-page-layout{% if invoice %} has-side-panel{% endif %}">
+<div class="cargo-form card invoice-form-card border shadow-sm" x-data="invoiceEditor({{ line_items|tojson|forceescape }}, {{ vehicle_options|tojson|forceescape }}, {{ default_vehicle_id|tojson|forceescape }}, {{ form_values.payment_status|tojson|forceescape }}, {{ form_values.payment_method|tojson|forceescape }}, {{ service_presets|tojson|forceescape }}, {{ cargo_types|tojson|forceescape }})">
+  <div class="card-body p-3 p-md-4">
+    <form id="invoice-form" method="post" action="/admin/vehicles/cargo/invoices/add" @submit.prevent="prepareSubmit($event); submitInvoiceAction($event)">
+      <input type="hidden" name="lines_json" x-ref="linesPayload">
+      {% if invoice %}
+      <input type="hidden" name="invoice_guid" value="{{ invoice.invoice_guid }}">
+      {% endif %}
+      <div class="invoice-section-title border-bottom pb-2 mb-3">Thông tin chung</div>
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label for="invoice-service">Dịch vụ *</label>
+          <select id="invoice-service" name="service_name" class="form-control" required @change="setService($event.target.value)">
+            <option value="">— Chọn dịch vụ —</option>
+            {% if form_values.service_name and form_values.service_name not in service_presets and form_values.service_name not in removed_invoice_services %}<option value="{{ form_values.service_name }}" selected>{{ form_values.service_name }}</option>{% endif %}
+            {% for service in service_presets %}<option value="{{ service }}" {% if form_values.service_name == service %}selected{% endif %}>{{ service }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label for="invoice-date">Ngày hóa đơn *</label>
+          <input id="invoice-date" name="invoice_date" type="date" class="form-control" value="{{ form_values.invoice_date }}" required @change="fetchFuelPrice()">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label for="invoice-number">Số hóa đơn *</label>
+          <input id="invoice-number" name="invoice_number" class="form-control " inputmode="numeric" pattern="[0-9]{1,10}" maxlength="10" value="{{ form_values.invoice_number }}" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="invoice-vat">Thuế suất GTGT (%) *</label>
+          <input id="invoice-vat" name="vat_percent" class="form-control" type="number" min="0" max="100" step="0.01" value="{{ form_values.vat_percent }}" required @input="refreshDebtPlaceholder()">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label for="invoice-serial">Ký hiệu hóa đơn</label>
+          <input id="invoice-serial" name="invoice_serial" class="form-control" maxlength="100" value="{{ form_values.invoice_serial }}">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-12 mb-3">
+          <label for="invoice-company">Tên đơn vị *</label>
+          <select id="invoice-company" name="company_id" class="form-control" required>
+            <option value="">— Chọn đơn vị —</option>
+            {% for company in companies %}<option value="{{ company.id }}" data-address="{{ company.address or '' }}" {% if form_values.company_id|string == company.id|string %}selected{% endif %}>{{ company.name }}{% if company.tax_code %} — {{ company.tax_code }}{% endif %}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <template x-for="(line, index) in lines" :key="line._key">
+        <div>
+          <div class="d-flex align-items-center justify-content-between border-top pt-3 mb-2">
+            <strong class="invoice-section-title" x-text="'Đoạn đường ' + (index + 1)"></strong>
+            <div class="d-flex align-items-center flex-wrap justify-content-end" style="gap:6px">
+              <button type="button" class="btn btn-outline-danger btn-sm" x-show="lines.length > 1" @click="removeLine(index)" :aria-label="'Xóa đoạn đường ' + (index + 1)"><i class="bx bx-trash"></i></button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" x-show="index < lines.length - 1 && lines.length < 20" @click="duplicateLine(index)"><i class="bx bx-copy mr-1"></i> Nhân đôi cung đường</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" x-show="index === lines.length - 1 && lines.length < 20" @click="addLine()"><i class="bx bx-plus mr-1"></i> Thêm đoạn đường</button>
+            </div>
+          </div>
+        <section class="invoice-line" :data-invoice-line-key="line._key">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label>Xe vận chuyển *</label>
+              <select class="form-control font-weight-bold" x-model="line.vehicle_id" @change="autoFuel(line)" required>
+                <option value="">— Chọn xe —</option>
+                {% for vehicle in vehicles %}<option value="{{ vehicle.id }}" {% if not invoice and (default_vehicle_id == vehicle.id|string or (not default_vehicle_id and loop.first)) %}selected{% endif %}>{{ vehicle.plate_number }}{% if vehicle.owner_name %} ({{ vehicle.owner_name }}){% endif %}</option>{% endfor %}
+              </select>
+              <small class="text-muted" x-show="!line.vehicle_id && line.plate_number" x-text="line.plate_number"></small>
+            </div>
+            <div class="col-md-5 mb-3">
+              <label>Loại hàng hóa</label>
+              <select class="form-control invoice-cargo-select" x-model="line.cargo_description">
+                <option value="">— Chọn loại hàng hóa —</option>
+                <option :value="line.cargo_description" x-text="line.cargo_description" x-show="line.cargo_description"></option>
+                {% for cargo_type in cargo_types %}<option value="{{ cargo_type }}">{{ cargo_type }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label>Khối lượng (tấn)</label>
+              <input class="form-control" type="number" min="0" step="0.001" x-model="line.cargo_weight_tons" placeholder="0.000">
+            </div>
+            <div class="col-12 mb-3">
+              <div class="d-flex align-items-center justify-content-between">
+                <label>Nội dung công việc / hóa đơn *</label>
+                <button type="button" class="btn btn-link p-0 font-size-11" @click="normalizeLineDescription(line, true)">Chuẩn hóa &amp; điền</button>
+              </div>
+              <textarea class="form-control cargo-long-text" rows="2" maxlength="4000" x-model="line.description" @blur="normalizeLineDescription(line)" required placeholder="Nhập mô tả chuyến đi hoặc dán nội dung để tự động nhận diện tuyến đường, cước..."></textarea>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label>Điểm lấy hàng *</label>
+              <textarea class="form-control cargo-long-text" rows="2" maxlength="500" x-model="line.origin" required @change="calculateDistance(line, true)" placeholder="Địa chỉ hoặc tỉnh/thành lấy hàng"></textarea>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label>Điểm giao hàng *</label>
+              <textarea class="form-control cargo-long-text" rows="2" maxlength="500" x-model="line.destination" required @change="calculateDistance(line, true)" placeholder="Địa chỉ hoặc tỉnh/thành giao hàng"></textarea>
+            </div>
+            <div class="col-12 mb-3">
+              <div class="d-flex align-items-center justify-content-between">
+                <label>Điểm ghé (nếu có)</label>
+                <button type="button" class="btn btn-link p-0 font-size-11" @click="addWaypoint(line)" :disabled="line.via_points.length >= 8"><i class="bx bx-plus mr-1"></i>Thêm điểm ghé</button>
+              </div>
+              <template x-for="(point, pointIndex) in line.via_points" :key="pointIndex">
+                <div class="input-group mb-1">
+                  <input class="form-control" type="text" maxlength="500" :value="point" :aria-label="'Điểm ghé ' + (pointIndex + 1)" @input="line.via_points[pointIndex] = $event.target.value" @change="routeChanged(line)" placeholder="Địa điểm ghé qua...">
+                  <div class="input-group-append"><button type="button" class="btn btn-outline-danger btn-sm" :aria-label="'Xóa điểm ghé ' + (pointIndex + 1)" @click="removeWaypoint(line, pointIndex)"><i class="bx bx-trash"></i></button></div>
+                </div>
+              </template>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label>Quãng đường (km) *</label>
+              <div class="input-group">
+                <input class="form-control" type="number" min="0" max="100000" step="0.01" x-model="line.distance_km" @input="setManualDistance(line)" required placeholder="0.0">
+                <div class="input-group-append"><button type="button" class="btn btn-outline-primary btn-sm" @click="calculateDistance(line)" :disabled="line.calculating" x-text="line.calculating ? 'Đang tính...' : 'Tính km'"></button></div>
+              </div>
+              <small class="text-danger" x-show="line.distanceError" x-text="line.distanceError"></small>
+              <a class="btn btn-outline-primary cargo-field-action mt-1" target="_blank" rel="noopener noreferrer" :href="mapsUrl(line)" x-show="mapsUrl(line)"><i class="bx bx-map-pin mr-1"></i> Google Maps <i class="bx bx-link-external ml-1"></i></a>
+            </div>
+            <div class="col-md-3 mb-3">
+              <label>Cước vận chuyển (đ) *</label>
+              <input class="form-control invoice-money" inputmode="numeric" :value="line.amount" @input="line.amount = moneyInput($event); refreshDebtPlaceholder()" required placeholder="0">
+            </div>
+            <div class="col-md-3 mb-3">
+              <label>Lợi nhuận dự tính</label>
+              <div class="form-control invoice-field-output invoice-money" :class="profit(line).startsWith('-') ? 'text-danger' : 'text-success'" x-text="profit(line)"></div>
+            </div>
+          </div>
+          <div class="invoice-fuel">
+            <strong class="invoice-section-title d-block mb-2">Chi phí dầu</strong>
+            <div class="row">
+              <div class="col-md-4 mb-2">
+                <div class="d-flex align-items-center justify-content-between">
+                  <label>Số lít dầu (lít)</label>
+                  <button type="button" class="btn btn-link p-0 font-size-11" @click="autoFuel(line)">Tự tính theo km</button>
+                </div>
+                <input class="form-control" type="number" min="0" step="0.01" x-model="line.fuel_liters" @input="line.fuelError = ''" placeholder="0.0">
+                <small class="text-danger" x-show="line.fuelError" x-text="line.fuelError"></small>
+              </div>
+              <div class="col-md-4 mb-2">
+                <label>Giá dầu (đ/lít)</label>
+                <input class="form-control invoice-money" inputmode="numeric" :value="line.fuel_price_per_liter" @input="line.fuel_price_per_liter = moneyInput($event)" placeholder="0">
+              </div>
+              <div class="col-md-4 mb-2">
+                <label>Tổng chi phí dầu</label>
+                <div class="form-control invoice-field-output invoice-money text-warning" x-text="fuelCost(line)"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+        </div>
+      </template>
+
+      <div class="row border-top pt-3">
+        <div class="col-md-6 mb-3">
+          <label class="d-block mb-2 font-weight-bold">Hình thức trả tiền</label>
+          <div class="btn-group w-100" role="group">
+            <button type="button" class="btn btn-sm" :class="paymentMethod === 'CK' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'" @click="paymentMethod = 'CK'">Chuyển khoản (CK)</button>
+            <button type="button" class="btn btn-sm" :class="paymentMethod === 'TM' ? 'btn-primary font-weight-bold' : 'btn-outline-secondary'" @click="paymentMethod = 'TM'">Tiền mặt (TM)</button>
+          </div>
+          <input type="hidden" name="payment_method" :value="paymentMethod">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="d-block mb-2 font-weight-bold">Trạng thái thanh toán</label>
+          <div class="btn-group w-100" role="group">
+            <button type="button" class="btn btn-sm" :class="paymentStatus === 'paid' ? 'btn-success font-weight-bold shadow-sm' : 'btn-outline-secondary'" @click="setPaymentStatus('paid')">
+              <i class="bx bx-check-circle mr-1"></i> Đã trả tiền
+            </button>
+            <button type="button" class="btn btn-sm" :class="paymentStatus === 'debt' ? 'btn-danger font-weight-bold shadow-sm' : 'btn-outline-secondary'" @click="setPaymentStatus('debt')">
+              <i class="bx bx-time-five mr-1"></i> Còn nợ (Công nợ)
+            </button>
+          </div>
+          <input type="hidden" name="payment_status" :value="paymentStatus">
+
+          <div class="invoice-debt mt-2" x-show="paymentStatus === 'debt'" x-transition>
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <label class="small text-danger font-weight-bold mb-0" for="invoice-debt">Số tiền còn nợ (đ) *</label>
+              <button type="button" class="btn btn-link p-0 font-size-11 text-primary" @click="resetDebtToInvoice()" title="Đặt lại bằng tổng hóa đơn gồm VAT">↺ Bằng tổng hóa đơn</button>
+            </div>
+            <input id="invoice-debt" name="debt_amount" class="form-control invoice-money border-danger font-weight-bold text-danger" inputmode="numeric" value="{{ form_values.debt_amount or '' }}" placeholder="0 đ">
+          </div>
+        </div>
+
+        <div class="col-12 mt-3 pt-3 border-top d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+          <a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold">
+            <i class="bx bx-arrow-back mr-1"></i>Quay lại
+          </a>
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <button type="button" class="btn btn-success btn-sm font-weight-bold px-3" onclick="submitInvoiceForm('save')">
+              <i class="bx bx-save mr-1"></i>Lưu hóa đơn
+            </button>
+            <button type="button" class="btn btn-primary btn-sm font-weight-bold" onclick="submitInvoiceForm('export')">
+              <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% if invoice %}
+<aside class="invoice-side-panel" aria-label="Ảnh hóa đơn và mã thanh toán">
+  <div class="card border shadow-sm mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap" style="gap:8px">
+      <strong class="small">Ảnh hóa đơn BKAV</strong>
+      <div class="d-flex align-items-center flex-wrap" style="gap:6px">
+        <button type="button" id="saved-bkav-invoice-send-zalo" class="btn btn-outline-success btn-sm font-weight-bold" onclick="sendInvoiceToZalo('{{ invoice.invoice_guid }}')" {% if not bkav_image_url %}hidden{% endif %} title="Gửi ảnh hóa đơn vào nhóm Zalo công ty"><i class="bx bxl-telegram mr-1"></i>Gửi Zalo</button>
+        <a id="saved-bkav-invoice-download" href="/admin/vehicles/cargo/invoices/{{ invoice.invoice_guid }}/bkav-image?download=1" class="btn btn-outline-primary btn-sm" {% if not bkav_image_url %}hidden{% endif %}><i class="bx bx-download mr-1"></i>Tải ảnh</a>
+        <button type="button" id="saved-bkav-invoice-refresh" data-bkav-refresh class="btn btn-outline-info btn-sm" onclick="openInvoiceBkavImage('{{ invoice.invoice_guid }}', false)" {% if bkav_image_url %}hidden{% endif %}><i class="bx bx-refresh mr-1"></i>Lấy ảnh</button>
+      </div>
+    </div>
+    <div class="card-body p-2 text-center">
+      <img id="saved-bkav-invoice-image" class="invoice-bkav-preview" {% if bkav_image_url %}src="{{ bkav_image_url }}"{% else %}hidden{% endif %} alt="Ảnh hóa đơn BKAV" title="Bấm để lấy và xem ảnh mới nhất" role="button" tabindex="0" onclick="openInvoiceBkavImage('{{ invoice.invoice_guid }}')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openInvoiceBkavImage('{{ invoice.invoice_guid }}'); }">
+      <span id="saved-bkav-invoice-empty" class="text-muted small py-4 d-block" {% if bkav_image_url %}hidden{% endif %}>Chưa có ảnh hóa đơn BKAV.</span>
+    </div>
+  </div>
+  <div class="card border shadow-sm mb-3">
+    <div class="card-header"><strong class="small">Mã QR chuyển khoản</strong></div>
+    <div class="card-body p-2 text-center">
+      <img id="saved-invoice-payment-qr" class="invoice-qr-preview" alt="Mã QR chuyển khoản, bấm để xem lớn" title="Bấm để xem mã QR lớn" role="button" tabindex="0" onclick="openSavedInvoiceQr('{{ invoice.invoice_guid }}')" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openSavedInvoiceQr('{{ invoice.invoice_guid }}'); }" hidden>
+      <span id="saved-invoice-payment-qr-empty" class="text-muted small">Chưa có mã QR.</span>
+    </div>
+  </div>
+</aside>
+{% endif %}
+</div>
+
+<!-- MODAL: PREVIEW INVOICE DOCUMENT -->
+<div class="modal fade" id="documentPreviewModal" tabindex="-1" role="dialog" aria-labelledby="documentPreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 1120px; width: 95vw; height: 92vh; margin: 1.5rem auto;" role="document">
+    <div class="modal-content shadow-lg border-0" style="height: 92vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #0f172a; position: relative;">
+      <div id="documentPreviewLoading" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: #0f172a; color: #fff; z-index: 10; font-size: 14px;">
+        <i class="bx bx-loader-alt bx-spin mr-2" style="font-size: 22px;"></i> Đang tải bản xem trước chứng từ...
+      </div>
+      <iframe id="documentPreviewFrame" name="documentPreviewFrame" style="width: 100%; height: 100%; border: none; flex: 1; background: #f1f5f9; position: relative; z-index: 11;" src="about:blank" onload="var l = document.getElementById('documentPreviewLoading'); if (l) l.style.display='none';"></iframe>
+    </div>
+  </div>
+</div>
+{% endblock %}

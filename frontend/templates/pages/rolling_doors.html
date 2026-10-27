@@ -1,6 +1,9 @@
 {% extends "layout.html" %}
 {% block title %}Quản lý Cửa cuốn{% endblock %}
 {% block page_title %}Quản lý Cửa cuốn{% endblock %}
+{% block page_back_button %}
+{% if door is defined and door %}<a href="/admin/rolling_doors" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endif %}
+{% endblock %}
 {% block page_actions %}
 <div class="d-flex" style="gap:8px;">
   <button onclick="startDiscovery()"
@@ -47,14 +50,11 @@
           </div>
           <h6 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:1px;">Cấu hình Tuya Mặc định</h6>
         </div>
-        <span class="text-muted" style="font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:monospace;">Fallback for tuya_local</span>
+
       </div>
 
       <div class="p-4">
-        <p class="text-muted mb-4" style="font-size:13px;max-width:640px;line-height:1.7;">
-          Các thông số này được sử dụng làm <strong>thiết bị Tuya mặc định</strong> (thay thế tệp <code>.env</code>).
-          Nếu một cửa cuốn sử dụng loại <code>tuya_local</code> nhưng không có cấu hình riêng, hệ thống sẽ sử dụng các giá trị này.
-        </p>
+
 
         <form action="/admin/rolling_doors/tuya_global" method="post">
           <div class="row">
@@ -106,9 +106,6 @@
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <div class="alert alert-warning rounded-0 mb-0 text-center py-2" style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
-          LƯU Ý: LOCAL KEY VẪN CẦN LẤY TỪ TUYA IOT PORTAL
-        </div>
         <div id="discovery-list" class="card-body p-3" style="max-height:400px;overflow-y:auto;">
 
         </div>
@@ -126,7 +123,7 @@
       <div class="card-body py-5 text-center">
         <div class="mb-3" style="font-size:48px;opacity:.3;">🚪</div>
         <p class="text-muted font-weight-bold mb-1">Chưa có cửa cuốn nào được đăng ký.</p>
-        <p class="text-muted mb-0" style="font-size:11px;letter-spacing:2px;text-transform:uppercase;">HÃY THÊM CỬA ĐẦU TIÊN ĐỂ BẮT ĐẦU</p>
+
       </div>
     </div>
     {% else %}
@@ -138,9 +135,9 @@
           <span class="badge badge-pill badge-secondary" style="font-size:11px;">{{ s_doors|length }} CỬA</span>
         </div>
 
-        <div class="row">
+        <div class="row" data-bulk-list>
           {% for door in s_doors %}
-          <div class="col-12 col-md-6 col-lg-4 mb-4">
+          <div class="col-12 col-md-6 col-lg-4 mb-4" data-bulk-item>
             <div class="card h-100">
               <div class="card-body d-flex flex-column">
                 <div class="d-flex align-items-start justify-content-between mb-3">
@@ -180,8 +177,8 @@
                 </div>
 
                 <div class="d-flex" style="gap:8px;">
-                  <button onclick="controlDoor(this, '{{ door.id }}', 'OPEN')" class="btn btn-outline-primary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">MỞ CỬA</button>
-                  <button onclick="controlDoor(this, '{{ door.id }}', 'CLOSE')" class="btn btn-outline-secondary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">ĐÓNG CỬA</button>
+                  <button data-bulk-action="open-door" data-bulk-url="/admin/rolling_doors/{{ door.id }}/control" data-bulk-method="POST" data-bulk-value="OPEN" data-bulk-label="Mở cửa" onclick="controlDoor(this, '{{ door.id }}', 'OPEN')" class="btn btn-outline-primary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">MỞ CỬA</button>
+                  <button data-bulk-action="close-door" data-bulk-url="/admin/rolling_doors/{{ door.id }}/control" data-bulk-method="POST" data-bulk-value="CLOSE" data-bulk-label="Đóng cửa" onclick="controlDoor(this, '{{ door.id }}', 'CLOSE')" class="btn btn-outline-secondary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">ĐÓNG CỬA</button>
                 </div>
               </div>
             </div>
@@ -192,6 +189,7 @@
       {% endfor %}
     {% endif %}
   </div>
+  {% include "partials/pagination.html" %}
 
 
   <div id="add-door-modal"
@@ -375,9 +373,13 @@
     })
     .then(data => {
       if (data.ok && data.api_status === 'success') {
-        console.log(data.message);
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Đã gửi lệnh điều khiển cửa.', type: 'success'}
+        }));
       } else {
-        alert('Lỗi: ' + (data.message || 'Không thể điều khiển cửa.'));
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Không thể điều khiển cửa.', type: 'error'}
+        }));
       }
     })
     .finally(() => {
@@ -434,7 +436,7 @@
     openModal('add-door-modal');
     document.getElementById('door-relay-ip').value = ip;
     document.getElementById('door-relay-id').value = id;
-    document.getElementById('door-relay-type').value = type;
+    setAdminSelectValue(document.getElementById('door-relay-type'), type);
   }
 
   function closeModal(id) {
@@ -448,9 +450,9 @@
     document.getElementById('modal-title').innerText = 'Cập nhật Cấu hình Cửa';
     document.getElementById('door-id').value = door.id;
     document.getElementById('door-name').value = door.name;
-    document.getElementById('door-supplier').value = door.supplier_key;
-    document.getElementById('door-site').value = door.site_id;
-    document.getElementById('door-relay-type').value = door.relay_type || 'http';
+    setAdminSelectValue(document.getElementById('door-supplier'), door.supplier_key);
+    setAdminSelectValue(document.getElementById('door-site'), door.site_id);
+    setAdminSelectValue(document.getElementById('door-relay-type'), door.relay_type || 'http');
     document.getElementById('door-active').checked = door.is_active;
 
     if (door.relay_config) {
@@ -464,7 +466,7 @@
     }
 
     document.getElementById('door-auto-close').checked = door.auto_close_enabled || false;
-    document.getElementById('door-camera').value = door.camera_id || '';
+    setAdminSelectValue(document.getElementById('door-camera'), door.camera_id || '');
     document.getElementById('door-delay').value = door.auto_close_delay_sec || 300;
 
     toggleRelayFields();
@@ -489,7 +491,9 @@
     const pass = document.getElementById('hunonic-password').value;
 
     if (!phone || !pass) {
-      alert('Vui lòng nhập SĐT và Mật khẩu Hunonic.');
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: {msg: 'Vui lòng nhập SĐT và Mật khẩu Hunonic.', type: 'warning'}
+      }));
       return;
     }
 
@@ -523,7 +527,9 @@
           ));
         });
       } else {
-        alert('Lỗi: ' + (data.message || 'Không thể lấy danh sách thiết bị.'));
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Không thể lấy danh sách thiết bị.', type: 'error'}
+        }));
       }
     })
     .finally(() => {

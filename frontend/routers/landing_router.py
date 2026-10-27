@@ -1,12 +1,13 @@
 import logging
 import re
 from datetime import datetime
-from fastapi import APIRouter, BackgroundTasks, Request, Form
+from fastapi import APIRouter, BackgroundTasks, Request, Form, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from frontend.deps import get_optional_user, templates
 from frontend.notifications import manager
-from .cms_router import get_projects, get_news, get_news_by_slug, get_news_by_id, get_landing_settings
+from .cms_router import get_projects, get_news, count_news, get_news_by_slug, get_news_by_id, get_landing_settings
+from frontend.pagination import paginate_counts
 from .inquiries_router import InquiryInput, save_inquiry
 
 logger = logging.getLogger(__name__)
@@ -174,13 +175,17 @@ async def landing_news_detail(request: Request, slug: str):
 
 
 @router.get("/tin-tuc", response_class=HTMLResponse)
-async def landing_news(request: Request):
+async def landing_news(request: Request, page: int = Query(1, ge=1)):
     raw_settings = get_landing_settings()
     settings = {
         "phone": raw_settings.get("LANDING_PHONE_WAREHOUSE", ""),
         "zalo": raw_settings.get("LANDING_ZALO_WAREHOUSE", ""),
     }
-    news_items = get_news(limit=50)
+    page_data = paginate_counts(count_news(), page=page, per_page=12, base_url="/tin-tuc")
+    news_items = get_news(
+        limit=page_data["per_page"],
+        offset=(page_data["page"] - 1) * page_data["per_page"],
+    )
     for item in news_items:
         if item.get("publish_date"):
             d = item["publish_date"]
@@ -193,6 +198,7 @@ async def landing_news(request: Request):
         "request": request,
         "settings": settings,
         "news_items": news_items,
+        "pagination": page_data,
         "user": user,
     })
 

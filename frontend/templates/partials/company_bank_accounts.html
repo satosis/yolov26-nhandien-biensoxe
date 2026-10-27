@@ -1,0 +1,100 @@
+{% set accounts = bank_accounts if bank_accounts else [{'account_number': '', 'bank_name': '', 'branch': ''}] %}
+<div class="mb-3" id="{{ bank_prefix }}-bank-accounts">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <strong>Tài khoản ngân hàng</strong>
+    <button type="button" class="btn btn-outline-primary btn-sm" onclick="addCompanyBankRow('{{ bank_prefix }}')">+ Thêm ngân hàng</button>
+  </div>
+  {% for account in accounts %}
+  <div class="company-bank-row form-row align-items-end">
+    <div class="col-md-3 mb-2">
+      <label class="small font-weight-bold">Số tài khoản</label>
+      <input {% if loop.first %}id="{{ bank_prefix }}-bank-account"{% endif %} name="bank_account[]" value="{{ account.account_number or '' }}" class="form-control" autocomplete="off" placeholder="Số tài khoản">
+    </div>
+    <div class="col-md-4 mb-2">
+      <label class="small font-weight-bold">Ngân hàng</label>
+      <select {% if loop.first %}id="{{ bank_prefix }}-bank-name"{% endif %} name="bank_name[]" class="form-control company-bank-select">
+        <option value="">Chọn hoặc tìm ngân hàng</option>
+        {% if account.bank_name and account.bank_name not in bank_names %}<option value="{{ account.bank_name }}" selected>{{ account.bank_name }}</option>{% endif %}
+        {% for bank in bank_names %}<option value="{{ bank }}" {% if account.bank_name == bank %}selected{% endif %}>{{ bank }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4 mb-2">
+      <label class="small font-weight-bold">Chi nhánh</label>
+      <input name="bank_branch[]" value="{{ account.branch or '' }}" class="form-control" placeholder="Ví dụ: CN Trần Hưng Đạo">
+    </div>
+    <div class="col-md-1 mb-2">
+      <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeCompanyBankRow(this)" aria-label="Xóa tài khoản ngân hàng"><i class="bx bx-trash"></i></button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<template id="{{ bank_prefix }}-bank-template">
+  <div class="company-bank-row form-row align-items-end">
+    <div class="col-md-3 mb-2"><label class="small font-weight-bold">Số tài khoản</label><input name="bank_account[]" class="form-control" autocomplete="off" placeholder="Số tài khoản"></div>
+    <div class="col-md-4 mb-2"><label class="small font-weight-bold">Ngân hàng</label><select name="bank_name[]" class="form-control company-bank-select"><option value="">Chọn hoặc tìm ngân hàng</option>{% for bank in bank_names %}<option value="{{ bank }}">{{ bank }}</option>{% endfor %}</select></div>
+    <div class="col-md-4 mb-2"><label class="small font-weight-bold">Chi nhánh</label><input name="bank_branch[]" class="form-control" placeholder="Ví dụ: CN Trần Hưng Đạo"></div>
+    <div class="col-md-1 mb-2"><button type="button" class="btn btn-outline-danger btn-sm" onclick="removeCompanyBankRow(this)" aria-label="Xóa tài khoản ngân hàng"><i class="bx bx-trash"></i></button></div>
+  </div>
+</template>
+<style>
+.company-form .form-control:not(.ts-wrapper) {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 1px 7px !important;
+}
+.company-form .input-group-append .btn {
+  height: 24px !important;
+  padding: 1px 8px !important;
+}
+.company-form .company-bank-row .ts-control {
+  height: 24px;
+  min-height: 24px;
+  padding: 1px 7px;
+  display: flex;
+  align-items: center;
+}
+</style>
+<script>
+function initCompanyBankSelect(select) {
+  if (typeof TomSelect !== 'undefined' && !select.tomselect) new TomSelect(select, {create: false, placeholder: 'Chọn hoặc tìm ngân hàng'});
+}
+function setCompanyBankSelect(select, value) {
+  if (!select) return;
+  if (select.tomselect) {
+    if (value && !select.tomselect.options[value]) select.tomselect.addOption({value, text: value});
+    select.tomselect.setValue(value || '');
+  } else {
+    if (value && !Array.from(select.options).some(option => option.value === value)) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.add(option);
+    }
+    select.value = value || '';
+  }
+}
+function addCompanyBankRow(prefix) {
+  const list = document.getElementById(prefix + '-bank-accounts');
+  const row = document.getElementById(prefix + '-bank-template').content.firstElementChild.cloneNode(true);
+  list.append(row);
+  initCompanyBankSelect(row.querySelector('.company-bank-select'));
+}
+function removeCompanyBankRow(button) {
+  const row = button.closest('.company-bank-row');
+  const list = row.parentElement;
+  if (row.querySelector('[id$="-bank-account"]') && list.querySelectorAll('.company-bank-row').length > 1) {
+    const next = row.nextElementSibling;
+    row.querySelector('[name="bank_account[]"]').value = next.querySelector('[name="bank_account[]"]').value;
+    row.querySelector('[name="bank_branch[]"]').value = next.querySelector('[name="bank_branch[]"]').value;
+    setCompanyBankSelect(row.querySelector('.company-bank-select'), next.querySelector('.company-bank-select').value);
+    next.remove();
+    return;
+  }
+  if (list.querySelectorAll('.company-bank-row').length === 1) {
+    row.querySelector('[name="bank_account[]"]').value = '';
+    row.querySelector('[name="bank_branch[]"]').value = '';
+    setCompanyBankSelect(row.querySelector('.company-bank-select'), '');
+  } else row.remove();
+}
+document.addEventListener('DOMContentLoaded', () => document.querySelectorAll('.company-bank-select').forEach(initCompanyBankSelect));
+</script>

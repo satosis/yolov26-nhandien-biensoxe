@@ -51,10 +51,10 @@ Tin tư vấn
 
   {% else %}
 
-  <div id="inquiry-list">
+  <div id="inquiry-list" data-bulk-list>
     {% for inq in inquiries %}
     {% set is_unread = not inq.is_read %}
-    <div id="row-{{ inq.id }}"
+    <div id="row-{{ inq.id }}" data-bulk-item
          x-data="{ open: false }"
          x-show="tab==='all' || (tab==='unread' && {{ 'true' if is_unread else 'false' }}) || (tab==='read' && {{ 'false' if is_unread else 'true' }})"
          class="card mb-2 {{ 'border-warning' if is_unread else '' }}">
@@ -91,7 +91,7 @@ Tin tư vấn
           {% if inq.is_read %}
           <i class="bx bxs-check-circle text-success" style="font-size:1.25rem;"></i>
           {% else %}
-          <button hx-post="/admin/inquiries/{{ inq.id }}/read"
+          <button data-bulk-action="mark-read" data-bulk-url="/admin/inquiries/{{ inq.id }}/read" data-bulk-method="POST" data-bulk-label="Đánh dấu đã đọc" hx-post="/admin/inquiries/{{ inq.id }}/read"
                   hx-target="#badge-{{ inq.id }}"
                   hx-swap="innerHTML"
                   title="Đánh dấu đã đọc"
@@ -178,6 +178,7 @@ Tin tư vấn
 
     </div>
     {% endfor %}
+    {% include "partials/pagination.html" %}
   </div>
   {% endif %}
 

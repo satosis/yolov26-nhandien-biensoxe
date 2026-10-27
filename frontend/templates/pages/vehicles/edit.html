@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% block title %}Chỉnh sửa xe — {{ vehicle.plate_number }}{% endblock %}
+{% block page_title %}Chỉnh sửa xe: {{ vehicle.plate_number }}{% endblock %}
+{% block page_back_button %}
+<a href="/admin/vehicles" class="btn btn-light btn-sm font-weight-bold">
+  <i class="bx bx-arrow-back mr-1"></i> Quay lại
+</a>
+{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+  <a href="/admin/vehicles/cargo?vehicle_id={{ vehicle.id }}"
+     class="btn btn-outline-primary btn-sm font-weight-bold">
+    <i class="bx bx-sync mr-1"></i> Đồng bộ hóa đơn
+  </a>
+  <form method="post" action="/admin/vehicles/cargo/scan" enctype="multipart/form-data" class="d-inline">
+    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+    <label class="btn btn-secondary btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <i class="bx bx-camera mr-1"></i> Quét văn bản
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
+             class="d-none" onchange="this.form.submit()">
+    </label>
+  </form>
+  <form method="post" action="/admin/vehicles/cargo/scan" enctype="multipart/form-data" class="d-inline">
+    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+    <label class="btn btn-light btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
+      <i class="bx bx-file-blank mr-1"></i> File scan
+      <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
+             class="d-none" onchange="this.form.submit()">
+    </label>
+  </form>
+  <a href="/admin/vehicles/cargo/invoices/add?vehicle_id={{ vehicle.id }}" class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm hóa đơn
+  </a>
+  <a href="/admin/vehicles/monthly-report/export?vehicle_id={{ vehicle.id }}" class="btn btn-success btn-sm font-weight-bold">
+    <i class="bx bx-download mr-1"></i> Xuất Excel theo mẫu
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12 col-xl-9 col-lg-10">
+    <div class="card shadow-sm border-0" style="border-radius:10px;">
+      <div class="card-body p-4">
+        <form method="post" action="/admin/vehicles/{{ vehicle.id }}/edit" class="vehicle-form">
+          <div class="row">
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Biển số <span class="text-danger">*</span></label>
+              <input id="edit-plate" name="plate_number" value="{{ vehicle.plate_number }}" required class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Chủ xe (Người dùng)</label>
+              <select id="edit-owner" name="owner_name" class="form-control">
+                <option value="">-- Chọn chủ xe --</option>
+                {% for owner in owner_users %}
+                <option value="{{ owner.vehicle_owner_label }}" {% if vehicle.owner_name == owner.vehicle_owner_label %}selected{% endif %}>
+                  {{ owner.vehicle_owner_label }}{% if owner.full_name and owner.username != owner.full_name %} ({{ owner.username }}){% endif %}
+                </option>
+                {% endfor %}
+                {% if vehicle.owner_name and vehicle.owner_name not in (owner_users|map(attribute='vehicle_owner_label')|list) %}
+                <option value="{{ vehicle.owner_name }}" selected>{{ vehicle.owner_name }} (Khác)</option>
+                {% endif %}
+              </select>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Địa điểm</label>
+              {% set v_sids = vehicle.site_ids or [] %}
+              <select id="edit-site" name="site_ids" multiple class="form-control" placeholder="— Chọn địa điểm —">
+                {% for s in sites %}<option value="{{ s.id }}" {% if s.id in v_sids %}selected{% endif %}>{{ s.site_name }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Loại xe</label>
+              <input name="vehicle_type" value="{{ vehicle.vehicle_type or '' }}" class="form-control" maxlength="120" placeholder="VD: Xe cẩu 11 tấn...">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Mức tiêu hao nhiên liệu (L/100km)</label>
+              <input name="fuel_consumption" type="number" step="0.1" min="0" value="{{ vehicle.fuel_consumption or '' }}" placeholder="VD: 8.5" class="form-control">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Nguyên giá xe (đ)</label>
+              <input id="edit-purchase-price-display" type="text" inputmode="numeric"
+                     value="{{ vehicle.purchase_price|format_number('') }}"
+                     placeholder="VD: 850.000.000" class="form-control">
+              <input id="edit-purchase-price" name="purchase_price" type="hidden"
+                     value="{{ '{:.0f}'.format(vehicle.purchase_price) if vehicle.purchase_price is not none else '' }}">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Ngày bắt đầu khấu hao</label>
+              <input name="depreciation_start_date" type="date" value="{{ vehicle.depreciation_start_date or '' }}" class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Số năm khấu hao</label>
+              <input name="depreciation_years" type="number" min="1" max="50" step="1" value="{{ vehicle.depreciation_years or '' }}" placeholder="VD: 5" class="form-control">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 mb-3">
+              <label class="font-weight-bold small text-muted text-uppercase">Ghi chú</label>
+              <textarea name="note" rows="2" class="form-control" placeholder="Ghi chú thêm về xe...">{{ vehicle.note or '' }}</textarea>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center mt-3 pt-3 border-top" style="gap:10px;">
+            <button type="submit" class="btn btn-primary px-4 font-weight-bold">
+              <i class="bx bx-save mr-1"></i> Lưu thay đổi
+            </button>
+            <a href="/admin/vehicles" class="btn btn-light px-3 font-weight-bold">Hủy</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const display = document.getElementById('edit-purchase-price-display');
+  const hidden = document.getElementById('edit-purchase-price');
+  const syncPurchasePrice = () => {
+    const digits = (display.value || '').replace(/\D/g, '');
+    hidden.value = digits;
+    display.value = digits ? formatNumber(digits) : '';
+  };
+  display?.addEventListener('input', syncPurchasePrice);
+  display?.form?.addEventListener('submit', syncPurchasePrice);
+  if (typeof TomSelect !== 'undefined') {
+    new TomSelect('#edit-site', { plugins: ['remove_button'], placeholder: '— Chọn địa điểm —', maxItems: null });
+    new TomSelect('#edit-owner', { create: true, placeholder: '— Chọn hoặc nhập chủ xe —' });
+  }
+});
+</script>
+{% endblock %}

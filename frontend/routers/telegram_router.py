@@ -6,10 +6,18 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from backend.services.database import db
 from backend.services.telegram_service import _bot_path, _post_bot, is_valid_bot_token
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/telegram")
+
+
+def _requested_page(request: Request) -> int:
+    try:
+        return max(1, int(request.query_params.get("page", "1") or 1))
+    except (TypeError, ValueError):
+        return 1
 
 
 def upsert_telegram_bot(bot_name: str, token: str, chat_id: str) -> bool:
@@ -30,7 +38,19 @@ def upsert_telegram_bot(bot_name: str, token: str, chat_id: str) -> bool:
 def _telegram_page(request: Request, user: dict, error: str | None = None, status_code: int = 200):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "telegram"
-    ctx["bots"] = db.select("telegram_bots", order_by="id ASC")
+    requested_page = _requested_page(request)
+    count_row = db._execute_query("SELECT COUNT(*) AS total FROM telegram_bots", fetch=True, commit=False) or {}
+    pagination = paginate_counts(
+        int(count_row.get("total") or 0), page=requested_page, per_page=20,
+        base_url="/admin/telegram",
+    )
+    ctx["bots"] = db._execute_query(
+        "SELECT bot_name, token, chat_id FROM telegram_bots ORDER BY id ASC LIMIT %s OFFSET %s",
+        (pagination["per_page"], (pagination["page"] - 1) * pagination["per_page"]),
+        fetchall=True, commit=False,
+    ) or []
+    ctx["pagination"] = pagination
+    ctx["current_page"] = pagination["page"]
     ctx["error"] = error
     return templates.TemplateResponse(
         "pages/telegram.html", {"request": request, **ctx}, status_code=status_code
@@ -65,7 +85,7 @@ async def add_bot(
 
     if not upsert_telegram_bot(bot_name, final_token, chat_id):
         return _telegram_page(request, user, "Không thể lưu cấu hình bot.", 500)
-    return RedirectResponse(url="/admin/telegram", status_code=303)
+    return RedirectResponse(url=f"/admin/telegram?page={_requested_page(request)}", status_code=303)
 
 
 @router.post("/{bot_name}/test")

@@ -21,9 +21,10 @@
 <div class="card">
   <div class="card-body p-0">
     <div class="cx-overflow-x-auto">
-      <table class="table-cinema" id="logs-table">
+      <table class="table-cinema" id="logs-table" data-bulk-select="1">
         <thead>
           <tr>
+            <th style="width:50px;" class="text-center">STT</th>
             <th>Biển số</th>
             <th>Loại</th>
             <th>Camera</th>
@@ -31,16 +32,20 @@
             <th>Thời gian vào</th>
             <th>Thời gian ra</th>
             <th>Trạng thái</th>
+            <th style="width:130px;" class="text-center">Thao tác</th>
           </tr>
         </thead>
         <tbody>
           {% for log in logs %}
           <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+            </td>
             <td>
               {% if log.is_whitelist %}
-              <span class="badge badge-pill badge-success font-monospace font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
+              <span class="badge badge-pill badge-success font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
               {% else %}
-              <span class="badge badge-pill badge-warning font-monospace font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
+              <span class="badge badge-pill badge-warning font-weight-bold" style="font-size:13px;">{{ log.plate_number or log.plate_norm or '—' }}</span>
               {% endif %}
             </td>
             <td>
@@ -52,8 +57,8 @@
             </td>
             <td class="text-muted" style="font-size:12px;">{{ log.camera_name or log.cam_in or log.cam_out or '—' }}</td>
             <td class="text-muted" style="font-size:12px;">{{ log.site_name or '—' }}</td>
-            <td class="font-monospace text-muted" style="font-size:11px;">{{ log.entry_time.strftime('%d/%m %H:%M:%S') if log.entry_time else '—' }}</td>
-            <td class="font-monospace text-muted" style="font-size:11px;">{{ log.exit_time.strftime('%d/%m %H:%M:%S') if log.exit_time else '—' }}</td>
+            <td class="text-muted" style="font-size:11px;">{{ log.entry_time.strftime('%d/%m %H:%M:%S') if log.entry_time else '—' }}</td>
+            <td class="text-muted" style="font-size:11px;">{{ log.exit_time.strftime('%d/%m %H:%M:%S') if log.exit_time else '—' }}</td>
             <td>
               {% if log.exit_time %}
               <span class="text-muted" style="font-size:11px;">Đã ra</span>
@@ -61,17 +66,96 @@
               <span class="badge badge-pill badge-warning" style="font-size:11px;">Đang đỗ</span>
               {% endif %}
             </td>
+            <td class="text-center">
+              <button type="button" class="btn btn-sm btn-light border"
+                      onclick="openParkingLogEdit(this.dataset.id, this.dataset.plate)"
+                      data-id="{{ log.id }}" data-plate="{{ (log.plate_norm or '')|e }}"
+                      title="Sửa biển số" aria-label="Sửa biển số">
+                <i class="bx bx-edit-alt"></i> Sửa
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      data-bulk-action="delete" data-bulk-url="/admin/parking/logs/{{ log.id }}"
+                      data-bulk-method="DELETE" data-bulk-label="Xóa"
+                      onclick="deleteParkingLog(this)" title="Xóa" aria-label="Xóa bản ghi">
+                <i class="bx bx-trash"></i>
+              </button>
+            </td>
           </tr>
           {% endfor %}
           {% if not logs %}
           <tr>
-            <td colspan="7" class="text-center text-muted py-4">Chưa có lịch sử.</td>
+            <td colspan="9" class="text-center text-muted py-4">Chưa có lịch sử.</td>
           </tr>
           {% endif %}
         </tbody>
       </table>
     </div>
+    {% include "partials/pagination.html" %}
   </div>
 </div>
 
+<div class="modal fade" id="parkingLogEditModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="parkingLogEditForm">
+        <div class="modal-header py-2">
+          <h5 class="modal-title">Sửa biển số</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+        </div>
+        <div class="modal-body">
+          <label for="parkingLogPlate">Biển số</label>
+          <input type="text" id="parkingLogPlate" class="form-control form-control-sm text-uppercase" maxlength="32" required>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingParkingLogId = null;
+function openParkingLogEdit(id, plate) {
+  editingParkingLogId = id;
+  document.getElementById('parkingLogPlate').value = plate || '';
+  $('#parkingLogEditModal').modal('show');
+}
+document.getElementById('parkingLogEditForm').addEventListener('submit', async function (event) {
+  event.preventDefault();
+  const button = this.querySelector('[type="submit"]');
+  button.disabled = true;
+  try {
+    const response = await fetch('/admin/parking/logs/' + editingParkingLogId, {
+      method: 'PUT', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plate: document.getElementById('parkingLogPlate').value})
+    });
+    const data = await response.json();
+    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể sửa bản ghi.');
+    window.location.reload();
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+  } finally {
+    button.disabled = false;
+  }
+});
+async function deleteParkingLog(button) {
+  if (!window.confirm('Xóa bản ghi này?')) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(button.dataset.bulkUrl, {method: 'DELETE', credentials: 'same-origin'});
+    const data = await response.json();
+    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể xóa bản ghi.');
+    window.location.reload();
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+    button.disabled = false;
+  }
+}
+</script>
 {% endblock %}

@@ -19,8 +19,24 @@ def _provider_keys_mapping(value: dict | str | None) -> dict:
     return value
 
 
-def get_all_cameras(site_id: int | None = None) -> list[dict]:
-    return db.execute_query(f"SELECT * FROM cameras WHERE {_SITE_FILTER} ORDER BY id", (site_id, site_id), fetchall=True)
+def get_all_cameras(site_id: int | None = None, limit: int | None = None, offset: int | None = None) -> list[dict]:
+    query = f"SELECT * FROM cameras WHERE {_SITE_FILTER} ORDER BY id"
+    params = [site_id, site_id]
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params), fetchall=True)
+
+
+def count_cameras(site_id: int | None = None) -> int:
+    row = db.execute_query(
+        f"SELECT COUNT(*) AS total FROM cameras WHERE {_SITE_FILTER}",
+        (site_id, site_id), fetch=True,
+    )
+    return int((row or {}).get("total") or 0)
 
 
 def get_active_cameras(site_id: int | None = None) -> list[dict]:
@@ -189,8 +205,21 @@ def get_camera_health(cam_id: str = None, hours: int = 24) -> list[dict]:
     return db.execute_query(query, params, fetchall=True)
 
 
-def get_all_providers() -> list:
-    return db.select("camera_providers", order_by="name ASC")
+def get_all_providers(limit: int | None = None, offset: int | None = None) -> list:
+    query = "SELECT * FROM camera_providers ORDER BY name ASC"
+    params = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    if offset is not None:
+        query += " OFFSET %s"
+        params.append(offset)
+    return db.execute_query(query, tuple(params) if params else None, fetchall=True)
+
+
+def count_providers() -> int:
+    row = db.execute_query("SELECT COUNT(*) AS total FROM camera_providers", fetch=True)
+    return int((row or {}).get("total") or 0)
 
 
 def get_provider(provider_key: str) -> dict | None:
@@ -266,7 +295,3 @@ def get_imou_api_keys() -> dict:
         if not app_secret:
             app_secret = res.get('IMOU_APP_SECRET', '')
     return {'app_id': app_id, 'app_secret': app_secret}
-
-
-def update_imou_api_keys(app_id: str, app_secret: str) -> bool:
-    return set_many_app_settings({'IMOU_APP_ID': app_id, 'IMOU_APP_SECRET': app_secret})

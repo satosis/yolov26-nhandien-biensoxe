@@ -77,6 +77,7 @@
         <table class="table-cinema">
           <thead>
             <tr>
+              <th style="width:50px;" class="text-center">STT</th>
               <th style="width:60px;" class="text-center">AVATAR</th>
               <th style="width:180px;">TÊN NCC</th>
               <th style="width:240px;">MÔ TẢ</th>
@@ -88,6 +89,9 @@
           <tbody>
             {% for p in providers %}
             <tr>
+              <td class="text-center text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
               <td class="text-center">
                 {% if p.logo_url %}
                   <div style="width:40px;height:40px;border-radius:50%;border:1px solid #dee2e6;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:4px;background:#f8f9fa;margin:0 auto;">
@@ -127,7 +131,7 @@
                   <button type="button" title="Sửa thông tin"
                           onclick="document.getElementById('edit-provider-row-{{ p.provider_key }}').classList.toggle('d-none')"
                           class="btn btn-sm btn-light"><i class="bx bx-edit-alt"></i></button>
-                  <button @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                  <button data-bulk-action="delete" data-bulk-url="/admin/providers/{{ p.provider_key }}" data-bulk-method="DELETE" @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                               detail: {
                                 title: 'Xóa nhà cung cấp',
                                 message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
@@ -144,7 +148,7 @@
 
 
             <tr id="edit-provider-row-{{ p.provider_key }}" class="d-none">
-              <td colspan="6" class="p-0">
+              <td colspan="7" class="p-0">
                 <div class="card-body bg-light border-top border-bottom">
                   <form id="edit-provider-form-{{ p.provider_key }}" method="POST" action="/admin/providers">
                     <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
@@ -204,13 +208,14 @@
 
             {% if not providers %}
             <tr>
-              <td colspan="6" class="text-center text-muted py-4" style="font-size:14px;">Chưa có nhà cung cấp nào.</td>
+              <td colspan="7" class="text-center text-muted py-4" style="font-size:14px;">Chưa có nhà cung cấp nào.</td>
             </tr>
             {% endif %}
           </tbody>
         </table>
       </div>
     </div>
+    {% include "partials/pagination.html" %}
   </div>
 </div>
 {% endblock %}

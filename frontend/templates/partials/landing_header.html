@@ -7,13 +7,13 @@
 
 
     <a href="/" class="flex flex-col leading-none pt-1">
-      <span class="font-display font-extrabold text-[1.25rem] text-tsl-primary tracking-[-0.5px]">THÉP SƠN LÂM</span>
+      <span class="font-extrabold text-[1.25rem] text-tsl-primary tracking-[-0.5px]">THÉP SƠN LÂM</span>
       <span class="text-[0.75rem] font-semibold uppercase tracking-[1px] text-tsl-accent mt-1">Industrial Core</span>
     </a>
 
 
     <nav class="hidden lg:block" translate="no">
-      <ul class="flex items-center gap-[clamp(1rem,2vw,2rem)] font-display font-medium">
+      <ul class="flex items-center gap-[clamp(1rem,2vw,2rem)] font-medium">
         <li>
           <a href="/"
             class="tsl-navlink inline-flex items-center h-[44px] text-tsl-text hover:text-tsl-accent {% if path == '/' %}active text-tsl-accent{% endif %}"
@@ -35,13 +35,13 @@
             class="absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 min-w-[240px] p-2 bg-white border border-tsl-border rounded-[16px] shadow-xl
                      opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[1100]">
             <li><a href="/du-an"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/du-an' %}bg-tsl-light text-tsl-accent{% endif %}">Tổng
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/du-an' %}bg-tsl-light text-tsl-accent{% endif %}">Tổng
                 quan nhà xưởng</a></li>
             <li><a href="/nha-xuong"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/nha-xuong' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng
                 KCN Trung Hà</a></li>
             <li><a href="/nha-xuong-co-tiet"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/nha-xuong-co-tiet' %}bg-tsl-light text-tsl-accent{% endif %}">Xưởng
                 KCN Cổ Tiết</a></li>
           </ul>
         </li>
@@ -56,13 +56,13 @@
             class="absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 min-w-[240px] p-2 bg-white border border-tsl-border rounded-[16px] shadow-xl
                      opacity-0 invisible translate-y-2 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 z-[1100]">
             <li><a href="/dich-vu"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Hạ
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/dich-vu' %}bg-tsl-light text-tsl-accent{% endif %}">Hạ
                 tầng &amp; dịch vụ KCN</a></li>
             <li><a href="/xe-cau"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/xe-cau' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/xe-cau' %}bg-tsl-light text-tsl-accent{% endif %}">Dịch
                 vụ xe cẩu</a></li>
             <li><a href="/kiem-dinh-can"
-                class="block px-4 py-3 rounded-md font-display font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/kiem-dinh-can' %}bg-tsl-light text-tsl-accent{% endif %}">Kiểm
+                class="block px-4 py-3 rounded-md font-medium whitespace-nowrap text-tsl-text hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all {% if path == '/kiem-dinh-can' %}bg-tsl-light text-tsl-accent{% endif %}">Kiểm
                 định cân</a></li>
           </ul>
         </li>
@@ -86,15 +86,15 @@
         <button type="button" @click="lo = !lo"
           class="inline-flex items-center justify-center w-10 h-10 rounded-full hover:bg-tsl-light text-tsl-text transition-colors"
           title="Chọn ngôn ngữ">
-          <span class="font-display font-bold text-[13px]" x-text="$store.i18n.lang === 'vi' ? 'VI' : 'CN'">VI</span>
+          <span class="font-bold text-[13px]" x-text="$store.i18n.lang === 'vi' ? 'VI' : 'CN'">VI</span>
         </button>
         <div x-show="lo" x-cloak x-transition
           class="absolute right-0 top-[calc(100%+0.5rem)] min-w-[150px] p-2 bg-white border border-tsl-border rounded-[12px] shadow-xl z-[1100]">
           <a href="#" @click.prevent="$store.i18n.lang='vi'; lo=false; setGoogleLang('vi')"
-            class="block px-4 py-2.5 rounded-md text-tsl-text font-display font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all">Tiếng
+            class="block px-4 py-2.5 rounded-md text-tsl-text font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all">Tiếng
             Việt</a>
           <a href="#" @click.prevent="$store.i18n.lang='zh'; lo=false; setGoogleLang('zh-CN')"
-            class="block px-4 py-2.5 rounded-md text-tsl-text font-display font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all">中文</a>
+            class="block px-4 py-2.5 rounded-md text-tsl-text font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all">中文</a>
         </div>
       </div>
 
@@ -103,7 +103,7 @@
         <button type="button" @click="uo = !uo"
           class="inline-flex items-center gap-2 pl-2 pr-1 h-10 rounded-full hover:bg-tsl-light text-tsl-text transition-colors"
           title="Tài khoản">
-          <span class="max-w-[80px] truncate text-sm font-display font-medium">{{ user.full_name or user.username
+          <span class="max-w-[80px] truncate text-sm font-medium">{{ user.full_name or user.username
             }}</span>
           <span
             class="w-8 h-8 rounded-full bg-tsl-accent text-white font-bold text-xs inline-flex items-center justify-center">{{
@@ -112,10 +112,10 @@
         <div x-show="uo" x-cloak x-transition
           class="absolute right-0 top-[calc(100%+0.5rem)] min-w-[180px] p-2 bg-white border border-tsl-border rounded-[12px] shadow-xl z-[1100]">
           <a href="/admin/detection"
-            class="flex items-center gap-2 px-4 py-2.5 rounded-md text-tsl-text font-display font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all"><span
+            class="flex items-center gap-2 px-4 py-2.5 rounded-md text-tsl-text font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all"><span
               class="material-symbols-outlined text-[20px]">dashboard</span> Dashboard</a>
           <a href="/logout"
-            class="flex items-center gap-2 px-4 py-2.5 rounded-md text-tsl-text font-display font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all"><span
+            class="flex items-center gap-2 px-4 py-2.5 rounded-md text-tsl-text font-medium hover:bg-tsl-light hover:text-tsl-accent hover:translate-x-1 transition-all"><span
               class="material-symbols-outlined text-[20px]">logout</span> Đăng xuất</a>
         </div>
       </div>
@@ -144,7 +144,7 @@
   <nav x-show="open" x-cloak x-transition
     class="lg:hidden absolute top-[calc(100%+1px)] left-4 right-4 p-3 bg-white border border-tsl-border rounded-xl shadow-xl max-h-[calc(100vh-96px)] overflow-y-auto"
     translate="no" @click="open = false">
-    <ul class="flex flex-col gap-1 font-display font-medium">
+    <ul class="flex flex-col gap-1 font-medium">
       <li><a href="/"
           class="block px-3 py-3 rounded-md hover:bg-tsl-light hover:text-tsl-accent {% if path == '/' %}bg-tsl-light text-tsl-accent{% endif %}">Trang
           chủ</a></li>

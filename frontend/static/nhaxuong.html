@@ -13,15 +13,6 @@
 
   <script src="/static/vendor/tailwind.min.js"></script>
 
-
-  <link rel="preload" as="style"
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
-    onload="this.onload=null;this.rel='stylesheet'">
-  <noscript>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
-      rel="stylesheet" />
-  </noscript>
-
   <link rel="preload" as="style"
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0..1&display=block"
     onload="this.onload=null;this.rel='stylesheet'">
@@ -268,16 +259,6 @@
             "base": "4px",
             "margin": "32px"
           },
-          "fontFamily": {
-            "label-sm": ["Inter"],
-            "label-bold": ["Inter"],
-            "body-lg": ["Inter"],
-            "h3": ["Inter"],
-            "h2": ["Inter"],
-            "display": ["Inter"],
-            "h1": ["Inter"],
-            "body-md": ["Inter"]
-          },
           "fontSize": {
             "label-sm": ["12px", { "lineHeight": "1.2", "fontWeight": "500" }],
             "label-bold": ["14px", { "lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "700" }],
@@ -293,7 +274,12 @@
     }
   </script>
   <style>
+    :root, html, body {
+      font-family: 'Times New Roman', Times, serif !important;
+    }
+
     .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined' !important;
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       display: inline-block;
       vertical-align: middle;
@@ -371,9 +357,7 @@
       margin-top: 20px;
       opacity: 0.6;
     }
-  </style>
 
-  <style>
     .spec-card {
       background: #fff;
       border: 1px solid #e2e8f0;
@@ -421,7 +405,7 @@
 
 </head>
 
-<body class="bg-background text-on-background font-body-md overflow-x-hidden antialiased">
+<body class="bg-background text-on-background overflow-x-hidden antialiased">
 
   <div id="preloader">
     <svg class="factory-loader" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="80" height="80"
@@ -470,7 +454,7 @@
           <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
         </div>
         <div class="flex flex-col leading-none">
-          <span class="text-lg font-black text-white uppercase tracking-tighter font-inter notranslate">THÉP SƠN
+          <span class="text-lg font-black text-white uppercase tracking-tighter notranslate">THÉP SƠN
             LÂM</span>
           <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial
             Core</span>
@@ -1177,19 +1161,19 @@
     class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 bg-white border-t border-slate-200 shadow-[0_-1px_3px_0_rgba(0,0,0,0.05)]">
     <a class="flex flex-col items-center justify-center text-slate-500 rounded-lg p-1 transition-all" href="/">
       <span class="material-symbols-outlined notranslate" aria-hidden="true" style="">grid_view</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('home')">Trang chủ</span>
     </a>
     <a class="flex flex-col items-center justify-center text-orange-600 bg-slate-50 p-1 transition-all"
       href="/nha-xuong">
       <span class="material-symbols-outlined notranslate" aria-hidden="true"
         style="font-variation-settings: 'FILL' 1;">warehouse</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('warehouse')">Nhà xưởng</span>
     </a>
 
     <a class="flex flex-col items-center justify-center text-slate-500 p-1 hover:text-slate-900 transition-all"
       href="/login">
       <span class="material-symbols-outlined notranslate" aria-hidden="true">person</span>
-      <span class="text-[10px] font-bold uppercase font-inter mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
+      <span class="text-[10px] font-bold uppercase mt-1" x-text="$store.i18n.t('login')">Cá nhân</span>
     </a>
 
   </nav>

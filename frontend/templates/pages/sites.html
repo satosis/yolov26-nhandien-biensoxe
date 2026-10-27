@@ -13,7 +13,7 @@
 
   <div id="add-form" class="card d-none mb-3">
     <div class="card-body">
-      <form hx-post="/admin/sites" hx-target="#sites-list" hx-swap="innerHTML"
+      <form hx-post="/admin/sites?page={{ page }}" hx-target="#sites-list" hx-swap="innerHTML"
             hx-on::after-request="if(event.detail.successful){this.reset();this.closest('.card').classList.add('d-none')}">
         <div class="row">
           <div class="col-md-6 mb-3">
@@ -44,6 +44,7 @@
         <table class="table-cinema">
           <thead>
             <tr>
+              <th style="width:50px;" class="text-center">STT</th>
               <th>TÊN ĐỊA ĐIỂM</th>
               <th>ĐỊA CHỈ</th>
               <th style="width:120px;">SỨC CHỨA</th>
@@ -54,6 +55,9 @@
           <tbody id="sites-list">
             {% for s in site_list %}
             <tr id="site-{{ s.id }}">
+              <td class="text-center text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
               <td>
                 <span class="font-weight-bold" style="font-size:13px;">{{ s.site_name }}</span>
               </td>
@@ -64,7 +68,7 @@
                 🅿️ {{ s.total_slots or 0 }} chỗ
               </td>
               <td class="text-center">
-                <form hx-post="/admin/sites/{{ s.id }}/toggle" hx-target="#sites-list" hx-swap="innerHTML">
+                <form hx-post="/admin/sites/{{ s.id }}/toggle?page={{ page }}" hx-target="#sites-list" hx-swap="innerHTML">
                   <button type="submit" class="btn btn-sm {% if s.is_active %}btn-success{% else %}btn-secondary{% endif %} d-inline-flex align-items-center" style="gap:6px;">
                     <span class="rounded-circle" style="width:8px;height:8px;display:inline-block;background:{% if s.is_active %}#28a745{% else %}#6c757d{% endif %};"></span>
                     {{ 'Bật' if s.is_active else 'Tắt' }}
@@ -74,14 +78,14 @@
               <td class="text-right">
                 <div class="d-flex justify-content-end" style="gap:6px;">
                   <button class="btn btn-sm btn-light" title="Sửa"
-                          hx-get="/admin/sites/{{ s.id }}/edit" hx-target="#site-{{ s.id }}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
-                  <button class="btn btn-sm btn-danger" title="Xóa"
+                          hx-get="/admin/sites/{{ s.id }}/edit?page={{ page }}" hx-target="#site-{{ s.id }}" hx-swap="outerHTML"><i class="bx bx-edit-alt"></i></button>
+                  <button class="btn btn-sm btn-danger" title="Xóa" data-bulk-action="delete" data-bulk-url="/admin/sites/{{ s.id }}?page={{ page }}" data-bulk-method="DELETE"
                           @click="window.dispatchEvent(new CustomEvent('show-confirm', {
                             detail: {
                               title: 'Xóa địa điểm',
                               message: 'Bạn chắc chắn muốn xóa địa điểm {{ s.site_name }}?',
                               confirmText: 'Xác nhận xóa',
-                              confirmUrl: '/admin/sites/{{ s.id }}',
+                              confirmUrl: '/admin/sites/{{ s.id }}?page={{ page }}',
                               confirmMethod: 'DELETE',
                               confirmTarget: '#site-{{ s.id }}'
                             }
@@ -92,13 +96,14 @@
             {% endfor %}
             {% if not site_list %}
             <tr>
-              <td colspan="5" class="text-center text-muted py-4">Chưa có địa điểm nào.</td>
+              <td colspan="6" class="text-center text-muted py-4">Chưa có địa điểm nào.</td>
             </tr>
             {% endif %}
           </tbody>
         </table>
       </div>
     </div>
+    {% include "partials/pagination.html" %}
   </div>
 
 </div>
