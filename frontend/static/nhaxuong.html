@@ -34,7 +34,38 @@
     content="nhà xưởng cho thuê Vĩnh Phúc, thuê xưởng KCN Stavian, factory for rent Vinh Phuc, khu công nghiệp Vĩnh Phúc, nhà xưởng xây sẵn, cho thuê kho xưởng">
   <meta name="robots" content="index, follow">
   <meta name="author" content="THÉP SƠN LÂM Industrial Core">
-  <link rel="canonical" href="http://localhost:8000/nha-xuong">
+  <!-- Tự động lấy tên miền động (Domain) thay vì fix cứng localhost -->
+  <script>
+    (function () {
+      try {
+        const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : '';
+        if (!origin || origin.startsWith('file:')) return;
+        const pathname = window.location.pathname.includes('nhaxuong') ? '/nha-xuong' : window.location.pathname;
+        const pageUrl = origin + pathname;
+        const imgUrl = origin + '/static/brain/wh_real2.jpg';
+
+        const can = document.querySelector('link[rel="canonical"]');
+        if (can) can.href = pageUrl;
+
+        const ogUrl = document.querySelector('meta[property="og:url"]');
+        if (ogUrl) ogUrl.content = pageUrl;
+
+        const ogImg = document.querySelector('meta[property="og:image"]');
+        if (ogImg) ogImg.content = imgUrl;
+
+        const twImg = document.querySelector('meta[name="twitter:image"]');
+        if (twImg) twImg.content = imgUrl;
+
+        document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+          if (s.textContent.includes('http://localhost:8000')) {
+            s.textContent = s.textContent.replaceAll('http://localhost:8000', origin);
+          }
+        });
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="canonical" href="/nha-xuong">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="vi_VN">
   <meta property="og:locale:alternate" content="zh_CN">
@@ -42,15 +73,15 @@
   <meta property="og:title" content="Nhà xưởng xây sẵn cho thuê tại KCN Stavian Vĩnh Phúc — THÉP SƠN LÂM">
   <meta property="og:description"
     content="Cho thuê nhà xưởng xây sẵn KCN Stavian Vĩnh Phúc. 2.584–3.416 m², cao 10,85 m, tải trọng 3 T/m². Hạ tầng hoàn chỉnh, bàn giao ngay Q3/2026.">
-  <meta property="og:image" content="http://localhost:8000/static/brain/wh_real2.jpg">
+  <meta property="og:image" content="/static/brain/wh_real2.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:url" content="http://localhost:8000/nha-xuong">
+  <meta property="og:url" content="/nha-xuong">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Nhà xưởng xây sẵn cho thuê tại KCN Stavian Vĩnh Phúc — THÉP SƠN LÂM">
   <meta name="twitter:description"
     content="2.584–3.416 m², cao 10,85 m, tải trọng 3 T/m². Bàn giao Q3/2026. Hạ tầng điện, nước, PCCC hoàn chỉnh.">
-  <meta name="twitter:image" content="http://localhost:8000/static/brain/wh_real2.jpg">
+  <meta name="twitter:image" content="/static/brain/wh_real2.jpg">
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",

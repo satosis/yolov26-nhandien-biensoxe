@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+# Base image hỗ trợ Jetson L4T với Python 3.10 và CUDA / TensorRT
+# Tương thích JetPack 5.x / 6.x trên ARM64 (aarch64)
+ARG BASE_IMAGE=dustynv/onnxruntime:r35.4.1
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TZ=Asia/Ho_Chi_Minh \
+    DEBIAN_FRONTEND=noninteractive \
+    PYTHONPATH=/app \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Cài đặt thư viện hệ thống cần thiết (OpenCV dependencies, libpq cho Postgres, GL, ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config gcc g++ make \
+    libglib2.0-0 libgomp1 libopenblas0 libpq5 libpq-dev tzdata libgl1 \
+    ffmpeg v4l-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cài đặt dependencies Python
+COPY backend/requirements.txt /app/backend_requirements.txt
+# Lưu ý: onnxruntime-gpu đã có sẵn trong base image Jetson, loại bỏ onnxruntime cpu nếu có để tránh ghi đè
+RUN grep -v "^onnxruntime" /app/backend_requirements.txt > /tmp/req.txt && \
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r /tmp/req.txt && \
+    rm -f /tmp/req.txt /app/backend_requirements.txt
+
+COPY backend /app/backend
+COPY frontend /app/frontend
+
+CMD ["python3", "-u", "backend/main.py"]

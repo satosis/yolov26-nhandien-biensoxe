@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: camera_ai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+      POSTGRES_DB: camera_ai
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./data.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d camera_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: camera_ai_go2rtc
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml:ro
+
+  web_ui:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.jetson
+    container_name: camera_ai_web
+    restart: unless-stopped
+    command: ["uvicorn", "frontend.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USERNAME:-postgres}:${DB_PASSWORD:-postgres123}@postgres:5432/camera_ai
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./frontend:/app/frontend
+      - ./upload:/app/upload
+
+  ai_core:
+    build:
+      context: .
+      dockerfile: backend/docker/Dockerfile.jetson
+    container_name: camera_ai_core
+    restart: unless-stopped
+    runtime: nvidia
+    command: ["python3", "-u", "backend/main.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USERNAME:-postgres}:${DB_PASSWORD:-postgres123}@postgres:5432/camera_ai
+      TZ: Asia/Ho_Chi_Minh
+      # Dùng model ONNX FP32/FP16 để kích hoạt TensorRT/CUDA trên Jetson thay vì INT8 CPU
+      PLATE_MODEL_PATH: /app/backend/models/yolo26_plate_people_door.onnx
+    volumes:
+      - ./data:/app/data
+      - ./backend:/app/backend
+      - ./upload:/app/upload

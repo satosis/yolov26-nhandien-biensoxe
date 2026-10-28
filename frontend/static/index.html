@@ -34,7 +34,37 @@
     content="nhà xưởng cho thuê Vĩnh Phúc, xe cẩu Vĩnh Phúc, KCN Stavian, thuê xưởng khu công nghiệp, cho thuê nhà xưởng Việt Nam, factory for rent Vietnam">
   <meta name="robots" content="index, follow">
   <meta name="author" content="THÉP SƠN LÂM Industrial Core">
-  <link rel="canonical" href="http://localhost:8000/">
+  <!-- Tự động lấy tên miền động (Domain) thay vì fix cứng localhost -->
+  <script>
+    (function () {
+      try {
+        const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : '';
+        if (!origin || origin.startsWith('file:')) return;
+        const pageUrl = origin + '/';
+        const imgUrl = origin + '/static/brain/factory_hero.jpg';
+
+        const can = document.querySelector('link[rel="canonical"]');
+        if (can) can.href = pageUrl;
+
+        const ogUrl = document.querySelector('meta[property="og:url"]');
+        if (ogUrl) ogUrl.content = pageUrl;
+
+        const ogImg = document.querySelector('meta[property="og:image"]');
+        if (ogImg) ogImg.content = imgUrl;
+
+        const twImg = document.querySelector('meta[name="twitter:image"]');
+        if (twImg) twImg.content = imgUrl;
+
+        document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+          if (s.textContent.includes('http://localhost:8000')) {
+            s.textContent = s.textContent.replaceAll('http://localhost:8000', origin);
+          }
+        });
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="canonical" href="/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="vi_VN">
   <meta property="og:locale:alternate" content="zh_CN">
@@ -42,15 +72,15 @@
   <meta property="og:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng & Xe cẩu tại Việt Nam">
   <meta property="og:description"
     content="Cho thuê nhà xưởng xây sẵn KCN Stavian Vĩnh Phúc. Dịch vụ xe cẩu 25–500 tấn. Tư vấn FDI hạ tầng khu công nghiệp. Bàn giao ngay Q3/2026.">
-  <meta property="og:image" content="http://localhost:8000/static/brain/factory_hero.jpg">
+  <meta property="og:image" content="/static/brain/factory_hero.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:url" content="http://localhost:8000/">
+  <meta property="og:url" content="/">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng & Xe cẩu tại Việt Nam">
   <meta name="twitter:description"
     content="Cho thuê nhà xưởng xây sẵn KCN Stavian Vĩnh Phúc. Dịch vụ xe cẩu 25–500 tấn. Bàn giao ngay Q3/2026.">
-  <meta name="twitter:image" content="http://localhost:8000/static/brain/factory_hero.jpg">
+  <meta name="twitter:image" content="/static/brain/factory_hero.jpg">
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",

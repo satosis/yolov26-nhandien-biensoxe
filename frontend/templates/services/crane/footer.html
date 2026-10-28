@@ -1,0 +1,128 @@
+<footer class="bg-slate-950 text-slate-400 border-t border-slate-800/80 pt-16 pb-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-slate-800">
+      
+      <!-- Cột 1: Thông tin thương hiệu & Pháp nhân -->
+      <div class="space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+            <span class="material-symbols-outlined text-xl font-black">precision_manufacturing</span>
+          </div>
+          <span class="text-lg font-black text-white uppercase tracking-tight">{{ company.brand_name }}</span>
+        </div>
+        <p class="text-xs text-slate-300 font-semibold leading-relaxed">
+          {{ company.company_name }}
+        </p>
+        <p class="text-xs text-slate-400">
+          Mã số thuế: <strong class="text-emerald-400 font-bold text-sm">{{ company.tax_id }}</strong>
+        </p>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Đơn vị trực tiếp sở hữu đội xe cẩu tự hành tải trọng 8 – 10 Tấn gắn cẩu UNIC và Dongyang SS1936. Chuyên lắp dựng dầm cầu trục nhà xưởng, cẩu kiểm định trạm cân xe tải, cẩu vận chuyển dầm thép và hạ máy móc phục vụ 24/7.
+        </p>
+      </div>
+
+      <!-- Cột 2: Đội xe chuyên dụng -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-emerald-500 pl-2.5">
+          Đội Xe Cẩu Chuyên Dụng
+        </h4>
+        <ul class="space-y-2 text-xs">
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Xe cẩu tự hành UNIC (8 Tấn · Thùng dài 8.5m)</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Xe cẩu tự hành Dongyang SS1936 (10 Tấn · Cần 19.8m)</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Thùng xe dài 8.5m tải trọng chở hàng 14 tấn</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Cần vươn xa 19.8m · Sức nâng 8–10 tấn</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>Chuyên lắp dầm cầu trục &amp; kiểm định trạm cân</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Cột 3: Cam kết dịch vụ -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-emerald-500 pl-2.5">
+          Cam Kết Chất Lượng
+        </h4>
+        <ul class="space-y-2.5 text-xs">
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+            <span>Bảo hiểm trách nhiệm hàng hóa 100%</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+            <span>100% thợ lái chứng chỉ nghề TCVN 4244</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+            <span>Hợp đồng pháp nhân, xuất hóa đơn VAT đầy đủ</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+            <span>Khảo sát hiện trường &amp; lên phương án miễn phí</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-emerald-400 text-sm shrink-0">check_circle</span>
+            <span>Trực chiến điều vận 24/7 kể cả ngày lễ</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Cột 4: Thông tin liên hệ trực tiếp -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-emerald-500 pl-2.5">
+          Địa Chỉ &amp; Hotline
+        </h4>
+        <div class="space-y-3 text-xs">
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Trụ sở công ty:</span>
+            <span class="text-slate-200">{{ company.address }}</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Bãi tập kết xe:</span>
+            <span class="text-slate-200">{{ company.depot_address }}</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Hotline điều vận 24/7:</span>
+            <a href="tel:{{ settings.phone_raw }}" class="text-emerald-400 hover:text-emerald-300 font-extrabold text-base transition-colors">
+              {{ settings.phone }}
+            </a>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Email liên hệ:</span>
+            <a href="mailto:{{ company.email }}" class="text-slate-300 hover:text-white transition-colors">
+              {{ company.email }}
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Copyright -->
+    <div class="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <p>
+        &copy; <span id="footer-year">2026</span> {{ company.company_name }} (MST: {{ company.tax_id }}). Toàn quyền bảo lưu.
+      </p>
+      <div class="flex items-center gap-6">
+        <a href="#doi-xe" class="hover:text-emerald-400 transition-colors">Đội xe</a>
+        <a href="#bang-gia" class="hover:text-emerald-400 transition-colors">Bảng giá</a>
+        <a href="#faq" class="hover:text-emerald-400 transition-colors">Hỏi đáp FAQ</a>
+        <a href="#top" class="hover:text-emerald-400 transition-colors">Về đầu trang ↑</a>
+        <a href="tel:{{ settings.phone_raw }}" class="text-emerald-400 font-bold hover:underline">Gọi: {{ settings.phone }}</a>
+      </div>
+    </div>
+  </div>
+  <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
+</footer>

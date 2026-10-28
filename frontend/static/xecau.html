@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>Dịch vụ xe cẩu chuyên nghiệp — THÉP SƠN LÂM</title>
+  <title>Dịch vụ xe cẩu chuyên nghiệp — ĐẠI LỘ XANH</title>
 
 
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -24,7 +24,11 @@
 
   <script defer src="/static/vendor/alpine.min.js"></script>
 
-  <link rel="shortcut icon" href="/static/favicon.png" type="image/x-icon">
+  <!-- Favicons for Crane Services -->
+  <link rel="icon" type="image/svg+xml" href="/static/services/crane/img/favicon-crane.svg?v=4">
+  <link rel="alternate icon" type="image/png" sizes="32x32" href="/static/services/crane/img/favicon-crane-32.png?v=4">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/services/crane/img/favicon-crane-180.png?v=4">
+  <link rel="shortcut icon" href="/static/services/crane/img/favicon-crane.ico?v=4">
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">
 
 
@@ -33,24 +37,56 @@
   <meta name="keywords"
     content="xe cẩu Vĩnh Phúc, thuê xe cẩu, dịch vụ cẩu hàng, xe cẩu 500 tấn, crane service Vietnam, lắp đặt thiết bị công nghiệp, vận chuyển siêu trọng">
   <meta name="robots" content="index, follow">
-  <meta name="author" content="Nguyễn Kim Quyết — THÉP SƠN LÂM Industrial Core">
-  <link rel="canonical" href="http://localhost:8000/xe-cau">
+  <meta name="author" content="Nguyễn Kim Quyết — CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH">
+
+  <!-- Tự động lấy tên miền động (Domain) thay vì fix cứng localhost -->
+  <script>
+    (function () {
+      try {
+        const origin = (typeof window !== 'undefined' && window.location.origin) ? window.location.origin : '';
+        if (!origin || origin.startsWith('file:')) return;
+        const pathname = window.location.pathname.includes('xecau') ? '/xe-cau' : window.location.pathname;
+        const pageUrl = origin + pathname;
+        const imgUrl = origin + '/static/brain/crane1.jpg';
+
+        const can = document.querySelector('link[rel="canonical"]');
+        if (can) can.href = pageUrl;
+
+        const ogUrl = document.querySelector('meta[property="og:url"]');
+        if (ogUrl) ogUrl.content = pageUrl;
+
+        const ogImg = document.querySelector('meta[property="og:image"]');
+        if (ogImg) ogImg.content = imgUrl;
+
+        const twImg = document.querySelector('meta[name="twitter:image"]');
+        if (twImg) twImg.content = imgUrl;
+
+        document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+          if (s.textContent.includes('http://localhost:8000')) {
+            s.textContent = s.textContent.replaceAll('http://localhost:8000', origin);
+          }
+        });
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="canonical" href="/xe-cau">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="vi_VN">
   <meta property="og:locale:alternate" content="zh_CN">
-  <meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
-  <meta property="og:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — THÉP SƠN LÂM Vĩnh Phúc">
+  <meta property="og:site_name" content="CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH">
+  <meta property="og:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — ĐẠI LỘ XANH Vĩnh Phúc">
   <meta property="og:description"
     content="Xe cẩu bánh lốp & cẩu tháp tải trọng 25–500 tấn. Bảo hiểm 100%, phục vụ 24/7, đội ngũ vận hành ISO 9001. Liên hệ báo giá ngay.">
-  <meta property="og:image" content="http://localhost:8000/static/brain/crane1.jpg">
+  <meta property="og:image" content="/static/brain/crane1.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:url" content="http://localhost:8000/xe-cau">
+  <meta property="og:url" content="/xe-cau">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — THÉP SƠN LÂM">
+  <meta name="twitter:title" content="Dịch vụ xe cẩu chuyên nghiệp 25–500 tấn — ĐẠI LỘ XANH">
   <meta name="twitter:description"
     content="Xe cẩu bánh lốp & cẩu tháp. Bảo hiểm 100%, phục vụ 24/7. Liên hệ báo giá ngay.">
-  <meta name="twitter:image" content="http://localhost:8000/static/brain/crane1.jpg">
+  <meta name="twitter:image" content="/static/brain/crane1.jpg">
   <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -78,7 +114,7 @@
       "provider": {
         "@type": "Organization",
         "@id": "http://localhost:8000/#organization",
-        "name": "THÉP SƠN LÂM Industrial Core",
+        "name": "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH",
         "telephone": ""
       },
       "offers": {
@@ -93,7 +129,7 @@
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "Xe cẩu của THÉP SƠN LÂM có tải trọng tối đa bao nhiêu tấn?",
+          "name": "Xe cẩu của ĐẠI LỘ XANH có tải trọng tối đa bao nhiêu tấn?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Chúng tôi có đội xe cẩu từ 25 tấn đến 500 tấn, bao gồm cẩu bánh lốp Kato, Tadano, Grove và cẩu tháp Liebherr. Phù hợp mọi công trình từ lắp đặt thiết bị đến xây dựng nhà cao tầng."
@@ -137,7 +173,7 @@
         translations: {
           vi: {
             home: 'Trang chủ', about: 'Giới thiệu', services: 'Dịch vụ', news: 'Tin tức', warehouse: 'Nhà xưởng', cranes: 'Xe cẩu', login: 'Đăng nhập',
-            hero_title: 'THÉP SƠN LÂM Industrial Core', hero_subtitle: 'Vận tải vươn xa', warehouse_btn: 'Khám phá giải pháp',
+            hero_title: 'CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH', hero_subtitle: 'Vận tải vươn xa', warehouse_btn: 'Khám phá giải pháp',
             featured_asset: 'Tài sản nổi bật', view_all: 'XEM TẤT CẢ', available_now: 'ĐANG TRỐNG',
             factory_lease: 'Cho thuê nhà xưởng cao cấp', inspection: 'HẸN LỊCH XEM XƯỞNG', equipment_services: 'Dịch vụ thiết bị',
             crane_desc: 'Sức nâng từ 25T đến 500T cho hạ tầng trọng điểm.', location_title: 'Vị trí chiến lược: Vĩnh Phúc',
@@ -149,12 +185,12 @@
             orders: 'Đơn hàng', profile: 'Cá nhân', contact_now: 'Liên hệ ngay',
             mobile_cranes: 'Xe cẩu bánh lốp', tower_cranes: 'Xe cẩu tháp', maintenance: 'Bảo trì định kỳ',
             high_rise_ready: 'Phù hợp nhà cao tầng',
-            about_title: 'Về THÉP SƠN LÂM', about_desc: 'Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.',
+            about_title: 'Về ĐẠI LỘ XANH', about_desc: 'Chúng tôi là đơn vị hàng đầu trong cung cấp giải pháp nhà xưởng và dịch vụ nâng hạ tại khu vực phía Bắc.',
             vision: 'Tầm nhìn', mission: 'Sứ mệnh', core_values: 'Giá trị cốt lõi'
           },
           zh: {
             home: '首页', about: '关于我们', services: '服务项目', news: '新闻资讯', warehouse: '厂房租赁', cranes: '起重机服务', login: '登录',
-            hero_title: 'THÉP SƠN LÂM 工业核心', hero_subtitle: '运输通达天下', warehouse_btn: '探索解决方案',
+            hero_title: 'ĐẠI LỘ XANH 工业核心', hero_subtitle: '运输通达天下', warehouse_btn: '探索解决方案',
             featured_asset: '特色资产', view_all: '查看全部', available_now: '现有空置',
             factory_lease: '高端厂房出租', inspection: '预约参观厂房', equipment_services: '设备服务',
             crane_desc: '起重能力25吨至500吨，服务于重点基础设施。', location_title: '战略位置：永福',
@@ -166,7 +202,7 @@
             orders: '订单', profile: '个人中心', contact_now: '立即联系',
             mobile_cranes: '轮胎式起重机', tower_cranes: '塔式起重机', maintenance: '定期维护',
             high_rise_ready: '适用于高层建筑',
-            about_title: '关于 THÉP SƠN LÂM', about_desc: '我们是华北地区领先的厂房解决方案和起重服务提供商。',
+            about_title: '关于 ĐẠI LỘ XANH', about_desc: '我们是华北地区领先的厂房解决方案和起重服务提供商。',
             vision: '愿景', mission: '使命', core_values: '核心价值'
           }
         },
@@ -436,10 +472,10 @@
           <span class="material-symbols-outlined text-white text-xl font-black notranslate">robot_2</span>
         </div>
         <div class="flex flex-col leading-none">
-          <span class="text-lg font-black text-white uppercase tracking-tighter notranslate">THÉP SƠN
-            LÂM</span>
-          <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial
-            Core</span>
+          <span class="text-lg font-black text-white uppercase tracking-tighter notranslate">ĐẠI LỘ
+            XANH</span>
+          <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Vận Tải &
+            Xe Cẩu</span>
         </div>
       </a>
     </div>
@@ -610,7 +646,7 @@
         <template x-for="(s,i) in slides" :key="i">
           <div class="absolute inset-0 transition-opacity duration-1000" :style="cur===i?'opacity:1':'opacity:0'">
             <img :src="s" class="w-full h-full object-cover" style="opacity:.55"
-              alt="Xe cẩu chuyên nghiệp THÉP SƠN LÂM">
+              alt="Xe cẩu chuyên nghiệp ĐẠI LỘ XANH">
           </div>
         </template>
         <div class="absolute inset-0 bg-gradient-to-t from-[#0b1c30] via-[#0b1c30]/20 to-transparent"></div>
@@ -778,11 +814,11 @@
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 h-[480px]">
           <div class="col-span-2 row-span-2 rounded-3xl overflow-hidden">
-            <img src="/static/brain/crane1.jpg" class="gallery-img" alt="Xe cẩu THÉP SƠN LÂM tại công trình">
+            <img src="/static/brain/crane1.jpg" class="gallery-img" alt="Xe cẩu ĐẠI LỘ XANH tại công trình">
           </div>
           <div class="rounded-2xl overflow-hidden">
             <img src="/static/brain/warehouse1.jpg" loading="lazy" class="gallery-img h-full"
-              alt="Cẩu hàng công nghiệp THÉP SƠN LÂM">
+              alt="Cẩu hàng công nghiệp ĐẠI LỘ XANH">
           </div>
           <div class="rounded-2xl overflow-hidden">
             <img src="/static/brain/wh_real1.jpg" loading="lazy" class="gallery-img h-full"
@@ -794,7 +830,7 @@
           </div>
           <div class="rounded-2xl overflow-hidden">
             <img src="/static/brain/wh_real3.jpg" loading="lazy" class="gallery-img h-full"
-              alt="Vận chuyển siêu trọng THÉP SƠN LÂM">
+              alt="Vận chuyển siêu trọng ĐẠI LỘ XANH">
           </div>
         </div>
       </div>
@@ -861,7 +897,7 @@
         <div class="text-center mb-16">
           <span class="text-orange-500 font-black uppercase text-[10px] tracking-[0.4em] mb-4 block">Our
             Commitment</span>
-          <h2 class="text-4xl font-black text-slate-900">Lý do chọn THÉP SƠN LÂM</h2>
+          <h2 class="text-4xl font-black text-slate-900">Lý do chọn ĐẠI LỘ XANH</h2>
         </div>
         <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
           <div class="tax-badge text-center">
@@ -1060,7 +1096,7 @@
                 <div class="space-y-2">
                   <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tên doanh
                     nghiệp</label>
-                  <input type="text" name="company_name" placeholder="Công ty TNHH THÉP SƠN LÂM"
+                  <input type="text" name="company_name" placeholder="Ví dụ: Công ty TNHH Sản Xuất..."
                     class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:border-orange-500 focus:bg-white transition-all outline-none">
                 </div>
                 <div class="space-y-2">
@@ -1107,7 +1143,7 @@
                   aria-hidden="true">robot_2</span>
               </div>
               <div class="flex flex-col leading-none">
-                <span class="text-base font-black text-white uppercase tracking-tighter notranslate">THÉP SƠN LÂM</span>
+                <span class="text-base font-black text-white uppercase tracking-tighter notranslate">ĐẠI LỘ XANH</span>
                 <span class="text-[9px] text-orange-500 font-bold tracking-[0.2em] uppercase notranslate">Industrial
                   Core</span>
               </div>
@@ -1116,7 +1152,7 @@
               Khu công nghiệp & nhà xưởng xây sẵn tại Vĩnh Phúc — sẵn sàng cho sản xuất ngay từ ngày đầu.
             </p>
             <div class="flex gap-3 mt-5">
-              <a href="tel:+84986565666"
+              <a href="tel:0912559868"
                 class="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center hover:bg-orange-600 hover:border-orange-600 transition-all group">
                 <span class="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-white notranslate"
                   aria-hidden="true">call</span>
@@ -1189,7 +1225,7 @@
 
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8">
           <p class="text-slate-500 text-xs notranslate">
-            © <span x-text="new Date().getFullYear()"></span> THÉP SƠN LÂM Industrial Core. Bảo lưu mọi quyền.
+            © <span x-text="new Date().getFullYear()"></span> CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH. Bảo lưu mọi quyền.
           </p>
           <div class="flex items-center gap-4">
             <span
@@ -1225,7 +1261,7 @@
   </nav>
 
 
-  <a href="tel:"
+  <a href="tel:0912559868"
     class="fixed bottom-20 right-6 w-14 h-14 bg-secondary-container text-white rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-all z-40"
     translate="no">
     <span class="material-symbols-outlined notranslate" aria-hidden="true">add_call</span>

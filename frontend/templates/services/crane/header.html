@@ -1,0 +1,53 @@
+<header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 transition-all shadow-sm" x-data="{ mobileMenu: false }">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+    
+    <!-- Logo & Brand -->
+    <a href="#top" class="flex items-center gap-3.5 group">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30 group-hover:scale-105 transition-transform">
+        <span class="material-symbols-outlined text-2xl font-black">precision_manufacturing</span>
+      </div>
+      <div class="flex flex-col">
+        <span class="text-xl font-black tracking-tight text-slate-900 group-hover:text-emerald-600 transition-colors uppercase">
+          {{ company.brand_name }}
+        </span>
+        <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest -mt-0.5">
+          Xe Cẩu Tự Hành Chuyên Nghiệp 24/7
+        </span>
+      </div>
+    </a>
+
+    <!-- Desktop Navigation Links -->
+    <nav class="hidden lg:flex items-center gap-6">
+      <a href="#doi-xe" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">2 Xe Cẩu Chính Chủ</a>
+      <a href="#dich-vu" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Dịch Vụ Cẩu</a>
+      <a href="#hinh-anh" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Ảnh Thực Tế</a>
+      <a href="#bang-gia" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Bảng Giá</a>
+      <a href="#faq" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Hỏi Đáp FAQ</a>
+      <a href="#lien-he" class="text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors">Yêu Cầu Báo Giá</a>
+    </nav>
+
+    <!-- Header Actions / CTA -->
+    <div class="flex items-center gap-3">
+      <a href="tel:{{ settings.phone_raw }}" 
+         class="pulse-btn inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-extrabold text-sm shadow-md shadow-emerald-600/30 hover:from-emerald-700 hover:to-green-700 transition-all">
+        <span class="material-symbols-outlined text-xl">call</span>
+        <span class="tracking-wide">{{ settings.phone }}</span>
+      </a>
+
+      <!-- Mobile Menu Toggle Button -->
+      <button @click="mobileMenu = !mobileMenu" class="lg:hidden p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 transition-colors" aria-label="Toggle menu">
+        <span class="material-symbols-outlined text-2xl" x-text="mobileMenu ? 'close' : 'menu'">menu</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile Dropdown Navigation -->
+  <div x-show="mobileMenu" x-cloak x-transition class="lg:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-2.5 shadow-lg">
+    <a href="#doi-xe" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">2 Xe Cẩu Chính Chủ</a>
+    <a href="#dich-vu" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Dịch Vụ Cẩu</a>
+    <a href="#hinh-anh" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Ảnh Thực Tế</a>
+    <a href="#bang-gia" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Bảng Giá</a>
+    <a href="#faq" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Hỏi Đáp FAQ</a>
+    <a href="#lien-he" @click="mobileMenu = false" class="block py-2 text-sm font-bold text-emerald-600">Yêu Cầu Báo Giá →</a>
+  </div>
+</header>

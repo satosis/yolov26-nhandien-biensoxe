@@ -701,6 +701,17 @@ class InferenceWorker:
         if not saved:
             logger.error("Pending plate write affected no rows")
             raise RuntimeError("Pending plate was not stored")
+
+        try:
+            from backend.services.telegram_service import notify_telegram
+            notify_telegram(
+                f"🚘 Biển số mới: {plate_raw} (Cam: {camera_id or '—'})",
+                important=True,
+                prefix=""
+            )
+        except Exception as e:
+            logger.warning("Could not send Telegram alert for pending plate: %s", e)
+
         return True
 
     def _ensure_models_loaded(self):
@@ -942,6 +953,15 @@ class InferenceWorker:
                         "event_type": "stranger",
                         "site_id": site_id
                     })
+                    try:
+                        from backend.services.telegram_service import notify_telegram
+                        notify_telegram(
+                            f"👤 Người lạ #{stranger_id} (Cam: {cam_id})",
+                            important=True,
+                            prefix=""
+                        )
+                    except Exception as e:
+                        logger.warning("Could not send Telegram alert for stranger: %s", e)
             elif name and name != "STRANGER":
                 cv2.putText(result.annotated_frame, f"FACE: {name}", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 if track:

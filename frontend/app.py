@@ -5,7 +5,7 @@ from pathlib import Path
 
 import certifi
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -64,6 +64,7 @@ from frontend.routers.telegram_router import router as telegram_router
 from frontend.routers.users_router import router as users_router
 from frontend.routers.vehicles_router import router as vehicles_router
 from frontend.modules.reminders.router import router as reminders_router
+from frontend.services.crane.router import router as crane_service_router
 
 STATIC_CACHE_EXTENSIONS = (
     ".jpg", ".jpeg", ".png", ".webp", ".svg", ".ico",
@@ -171,6 +172,7 @@ for router in ADMIN_ROUTERS:
 
 app.include_router(auth_router)
 app.include_router(landing_router)
+app.include_router(crane_service_router)
 app.include_router(kyc_router)
 app.include_router(reminders_router)
 app.include_router(reminders_router, prefix="/admin")
@@ -203,6 +205,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 @app.post("/api/internal/notify-inquiry")
-async def notify_inquiry(data: InquiryNotification):
+async def notify_inquiry(data: InquiryNotification, background_tasks: BackgroundTasks, request: Request):
     await manager.broadcast({"type": "NEW_INQUIRY", "data": data.model_dump()})
+    try:
+        from frontend.routers.landing_router import send_inquiry_telegram_alert, InquiryInput
+        inq_item = InquiryInput(
+            full_name=data.full_name,
+            phone=data.phone,
+            company_name="",
+            demand=data.demand,
+            source_page=data.source_page,
+        )
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost:8000"
+        base_url = f"{proto}://{host}"
+        background_tasks.add_task(send_inquiry_telegram_alert, inq_item, data.id, base_url)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Could not dispatch Telegram alert: %s", exc)
     return {"status": "ok"}

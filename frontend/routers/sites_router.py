@@ -9,22 +9,16 @@ from backend.services.database import db
 router = APIRouter(prefix="/sites")
 
 
-def _sites_list_html(request: Request, user: dict, page: int = 1) -> str:
-    offset = (max(1, page) - 1) * 20
-    sites = db.execute_query(
-        "SELECT * FROM sites ORDER BY site_name LIMIT %s OFFSET %s",
-        (20, offset), fetchall=True,
-    ) or []
-    rows = []
-    for s in sites:
-        name = escape(str(s.get("site_name") or ""), quote=True)
-        address = escape(str(s.get("address") or "—"), quote=True)
-        delete_message = escape(json.dumps(f"Bạn chắc chắn muốn xóa địa điểm {s.get('site_name') or ''}?", ensure_ascii=False), quote=True)
-        is_active = bool(s.get("is_active"))
-        btn_cls = "btn-success" if is_active else "btn-secondary"
-        dot_bg = "#28a745" if is_active else "#6c757d"
-        active_txt = "Bật" if is_active else "Tắt"
-        rows.append(f'''<tr id="site-{s['id']}">
+def _site_row_html(s: dict, idx: int, page: int = 1) -> str:
+    name = escape(str(s.get("site_name") or ""), quote=True)
+    address = escape(str(s.get("address") or "—"), quote=True)
+    delete_message = escape(json.dumps(f"Bạn chắc chắn muốn xóa địa điểm {s.get('site_name') or ''}?", ensure_ascii=False), quote=True)
+    is_active = bool(s.get("is_active"))
+    btn_cls = "btn-success" if is_active else "btn-secondary"
+    dot_bg = "#28a745" if is_active else "#6c757d"
+    active_txt = "Bật" if is_active else "Tắt"
+    return f'''<tr id="site-{s['id']}">
+      <td class="text-center text-muted font-weight-medium align-middle">{idx}</td>
       <td><span class="font-weight-bold" style="font-size:13px;">{name}</span></td>
       <td class="text-muted" style="font-size:13px;">{address}</td>
       <td class="text-muted" style="font-size:13px;">🅿️ {s.get('total_slots') or 0} chỗ</td>
@@ -52,8 +46,17 @@ def _sites_list_html(request: Request, user: dict, page: int = 1) -> str:
                   }}))"><i class="bx bx-trash"></i></button>
         </div>
       </td>
-    </tr>''')
-    return "\n".join(rows) if rows else '<tr><td colspan="5" class="text-center text-muted py-4">Chưa có địa điểm nào.</td></tr>'
+    </tr>'''
+
+
+def _sites_list_html(request: Request, user: dict, page: int = 1) -> str:
+    offset = (max(1, page) - 1) * 20
+    sites = db.execute_query(
+        "SELECT * FROM sites ORDER BY site_name LIMIT %s OFFSET %s",
+        (20, offset), fetchall=True,
+    ) or []
+    rows = [_site_row_html(s, idx, page) for idx, s in enumerate(sites, start=offset + 1)]
+    return "\n".join(rows) if rows else '<tr><td colspan="6" class="text-center text-muted py-4">Chưa có địa điểm nào.</td></tr>'
 
 
 @router.get("")
@@ -62,6 +65,9 @@ async def sites_page(
     page: int = Query(1, ge=1),
     user: dict = Depends(require_menu("sites")),
 ):
+    if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "sites-list":
+        return HTMLResponse(_sites_list_html(request, user, page))
+
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "sites"
     count_row = db.execute_query("SELECT COUNT(*) AS total FROM sites", fetch=True) or {}
@@ -73,7 +79,7 @@ async def sites_page(
         fetchall=True,
     ) or []
     ctx.update(page=page_data["page"], total_pages=page_data["total_pages"],
-               total=page_data["total"], page_base_url=page_data["page_base_url"])
+               total=page_data["total"], per_page=page_data["per_page"], page_base_url=page_data["page_base_url"])
     ctx["total_sites"] = total_sites
     return templates.TemplateResponse("pages/sites.html", {"request": request, **ctx})
 
@@ -114,7 +120,7 @@ async def edit_site_form(site_id: int, request: Request, page: int = Query(1, ge
     site_name = escape(str(site.get("site_name") or ""), quote=True)
     address = escape(str(site.get("address") or ""), quote=True)
     html = f'''<tr id="site-{site_id}">
-  <td colspan="5" class="p-3 bg-light border-top border-bottom">
+  <td colspan="6" class="p-3 bg-light border-top border-bottom">
     <form hx-post="/admin/sites/{site_id}/edit?page={page}" hx-target="#sites-list" hx-swap="innerHTML">
       <div class="row">
         <div class="col-md-6 mb-2">
@@ -140,12 +146,27 @@ async def edit_site_form(site_id: int, request: Request, page: int = Query(1, ge
       </div>
       <div class="d-flex mt-2" style="gap:8px;">
         <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
-        <button type="button" class="btn btn-light btn-sm" hx-get="/admin/sites?page={page}" hx-target="#sites-list" hx-swap="innerHTML">Hủy</button>
+        <button type="button" class="btn btn-light btn-sm" hx-get="/admin/sites/{site_id}/row?page={page}" hx-target="#site-{site_id}" hx-swap="outerHTML">Hủy</button>
       </div>
     </form>
   </td>
   </tr>'''
     return HTMLResponse(html)
+
+
+@router.get("/{site_id}/row")
+async def get_site_row(site_id: int, request: Request, page: int = Query(1, ge=1), user: dict = Depends(require_menu("sites"))):
+    site = db.select("sites", conditions={"id": site_id}, fetchall=False)
+    if not site:
+        return HTMLResponse("Không tìm thấy địa điểm.", status_code=404)
+    offset = (max(1, page) - 1) * 20
+    sites = db.execute_query("SELECT id FROM sites ORDER BY site_name LIMIT %s OFFSET %s", (20, offset), fetchall=True) or []
+    idx = offset + 1
+    for i, s in enumerate(sites, start=offset + 1):
+        if s.get("id") == site_id:
+            idx = i
+            break
+    return HTMLResponse(_site_row_html(site, idx, page))
 
 
 @router.post("/{site_id}/edit")

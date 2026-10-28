@@ -56,12 +56,15 @@ docker compose --profile db_admin up -d       # kèm Adminer
 **Chạy thủ công (không Docker):**
 
 ```bash
-pip install -r requirements.txt
-cd frontend
-uvicorn app:app --host 0.0.0.0 --port 8000   
+pip install -r backend/requirements.txt
+# Terminal 1: Web Management
+cd frontend && uvicorn app:app --host 0.0.0.0 --port 8000
+# Terminal 2: AI Core
 export PYTHONPATH=$PYTHONPATH:$(pwd)
-python main.py       
+python backend/main.py
 ```
+
+> 📖 **Xem hướng dẫn chi tiết:** Xem file [INSTALL.md](INSTALL.md) để biết chi tiết các phương thức cài đặt (Ubuntu, macOS, Windows, Docker, và đặc biệt là triển khai lên **NVIDIA Jetson Nano**).
 
 **Truy cập:**
 - Chạy bằng Docker: `http://localhost:8080` (truy cập từ xa: `http://100.83.133.85:8080` hoặc `http://192.168.1.18:8080`)

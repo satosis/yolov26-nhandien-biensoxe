@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>{% block title %}{{ company.seo_config.title }}{% endblock %}</title>
+
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+
+  <!-- Core Scripts & Frameworks -->
+  <script src="/static/vendor/tailwind.min.js"></script>
+  <script defer src="/static/user/js/alpine.min.js?v=2.1"></script>
+  <!-- Favicons for Crane Services -->
+  <link rel="icon" type="image/svg+xml" href="/static/services/crane/img/favicon-crane.svg?v=4">
+  <link rel="alternate icon" type="image/png" sizes="32x32" href="/static/services/crane/img/favicon-crane-32.png?v=4">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/services/crane/img/favicon-crane-180.png?v=4">
+  <link rel="shortcut icon" href="/static/services/crane/img/favicon-crane.ico?v=4">
+
+  {% block seo %}
+  <meta name="description" content="{{ company.seo_config.description }}">
+  <meta name="keywords" content="{{ company.seo_config.keywords }}">
+  <meta name="author" content="{{ company.company_name }}">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="{{ request.url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ company.seo_config.title }}">
+  <meta property="og:description" content="{{ company.seo_config.description }}">
+  <meta property="og:image" content="{{ request.base_url }}static/services/crane/img/crane_hero_yard.jpg">
+  <meta property="og:url" content="{{ request.url }}">
+  {% endblock %}
+
+  <!-- Schema.org Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "LocalBusiness",
+        "name": "{{ company.company_name }}",
+        "description": "Dịch vụ xe cẩu tự hành tải trọng 8 – 10 Tấn (cần UNIC và Dongyang SS1936) tại Vĩnh Phúc, Phú Thọ.",
+        "telephone": "{{ settings.phone_raw }}",
+        "email": "{{ company.email }}",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "{{ company.address }}",
+          "addressCountry": "VN"
+        },
+        "taxID": "{{ company.tax_id }}",
+        "openingHours": "Mo-Su 00:00-23:59",
+        "priceRange": "$$"
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "{{ request.url }}#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Đại Lộ Xanh sở hữu những dòng xe cẩu nào và tải trọng bao nhiêu?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Đại Lộ Xanh sở hữu đội xe cẩu tự hành chuyên dụng: Cần cẩu UNIC 8 tấn (thùng dài 8.5m tải chở 14 tấn) và cần cẩu Dongyang SS1936 10 tấn vươn xa 19.8m."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Giá thuê xe cẩu tự hành được tính theo hình thức nào?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chúng tôi áp dụng hình thức thuê linh hoạt: Theo ca làm việc (7 tiếng từ 2.800.000đ - 3.500.000đ/ca), theo chuyến hàng, theo tháng hoặc trọn gói công trình. Đã bao gồm lái xe chuyên nghiệp và nhiên liệu."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Thời gian điều xe cẩu đến công trình là bao lâu? Có nhận cẩu đêm không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chúng tôi trực chiến 24/7, cam kết có mặt trong 15–30 phút tại các khu vực Vĩnh Phúc và Phú Thọ. Sẵn sàng phục vụ cẩu hàng ban đêm theo giờ cấm tải của thành phố."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Đại Lộ Xanh có xuất hóa đơn VAT và cung cấp hợp đồng pháp nhân không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Có 100%. Công ty TNHH Vận Tải Đại Lộ Xanh (MST: 2500774911) cung cấp đầy đủ hợp đồng kinh tế, biên bản nghiệm thu, bảo hiểm trách nhiệm hàng hóa và xuất hóa đơn điện tử VAT GTGT."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Xe cẩu có nhận lắp dựng dầm cầu trục nhà xưởng và cẩu kiểm định trạm cân không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Đây là 2 thế mạnh cốt lõi của chúng tôi. Đội ngũ thợ lái có chứng chỉ TCVN 4244, chuyên căn chỉnh lắp ray, dầm cầu trục xưởng trần cao và cẩu định vị hàng chục quả cân chuẩn 500KG trên bàn cân điện tử."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  {% if settings.gtm_id %}
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','{{ settings.gtm_id }}');</script>
+  {% endif %}
+
+  {% if settings.fb_pixel_id %}
+  <!-- Facebook Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '{{ settings.fb_pixel_id }}');
+  fbq('track', 'PageView');
+  </script>
+  {% endif %}
+
+  <style>
+    :root {
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    [x-cloak] { display: none !important; }
+    
+    /* Animation pulse for CTA buttons */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 14px rgba(22, 163, 74, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+    }
+    .pulse-btn {
+      animation: pulse-ring 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+    
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f8fafc; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+
+    @media (max-width: 768px) {
+      body { padding-bottom: 74px; }
+    }
+  </style>
+</head>
+<body id="top" class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+
+  {% if settings.gtm_id %}
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_id }}"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  {% endif %}
+
+  <!-- Top Sticky Header -->
+  {% include "services/crane/header.html" %}
+
+  <!-- Main Body Content -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Lead Capture Form Section -->
+  {% include "services/crane/contact_form.html" %}
+
+  <!-- Corporate Footer -->
+  {% include "services/crane/footer.html" %}
+
+  <!-- Mobile Floating Sticky CTA Bar (Tối ưu chuyển đổi Ads) -->
+  <div class="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200/90 p-2.5 px-4 shadow-[0_-4px_25px_rgba(0,0,0,0.08)]">
+    <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
+      <a href="tel:{{ settings.phone_raw }}" 
+         class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-extrabold text-sm shadow-md shadow-emerald-600/30 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-[20px]">call</span>
+        <span>GỌI ĐIỀU XE</span>
+      </a>
+      <a href="{{ settings.zalo }}" 
+         target="_blank" rel="noopener"
+         class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 text-white font-extrabold text-sm shadow-md shadow-sky-600/30 active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-[20px]">chat</span>
+        <span>CHAT ZALO</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Contact Form Scripts -->
+  <script defer src="/static/user/js/htmx.min.js?v=2.1"></script>
+  <script src="/static/user/js/contact-form.js?v=1.0"></script>
+</body>
+</html>

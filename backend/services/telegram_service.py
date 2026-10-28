@@ -53,19 +53,51 @@ def _telegram_bots() -> list[dict]:
         )
         if not is_valid_bot_token(token) or not chat_id:
             logger.error("Telegram bot %s has invalid token or chat ID", bot.get("id"))
-            raise ValueError(f"Telegram bot {bot.get('id')} has invalid token or chat ID")
-        bots.append({"token": token, "chat_id": chat_id})
+            continue
+        bots.append({"token": token, "chat_id": chat_id, "bot_name": bot.get("bot_name", "")})
     return bots
 
 
-def notify_telegram(message, important=False):
-    prefix = "[IMPORTANT] " if important else "[INFO] "
+def notify_telegram(
+    message: str,
+    important: bool = False,
+    prefix: str | None = None,
+    reply_markup: dict | None = None,
+    parse_mode: str | None = None,
+) -> bool:
+    if prefix is None:
+        prefix = "[IMPORTANT] " if important else "[INFO] "
+    text = (prefix + message).strip()
+    success = False
     for bot in _telegram_bots():
-        _post_bot(
-            _bot_path(bot["token"], "sendMessage"),
-            json={"chat_id": bot["chat_id"], "text": prefix + message},
-            timeout=5,
-        )
+        try:
+            payload: dict = {"chat_id": bot["chat_id"], "text": text}
+            if reply_markup:
+                payload["reply_markup"] = reply_markup
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+
+            ok = _post_bot(
+                _bot_path(bot["token"], "sendMessage"),
+                json=payload,
+                timeout=10,
+                return_status=True,
+            )
+            # If rejected (e.g. invalid reply_markup URL format), fallback to plain message so alert is never dropped
+            if not ok and reply_markup:
+                logger.warning("Telegram sendMessage with reply_markup failed for bot %s; retrying without reply_markup", bot.get("bot_name"))
+                payload.pop("reply_markup", None)
+                ok = _post_bot(
+                    _bot_path(bot["token"], "sendMessage"),
+                    json=payload,
+                    timeout=10,
+                    return_status=True,
+                )
+            if ok:
+                success = True
+        except Exception as exc:
+            logger.warning("Telegram notification failed for bot %s (%s): %s", bot.get("bot_name"), bot.get("chat_id"), exc)
+    return success
 
 
 def notify_telegram_video(video_path, caption="", important=False):

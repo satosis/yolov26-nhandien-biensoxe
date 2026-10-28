@@ -1,0 +1,18 @@
+[Unit]
+Description=Camera AI Core Inference & Plate Recognition
+After=network.target postgresql.service camera-web.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=jetson
+WorkingDirectory=/home/jetson/yolov26-nhandien-biensoxe
+Environment="PATH=/home/jetson/yolov26-nhandien-biensoxe/venv/bin:/usr/local/cuda/bin:/usr/bin"
+Environment="PYTHONPATH=/home/jetson/yolov26-nhandien-biensoxe"
+Environment="PLATE_MODEL_PATH=/home/jetson/yolov26-nhandien-biensoxe/backend/models/yolo26_plate_people_door.onnx"
+ExecStart=/home/jetson/yolov26-nhandien-biensoxe/venv/bin/python3 backend/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

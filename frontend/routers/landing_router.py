@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Request, Form, Query
@@ -122,15 +123,6 @@ async def landing_projects(request: Request):
     )
 
 
-@router.get("/xecau", response_class=HTMLResponse)
-async def landing_crane(request: Request):
-    settings = _landing_settings(warehouse=True)
-    return templates.TemplateResponse(
-        "pages/landing_crane.html",
-        {"request": request, "settings": settings, "source_page": "crane", "user": get_optional_user(request)},
-    )
-
-
 @router.get("/kiem-dinh-can", response_class=HTMLResponse)
 async def landing_scale(request: Request):
     settings = _landing_settings(warehouse=True)
@@ -215,7 +207,7 @@ async def sitemap(request: Request):
         ("/nhaxuong", "0.9", "weekly"),
         ("/nha-xuong-co-tiet", "0.9", "weekly"),
         ("/dich-vu", "0.8", "monthly"),
-        ("/xecau", "0.8", "monthly"),
+        ("/xe-cau", "0.8", "monthly"),
         ("/kiem-dinh-can", "0.8", "monthly"),
         ("/tin-tuc", "0.8", "daily"),
         ("/lien-he", "0.7", "monthly"),
@@ -301,8 +293,42 @@ def _normalise_inquiry(
     ), {}
 
 
+def send_inquiry_telegram_alert(inquiry: InquiryInput, inquiry_id: int, base_url: str = ""):
+    try:
+        from backend.services.telegram_service import notify_telegram
+
+        company = f" ({inquiry.company_name})" if inquiry.company_name else ""
+        raw_base = base_url.rstrip("/") if base_url else "http://127.0.0.1:8000"
+        
+        # Telegram Bot API rejects 'localhost' in inline keyboard URLs; replace with 127.0.0.1 if on local
+        safe_base = raw_base.replace("://localhost", "://127.0.0.1")
+        admin_link = f"{safe_base}/admin/inquiries"
+
+        telegram_msg = (
+            f"🔔 {inquiry.full_name}{company} · {inquiry.phone}\n"
+            f"Nhu cầu: {inquiry.demand or 'Tư vấn xe cẩu'}"
+        )
+
+        reply_markup = {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": "🌐 Mở trang quản trị",
+                        "url": admin_link,
+                    }
+                ]
+            ]
+        }
+
+        notify_telegram(telegram_msg, important=True, prefix="", reply_markup=reply_markup)
+        logger.info("Dispatched Telegram alert for inquiry #%s with inline button", inquiry_id)
+    except Exception as exc:
+        logger.error("Error sending Telegram alert for inquiry #%s: %s", inquiry_id, exc)
+
+
 @router.post("/lien-he", response_class=JSONResponse)
 async def contact_inquiry(
+    request: Request,
     background_tasks: BackgroundTasks,
     full_name: str = Form(""),
     phone: str = Form(""),
@@ -319,6 +345,7 @@ async def contact_inquiry(
         return JSONResponse({"ok": False, "message": "Không thể lưu yêu cầu tư vấn. Vui lòng thử lại."}, status_code=500)
     logger.info("New inquiry saved: id=%s source=%s", inquiry_id, inquiry.source_page)
 
+    # 1. Báo thời gian thực lên giao diện Web Admin qua WebSocket
     background_tasks.add_task(manager.broadcast, {
         "type": "NEW_INQUIRY",
         "data": {
@@ -329,6 +356,23 @@ async def contact_inquiry(
             "source_page": inquiry.source_page,
         }
     })
+
+    # Lấy base URL động để gửi link trực tiếp qua Telegram: ưu tiên biến môi trường SITE_URL/PUBLIC_URL nếu có, sau đó tự động trích xuất từ request headers (domain thực tế)
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    configured_url = os.environ.get("SITE_URL") or os.environ.get("PUBLIC_URL") or os.environ.get("APP_URL")
+    if configured_url:
+        base_url = configured_url.rstrip("/")
+    else:
+        proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or "127.0.0.1:8000"
+        base_url = f"{proto}://{host}"
+
+    # 2. Gửi cảnh báo tức thì qua Telegram bot kèm link trực tiếp
+    background_tasks.add_task(send_inquiry_telegram_alert, inquiry, inquiry_id, base_url)
 
     return JSONResponse({
         "ok": True,

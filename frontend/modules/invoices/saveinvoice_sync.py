@@ -41,8 +41,8 @@ def get_saveinvoice_config() -> Dict[str, str]:
     return {
         "username": get_app_setting("saveinvoice_username", "2500561906").strip(),
         "password": get_app_setting("saveinvoice_password", "Thue@123").strip(),
-        "target_tax_code": get_app_setting("saveinvoice_target_tax_code", "").strip(),
-        "account_id": get_app_setting("saveinvoice_account_id", "").strip(),
+        "target_tax_code": (get_app_setting("saveinvoice_target_tax_code", "").strip() or DEFAULT_TARGET_TAX_CODE),
+        "account_id": (get_app_setting("saveinvoice_account_id", "").strip() or DEFAULT_ACCOUNT_ID),
         "access_token": get_app_setting("saveinvoice_access_token", "").strip(),
         "refresh_token": get_app_setting("saveinvoice_refresh_token", "").strip(),
         "connect_sid": get_app_setting("saveinvoice_connect_sid", "").strip(),
