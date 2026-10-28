@@ -70,76 +70,78 @@ python backend/main.py
 - Chạy bằng Docker: `http://localhost:8080` (truy cập từ xa: `http://100.83.133.85:8080` hoặc `http://192.168.1.18:8080`)
 - Chạy thủ công (Uvicorn): `http://localhost:8000`
 
-## 💻 Kết nối từ xa bằng Antigravity IDE (Remote Development)
+## 💻 Kết nối từ xa bằng Antigravity IDE (Remote Development qua Tailscale)
 
-Hệ thống hỗ trợ lập trình và điều khiển trực tiếp từ xa bằng **Antigravity IDE** từ máy khác (hỗ trợ đầy đủ macOS, Windows, Linux). Mọi tiến trình AI, Terminal, Docker và Antigravity AI Agent sẽ xử lý trực tiếp trên máy Mac chủ.
-
-### 1. Thông số kết nối chuẩn xác của máy Mac chủ
-
-| Thông số | Giá trị thực tế |
-|---|---|
-| **Tài khoản đăng nhập (User)** | `mac` |
-| **Cổng SSH (Port)** | `22` |
-| **IP Tailscale (Kết nối từ xa mọi nơi)** | `100.83.133.85` |
-| **MagicDNS Domain (Tailscale)** | `macbook-pro-ca-mac.tail9a574f.ts.net` |
-| **IP Mạng LAN (Kết nối cùng WiFi/LAN)** | `192.168.1.18` |
-| **Thư mục dự án trên máy Mac** | `/Users/mac/Documents/yolov26-nhandien-biensoxe` |
-| **Web Management (Docker)** | `http://100.83.133.85:8080` hoặc `http://192.168.1.18:8080` |
-| **PostgreSQL Database** | Host: `100.83.133.85`, Port: `5432`, Database: `camera_ai`, User: `postgres` |
+Hệ thống hỗ trợ lập trình và điều khiển từ xa:
+* **Máy chính (Host cố định):** Máy tính **Windows** đặt ở nhà/văn phòng — chạy server, AI core, Docker, cơ sở dữ liệu và lưu trữ toàn bộ mã nguồn.
+* **Máy phụ (Client xách tay):** Máy **MacBook** đem đi lại — dùng **Antigravity IDE** kết nối từ xa vào máy Windows qua mạng riêng ảo **Tailscale** (kết nối mọi lúc mọi nơi kể cả khác WiFi hay 4G/5G).
 
 ---
 
-### 2. Thiết lập trên máy Mac chủ (Chỉ cần làm 1 lần)
-1. **Bật Remote Login (SSH)**:
-   - Mở **Cài đặt hệ thống (System Settings)** $\rightarrow$ **Cài đặt chung (General)** $\rightarrow$ **Chia sẻ (Sharing)**.
-   - Bật mục **Đăng nhập từ xa (Remote Login)** sang trạng thái **ON** (Nhập mật khẩu máy Mac để xác nhận).
-2. **Khởi chạy Tailscale**:
-   - Tailscale đã cài đặt và đang chạy sẵn trên máy Mac chủ với IP tĩnh `100.83.133.85`.
+### 1. Thiết lập trên Máy Chính (Windows) — Chỉ cần làm 1 lần
 
----
+#### Bước 1: Cài đặt Tailscale trên Windows
+1. Tải và cài đặt Tailscale: [https://tailscale.com/download/windows](https://tailscale.com/download/windows).
+2. Đăng nhập cùng tài khoản Tailscale với máy Mac (`hung0913003358@...`).
+3. Máy Windows đã kết nối thành công với thông số:
+   - **Tên máy Windows**: `desktop-nie6arf`
+   - **IP Tailscale của máy Windows**: `100.80.242.108`
 
-### 3. Cách kết nối từ Antigravity IDE (Dùng cho tất cả các trường hợp)
+#### Bước 2: Bật dịch vụ OpenSSH Server trên Windows
+Mở **PowerShell với quyền Quản trị viên (Run as Administrator)** trên máy Windows và dán các lệnh sau:
 
-Cài đặt **Tailscale** trên máy khách và đăng nhập cùng tài khoản Tailscale. Mở **Antigravity IDE** trên máy khách và chọn phương thức phù hợp:
+```powershell
+# 1. Cài đặt OpenSSH Server
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 
-#### Trường hợp 1: Kết nối từ xa qua Tailscale (Khác WiFi, 4G, đi công tác, quán cafe)
-1. Trên Antigravity IDE, bấm biểu tượng `><` ở góc dưới cùng bên trái (hoặc nhấn `Cmd + Shift + P` trên Mac / `Ctrl + Shift + P` trên Windows/Linux).
-2. Chọn: **Connect to SSH Host...**
-3. Nhập:
-   ```bash
-   mac@100.83.133.85
-   ```
-   *(hoặc dùng domain MagicDNS: `mac@macbook-pro-ca-mac.tail9a574f.ts.net`)*
-4. Chọn hệ điều hành đích: **macOS**, sau đó nhập mật khẩu máy Mac.
-5. Vào menu **File** $\rightarrow$ **Open Folder...** $\rightarrow$ nhập đường dẫn thư mục:
-   ```
-   /Users/mac/Documents/yolov26-nhandien-biensoxe
-   ```
+# 2. Khởi động và thiết lập tự chạy cùng Windows
+Start-Service sshd
+Set-Service -Name sshd -StartupType 'Automatic'
 
-#### Trường hợp 2: Kết nối trong mạng nội bộ (Cùng mạng WiFi / LAN)
-Thực hiện các bước tương tự như Trường hợp 1, tại bước 3 nhập địa chỉ IP mạng nội bộ:
-```bash
-mac@192.168.1.18
+# 3. Mở cổng 22 trên Firewall Windows (áp dụng cho mọi mạng kể cả Tailscale)
+netsh advfirewall firewall add rule name="OpenSSH Port 22" dir=in action=allow protocol=TCP localport=22
 ```
 
-#### Trường hợp 3: Cấu hình 1-Click tự động (Khuyên dùng - Không cần gõ lại IP mỗi lần)
-Mở hoặc tạo file cấu hình SSH trên máy khách:
-- Trên macOS / Linux: `~/.ssh/config`
-- Trên Windows: `C:\Users\<Tên-User>\.ssh\config`
+#### Bước 3: Xem tên tài khoản đăng nhập Windows
+Trong cửa sổ PowerShell / CMD của Windows, gõ:
+```powershell
+whoami
+```
+*(Hệ thống sẽ trả về dạng `COMPUTERNAME\username`, bạn chỉ cần lấy phần `username` sau dấu gạch chéo).*
 
-Dán nội dung cấu hình chuẩn xác sau vào file:
+---
+
+### 2. Thiết lập trên Máy Phụ (MacBook)
+
+#### Cấu hình file `~/.ssh/config` trên Mac
+Mở file `~/.ssh/config` trên máy Mac và dán nội dung sau:
+
 ```ssh
-Host yolo-tailscale
-    HostName 100.83.133.85
-    User mac
-    Port 22
-
-Host yolo-lan
-    HostName 192.168.1.18
-    User mac
+Host win-tailscale
+    HostName 100.80.242.108
+    User <USERNAME_MÁY_WINDOWS>
     Port 22
 ```
-Sau đó trong Antigravity IDE, chỉ cần bấm `Connect to SSH Host...` và click chọn `yolo-tailscale` (khi ở xa) hoặc `yolo-lan` (khi ở nhà) là vào thẳng dự án.
+
+---
+
+### 3. Cách kết nối từ Antigravity IDE trên MacBook
+
+1. Mở **Antigravity IDE** trên MacBook.
+2. Nhấn tổ hợp phím `Cmd + Shift + P` $\rightarrow$ gõ:
+   ```
+   Connect to SSH Host...
+   ```
+3. Chọn:
+   - `win-tailscale`: Khi bạn mang MacBook đi ra ngoài (quán cafe, công tác, dùng 4G/khác WiFi).
+   - `win-lan`: Khi MacBook ở nhà/văn phòng và bắt chung mạng WiFi với máy Windows.
+4. Khi được hỏi hệ điều hành máy chủ, chọn: **Windows**.
+5. Nhập mật khẩu đăng nhập của máy tính Windows.
+6. Vào menu **File** $\rightarrow$ **Open Folder...** $\rightarrow$ chọn thư mục dự án trên máy Windows:
+   ```
+   D:\project\yolov26-nhandien-biensoxe
+   ```
+7. Toàn bộ mã nguồn, cửa sổ Terminal, Docker và Antigravity AI Agent sẽ xử lý trực tiếp trên máy Windows chính.
 
 ## 🗄️ Database Schema (chính)
 
