@@ -1,0 +1,90 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản lý KYC Định Danh Người Dùng{% endblock %}
+{% block page_title %}Quản trị KYC Định danh{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3">
+      <h6 class="mb-0 font-weight-bold text-dark"><i class="bx bx-id-card mr-1 text-primary"></i> Danh Sách Hồ Sơ KYC Chờ Duyệt</h6>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Họ và tên</th>
+              <th>Số điện thoại</th>
+              <th>Email</th>
+              <th>Cấp độ KYC</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in pending_users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td class="font-weight-bold">{{ u.full_name or '—' }}</td>
+              <td>{{ u.phone or '—' }}</td>
+              <td>{{ u.email or '—' }}</td>
+              <td><span class="badge bg-warning text-dark">Chờ duyệt (Cấp {{ u.kyc_level }})</span></td>
+              <td>
+                <a href="/kyc/admin/{{ u.id }}" class="btn btn-sm btn-primary">
+                  <i class="bx bx-check-shield mr-1"></i> Xem & Duyệt
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">Không có hồ sơ nào đang chờ duyệt.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-white py-3">
+      <h6 class="mb-0 font-weight-bold text-dark"><i class="bx bx-user-check mr-1 text-success"></i> Người Dùng Đã Có Dữ Liệu KYC</h6>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>ID</th>
+              <th>Tên đăng nhập</th>
+              <th>Họ và tên</th>
+              <th>Cấp độ KYC</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in all_kyc_users %}
+            <tr>
+              <td>{{ u.id }}</td>
+              <td class="font-weight-bold font-monospace">{{ u.username }}</td>
+              <td>{{ u.full_name or '—' }}</td>
+              <td><span class="badge bg-success">Cấp {{ u.kyc_level }}</span></td>
+              <td>
+                <a href="/kyc/admin/{{ u.id }}" class="btn btn-sm btn-outline-secondary">
+                  <i class="bx bx-detail mr-1"></i> Chi tiết
+                </a>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center py-4 text-muted">Chưa có dữ liệu.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

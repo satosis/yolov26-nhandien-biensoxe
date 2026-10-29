@@ -12,7 +12,7 @@ from backend.services.database import db
 from backend.services import config as cfg
 from backend.ai.kyc_manager import KYCManager
 from backend.util.image_utils import decode_image
-from frontend.routers.users_router import get_all_users, get_user_by_id
+from backend.repositories.user_repo import get_all_users, get_user_by_id
 from frontend.routers.strangers_router import get_stranger_log, update_stranger_status
 
 logger = logging.getLogger(__name__)
@@ -25,16 +25,8 @@ _cached_names = []
 _last_reload = 0
 
 def get_face_app():
-    global _face_app, FaceAnalysis
-    if _face_app is None:
-        logger.info("Initializing InsightFace in KYC router for duplicate checks...")
-        if FaceAnalysis is None:
-            from insightface.app import FaceAnalysis as face_analysis_class
-            FaceAnalysis = face_analysis_class
-        face_app = FaceAnalysis(name="buffalo_sc", root=cfg.FACE_MODEL_DIR, providers=["CPUExecutionProvider"])
-        face_app.prepare(ctx_id=-1, det_size=(320, 320))
-        _face_app = face_app
-    return _face_app
+    from backend.ai.face_service import FaceAnalysisService
+    return FaceAnalysisService.get_instance(det_size=(320, 320))
 
 def invalidate_face_cache():
     global _cached_matrix, _cached_names, _last_reload
@@ -212,8 +204,9 @@ async def kyc_page(request: Request, user: dict = Depends(get_current_user)):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "kyc"
     kyc = KYCManager()
-    kyc_detail = kyc.get_user_detail(user["id"])
-    kyc_docs = kyc.get_documents(user["id"])
+    uid = user.get("id") or user.get("user_id")
+    kyc_detail = kyc.get_user_detail(uid) if uid else None
+    kyc_docs = kyc.get_documents(uid) if uid else []
     docs_map = {d["doc_type"]: d for d in kyc_docs}
     ctx["kyc"] = kyc_detail
     ctx["docs"] = docs_map

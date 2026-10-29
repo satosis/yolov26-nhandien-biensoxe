@@ -122,23 +122,6 @@ def ensure_supplier_profile(company_id: int, supplier_name: str, phone: str = ""
         fetch=True, commit=False
     )
     if existing:
-        updates = []
-        params = []
-        if phone and not existing.get("phone"):
-            updates.append("phone = %s")
-            params.append(phone[:50])
-        if address and not existing.get("address"):
-            updates.append("address = %s")
-            params.append(address[:500])
-        if book_type and not existing.get("book_type"):
-            updates.append("book_type = %s")
-            params.append(book_type)
-        if updates:
-            params.extend([company_id, existing["id"]])
-            db._execute_query(
-                f"UPDATE public.supplier_profiles SET {', '.join(updates)}, updated_at = NOW() WHERE company_id = %s AND id = %s",
-                tuple(params), commit=True
-            )
         return existing
 
     inserted = db._execute_query(
@@ -389,6 +372,9 @@ def _create_single_purchase_item(company_id: int, data: dict, created_by: str = 
     unit_weight = None
     if pieces and pieces > 0:
         unit_weight = (quantity_kg / pieces).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+    if supplier_name:
+        ensure_supplier_profile(company_id, supplier_name, book_type=book_type)
 
     res = db._execute_query(
         """
@@ -652,6 +638,9 @@ def record_supplier_payment(
     clean_name = (supplier_name or "").strip()
     if not clean_name:
         raise ValueError("Tên nhà cung cấp không được để trống")
+
+    clean_book = (book_type or "bich").strip().lower()
+    ensure_supplier_profile(company_id, clean_name, book_type=clean_book)
 
     pay_date = payment_date or date.today()
     amt = Decimal(str(amount or 0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
@@ -937,6 +926,8 @@ def import_excel_book(
             supp_str = str(supp_name or "").strip()
             if not supp_str:
                 continue
+
+            ensure_supplier_profile(company_id, supp_str, book_type=default_book)
 
             # Parse date
             p_date = date.today()

@@ -1,0 +1,285 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ subledger.form_code }} - Sổ chi tiết {{ subledger.partner.name }}{% endblock %}
+{% block page_title %}Sổ chi tiết công nợ {{ subledger.account }} - {{ subledger.partner.name }}{% endblock %}
+
+{% block page_back_button %}
+<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold">
+  <i class="bx bx-arrow-back mr-1"></i> Quay lại Sổ tổng hợp
+</a>
+{% endblock %}
+
+{% block head %}
+<style>
+  @media print {
+    body {
+      background: #fff !important;
+      color: #000 !important;
+      font-size: 11pt !important;
+    }
+    .no-print, header, .sidebar, .navbar, .page-header, .footer, .btn, .breadcrumb {
+      display: none !important;
+    }
+    .print-sheet {
+      box-shadow: none !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100% !important;
+    }
+    .table-bordered th, .table-bordered td {
+      border: 1px solid #000 !important;
+    }
+    @page {
+      size: A4 landscape;
+      margin: 12mm 10mm 12mm 10mm;
+    }
+  }
+
+  .subledger-sheet {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 28px 32px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .subledger-table th {
+    background-color: #f8fafc;
+    color: #1e293b;
+    font-size: 12px;
+    vertical-align: middle !important;
+    text-align: center;
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px;
+  }
+
+  .subledger-table td {
+    font-size: 12.5px;
+    border: 1px solid #e2e8f0 !important;
+    padding: 6px 8px;
+    color: #334155;
+  }
+
+  .subledger-table tr:hover td {
+    background-color: #f1f5f9;
+  }
+
+  .subledger-table tfoot td {
+    font-weight: 700;
+    border: 1px solid #cbd5e1 !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100 mb-5">
+  <!-- Action toolbar -->
+  <div class="d-flex align-items-center justify-content-between mb-3 no-print flex-wrap" style="gap:10px;">
+    <div class="d-flex align-items-center" style="gap:8px;">
+      <a href="{{ back_url }}" class="btn btn-sm btn-outline-secondary font-weight-bold">
+        <i class="bx bx-arrow-back mr-1"></i>Quay lại
+      </a>
+      <span class="badge badge-light border text-dark py-2 px-3 font-weight-semibold" style="font-size:13px;">
+        <i class="bx bx-bookmark mr-1 text-primary"></i>{{ subledger.account_title }}
+      </span>
+    </div>
+    <div class="d-flex align-items-center" style="gap:8px;">
+      <button type="button" class="btn btn-sm btn-primary font-weight-bold shadow-sm" onclick="window.print()">
+        <i class="bx bx-printer mr-1"></i>In sổ chi tiết (A4)
+      </button>
+    </div>
+  </div>
+
+  <!-- Sổ chi tiết Mẫu chuẩn TT 133 -->
+  <div class="subledger-sheet print-sheet border">
+    <!-- Header Thông tin đơn vị & Mẫu biểu -->
+    <div class="row align-items-start mb-3">
+      <div class="col-7">
+        <div class="font-weight-bold text-dark font-size-14 text-uppercase">{{ subledger.owner_company.name }}</div>
+        <div class="text-muted font-size-12">Mã số thuế: <strong class="text-dark">{{ subledger.owner_company.tax_code }}</strong></div>
+        <div class="text-muted font-size-12">Địa chỉ: {{ subledger.owner_company.address }}</div>
+      </div>
+      <div class="col-5 text-right">
+        <div class="font-weight-bold text-dark font-size-13">{{ subledger.form_code }}</div>
+        <div class="text-muted font-size-11 font-italic">{{ subledger.circular }}</div>
+      </div>
+    </div>
+
+    <!-- Tiêu đề Sổ -->
+    <div class="text-center my-4">
+      <h4 class="font-weight-bold text-dark text-uppercase mb-1" style="letter-spacing: 0.5px;">
+        {% if subledger.account == '331' %}
+          SỔ CHI TIẾT THANH TOÁN VỚI NGƯỜI BÁN
+        {% else %}
+          SỔ CHI TIẾT THANH TOÁN VỚI NGƯỜI MUA
+        {% endif %}
+      </h4>
+      <div class="font-weight-bold text-primary font-size-15 mb-1">{{ subledger.account_title }}</div>
+      <div class="text-muted font-italic font-size-13">
+        Năm {{ subledger.year }} (Từ ngày {{ subledger.date_from_fmt }} đến ngày {{ subledger.date_to_fmt }})
+      </div>
+    </div>
+
+    <!-- Thông tin đối tác (Khách hàng / Nhà cung cấp) -->
+    <div class="bg-light p-3 rounded mb-3 border">
+      <div class="row font-size-13">
+        <div class="col-md-7 mb-1">
+          <span class="text-muted">Đối tác:</span>
+          <strong class="text-dark ml-1 font-size-14">{{ subledger.partner.name }}</strong>
+        </div>
+        <div class="col-md-5 mb-1">
+          <span class="text-muted">Mã số thuế:</span>
+          <strong class="text-dark ml-1">{{ subledger.partner.tax_code or '—' }}</strong>
+        </div>
+        <div class="col-md-7">
+          <span class="text-muted">Địa chỉ:</span>
+          <span class="text-dark ml-1">{{ subledger.partner.address or '—' }}</span>
+        </div>
+        <div class="col-md-5">
+          <span class="text-muted">Điện thoại:</span>
+          <span class="text-dark ml-1">{{ subledger.partner.phone or '—' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bảng dữ liệu chứng từ & phát sinh -->
+    <div class="table-responsive">
+      <table class="table table-bordered subledger-table mb-0">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:40px;" class="align-middle">STT</th>
+            <th rowspan="2" style="width:90px;" class="align-middle">Ngày ghi sổ</th>
+            <th colspan="2" class="border-bottom">Chứng từ</th>
+            <th rowspan="2" style="min-width:240px;" class="align-middle text-left">Diễn giải</th>
+            <th rowspan="2" style="width:85px;" class="align-middle">TK đối ứng</th>
+            <th colspan="2" class="border-bottom">Số phát sinh</th>
+            <th colspan="2" class="border-bottom">Số dư</th>
+            <th rowspan="2" style="width:75px;" class="align-middle no-print">Chứng từ</th>
+          </tr>
+          <tr>
+            <th style="width:105px;">Số hiệu</th>
+            <th style="width:90px;">Ngày tháng</th>
+            <th style="min-width:110px;">Nợ</th>
+            <th style="min-width:110px;">Có</th>
+            <th style="min-width:110px;">Nợ</th>
+            <th style="min-width:110px;">Có</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dòng Số dư đầu kỳ -->
+          <tr style="background-color:#fefce8; font-weight:600;">
+            <td class="text-center">—</td>
+            <td class="text-center">{{ subledger.date_from_fmt }}</td>
+            <td colspan="2" class="text-center font-italic text-muted">—</td>
+            <td class="font-weight-bold text-dark">Số dư đầu kỳ</td>
+            <td class="text-center text-muted">—</td>
+            <td class="text-right text-muted">—</td>
+            <td class="text-right text-muted">—</td>
+            <td class="text-right text-danger font-weight-bold">
+              {{ subledger.open_dr_fmt if subledger.open_dr > 0 else '—' }}
+            </td>
+            <td class="text-right text-success font-weight-bold">
+              {{ subledger.open_cr_fmt if subledger.open_cr > 0 else '—' }}
+            </td>
+            <td class="no-print"></td>
+          </tr>
+
+          <!-- Các dòng phát sinh -->
+          {% for entry in subledger.entries %}
+          <tr>
+            <td class="text-center align-middle">{{ loop.index }}</td>
+            <td class="text-center align-middle">{{ entry.date_str }}</td>
+            <td class="text-center align-middle font-weight-semibold text-primary">
+              {{ entry.voucher_no }}
+            </td>
+            <td class="text-center align-middle text-muted">{{ entry.voucher_date_str }}</td>
+            <td class="align-middle">
+              {{ entry.description }}
+              {% if entry.serial %}<span class="badge badge-light border text-muted ml-1 font-size-11">{{ entry.serial }}</span>{% endif %}
+            </td>
+            <td class="text-center align-middle font-weight-semibold text-dark">{{ entry.offset_account }}</td>
+            <td class="text-right align-middle {{ 'font-weight-bold text-danger' if entry.ps_dr > 0 else 'text-muted' }}">
+              {{ entry.ps_dr_fmt if entry.ps_dr > 0 else '—' }}
+            </td>
+            <td class="text-right align-middle {{ 'font-weight-bold text-success' if entry.ps_cr > 0 else 'text-muted' }}">
+              {{ entry.ps_cr_fmt if entry.ps_cr > 0 else '—' }}
+            </td>
+            <td class="text-right align-middle text-danger font-weight-semibold">
+              {{ entry.bal_dr_fmt }}
+            </td>
+            <td class="text-right align-middle text-success font-weight-semibold">
+              {{ entry.bal_cr_fmt }}
+            </td>
+            <td class="text-center align-middle no-print">
+              {% if entry.doc_link %}
+              <a href="{{ entry.doc_link }}" target="_blank" class="badge badge-light border text-primary p-1" title="Xem chứng từ gốc">
+                <i class="bx bx-link-external mr-1"></i>Xem
+              </a>
+              {% else %}
+              <span class="text-muted font-size-11">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-4 text-muted">
+              Không có phát sinh giao dịch trong kỳ từ {{ subledger.date_from_fmt }} đến {{ subledger.date_to_fmt }}.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <!-- Dòng Tổng cộng phát sinh -->
+          <tr class="bg-light">
+            <td colspan="4" class="text-center text-uppercase font-weight-bold text-dark">
+              Cộng số phát sinh trong kỳ
+            </td>
+            <td colspan="2"></td>
+            <td class="text-right text-danger font-weight-bold font-size-13">
+              {{ subledger.tot_ps_dr_fmt }}
+            </td>
+            <td class="text-right text-success font-weight-bold font-size-13">
+              {{ subledger.tot_ps_cr_fmt }}
+            </td>
+            <td colspan="3" class="no-print"></td>
+          </tr>
+          <!-- Dòng Số dư cuối kỳ -->
+          <tr style="background-color: #f1f5f9; border-top: 2px solid #334155;">
+            <td colspan="4" class="text-center text-uppercase font-weight-bold text-dark">
+              <i class="bx bx-check-circle mr-1 text-success"></i>Số dư cuối kỳ
+            </td>
+            <td colspan="2" class="text-center text-muted font-italic">{{ subledger.date_to_fmt }}</td>
+            <td class="text-right text-muted">—</td>
+            <td class="text-right text-muted">—</td>
+            <td class="text-right text-danger font-weight-bold font-size-13">
+              {{ subledger.close_dr_fmt if subledger.close_dr > 0 else '—' }}
+            </td>
+            <td class="text-right text-success font-weight-bold font-size-13">
+              {{ subledger.close_cr_fmt if subledger.close_cr > 0 else '—' }}
+            </td>
+            <td class="no-print"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Chữ ký cuối sổ -->
+    <div class="row text-center mt-5 pt-3" style="font-size:13px;">
+      <div class="col-4">
+        <div class="font-weight-bold text-dark">Người lập biểu</div>
+        <div class="text-muted font-italic font-size-12 mb-5">(Ký, họ tên)</div>
+      </div>
+      <div class="col-4">
+        <div class="font-weight-bold text-dark">Kế toán trưởng</div>
+        <div class="text-muted font-italic font-size-12 mb-5">(Ký, họ tên)</div>
+      </div>
+      <div class="col-4">
+        <div class="text-muted font-italic font-size-12">Ngày ..... tháng ..... năm {{ subledger.year }}</div>
+        <div class="font-weight-bold text-dark text-uppercase">Giám đốc</div>
+        <div class="text-muted font-italic font-size-12 mb-5">(Ký, họ tên, đóng dấu)</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

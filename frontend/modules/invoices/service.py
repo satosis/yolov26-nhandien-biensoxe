@@ -3,10 +3,13 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import json
+import logging
 
 from psycopg2 import Binary
 
 from backend.services.database import db
+
+logger = logging.getLogger(__name__)
 
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -57,9 +60,7 @@ def parse_invoice(form):
         ("note", "ghi chú", 1000, False),
     ):
         values[key] = _text(form, key, label, limit, required)
-    values["payment_method"] = _text(form, "payment_method", "hình thức thanh toán", 30)
-    if values["payment_method"] not in {"", "Chuyển khoản", "Tiền mặt", "Khác"}:
-        raise ValueError("Hình thức thanh toán không hợp lệ.")
+    values["payment_method"] = _text(form, "payment_method", "hình thức thanh toán", 50, False)
     descriptions = form.getlist("description")
     units = form.getlist("unit")
     quantities = form.getlist("quantity")
@@ -84,16 +85,36 @@ def parse_invoice(form):
                       "quantity": str(quantity), "unit_price": str(unit_price), "amount": str(amount)})
     if not items:
         raise ValueError("Cần nhập ít nhất một hàng hóa hoặc dịch vụ.")
-    vat_percent = money(form.get("vat_percent"), "Thuế suất VAT", maximum=Decimal("100"))
+    raw_vat = form.get("vat_percent")
+    vat_percent = money(raw_vat, "Thuế suất VAT", maximum=Decimal("100")) if raw_vat not in (None, "") else Decimal(0)
     vat_amount = (subtotal * vat_percent / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    raw_cost = str(form.get("tk_no_cost") or "").strip()
+    if not raw_cost:
+        all_desc = " ".join([str(it.get("description", "")) for it in items]).lower()
+        if any(w in all_desc for w in ("quả cân", "quả chuẩn", "công cụ", "dụng cụ", "thiết bị đo", "máy in", "máy tính")):
+            tk_no_cost = "153"
+        elif any(w in all_desc for w in ("chữ ký số", "phần mềm", "bảo hiểm", "cks")):
+            tk_no_cost = "242"
+        elif any(w in all_desc for w in ("hóa đơn điện tử", "văn phòng phẩm", "tiếp khách", "dịch vụ chữ ký số")):
+            tk_no_cost = "642"
+        elif any(w in all_desc for w in ("xe ô tô", "xe tải", "rơ mooc", "sơ mi")):
+            tk_no_cost = "211"
+        else:
+            tk_no_cost = "154"
+    else:
+        tk_no_cost = raw_cost
+    tk_no_vat = str(form.get("tk_no_vat") or "1331").strip() or "1331"
+    tk_co_pay = str(form.get("tk_co_pay") or "331").strip() or "331"
     values.update(items=items, subtotal=subtotal, vat_percent=vat_percent,
-                  vat_amount=vat_amount, total=subtotal + vat_amount)
+                  vat_amount=vat_amount, total=subtotal + vat_amount,
+                  tk_no_cost=tk_no_cost, tk_no_vat=tk_no_vat, tk_co_pay=tk_co_pay)
     return values
 
 
 _FIELDS = ("invoice_date", "serial", "invoice_number", "seller_company_id", "seller_name", "seller_tax_code",
            "seller_address", "buyer_name", "buyer_tax_code", "buyer_address",
-           "payment_method", "items", "subtotal", "vat_percent", "vat_amount", "total", "note", "buyer_company_id")
+           "payment_method", "items", "subtotal", "vat_percent", "vat_amount", "total", "note", "buyer_company_id",
+           "tk_no_cost", "tk_no_vat", "tk_co_pay")
 
 
 def save_invoice(values, invoice_id=None, attachment=None):
@@ -122,14 +143,19 @@ def save_invoice(values, invoice_id=None, attachment=None):
             if not row:
                 raise ValueError("Không tìm thấy hóa đơn.")
             conn.commit()
-            return row[0]
+            saved_id = row[0]
+            try:
+                sync_invoice_to_cash_book(saved_id)
+            except Exception as exc:
+                logger.warning("Lỗi đồng bộ hóa đơn %s sang sổ quỹ/ngân hàng: %s", saved_id, exc)
+            return saved_id
 
 
 def invoice_list_stats(start, end, buyer_company_id=None, q=None) -> dict:
     params = [start, end]
     buyer_filter = ""
     if buyer_company_id:
-        buyer_filter = " AND (buyer_company_id = %s OR buyer_company_id IS NULL)"
+        buyer_filter = " AND buyer_company_id = %s"
         params.append(buyer_company_id)
     search_filter = ""
     if q and str(q).strip():
@@ -158,7 +184,7 @@ def list_invoices(start, end, buyer_company_id=None, limit=None, offset=None, q=
     params = [start, end]
     buyer_filter = ""
     if buyer_company_id:
-        buyer_filter = " AND (buyer_company_id = %s OR buyer_company_id IS NULL)"
+        buyer_filter = " AND buyer_company_id = %s"
         params.append(buyer_company_id)
     search_filter = ""
     if q and str(q).strip():
@@ -174,7 +200,10 @@ def list_invoices(start, end, buyer_company_id=None, limit=None, offset=None, q=
         params.extend([term, term, term, term, term, term])
     query = f"""
             SELECT id, invoice_date, serial, invoice_number, seller_name, seller_tax_code,
-                   buyer_name, subtotal, vat_percent, vat_amount, total, source_filename
+                   buyer_name, subtotal, vat_percent, vat_amount, total, source_filename,
+                   COALESCE(tk_no_cost, '154') as tk_no_cost,
+                   COALESCE(tk_no_vat, '1331') as tk_no_vat,
+                   COALESCE(tk_co_pay, '331') as tk_co_pay
             FROM public.transport_input_invoices
             WHERE invoice_date >= %s AND invoice_date < %s{buyer_filter}{search_filter}
             ORDER BY invoice_date DESC, id DESC
@@ -191,3 +220,129 @@ def list_invoices(start, end, buyer_company_id=None, limit=None, offset=None, q=
 def get_invoice(invoice_id):
     return db._execute_query("SELECT * FROM public.transport_input_invoices WHERE id = %s",
                              (invoice_id,), fetch=True, commit=False)
+
+
+def sync_invoice_to_cash_book(invoice_id: int):
+    """
+    Tự động đồng bộ hóa đơn đầu vào sang Sổ quỹ tiền mặt (TK 111 / 1111)
+    hoặc Sổ tiền gửi ngân hàng (TK 112 / 1121).
+    Nếu tài khoản có (tk_co_pay) là công nợ (331, v.v.), xóa khỏi sổ quỹ/ngân hàng nếu đã tồn tại.
+    """
+    invoice = get_invoice(invoice_id)
+    if not invoice:
+        db._execute_query(
+            "DELETE FROM public.transport_cash_book WHERE source_type = 'input_invoice' AND source_id = %s",
+            (str(invoice_id),), commit=True
+        )
+        return
+
+    tk_co = str(invoice.get("tk_co_pay") or "331").strip()
+    target_book_type = None
+    if tk_co.startswith("111"):
+        target_book_type = "cash"
+    elif tk_co.startswith("112"):
+        target_book_type = "bank"
+
+    if not target_book_type:
+        # Nếu hạch toán vào 331 hoặc tài khoản khác (không phải 111/112):
+        # Tự động xóa chứng từ thu/chi tiền mặt/ngân hàng đã đồng bộ trước đó nếu có
+        db._execute_query(
+            "DELETE FROM public.transport_cash_book WHERE source_type = 'input_invoice' AND source_id = %s",
+            (str(invoice_id),), commit=True
+        )
+        return
+
+    company_id = invoice.get("buyer_company_id")
+    total_amount = Decimal(str(invoice.get("total") or 0))
+    inv_date = invoice.get("invoice_date") or date.today()
+    inv_num = invoice.get("invoice_number") or ""
+    seller_name = (invoice.get("seller_name") or "").strip()
+    seller_tax = (invoice.get("seller_tax_code") or "").strip()
+    offset_account = str(invoice.get("tk_no_cost") or "154").strip() or "154"
+
+    # Xây dựng diễn giải thông minh từ hàng hóa
+    items = invoice.get("items") or []
+    if isinstance(items, str):
+        try:
+            items = json.loads(items)
+        except Exception:
+            items = []
+    item_names = [it.get("description", "").strip() for it in items if isinstance(it, dict) and it.get("description")]
+    items_summary = ", ".join(item_names[:2])
+    if len(item_names) > 2:
+        items_summary += "..."
+
+    note = (invoice.get("note") or "").strip()
+    if items_summary and inv_num:
+        desc = f"Chi tiền mua {items_summary} (HĐ {inv_num})"
+    elif items_summary:
+        desc = f"Chi tiền mua {items_summary}"
+    elif inv_num:
+        desc = f"Chi tiền mua hàng/DV theo HĐ {inv_num}"
+    elif note and note != "Đồng bộ từ Email":
+        desc = note
+    else:
+        desc = f"Chi tiền mua hàng cho {seller_name or 'nhà cung cấp'}"
+
+    note_text = f"Hóa đơn đầu vào #{inv_num} - {seller_name}" if inv_num else f"Hóa đơn đầu vào ID {invoice_id}"
+
+    from frontend.modules.transport.cash_bank_service import get_company_info
+    comp_info = get_company_info(company_id)
+    bank_account_no = comp_info.get("bank_account") if target_book_type == "bank" else None
+    bank_name = comp_info.get("bank_name") if target_book_type == "bank" else None
+
+    existing = db._execute_query("""
+        SELECT id, book_type, voucher_no 
+        FROM public.transport_cash_book 
+        WHERE source_type = 'input_invoice' AND source_id = %s
+    """, (str(invoice_id),), fetch=True, commit=False)
+
+    if existing:
+        if existing["book_type"] == target_book_type:
+            db._execute_query("""
+                UPDATE public.transport_cash_book
+                SET entry_date = %s, voucher_date = %s, amount = %s,
+                    description = %s, offset_account = %s, partner_name = %s,
+                    partner_code = %s, bank_account_no = %s, bank_name = %s,
+                    note = %s, company_id = %s
+                WHERE id = %s
+            """, (inv_date, inv_date, total_amount, desc, offset_account,
+                  seller_name, seller_tax, bank_account_no, bank_name,
+                  note_text, company_id, existing["id"]), commit=True)
+            return existing["id"]
+        else:
+            db._execute_query("DELETE FROM public.transport_cash_book WHERE id = %s", (existing["id"],), commit=True)
+
+    prefix = "PC" if target_book_type == "cash" else "UNC-"
+    rows = db._execute_query("""
+        SELECT voucher_no FROM public.transport_cash_book
+        WHERE company_id = %s AND book_type = %s AND voucher_no LIKE %s
+    """, (company_id, target_book_type, f"{prefix}%"), fetchall=True, commit=False) or []
+
+    max_num = 0
+    for r in rows:
+        vno = str(r.get("voucher_no") or "")
+        clean_num = vno.replace(prefix, "").split("/")[0].strip()
+        try:
+            val = int(clean_num)
+            if val > max_num:
+                max_num = val
+        except ValueError:
+            pass
+
+    next_num = max_num + 1
+    voucher_no = f"{prefix}{next_num:04d}" if "-" in prefix else f"{prefix}{next_num:03d}"
+
+    ins_row = db._execute_query("""
+        INSERT INTO public.transport_cash_book
+            (company_id, book_type, entry_date, voucher_date, voucher_no,
+             voucher_type, description, offset_account, amount, bank_account_no,
+             bank_name, partner_code, partner_name, source_type, source_id, note)
+        VALUES (%s, %s, %s, %s, %s, 'payment', %s, %s, %s, %s, %s, %s, %s, 'input_invoice', %s, %s)
+        RETURNING id
+    """, (company_id, target_book_type, inv_date, inv_date, voucher_no,
+          desc, offset_account, total_amount, bank_account_no, bank_name,
+          seller_tax, seller_name, str(invoice_id), note_text), fetch=True, commit=True)
+
+    return ins_row["id"] if ins_row else None
+

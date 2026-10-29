@@ -1,6 +1,5 @@
-"""Editable choices for cargo services and goods."""
-
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 
 KINDS = {"service": "Dịch vụ", "cargo_type": "Loại hàng hóa"}
@@ -15,44 +14,40 @@ def clean_catalog_name(value: str) -> str:
     return name
 
 
-def list_items(kind: str | None = None, company_id: int | None = None) -> list[dict]:
-    if kind is not None and kind not in KINDS:
+def list_items(kind: str) -> list[dict]:
+    if kind not in KINDS:
         raise ValueError("Danh mục không hợp lệ.")
-    where_parts = []
-    params = []
-    if kind:
-        where_parts.append("kind = %s")
-        params.append(kind)
-    if company_id is not None:
-        where_parts.append("(company_id = %s OR company_id IS NULL)")
-        params.append(company_id)
-    where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+    company_id = get_current_company_id()
     return db._execute_query(
-        f"SELECT id, kind, name FROM public.cargo_catalog_items {where_sql} ORDER BY kind, name, id",
-        tuple(params) if params else None,
+        """SELECT id, kind, name FROM public.cargo_catalog_items
+           WHERE kind = %s AND (company_id = %s OR company_id IS NULL)
+           ORDER BY name, id""",
+        (kind, company_id),
         fetchall=True, commit=False,
     ) or []
 
 
-def count_items(kind: str, company_id: int | None = None) -> int:
+def count_items(kind: str) -> int:
     if kind not in KINDS:
         raise ValueError("Danh mục không hợp lệ.")
+    company_id = get_current_company_id()
     row = db._execute_query(
         """SELECT count(*) AS total FROM public.cargo_catalog_items
-           WHERE kind = %s AND (%s IS NULL OR company_id = %s OR company_id IS NULL)""",
-        (kind, company_id, company_id), fetch=True, commit=False,
+           WHERE kind = %s AND (company_id = %s OR company_id IS NULL)""",
+        (kind, company_id), fetch=True, commit=False,
     )
     return int(row["total"] if row else 0)
 
 
-def list_items_page(kind: str, company_id: int | None = None, *, limit: int = 20, offset: int = 0) -> list[dict]:
+def list_items_page(kind: str, *, limit: int = 20, offset: int = 0) -> list[dict]:
     if kind not in KINDS:
         raise ValueError("Danh mục không hợp lệ.")
+    company_id = get_current_company_id()
     return db._execute_query(
         """SELECT id, kind, name FROM public.cargo_catalog_items
-           WHERE kind = %s AND (%s IS NULL OR company_id = %s OR company_id IS NULL)
+           WHERE kind = %s AND (company_id = %s OR company_id IS NULL)
            ORDER BY name, id LIMIT %s OFFSET %s""",
-        (kind, company_id, company_id, limit, offset), fetchall=True, commit=False,
+        (kind, company_id, limit, offset), fetchall=True, commit=False,
     ) or []
 
 
@@ -63,26 +58,27 @@ def get_item(item_id: int) -> dict | None:
     )
 
 
-def save_item(kind: str, name: str, item_id: int | None = None, company_id: int | None = None) -> dict:
+def save_item(kind: str, name: str, item_id: int | None = None) -> dict:
     if kind not in KINDS:
         raise ValueError("Danh mục không hợp lệ.")
+    company_id = get_current_company_id()
     name = clean_catalog_name(name)
     if kind == "service":
         cargo_suffix = db._execute_query(
             """SELECT id FROM public.cargo_catalog_items
                WHERE kind = 'cargo_type'
-                 AND (%s IS NULL OR company_id = %s OR company_id IS NULL)
+                 AND (company_id = %s OR company_id IS NULL)
                  AND right(lower(%s), char_length(name) + 1) = ' ' || lower(name)
                LIMIT 1""",
-            (company_id, company_id, name), fetch=True, commit=False,
+            (company_id, name), fetch=True, commit=False,
         )
         if cargo_suffix:
             raise ValueError("Tên dịch vụ không kèm loại hàng hóa; hãy chọn loại hàng hóa ở trường riêng.")
     duplicate = db._execute_query(
         """SELECT id FROM public.cargo_catalog_items
            WHERE kind = %s AND LOWER(name) = LOWER(%s) AND id <> COALESCE(%s, -1)
-             AND (company_id = %s OR company_id IS NULL OR %s IS NULL)""",
-        (kind, name, item_id, company_id, company_id), fetch=True, commit=False,
+             AND (company_id = %s OR company_id IS NULL)""",
+        (kind, name, item_id, company_id), fetch=True, commit=False,
     )
     if duplicate:
         raise ValueError("Tên này đã có trong danh mục.")

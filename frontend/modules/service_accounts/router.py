@@ -38,19 +38,18 @@ async def service_accounts_page(
     user: dict = Depends(require_menu("service_accounts")),
 ):
     ctx = get_menu_context(request, user)
-    active_cid = ctx.get("active_company_id")
 
-    total_filtered = count_service_accounts(category=category, search=search, status=status, company_id=active_cid)
+    total_filtered = count_service_accounts(category=category, search=search, status=status)
     paginated = paginate_counts(
         total_filtered, page=page, per_page=20,
         base_url="/admin/service-accounts",
         extra_params={"category": category, "search": search, "status": status},
     )
     accounts = list_service_accounts(
-        category=category, search=search, status=status, company_id=active_cid,
+        category=category, search=search, status=status,
         limit=paginated["per_page"], offset=(paginated["page"] - 1) * paginated["per_page"],
     )
-    stats = service_account_stats(company_id=active_cid)
+    stats = service_account_stats()
 
     edit_account = get_service_account(edit_id) if edit_id else None
     available_plates = get_available_plates()
@@ -96,7 +95,6 @@ async def save_account_endpoint(
     note: Optional[str] = Form(""),
     user: dict = Depends(require_menu("service_accounts")),
 ):
-    active_cid = request.session.get("active_company_id")
     data = {
         "service_name": (service_name or "").strip(),
         "category": (category or "other").strip(),
@@ -104,7 +102,6 @@ async def save_account_endpoint(
         "account_username": account_username.strip(),
         "account_password": account_password.strip(),
         "note": (note or "").strip(),
-        "company_id": active_cid,
     }
     try:
         saved_id = save_service_account(data, account_id=account_id)
@@ -113,7 +110,7 @@ async def save_account_endpoint(
     except Exception as exc:
         logger.warning("Error saving service account: %s", exc)
         ctx = get_menu_context(request, user)
-        accounts = list_service_accounts(company_id=active_cid)
+        accounts = list_service_accounts()
         all_accounts = accounts
         ctx.update(
             current_menu="service_accounts",

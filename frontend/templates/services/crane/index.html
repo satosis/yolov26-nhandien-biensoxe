@@ -2,95 +2,149 @@
 
 {% block content %}
 
-<!-- 1. HERO BANNER — SÁNG SỦA, HIỆN ĐẠI, TẬP TRUNG CHUYỂN ĐỔI -->
-<section class="relative bg-gradient-to-b from-emerald-50/70 via-white to-slate-50 py-10 lg:py-16 border-b border-slate-200/90 overflow-hidden">
+<!-- 1. HERO BANNER — HÀI HÒA, PHONG CÁCH UNIC CRIMSON RED & INDUSTRIAL SLATE -->
+<section class="relative bg-gradient-to-b from-red-50/50 via-white to-slate-50 py-6 sm:py-8 lg:py-10 border-b border-slate-200/90 overflow-hidden">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
     <div class="grid lg:grid-cols-12 gap-6 lg:gap-10 items-center">
       
-      <!-- Cột Nội Dung (Trái) -->
+      <!-- Cột Nội Dung (Trái - 7 cột) -->
       <div class="lg:col-span-7 space-y-4 text-center lg:text-left">
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold shadow-sm">
-          <span class="material-symbols-outlined text-xs text-emerald-600">verified</span>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-800 text-[11px] font-bold shadow-2xs">
+          <span class="material-symbols-outlined text-xs text-red-600">verified</span>
           <span>{{ company.company_name }} · MST: {{ company.tax_id }}</span>
         </div>
 
-        <h1 class="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+        <h1 class="text-2xl sm:text-3xl lg:text-[34px] font-black text-slate-900 tracking-tight leading-[1.25]">
           Xe Cẩu Tự Hành 8 – 10 Tấn <br class="hidden sm:inline">
-          <span class="bg-gradient-to-r from-emerald-600 to-teal-700 bg-clip-text text-transparent">
-            Chuyên Nghiệp Trực Chiến 24/7
+          <span class="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 bg-clip-text text-transparent">
+            Chuyên Nghiệp · Trực Chiến 24/7
           </span>
         </h1>
 
-        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl mx-auto lg:mx-0">
-          Chính chủ sở hữu <strong class="text-slate-900 font-extrabold">đội xe cẩu tự hành 8 – 10 Tấn</strong> gắn cẩu <strong class="text-emerald-700 font-extrabold">UNIC 8 Tấn</strong> và cẩu chuyên dụng <strong class="text-emerald-700 font-extrabold">Dongyang SS1936 10 Tấn</strong>. Thùng dài 8.5m, cần vươn 19.8m. Chuyên lắp dựng dầm cầu trục, kiểm định trạm cân xe tải, cẩu dầm thép và máy móc tại Vĩnh Phúc, Phú Thọ &amp; Miền Bắc.
+        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+          Chính chủ sở hữu đội xe cẩu tự hành 8 – 10 Tấn (<strong class="text-slate-900 font-bold">UNIC 8T &amp; Dongyang 10T</strong>, thùng dài 8.5m, cần vươn 19.8m). Phục vụ lắp dựng kết cấu thép, dầm cầu trục, di dời máy móc và kiểm định trạm cân tại Vĩnh Phúc, Phú Thọ &amp; Miền Bắc.
         </p>
 
         <!-- Nút Gọi & Báo Giá -->
         <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-1">
           <a href="tel:{{ settings.phone_raw }}" 
-             class="pulse-btn px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all">
+             class="pulse-btn px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-red-600/30 hover:shadow-lg hover:shadow-red-600/40 hover:-translate-y-0.5 transition-all">
             <span class="material-symbols-outlined text-base">call</span>
             <span>GỌI ĐIỀU XE: {{ settings.phone }}</span>
           </a>
           <a href="#lien-he" 
-             class="px-5 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs sm:text-sm border border-slate-300 shadow-sm flex items-center gap-2 transition-all">
+             class="px-5 py-2.5 sm:py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs sm:text-sm border border-slate-300 shadow-xs hover:border-slate-400 flex items-center gap-1.5 hover:-translate-y-0.5 transition-all">
             <span>YÊU CẦU BÁO GIÁ</span>
             <span class="material-symbols-outlined text-xs text-slate-500">arrow_downward</span>
           </a>
         </div>
 
-        <!-- 4 Huy Hiệu Nhỏ Gọn -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-xs">
-          <div class="p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-sm text-center sm:text-left">
-            <span class="text-slate-500 block text-[10px] font-semibold">Tải Trọng</span>
-            <strong class="text-emerald-700 font-black text-xs">8 – 10 Tấn</strong>
-          </div>
-          <div class="p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-sm text-center sm:text-left">
-            <span class="text-slate-500 block text-[10px] font-semibold">Có Mặt</span>
-            <strong class="text-emerald-700 font-black text-xs">15–30 Phút</strong>
-          </div>
-          <div class="p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-sm text-center sm:text-left">
-            <span class="text-slate-500 block text-[10px] font-semibold">Trực Chiến</span>
-            <strong class="text-emerald-700 font-black text-xs">24/7 Ngày &amp; Đêm</strong>
-          </div>
-          <div class="p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-sm text-center sm:text-left">
-            <span class="text-slate-500 block text-[10px] font-semibold">Pháp Lý</span>
-            <strong class="text-emerald-700 font-black text-xs">Hóa Đơn VAT</strong>
-          </div>
+        <!-- Trust tags dưới nút -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 pt-1 text-[11px] sm:text-xs text-slate-500">
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> 100% Xe chính chủ</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> Hóa đơn VAT đầy đủ</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> Lái xe có chứng chỉ</span>
         </div>
       </div>
 
-      <!-- Cột Ảnh Hero (Phải) -->
+      <!-- Cột Ảnh Hero (Phải - 5 cột, Tỷ lệ chuẩn mực) -->
       <div class="lg:col-span-5 relative">
-        <div class="rounded-2xl overflow-hidden border border-slate-200 shadow-xl bg-white relative">
-          <img src="/static/services/crane/img/crane_hero_yard.jpg" 
-               alt="Xe cẩu Hyundai HD210 Đại Lộ Xanh" 
-               class="w-full h-64 sm:h-72 object-cover">
-          <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+        <div class="rounded-2xl overflow-hidden border border-slate-200/90 shadow-xl bg-white relative group">
+          <div class="relative h-[250px] sm:h-[280px] lg:h-[300px]">
+            <img src="/static/services/crane/img/crane_hero_yard.jpg" 
+                 alt="Xe cẩu Hyundai HD210 Đại Lộ Xanh" 
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/20 to-transparent"></div>
+          </div>
           
-          <div class="absolute bottom-3 left-3 right-3 p-2.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200 shadow-md flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <img src="/static/services/crane/img/crane_boom_closeup.jpg" alt="Hotline" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0">
-              <div class="text-xs">
-                <p class="font-bold text-slate-900 text-[11px] truncate">Xe Cẩu Tự Hành 8T – 10T</p>
-                <p class="text-emerald-700 font-semibold text-[10px]">Hotline trên cần: {{ settings.phone }}</p>
+          <!-- Floating Badge Top Right -->
+          <div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/85 backdrop-blur-md text-white text-[10px] font-bold border border-white/20 shadow-md flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Trực chiến 24/7</span>
+          </div>
+
+          <!-- Floating Badge Top Left -->
+          <div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-600/90 backdrop-blur-md text-white text-[10px] font-bold border border-white/20 shadow-md flex items-center gap-1">
+            <span class="material-symbols-outlined text-xs">local_shipping</span>
+            <span>Xe cẩu 8T – 10T</span>
+          </div>
+
+          <!-- Bottom Floating Status Bar (Sleek, No Truncation, Pure Polish) -->
+          <div class="absolute bottom-3 left-3 right-3 p-2.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <div class="min-w-0">
+                <p class="font-extrabold text-slate-900 text-xs truncate">Sẵn Sàng Điều Xe 24/7</p>
+                <p class="text-slate-500 text-[10px] truncate">Hotline: <span class="text-red-600 font-bold">{{ settings.phone }}</span></p>
               </div>
             </div>
-            <a href="tel:{{ settings.phone_raw }}" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 shadow-sm">Gọi</a>
+            <a href="tel:{{ settings.phone_raw }}" 
+               class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shrink-0 shadow-xs flex items-center gap-1 transition-all">
+              <span class="material-symbols-outlined text-xs">call</span>
+              <span>Gọi ngay</span>
+            </a>
           </div>
         </div>
       </div>
 
     </div>
+
+    <!-- 4 HUY HIỆU DẢI RỘNG CÂN BẰNG TOÀN KHUNG HÌNH (12 CỘT) -->
+    <div class="mt-5 pt-5 border-t border-slate-200/80">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">fitness_center</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Tải Trọng Sức Nâng</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">8 – 10 Tấn</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">speed</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Thời Gian Có Mặt</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">15 – 30 Phút</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">schedule</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Thời Gian Trực Chiến</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">24/7 Ngày &amp; Đêm</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">receipt_long</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Hồ Sơ Pháp Lý</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">Hóa Đơn VAT Đầy Đủ</strong>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </section>
 
 
 <!-- 2. THÔNG TIN 2 DÒNG XE CẨU CHÍNH CHỦ — TẬP TRUNG TẢI TRỌNG & DỊCH VỤ -->
-<section id="doi-xe" class="py-12 lg:py-16 bg-white border-b border-slate-200/90">
+<section id="doi-xe" class="scroll-mt-24 py-12 lg:py-16 bg-white border-b border-slate-200/90">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-2xl mx-auto mb-8">
-      <span class="text-emerald-700 font-bold uppercase text-[11px] tracking-wider block mb-1">Phương Tiện Thực Tế</span>
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Phương Tiện Thực Tế</span>
       <h2 class="text-2xl sm:text-3xl font-black text-slate-900">2 Dòng Xe Cẩu Tự Hành Chủ Lực</h2>
       <p class="text-xs sm:text-sm text-slate-600 mt-1">Sức nâng 8 – 10 Tấn, cần vươn 15.5m – 19.8m, thùng dài 8.5m điều xe trực tiếp không qua trung gian.</p>
     </div>
@@ -99,7 +153,7 @@
     <div class="grid md:grid-cols-2 gap-6 lg:gap-8">
       
       <!-- Xe 1: Cẩu UNIC 8 Tấn -->
-      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-xl transition-all">
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
         <div>
           <div class="relative h-56 overflow-hidden">
             <img src="/static/services/crane/img/crane_truck_88c_unic.jpg" alt="Xe cẩu UNIC 8 Tấn thùng dài 8.5m" class="w-full h-full object-cover">
@@ -107,8 +161,8 @@
             <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
               Sức Nâng: 8 Tấn
             </span>
-            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[11px] font-bold shadow-sm">
-              Cần UNIC · Thùng Dài 8.5m
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-red-600 text-white text-[11px] font-bold shadow-sm">
+              Cần UNIC Đỏ · Thùng Dài 8.5m
             </span>
           </div>
 
@@ -120,15 +174,15 @@
 
             <ul class="space-y-2 text-xs text-slate-700">
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Sức nâng tối đa:</strong> 8 Tấn · Cần cẩu UNIC vươn xa 15.5 mét</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Kích thước thùng:</strong> Dài 8.5 mét chuyên chở dầm thép chữ I, H siêu dài</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Chuyên trách:</strong> Lắp dựng dầm cầu trục, cẩu thép công trình, cẩu hàng ca đêm</span>
               </li>
             </ul>
@@ -136,7 +190,7 @@
         </div>
 
         <div class="p-6 pt-0">
-          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
             <span class="material-symbols-outlined text-base">call</span>
             <span>ĐẶT XE CẨU UNIC 8 TẤN: {{ settings.phone }}</span>
           </a>
@@ -144,7 +198,7 @@
       </div>
 
       <!-- Xe 2: Cẩu DONGYANG SS1936 10 Tấn -->
-      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-xl transition-all">
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
         <div>
           <div class="relative h-56 overflow-hidden">
             <img src="/static/services/crane/img/crane_truck_88h_dongyang.jpg" alt="Xe cẩu Dongyang SS1936 10 Tấn" class="w-full h-full object-cover">
@@ -152,7 +206,7 @@
             <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
               Sức Nâng: 10 Tấn
             </span>
-            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-emerald-600 text-white text-xs font-bold shadow-sm">
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-slate-900 text-white text-xs font-bold shadow-sm border border-slate-700">
               Dongyang SS1936 · Vươn 19.8m
             </span>
           </div>
@@ -165,15 +219,15 @@
 
             <ul class="space-y-2 text-xs text-slate-700">
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Sức nâng tối đa:</strong> 10 Tấn · Cần lục giác 6 đốt vươn xa 19.8 mét</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Độ cứng vững:</strong> Cần cẩu tầm với cao đưa vật tư lên nóc xưởng cao tầng</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-emerald-600 text-base shrink-0">check_circle</span>
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
                 <span><strong>Chuyên trách:</strong> Chở và cẩu quả cân chuẩn 500KG kiểm định trạm cân xe tải</span>
               </li>
             </ul>
@@ -181,7 +235,7 @@
         </div>
 
         <div class="p-6 pt-0">
-          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
             <span class="material-symbols-outlined text-base">call</span>
             <span>ĐẶT XE CẨU DONGYANG 10 TẤN: {{ settings.phone }}</span>
           </a>
@@ -194,10 +248,10 @@
 
 
 <!-- 3. CÁC HẠNG MỤC DỊCH VỤ CẨU THỰC TẾ — GỌN GÀNG 4 THẺ -->
-<section id="dich-vu" class="py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
+<section id="dich-vu" class="scroll-mt-24 py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-2xl mx-auto mb-8">
-      <span class="text-emerald-700 font-bold uppercase text-[11px] tracking-wider block mb-1">Năng Lực Thi Công</span>
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Năng Lực Thi Công</span>
       <h2 class="text-2xl sm:text-3xl font-black text-slate-900">4 Dịch Vụ Cẩu Trọng Tâm</h2>
       <p class="text-xs sm:text-sm text-slate-600 mt-1">Đáp ứng chính xác nhu cầu nâng hạ công nghiệp với chi phí tối ưu nhất.</p>
     </div>
@@ -205,9 +259,9 @@
     <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
       
       <!-- Dịch vụ 1 -->
-      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-lg transition-all">
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
         <div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
             <span class="material-symbols-outlined text-xl">precision_manufacturing</span>
           </div>
           <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Lắp Dầm Cầu Trục</h3>
@@ -215,13 +269,13 @@
             Cẩu nâng và căn chỉnh dầm cầu trục, ray và pa lăng cáp điện trong nhà xưởng trần cao hoặc không gian hẹp.
           </p>
         </div>
-        <a href="#lien-he" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 mt-4 block">Yêu cầu báo giá →</a>
+        <a href="#lien-he" class="text-xs font-bold text-red-600 hover:text-red-700 mt-4 block">Yêu cầu báo giá →</a>
       </div>
 
       <!-- Dịch vụ 2 -->
-      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-lg transition-all">
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
         <div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
             <span class="material-symbols-outlined text-xl">scale</span>
           </div>
           <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Kiểm Định Trạm Cân</h3>
@@ -229,13 +283,13 @@
             Chở và cẩu định vị hàng chục quả cân chuẩn 500KG trên bàn cân xe tải điện tử 60–120 tấn theo chuẩn đo lường.
           </p>
         </div>
-        <a href="#lien-he" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 mt-4 block">Đặt xe kiểm định →</a>
+        <a href="#lien-he" class="text-xs font-bold text-red-600 hover:text-red-700 mt-4 block">Đặt xe kiểm định →</a>
       </div>
 
       <!-- Dịch vụ 3 -->
-      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-emerald-500/60 hover:shadow-lg transition-all">
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
         <div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center mb-3">
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
             <span class="material-symbols-outlined text-xl">local_shipping</span>
           </div>
           <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Cẩu Dầm Thép I / H</h3>
@@ -243,7 +297,7 @@
             Thùng xe dài 8.5m chuyên chở dầm thép chữ I/H siêu dài, sắt hộp, ống cống đến tận chân công trình.
           </p>
         </div>
-        <a href="#lien-he" class="text-xs font-bold text-emerald-700 hover:text-emerald-800 mt-4 block">Báo giá chở thép →</a>
+        <a href="#lien-he" class="text-xs font-bold text-red-600 hover:text-red-700 mt-4 block">Báo giá chở thép →</a>
       </div>
 
       <!-- Dịch vụ 4 -->
@@ -266,7 +320,7 @@
 
 
 <!-- 4. HÌNH ẢNH THI CÔNG THỰC TẾ — GRID 6 ẢNH CHỌN LỌC + PHÓNG TO -->
-<section id="hinh-anh" class="py-12 lg:py-16 bg-white border-b border-slate-200/90" x-data="{
+<section id="hinh-anh" class="scroll-mt-24 py-12 lg:py-16 bg-white border-b border-slate-200/90" x-data="{
   modalOpen: false,
   modalImg: '',
   modalTitle: '',
@@ -278,7 +332,7 @@
 }">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center max-w-2xl mx-auto mb-8">
-      <span class="text-emerald-700 font-bold uppercase text-[11px] tracking-wider block mb-1">Thực Tế 100%</span>
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Thực Tế 100%</span>
       <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Hình Ảnh Thi Công Thực Tế</h2>
       <p class="text-xs sm:text-sm text-slate-600 mt-1">Ảnh chụp thực tế từ công trình lắp cầu trục, trạm cân và bãi thi công của Đại Lộ Xanh.</p>
     </div>
@@ -325,7 +379,7 @@
            class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
         <img src="/static/services/crane/img/crane_boom_closeup.jpg" alt="Hotline trên cần cẩu" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
         <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
-        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-emerald-300 truncate">Cần cẩu vươn cao 19.8m</p>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-rose-300 truncate">Cần cẩu vươn cao 19.8m</p>
       </div>
 
     </div>
@@ -341,7 +395,7 @@
         </div>
         <div class="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
           <p class="text-sm font-bold text-slate-900 truncate" x-text="modalTitle"></p>
-          <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 flex items-center gap-1 shadow-sm">
+          <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shrink-0 flex items-center gap-1 shadow-sm">
             <span class="material-symbols-outlined text-sm">call</span>
             <span>Gọi: {{ settings.phone }}</span>
           </a>
@@ -353,56 +407,88 @@
 </section>
 
 
-<!-- 5. BẢNG GIÁ THAM KHẢO — TINH GỌN 4 DÒNG -->
-<section id="bang-gia" class="py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
-  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="text-center mb-8">
-      <span class="text-emerald-700 font-bold uppercase text-[11px] tracking-wider block mb-1">Báo Giá Tham Khảo</span>
-      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Bảng Giá Dịch Vụ Xe Cẩu</h2>
-      <p class="text-xs sm:text-sm text-slate-600 mt-1">Đã bao gồm lái xe có chứng chỉ nghề, nhiên liệu và xuất hóa đơn VAT đầy đủ.</p>
+<!-- 5. BÁO GIÁ DỊCH VỤ XE CẨU — BÁO GIÁ TRỰC TIẾP KHÔNG QUA TRUNG GIAN -->
+<section id="bang-gia" class="scroll-mt-24 py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-10">
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Báo Giá Trực Tiếp</span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Báo Giá Dịch Vụ Xe Cẩu Tự Hành</h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl mx-auto">Báo giá linh hoạt theo ca, theo chuyến hoặc trọn gói công trình — Đã bao gồm lái xe có chứng chỉ nghề, dầu mỡ và xuất hóa đơn VAT đầy đủ.</p>
     </div>
 
-    <div class="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
+    <div class="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white">
       <table class="w-full text-left text-sm">
         <thead class="bg-slate-100/90 text-slate-700 uppercase text-xs font-bold border-b border-slate-200">
           <tr>
-            <th class="px-5 py-4">Xe Cẩu / Hạng Mục</th>
-            <th class="px-5 py-4">Thông Số Kỹ Thuật</th>
-            <th class="px-5 py-4">Giá Thuê Ca (7h)</th>
-            <th class="px-5 py-4 text-right">Liên Hệ</th>
+            <th class="px-6 py-4">Xe Cẩu / Hạng Mục</th>
+            <th class="px-6 py-4">Thông Số Kỹ Thuật</th>
+            <th class="px-6 py-4 text-center">Hình Thức Báo Giá</th>
+            <th class="px-6 py-4 text-right">Liên Hệ Trực Tiếp</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 bg-white">
-          <tr class="hover:bg-emerald-50/50 transition-colors">
-            <td class="px-5 py-4 font-bold text-slate-900">Xe Cẩu Tự Hành UNIC (8 Tấn)</td>
-            <td class="px-5 py-4 text-emerald-700 text-xs font-semibold">Sức nâng 8T · Thùng dài 8.5m</td>
-            <td class="px-5 py-4 text-slate-700 text-xs font-medium">Từ 2.800.000 đ / ca</td>
-            <td class="px-5 py-4 text-right">
-              <a href="tel:{{ settings.phone_raw }}" class="inline-block px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm">Đặt xe</a>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Xe Cẩu Tự Hành UNIC (8 Tấn)</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Sức nâng 8T · Thùng dài 8.5m</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 font-bold text-xs border border-red-200/80 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                Theo ca (7h) / Chuyến / Tháng
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Báo giá ngay</span>
+              </a>
             </td>
           </tr>
-          <tr class="hover:bg-emerald-50/50 transition-colors">
-            <td class="px-5 py-4 font-bold text-slate-900">Xe Cẩu Tự Hành Dongyang (10 Tấn)</td>
-            <td class="px-5 py-4 text-emerald-700 text-xs font-semibold">Sức nâng 10T · Cần vươn 19.8m</td>
-            <td class="px-5 py-4 text-slate-700 text-xs font-medium">Từ 3.500.000 đ / ca</td>
-            <td class="px-5 py-4 text-right">
-              <a href="tel:{{ settings.phone_raw }}" class="inline-block px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm">Đặt xe</a>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Xe Cẩu Tự Hành Dongyang (10 Tấn)</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Sức nâng 10T · Cần vươn 19.8m</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 font-bold text-xs border border-red-200/80 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                Theo ca (7h) / Chuyến / Tháng
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Báo giá ngay</span>
+              </a>
             </td>
           </tr>
-          <tr class="hover:bg-emerald-50/50 transition-colors">
-            <td class="px-5 py-4 font-bold text-slate-900">Lắp Dựng Dầm Cầu Trục Nhà Xưởng</td>
-            <td class="px-5 py-4 text-slate-600 text-xs">Cẩu đưa dầm, ray và pa lăng</td>
-            <td class="px-5 py-4 text-slate-600 text-xs">Khảo sát báo giá trọn gói</td>
-            <td class="px-5 py-4 text-right">
-              <a href="#lien-he" class="inline-block px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs border border-slate-200">Khảo sát</a>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Lắp Dựng Dầm Cầu Trục Nhà Xưởng</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Cẩu đưa dầm, ray và pa lăng</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-bold text-xs shadow-xs whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Khảo sát báo giá trọn gói
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Khảo sát ngay</span>
+              </a>
             </td>
           </tr>
-          <tr class="hover:bg-emerald-50/50 transition-colors">
-            <td class="px-5 py-4 font-bold text-slate-900">Cẩu Kiểm Định Trạm Cân Xe Tải</td>
-            <td class="px-5 py-4 text-slate-600 text-xs">Chở &amp; định vị quả cân 500KG</td>
-            <td class="px-5 py-4 text-slate-600 text-xs">Trọn gói theo trạm cân</td>
-            <td class="px-5 py-4 text-right">
-              <a href="#lien-he" class="inline-block px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs border border-slate-200">Đặt lịch</a>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Cẩu Kiểm Định Trạm Cân Xe Tải</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Chở &amp; định vị quả cân 500KG</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-bold text-xs shadow-xs whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Báo giá trọn gói theo trạm
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Đặt lịch ngay</span>
+              </a>
             </td>
           </tr>
         </tbody>
@@ -413,11 +499,11 @@
 
 
 <!-- 6. CÂU HỎI THƯỜNG GẶP FAQ — GIAO DIỆN SÁNG, TƯƠNG TÁC TIỆN LỢI -->
-<section id="faq" class="py-14 lg:py-20 bg-white" x-data="{ activeFaq: 1 }">
+<section id="faq" class="scroll-mt-24 py-14 lg:py-20 bg-white" x-data="{ activeFaq: 1 }">
   <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="text-center mb-10">
-      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 mb-3 shadow-sm">
-        <span class="material-symbols-outlined text-xs text-emerald-600">help</span>
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-800 border border-red-200 mb-3 shadow-sm">
+        <span class="material-symbols-outlined text-xs text-red-600">help</span>
         <span>Giải Đáp Thắc Mắc</span>
       </div>
       <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
@@ -433,15 +519,15 @@
       
       <!-- FAQ 1 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 1 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 1 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 1 ? null : 1"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">1</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">1</span>
             <span>Đại Lộ Xanh sở hữu những loại xe cẩu nào và sức nâng bao nhiêu tấn?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 1 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 1 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 1" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -458,15 +544,15 @@
 
       <!-- FAQ 2 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 2 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 2 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 2 ? null : 2"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">2</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">2</span>
             <span>Giá thuê xe cẩu tự hành được tính theo ca hay theo chuyến? Có phát sinh chi phí không?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 2 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 2 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 2" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -474,12 +560,12 @@
               Chúng tôi áp dụng các hình thức tính giá linh hoạt để quý khách lựa chọn:
             </p>
             <ul class="list-disc pl-5 mt-2 space-y-1 text-slate-700">
-              <li><strong>Thuê theo ca làm việc (7 tiếng):</strong> Từ 2.800.000 đ/ca (đối với xe UNIC 8T) và từ 3.500.000 đ/ca (đối với xe Dongyang 10T).</li>
-              <li><strong>Thuê theo chuyến cẩu vận chuyển:</strong> Tính theo cự ly cung đường và khối lượng hàng hóa cần hạ.</li>
-              <li><strong>Thuê trọn gói theo công trình / theo tháng:</strong> Có chính sách chiết khấu tốt cho hợp đồng dài hạn.</li>
+              <li><strong>Thuê theo ca làm việc (7 tiếng):</strong> Báo giá trực tiếp cạnh tranh theo từng loại xe (UNIC 8T hoặc Dongyang 10T) và tính chất công việc.</li>
+              <li><strong>Thuê theo chuyến cẩu vận chuyển:</strong> Báo giá linh hoạt theo cự ly cung đường và khối lượng hàng hóa cần hạ.</li>
+              <li><strong>Thuê trọn gói theo công trình / theo tháng:</strong> Chính sách chiết khấu tốt nhất cho nhà thầu và đối tác dài hạn.</li>
             </ul>
-            <p class="mt-2 text-emerald-800 font-semibold">
-              ✔ Giá thỏa thuận đã bao gồm tiền xe, nhiên liệu dầu diesel và thợ lái chứng chỉ nghề. Cam kết không phát sinh bất kỳ khoản phụ phí ngoài luồng.
+            <p class="mt-2 text-red-800 font-semibold">
+              ✔ Giá báo trọn gói đã bao gồm tiền xe, nhiên liệu dầu diesel và thợ lái chứng chỉ nghề. Cam kết giá chính chủ tốt nhất không qua trung gian, không phát sinh chi phí.
             </p>
           </div>
         </div>
@@ -487,15 +573,15 @@
 
       <!-- FAQ 3 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 3 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 3 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 3 ? null : 3"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">3</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">3</span>
             <span>Thời gian điều xe cẩu đến hiện trường mất bao lâu? Có phục vụ ca đêm không?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 3 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 3 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 3" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -512,15 +598,15 @@
 
       <!-- FAQ 4 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 4 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 4 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 4 ? null : 4"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">4</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">4</span>
             <span>Công ty có xuất hóa đơn GTGT (VAT) và hợp đồng kinh tế pháp nhân không?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 4 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 4 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 4" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -538,15 +624,15 @@
 
       <!-- FAQ 5 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 5 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 5 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 5 ? null : 5"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">5</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">5</span>
             <span>Xe cẩu có nhận thi công trong nhà xưởng trần thấp hoặc cẩu lắp máy móc chính xác không?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 5 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 5 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 5" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -564,15 +650,15 @@
 
       <!-- FAQ 6 -->
       <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
-           :class="activeFaq === 6 ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-white hover:border-emerald-400/60'">
+           :class="activeFaq === 6 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
         <button type="button" @click="activeFaq = activeFaq === 6 ? null : 6"
                 class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
           <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
-            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 font-black text-xs flex items-center justify-center shrink-0">6</span>
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">6</span>
             <span>Quy trình liên hệ và khảo sát hiện trường trước khi cẩu như thế nào?</span>
           </span>
           <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
-                :class="activeFaq === 6 ? 'rotate-180 text-emerald-600' : ''">expand_more</span>
+                :class="activeFaq === 6 ? 'rotate-180 text-red-600' : ''">expand_more</span>
         </button>
         <div x-show="activeFaq === 6" x-collapse>
           <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
@@ -591,9 +677,9 @@
     </div>
 
     <!-- Hỗ Trợ Trực Tuyến Banner Nhỏ Dưới FAQ -->
-    <div class="mt-8 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="mt-8 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-red-50 via-rose-50/60 to-slate-50 border border-red-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3.5 text-center sm:text-left">
-        <div class="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 shrink-0">
+        <div class="w-11 h-11 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-600/20 shrink-0">
           <span class="material-symbols-outlined text-2xl">support_agent</span>
         </div>
         <div>
@@ -602,7 +688,7 @@
         </div>
       </div>
       <div class="flex items-center gap-2.5 shrink-0">
-        <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition-all flex items-center gap-1.5">
+        <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md shadow-red-600/20 transition-all flex items-center gap-1.5">
           <span class="material-symbols-outlined text-base">call</span>
           <span>Gọi: {{ settings.phone }}</span>
         </a>

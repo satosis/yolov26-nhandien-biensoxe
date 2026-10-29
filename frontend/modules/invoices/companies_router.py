@@ -13,7 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.services import config as cfg
 from backend.services.database import db
-from frontend.deps import get_menu_context, require_menu, templates
+from frontend.deps import get_current_company_id, get_menu_context, require_menu, templates
 from frontend.pagination import paginate_counts
 from frontend.modules.invoices.companies import (
     TaxLookupError,
@@ -209,6 +209,7 @@ async def companies_management_page(
 async def add_company_page(
     request: Request,
     tax_code: str = Query(""),
+    partner_type: str = Query("organization"),
     back: str = Query(""),
     message: str = Query(""),
     error: str = Query(""),
@@ -220,6 +221,7 @@ async def add_company_page(
         message=message,
         error=error,
         tax_code=tax_code.strip(),
+        partner_type=partner_type if partner_type in ("individual", "organization") else "organization",
     )
     ctx["users_list"] = db._execute_query(
         "SELECT id, username, full_name, email, phone, bank_account, bank_name FROM public.users ORDER BY COALESCE(full_name, username) ASC",
@@ -235,9 +237,12 @@ async def add_company_page(
 @router.post("/catalog/companies")
 async def create_catalog_company(
     request: Request,
-    tax_code: str = Form(...), name: str = Form(...), address: str = Form(...),
+    name: str = Form(...),
+    tax_code: str = Form(""),
+    address: str = Form(""),
     email: str = Form(""), phone: str = Form(""), bank_account: str = Form(""), bank_name: str = Form(""),
     business_activity: str = Form(""), director_user_id: str = Form(""),
+    partner_type: str = Form("organization"),
     signature_file: Optional[UploadFile] = File(None),
     stamp_file: Optional[UploadFile] = File(None),
     back: str = Form(""),
@@ -247,12 +252,26 @@ async def create_catalog_company(
     try:
         bank_accounts = await _bank_accounts_from_form(request)
         validate_company_bank_accounts(bank_accounts)
-        code = normalize_tax_code(tax_code)
-        exists = db._execute_query(
-            "SELECT 1 FROM public.invoice_companies WHERE tax_code = %s", (code,), fetch=True, commit=False,
-        )
-        if exists:
-            raise ValueError("Mã số thuế đã có trong danh mục.")
+        p_type = "individual" if partner_type in ("individual", "cá nhân", "ca_nhan") else "organization"
+        clean_code = tax_code.strip() if tax_code else ""
+        code = None
+        if p_type == "individual":
+            if clean_code:
+                code = normalize_tax_code(clean_code)
+                exists = db._execute_query(
+                    "SELECT 1 FROM public.invoice_companies WHERE tax_code = %s", (code,), fetch=True, commit=False,
+                )
+                if exists:
+                    raise ValueError("Mã số thuế đã có trong danh mục.")
+        else:
+            if not clean_code:
+                raise ValueError("Mã số thuế không được để trống đối với Tổ chức.")
+            code = normalize_tax_code(clean_code)
+            exists = db._execute_query(
+                "SELECT 1 FROM public.invoice_companies WHERE tax_code = %s", (code,), fetch=True, commit=False,
+            )
+            if exists:
+                raise ValueError("Mã số thuế đã có trong danh mục.")
         signature_url = await _save_company_image(signature_file, "signature")
         stamp_url = await _save_company_image(stamp_file, "stamp")
         first = bank_accounts[0] if bank_accounts else {}
@@ -261,11 +280,12 @@ async def create_catalog_company(
                              bank_name=first.get("bank_name", ""), director_user_id=director_user_id,
                              signature_url=signature_url,
                              stamp_url=stamp_url,
-                             business_activity=business_activity)
+                             business_activity=business_activity,
+                             partner_type=p_type)
         replace_company_bank_accounts(saved["id"], bank_accounts)
     except ValueError as exc:
         return RedirectResponse(
-            f"/admin/transport/catalog/companies/add?back={urllib.parse.quote(back, safe='')}&error={urllib.parse.quote(str(exc), safe='')}",
+            f"/admin/transport/catalog/companies/add?back={urllib.parse.quote(back, safe='')}&error={urllib.parse.quote(str(exc), safe='')}&partner_type={partner_type}",
             status_code=303,
         )
     finally:
@@ -309,10 +329,13 @@ async def edit_company_page(
 @router.post("/transport/catalog/companies/{company_id}/edit")
 @router.post("/catalog/companies/{company_id}/edit")
 async def edit_catalog_company(
-    company_id: int, request: Request, tax_code: str = Form(...), name: str = Form(...),
-    address: str = Form(...), email: str = Form(""), phone: str = Form(""),
+    company_id: int, request: Request,
+    name: str = Form(...),
+    tax_code: str = Form(""),
+    address: str = Form(""), email: str = Form(""), phone: str = Form(""),
     bank_account: str = Form(""), bank_name: str = Form(""),
     business_activity: str = Form(""), director_user_id: str = Form(""),
+    partner_type: str = Form("organization"),
     signature_file: Optional[UploadFile] = File(None),
     stamp_file: Optional[UploadFile] = File(None),
     remove_signature: Optional[str] = Form(None),
@@ -335,7 +358,8 @@ async def edit_catalog_company(
                        stamp_url=stamp_url,
                        remove_signature=bool(remove_signature),
                        remove_stamp=bool(remove_stamp),
-                       business_activity=business_activity)
+                       business_activity=business_activity,
+                       partner_type=partner_type)
         replace_company_bank_accounts(company_id, bank_accounts)
     except ValueError as exc:
         return RedirectResponse(
@@ -573,17 +597,17 @@ def _sync_decrease_trip_debts(company_id: int, owner_company_id: int, payment_am
         logger.warning("_sync_decrease_trip_debts warning: %s", exc)
 
 
-def pay_company_debt(company_id: int, owner_company_id: int, payment_amount: Decimal, note: str = "") -> tuple[bool, str, Decimal]:
+def pay_company_debt(company_id: int, payment_amount: Decimal, note: str = "") -> tuple[bool, str, Decimal]:
+    owner_company_id = get_current_company_id()
     if payment_amount <= 0:
         return False, "Số tiền thanh toán phải lớn hơn 0.", Decimal("0")
     ok, msg, new_balance = adjust_company_debt(
         company_id=company_id,
         amount=-payment_amount,
-        owner_company_id=owner_company_id,
         debt_type="payment",
         note=note.strip() or "Thanh toán trừ nợ",
     )
-    if ok:
+    if ok and owner_company_id:
         _sync_decrease_trip_debts(company_id, owner_company_id, payment_amount)
     return ok, msg, new_balance
 
@@ -600,9 +624,6 @@ async def pay_company_debt_endpoint(
     user: dict = Depends(require_menu("vehicles")),
 ):
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    if not owner_company_id:
-        return JSONResponse({"ok": False, "message": "Chưa chọn doanh nghiệp."}, status_code=400)
     company = get_company(company_id)
     if not company:
         if is_ajax:
@@ -621,7 +642,7 @@ async def pay_company_debt_endpoint(
             return JSONResponse({"ok": False, "message": "Số tiền thanh toán phải lớn hơn 0."}, status_code=400)
         return _catalog_redirect("companies", back, error="Số tiền thanh toán phải lớn hơn 0.")
 
-    ok, msg, new_balance = pay_company_debt(company_id, owner_company_id, payment_amount, note=note)
+    ok, msg, new_balance = pay_company_debt(company_id, payment_amount, note=note)
     if not ok:
         if is_ajax:
             return JSONResponse({"ok": False, "message": msg}, status_code=400)
@@ -652,9 +673,6 @@ async def add_company_debt_endpoint(
     user: dict = Depends(require_menu("vehicles")),
 ):
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    if not owner_company_id:
-        return JSONResponse({"ok": False, "message": "Chưa chọn doanh nghiệp."}, status_code=400)
     company = get_company(company_id)
     if not company:
         if is_ajax:
@@ -676,7 +694,6 @@ async def add_company_debt_endpoint(
     ok, msg, new_balance = adjust_company_debt(
         company_id=company_id,
         amount=debt_amount,
-        owner_company_id=owner_company_id,
         debt_type="manual_add",
         note=note.strip() or "Ghi nhận nợ ngoài",
         reference_doc=reference_doc.strip(),
@@ -707,12 +724,11 @@ async def get_company_debts_endpoint(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
     company = get_company(company_id)
     if not company:
         return JSONResponse({"ok": False, "message": "Không tìm thấy đơn vị."}, status_code=404)
-    logs = get_company_debt_logs(company_id, owner_company_id)
-    curr_debt = get_company_debt(company_id, owner_company_id)
+    logs = get_company_debt_logs(company_id)
+    curr_debt = get_company_debt(company_id)
     return JSONResponse({
         "ok": True,
         "company": {
@@ -732,8 +748,7 @@ async def delete_company_debt_log_endpoint(
     request: Request,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    ok, msg, new_balance = delete_company_debt_log(log_id, owner_company_id)
+    ok, msg, new_balance = delete_company_debt_log(log_id)
     if not ok:
         return JSONResponse({"ok": False, "message": msg}, status_code=400)
     return JSONResponse({
@@ -869,25 +884,7 @@ async def export_company_contract(
     if not company:
         return _catalog_redirect("companies", back, error="Không tìm thấy đơn vị.")
 
-    # Bước 2: Bắt buộc phải có công ty đang vào, không chạy nhánh dự phòng
-    active_cid = request.session.get("active_company_id")
-    if not active_cid and user:
-        ctx_menu = get_menu_context(request, user)
-        active_cid = ctx_menu.get("active_company_id")
-
-    if not active_cid:
-        msg = "Bắt buộc phải chọn công ty đang làm việc ở thanh trên cùng trước khi xuất hợp đồng."
-        if view == "html" or (download or format or "").lower() == "html":
-            return HTMLResponse(f"""
-                <!DOCTYPE html><html><head><meta charset="utf-8"><title>Thông báo</title>
-                <style>body{{font-family:"Times New Roman",Times,serif;background:#f8fafc;padding:50px;text-align:center;}}
-                .box{{max-width:500px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.08);border-top:4px solid #ef4444;}}
-                h3{{color:#ef4444;margin-top:0;}}p{{color:#475569;font-size:15px;line-height:1.6;}}
-                button{{background:#475569;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-weight:600;}}</style>
-                </head><body><div class="box"><h3>Chưa chọn công ty đang làm việc</h3><p>{msg}</p><button onclick="window.close()">Đóng cửa sổ</button></div></body></html>
-            """, status_code=400)
-        return _catalog_redirect("companies", back, error=msg)
-
+    active_cid = get_current_company_id() or 33
     seller = get_company(int(active_cid))
     if not seller:
         msg = "Không tìm thấy thông tin công ty đang làm việc trong hệ thống."

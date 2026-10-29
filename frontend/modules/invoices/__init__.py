@@ -20,6 +20,7 @@ from frontend.modules.invoices.service import (
     money,
     parse_invoice,
     save_invoice,
+    sync_invoice_to_cash_book,
 )
 from frontend.modules.invoices.extract import (
     extract_invoice_text,
@@ -72,6 +73,7 @@ __all__ = [
     "money",
     "parse_invoice",
     "save_invoice",
+    "sync_invoice_to_cash_book",
     "extract_invoice_text",
     "parse_invoice_text",
     "ALLOWED_PAYMENT_METHODS",

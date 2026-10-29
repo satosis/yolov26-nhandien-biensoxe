@@ -175,10 +175,11 @@ class VideoOCRJobs:
                 shutil.rmtree(path, ignore_errors=True)
 
     def _maintain(self):
-        while not self._maintenance_stop.wait(30):
+        while not self._maintenance_stop.wait(300):
             with self.lock:
-                self.cleanup()
-                self._cleanup_orphans()
+                if self.jobs or self.directory.is_dir():
+                    self.cleanup()
+                    self._cleanup_orphans()
 
     def has_active_analysis(self):
         with self.lock:

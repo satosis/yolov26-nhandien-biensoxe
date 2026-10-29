@@ -9,14 +9,15 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.modules.transport.cash_bank_service import get_company_info
 from frontend.modules.transport.trial_balance_service import (
-    DAI_LO_XANH_COMPANY_ID,
     SAMPLE_EXCEL_PATH,
     export_account_ledger_excel,
     export_trial_balance_excel,
     get_account_ledger_data,
     get_trial_balance_data,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +31,18 @@ def _resolve_period_dates(year: int | None, period: str | None, date_from_str: s
     d_from: date | None = None
     d_to: date | None = None
 
-    if date_from_str:
+    if isinstance(date_from_str, str) and date_from_str.strip():
         try:
             d_from = datetime.strptime(date_from_str.strip(), "%Y-%m-%d").date()
         except ValueError:
             pass
-    if date_to_str:
+    if isinstance(date_to_str, str) and date_to_str.strip():
         try:
             d_to = datetime.strptime(date_to_str.strip(), "%Y-%m-%d").date()
         except ValueError:
             pass
 
-    p = (period or "").lower().strip()
+    p = (period.lower().strip()) if isinstance(period, str) else "all"
 
     if p and p != "custom":
         if p == "today":
@@ -100,7 +101,6 @@ async def trial_balance_page(
     selected_year, active_period, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
 
     tb_data = get_trial_balance_data(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
@@ -129,6 +129,7 @@ async def trial_balance_page(
 
 @router.get("/export")
 async def export_trial_balance(
+    request: Request,
     year: int = Query(None),
     period: str = Query("all"),
     date_from: str = Query(None),
@@ -139,15 +140,16 @@ async def export_trial_balance(
     selected_year, _, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
     include_sub = (mode != "summary")
     excel_bytes = export_trial_balance_excel(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
         include_sub_accounts=include_sub,
     )
 
+    comp_info = get_company_info()
+    safe_name = "".join(c for c in (comp_info.get("name") or "company") if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
     sub_suffix = "_CHI_TIET" if include_sub else "_TONG_HOP"
-    filename = f"F01_DNN_Bang_can_doi_tai_khoan_DAI_LO_XANH_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}{sub_suffix}.xlsx"
+    filename = f"F01_DNN_Bang_can_doi_tai_khoan_{safe_name}_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}{sub_suffix}.xlsx"
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -160,6 +162,7 @@ async def export_trial_balance(
 
 @router.get("/api/ledger")
 async def api_account_ledger(
+    request: Request,
     code: str = Query(...),
     year: int = Query(None),
     period: str = Query("all"),
@@ -170,7 +173,6 @@ async def api_account_ledger(
     _, _, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
     ledger = get_account_ledger_data(
         code=code,
-        company_id=DAI_LO_XANH_COMPANY_ID,
         date_from=d_from,
         date_to=d_to,
     )
@@ -179,6 +181,7 @@ async def api_account_ledger(
 
 @router.get("/export-ledger")
 async def export_ledger(
+    request: Request,
     code: str = Query(...),
     year: int = Query(None),
     period: str = Query("all"),
@@ -189,7 +192,6 @@ async def export_ledger(
     _, _, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
     excel_bytes = export_account_ledger_excel(
         code=code,
-        company_id=DAI_LO_XANH_COMPANY_ID,
         date_from=d_from,
         date_to=d_to,
     )
@@ -202,3 +204,73 @@ async def export_ledger(
             "Cache-Control": "no-store",
         },
     )
+
+
+@router.post("/accounts/add")
+async def add_trial_balance_account(
+    request: Request,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    """Add a new custom account to F01-DNN trial balance."""
+    from frontend.modules.transport.trial_balance_service import add_tb_custom_account
+    form = await request.form()
+    code = str(form.get("code") or "").strip()
+    name = str(form.get("name") or "").strip()
+    parent_code = str(form.get("parent_code") or "").strip()
+    open_dr_raw = str(form.get("open_dr") or "0").replace(".", "").replace(",", "").strip()
+    open_cr_raw = str(form.get("open_cr") or "0").replace(".", "").replace(",", "").strip()
+
+    if not code or not name:
+        return JSONResponse({"ok": False, "message": "Vui lòng nhập đầy đủ mã và tên tài khoản."}, status_code=400)
+
+    try:
+        open_dr = int(open_dr_raw or 0)
+        open_cr = int(open_cr_raw or 0)
+    except ValueError:
+        return JSONResponse({"ok": False, "message": "Số dư đầu kỳ phải là số nguyên."}, status_code=400)
+
+    add_tb_custom_account(code=code, name=name, parent_code=parent_code, open_dr=open_dr, open_cr=open_cr)
+    return JSONResponse({"ok": True, "message": f"Đã thêm tài khoản {code} - {name} vào Bảng cân đối."})
+
+
+@router.post("/accounts/{code}/edit")
+async def edit_trial_balance_account(
+    request: Request,
+    code: str,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    """Edit account name and opening balances."""
+    from frontend.modules.transport.trial_balance_service import save_tb_override
+    form = await request.form()
+    name = str(form.get("name") or "").strip()
+    open_dr_raw = form.get("open_dr")
+    open_cr_raw = form.get("open_cr")
+
+    open_dr = None
+    open_cr = None
+    if open_dr_raw is not None:
+        try:
+            open_dr = int(str(open_dr_raw).replace(".", "").replace(",", "").strip() or 0)
+        except ValueError:
+            pass
+    if open_cr_raw is not None:
+        try:
+            open_cr = int(str(open_cr_raw).replace(".", "").replace(",", "").strip() or 0)
+        except ValueError:
+            pass
+
+    save_tb_override(code=code, name=name if name else None, open_dr=open_dr, open_cr=open_cr)
+    return JSONResponse({"ok": True, "message": f"Đã cập nhật thông tin tài khoản {code}."})
+
+
+@router.post("/accounts/{code}/delete")
+async def delete_trial_balance_account(
+    request: Request,
+    code: str,
+    user: dict = Depends(require_menu("vehicles")),
+):
+    """Delete a custom account or reset override."""
+    from frontend.modules.transport.trial_balance_service import delete_tb_account
+    delete_tb_account(code=code)
+    return JSONResponse({"ok": True, "message": f"Đã xóa tài khoản {code}."})
+

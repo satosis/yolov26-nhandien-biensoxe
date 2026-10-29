@@ -61,30 +61,12 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
     active_company = ctx.get("active_company")
     active_cid = ctx.get("active_company_id")
 
-    # Kiểm tra doanh nghiệp khớp theo Email đã liên kết Gmail
-    connected_email = get_connected_gmail_email()
-    email_comp = get_company_by_enterprise_email(connected_email) if connected_email else None
-
-    # Support company filter: specific company id or 'all'
+    # Filter strictly by active company
     company_filter = str(request.query_params.get("company_id") or "").strip()
-    if company_filter == "all":
-        target_cid = None
-    elif company_filter.isdigit():
+    if company_filter.isdigit():
         target_cid = int(company_filter)
     else:
-        # Nếu chưa lọc thủ công và công ty hiện tại chưa có hóa đơn,
-        # tự động chọn công ty khớp với Email liên kết Gmail của doanh nghiệp
-        if email_comp and (not active_cid or active_cid != email_comp["id"]):
-            curr_stats = invoice_list_stats(start, end, buyer_company_id=active_cid) if active_cid else {}
-            if not curr_stats.get("total") or int(curr_stats.get("total")) == 0:
-                target_cid = email_comp["id"]
-                active_cid = email_comp["id"]
-                active_company = email_comp
-                request.session["active_company_id"] = email_comp["id"]
-            else:
-                target_cid = active_cid
-        else:
-            target_cid = active_cid
+        target_cid = active_cid
 
     if active_company:
         buyer = {
@@ -98,20 +80,7 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
     page = int(request.query_params.get("page", 1) or 1)
     stats = invoice_list_stats(start, end, buyer_company_id=target_cid, q=q)
 
-    # Detect if another company has invoices if current target_cid has none
     other_company_info = None
-    if target_cid and (not stats.get("total") or int(stats.get("total")) == 0) and not q:
-        other_row = db._execute_query("""
-            SELECT c.id, c.name, COUNT(i.id) as count, COALESCE(SUM(i.total), 0) as total_amount
-            FROM public.transport_input_invoices i
-            JOIN public.invoice_companies c ON c.id = i.buyer_company_id
-            WHERE i.invoice_date >= %s AND i.invoice_date < %s AND i.buyer_company_id <> %s
-            GROUP BY c.id, c.name
-            ORDER BY count DESC
-            LIMIT 1
-        """, (start, end, target_cid), fetch=True, commit=False)
-        if other_row:
-            other_company_info = other_row
 
     extra_params = {"month": month}
     if company_filter:
@@ -178,9 +147,7 @@ def _page(request, user, month, edit=None, error=None, form=None, show_form=Fals
                show_form=show_form,
                company_filter=company_filter,
                q=q,
-               target_company_id=target_cid,
-               matched_company=email_comp,
-               other_company_info=other_company_info)
+               target_company_id=target_cid)
     return templates.TemplateResponse("pages/input_invoices.html", {"request": request, **ctx})
 
 
@@ -252,6 +219,23 @@ async def extract_input_invoice(request: Request, _: dict = Depends(require_menu
         if buyer_company:
             details["buyer"]["name"] = buyer_company["name"]
             details["buyer"]["address"] = buyer_company["address"] or ""
+
+    # Gợi ý mã tài khoản hạch toán thông minh từ tên hàng hóa/dịch vụ
+    items = details.get("items") or []
+    all_desc = " ".join([str(it.get("description", "")) for it in items]).lower()
+    if any(w in all_desc for w in ("quả cân", "quả chuẩn", "công cụ", "dụng cụ", "thiết bị đo", "máy in", "máy tính")):
+        details["tk_no_cost"] = "153"
+    elif any(w in all_desc for w in ("chữ ký số", "phần mềm", "bảo hiểm", "cks")):
+        details["tk_no_cost"] = "242"
+    elif any(w in all_desc for w in ("hóa đơn điện tử", "văn phòng phẩm", "tiếp khách", "dịch vụ chữ ký số")):
+        details["tk_no_cost"] = "642"
+    elif any(w in all_desc for w in ("xe ô tô", "xe tải", "rơ mooc", "sơ mi")):
+        details["tk_no_cost"] = "211"
+    else:
+        details["tk_no_cost"] = "154"
+    details["tk_no_vat"] = "1331"
+    details["tk_co_pay"] = "331"
+
     return JSONResponse(details)
 
 
@@ -285,6 +269,7 @@ async def save_input_invoice(request: Request, user: dict = Depends(require_menu
                       buyer_company_id=active_cid)
         save_invoice(values, invoice_id or None, attachment)
     except (ValueError, TypeError) as exc:
+        logger.warning("save_input_invoice error: %s", exc)
         try:
             view_month = month if month else date.today().strftime("%Y-%m")
             month_bounds(view_month)
@@ -319,6 +304,8 @@ async def delete_input_invoice(invoice_id: int, month: str = Form(...),
                                 (invoice_id,), fetch=True)
     if not deleted:
         return HTMLResponse("Không tìm thấy hóa đơn.", status_code=404)
+    db._execute_query("DELETE FROM public.transport_cash_book WHERE source_type = 'input_invoice' AND source_id = %s",
+                      (str(invoice_id),), commit=True)
     return RedirectResponse(f"/admin/transport/input-invoices?month={quote(month)}&deleted=1", status_code=303)
 
 

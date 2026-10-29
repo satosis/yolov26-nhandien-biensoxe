@@ -185,12 +185,14 @@
         <!-- Chọn kỳ Tháng / Năm -->
         <div class="col-auto mb-2 mb-md-0">
           <div class="d-flex align-items-center" style="gap:4px;">
-            <select id="personalDebtMonthPart" class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:115px; cursor:pointer;" aria-label="Tháng" onchange="updatePersonalDebtMonth()">
+            <select id="personalDebtMonthPart" data-no-search class="form-control form-control-sm font-weight-bold" style="width:auto; min-width:115px; cursor:pointer;" aria-label="Tháng" onchange="updatePersonalDebtMonth()">
+              <option value="all" {% if personal_month and (personal_month.endswith('-all') or personal_month == 'all') %}selected{% endif %}>Cả năm</option>
+              {% set cur_m = (personal_month[5:7]|int) if (personal_month and personal_month|length >= 7 and personal_month[5:7].isdigit()) else (0 if (personal_month and (personal_month.endswith('-all') or personal_month == 'all')) else 10) %}
               {% for m in range(1, 13) %}
-              <option value="{{ '%02d'|format(m) }}" {% if m == personal_month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+              <option value="{{ '%02d'|format(m) }}" {% if m == cur_m %}selected{% endif %}>Tháng {{ m }}</option>
               {% endfor %}
             </select>
-            <input type="number" id="personalDebtYear" value="{{ personal_month[:4] }}" min="1000" max="9999" required
+            <input type="number" id="personalDebtYear" value="{{ personal_month[:4] if personal_month else 2026 }}" min="1000" max="9999" required
                    class="form-control form-control-sm font-weight-bold" style="width:75px;" aria-label="Năm" onchange="updatePersonalDebtMonth()">
           </div>
         </div>
@@ -207,7 +209,7 @@
 
         <!-- Lọc trạng thái nợ -->
         <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
-          <select id="personalDebtOnly" name="debt_only" class="form-control form-control-sm" onchange="onPersonalDebtOnlyChange()">
+          <select id="personalDebtOnly" data-no-search name="debt_only" class="form-control form-control-sm" onchange="onPersonalDebtOnlyChange()">
             <option value="0" {% if debt_only == 0 and due_only != 1 %}selected{% endif %}>Tất cả đối tượng (kể cả hết nợ)</option>
             <option value="1" {% if debt_only == 1 and due_only != 1 %}selected{% endif %}>Chỉ đối tượng còn nợ</option>
             <option value="due_7" {% if due_only == 1 %}selected{% endif %}>⚡ Đến hạn đòi (quá 7 ngày chưa trả)</option>
@@ -335,8 +337,8 @@
             <thead class="thead-light">
               <tr>
                 <th style="width:50px;" class="text-center">STT</th>
-                <th>Đơn vị đối tác / Doanh nghiệp</th>
                 <th style="width:130px;">Mã số thuế</th>
+                <th>Đơn vị đối tác / Doanh nghiệp</th>
                 <th style="width:120px;">Điện thoại</th>
                 <th style="width:130px;" class="text-center">Biến động cuối</th>
                 <th style="width:90px;" class="text-center">Số GD</th>
@@ -345,8 +347,9 @@
               </tr>
               <tr class="table-total-header font-weight-bold">
                 <th class="text-center text-muted" style="vertical-align: middle;">--</th>
+                <th class="text-center text-muted" style="vertical-align: middle;">--</th>
                 <th class="font-weight-bold text-danger table-total-red" style="font-size: 13px; vertical-align: middle;">Tổng</th>
-                <th colspan="4" class="text-muted" style="vertical-align: middle;"></th>
+                <th colspan="3" class="text-muted" style="vertical-align: middle;"></th>
                 <th class="text-right font-weight-bold text-danger table-total-red" style="font-size: 13px; vertical-align: middle;">{{ b2b_total_current_debt_fmt }}</th>
                 <th class="text-center text-muted" style="vertical-align: middle;">--</th>
               </tr>
@@ -357,16 +360,16 @@
                 <tr class="{% if c.is_due %}row-due-debt{% endif %}" data-is-due="{{ 1 if c.is_due else 0 }}">
                   <td class="text-center text-muted small align-middle">{{ loop.index }}</td>
                   <td class="align-middle">
-                    <div class="font-weight-bold text-dark">{{ c.name }}</div>
-                    {% if c.address %}
-                    <div class="text-muted small text-truncate" style="max-width:380px;">{{ c.address }}</div>
-                    {% endif %}
-                  </td>
-                  <td class="align-middle">
                     {% if c.tax_code %}
                     <code class="text-dark font-weight-bold">{{ c.tax_code }}</code>
                     {% else %}
                     <span class="text-muted small">--</span>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle">
+                    <div class="font-weight-bold text-dark">{{ c.name }}</div>
+                    {% if c.address %}
+                    <div class="text-muted small text-truncate" style="max-width:380px;">{{ c.address }}</div>
                     {% endif %}
                   </td>
                   <td class="align-middle small text-muted">{{ c.phone or '--' }}</td>
@@ -425,8 +428,9 @@
             <tfoot>
               <tr class="table-total-footer font-weight-bold">
                 <td class="text-center text-muted" style="vertical-align: middle;">--</td>
+                <td class="text-center text-muted" style="vertical-align: middle;">--</td>
                 <td class="font-weight-bold text-dark" style="font-size: 13px; vertical-align: middle;">Tổng cộng</td>
-                <td colspan="4" class="text-muted" style="vertical-align: middle;"></td>
+                <td colspan="3" class="text-muted" style="vertical-align: middle;"></td>
                 <td class="text-right font-weight-bold text-dark" style="font-size: 13px; vertical-align: middle;">{{ b2b_total_current_debt_fmt }}</td>
                 <td class="text-center text-muted" style="vertical-align: middle;">--</td>
               </tr>
@@ -439,7 +443,9 @@
       <!-- TAB 2: NHẬT KÝ BIẾN ĐỘNG CÔNG NỢ GẦN ĐÂY -->
       <div class="tab-pane fade {% if active_tab == 'logs' %}show active{% endif %}" id="logsPane" role="tabpanel">
         <div class="debt-log-toolbar">
-          <div class="debt-log-toolbar-title">Giao dịch công nợ gần đây</div>
+          <div class="debt-log-toolbar-title">
+            Giao dịch công nợ {% if personal_month and (personal_month.endswith('-all') or personal_month == 'all') %}cả năm {{ personal_month[:4] if personal_month[:4].isdigit() else '' }}{% elif personal_month and personal_month|length >= 7 and personal_month[5:7].isdigit() %}tháng {{ personal_month[5:7]|int }}/{{ personal_month[:4] }}{% else %}gần đây{% endif %}
+          </div>
           <div class="debt-log-toolbar-meta">{{ log_pagination.total }} giao dịch</div>
         </div>
         <div class="table-responsive" style="min-height:300px;">
@@ -512,7 +518,9 @@
               {% else %}
                 <tr>
                   <td colspan="9" class="text-center py-5 text-muted">
-                    Chưa có nhật ký giao dịch công nợ nào.
+                    <i class="bx bx-calendar-x" style="font-size:32px; color:#94a3b8;"></i>
+                    <div class="mt-2 font-weight-medium">Không có giao dịch công nợ nào trong {% if personal_month and (personal_month.endswith('-all') or personal_month == 'all') %}năm {{ personal_month[:4] if personal_month[:4].isdigit() else '' }}{% elif personal_month and personal_month|length >= 7 and personal_month[5:7].isdigit() %}tháng {{ personal_month[5:7]|int }}/{{ personal_month[:4] }}{% else %}kỳ đã chọn{% endif %}.</div>
+                    <div class="small text-muted mt-1">Chọn tháng khác hoặc chuyển sang "Cả năm" ở thanh lọc bên trên để xem biến động.</div>
                   </td>
                 </tr>
               {% endif %}
@@ -1505,14 +1513,26 @@ $('#personalDebtImportModal').on('hidden.bs.modal', function () {
 });
 
 function updatePersonalDebtMonth() {
-  const m = document.getElementById('personalDebtMonthPart').value;
-  const y = (document.getElementById('personalDebtYear').value || '').trim();
-  if (y) {
-    document.getElementById('personalDebtMonth').value = `${y}-${m}`;
-    const form = document.getElementById('debtGlobalFilterForm');
-    if (form) form.submit();
-    else loadPersonalDebtCustomers();
+  const mEl = document.getElementById('personalDebtMonthPart');
+  const yEl = document.getElementById('personalDebtYear');
+  if (!mEl || !yEl) return;
+  const mVal = (mEl.value || '').trim();
+  const yVal = (yEl.value || '').trim();
+  const yNum = parseInt(yVal, 10);
+  const year = (yNum && yNum >= 1000 && yNum <= 9999) ? yNum : new Date().getFullYear();
+  if (mVal === 'all') {
+    document.getElementById('personalDebtMonth').value = `${year}-all`;
+  } else {
+    const mNum = parseInt(mVal, 10);
+    if (!mNum || mNum < 1 || mNum > 12) {
+      return;
+    }
+    const padM = String(mNum).padStart(2, '0');
+    document.getElementById('personalDebtMonth').value = `${year}-${padM}`;
   }
+  const form = document.getElementById('debtGlobalFilterForm');
+  if (form) form.submit();
+  else loadPersonalDebtCustomers();
 }
 
 function onPersonalDebtOnlyChange() {

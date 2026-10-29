@@ -374,7 +374,7 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       this.paymentStatus = value;
       if (value === 'debt') {
         const debt = document.getElementById('invoice-debt');
-        if (debt && (!this.debtManuallyEdited || !debt.value.trim())) {
+        if (debt && (!this.debtManuallyEdited || !debt.value.trim() || debt.value === '0')) {
           debt.value = this.subtotal() ? this.gross().toLocaleString('vi-VN') : '';
         }
       }
@@ -390,7 +390,7 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const debt = document.getElementById('invoice-debt');
       if (debt) {
         debt.placeholder = this.formatMoney(this.gross());
-        if (!this.debtManuallyEdited && this.paymentStatus === 'debt') {
+        if ((!this.debtManuallyEdited || !debt.value.trim() || debt.value === '0') && this.paymentStatus === 'debt') {
           debt.value = this.subtotal() ? this.gross().toLocaleString('vi-VN') : '';
         }
       }
@@ -567,22 +567,15 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   }
 
   const companySelect = document.getElementById('invoice-company');
-  if (!companySelect || companySelect.tomselect || typeof TomSelect === 'undefined') return;
+  const taxCodeInput = document.getElementById('invoice-tax-code');
+  if (!companySelect) return;
 
-  /** Normalize a raw company address for use as an invoice location.
-   *  - Strips trailing ", Việt Nam" / ", Vietnam" (Google Maps artifact)
-   *  - Strips Google Plus Code prefix, e.g. "G3XV+32W " at the start
-   *  - Removes duplicate whitespace and stray leading/trailing commas
-   */
+  /** Normalize a raw company address for use as an invoice location. */
   function normalizeCompanyAddress(raw) {
     if (!raw) return '';
     let s = String(raw).trim();
-    // Remove trailing country name (added by Google Maps API)
-    // Must match literal "Việt Nam" (ệ ≠ ê), "Viet Nam", or "Vietnam"
     s = s.replace(/,\s*(Việt\s*Nam|Viet\s*Nam|Vietnam)\s*$/i, '').trim();
-    // Remove Google Plus Code prefix like "G3XV+32W " or "ABCD+12 "
     s = s.replace(/^[A-Z0-9]{4,8}\+[A-Z0-9]{2,4}\s*/i, '').trim();
-    // Normalize multiple spaces / stray commas
     s = s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
     return s;
   }
@@ -595,7 +588,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     if (!rawAddress) return;
     const clientClean = normalizeCompanyAddress(rawAddress);
     if (!clientClean) return;
-    // Alpine.js component root — find the x-data element wrapping the form
     const alpineRoot = companySelect.closest('[x-data]');
     if (!alpineRoot || !alpineRoot._x_dataStack) return;
     const data = alpineRoot._x_dataStack[0];
@@ -606,7 +598,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
       }
     });
 
-    // Query backend to normalize address against database administrative tables (tỉnh, xã)
     try {
       const resp = await fetch('/admin/vehicles/api/normalize-invoice-locations', {
         method: 'POST',
@@ -631,20 +622,127 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     } catch (_) {}
   }
 
-  const ts = new TomSelect(companySelect, {
-    create: false,
-    maxItems: 1,
-    searchField: ['text'],
-    placeholder: 'Tìm theo tên hoặc mã số thuế...',
-    onChange(value) {
-      fillOriginFromCompany(value);
-    }
-  });
+  function normalizeTaxCode(tc) {
+    return String(tc || '').replace(/[^0-9A-Za-z]/g, '').toLowerCase();
+  }
 
-  // Pre-fill on page load if a company is already selected
+  function syncTaxCodeFromCompany(companyId) {
+    if (!taxCodeInput) return;
+    if (!companyId) {
+      taxCodeInput.value = '';
+      return;
+    }
+    if (ts && ts.options && ts.options[companyId]) {
+      taxCodeInput.value = (ts.options[companyId].tax_code || '').trim();
+      return;
+    }
+    const opt = companySelect.querySelector(`option[value="${CSS.escape(String(companyId))}"]`);
+    if (opt) {
+      taxCodeInput.value = (opt.dataset.taxCode || '').trim();
+    }
+  }
+
+  let syncingFromTax = false;
+  function syncCompanyFromTaxCode(taxCode) {
+    if (!companySelect || !taxCode) return;
+    const clean = normalizeTaxCode(taxCode);
+    if (!clean) return;
+    let matchedValue = null;
+    if (ts && ts.options) {
+      for (const id in ts.options) {
+        if (normalizeTaxCode(ts.options[id].tax_code) === clean) {
+          matchedValue = id;
+          break;
+        }
+      }
+    }
+    if (!matchedValue) {
+      const opts = Array.from(companySelect.querySelectorAll('option'));
+      const match = opts.find(o => normalizeTaxCode(o.dataset.taxCode) === clean);
+      if (match) matchedValue = match.value;
+    }
+    if (matchedValue && matchedValue !== companySelect.value) {
+      syncingFromTax = true;
+      try {
+        if (companySelect.tomselect) {
+          companySelect.tomselect.setValue(matchedValue);
+        } else {
+          companySelect.value = matchedValue;
+          companySelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } finally {
+        syncingFromTax = false;
+      }
+    }
+  }
+
+  if (taxCodeInput) {
+    taxCodeInput.addEventListener('input', function() {
+      syncCompanyFromTaxCode(this.value);
+    });
+    taxCodeInput.addEventListener('change', function() {
+      syncCompanyFromTaxCode(this.value);
+    });
+  }
+
+  const companyOptions = Array.from(companySelect.querySelectorAll('option')).filter(o => o.value).map(o => ({
+    value: o.value,
+    text: (o.dataset.name || o.textContent).trim(),
+    tax_code: (o.dataset.taxCode || '').trim(),
+    address: (o.dataset.address || '').trim()
+  }));
+
+  let ts = companySelect.tomselect;
+  if (!ts && typeof TomSelect !== 'undefined') {
+    ts = new TomSelect(companySelect, {
+      options: companyOptions,
+      create: false,
+      maxItems: 1,
+      searchField: ['text', 'tax_code'],
+      placeholder: '— Tìm theo tên đơn vị hoặc MST —',
+      render: {
+        option: function(data, escape) {
+          const tc = data.tax_code || (data.$option ? data.$option.dataset.taxCode : '');
+          return '<div class="py-1 px-2">' +
+                   '<div class="font-weight-500 text-dark">' + escape(data.text) + '</div>' +
+                   (tc ? '<div class="small text-muted font-monospace"><i class="bx bx-id-card mr-1"></i>MST: ' + escape(tc) + '</div>' : '') +
+                 '</div>';
+        },
+        item: function(data, escape) {
+          return '<div class="text-truncate">' + escape(data.text) + '</div>';
+        }
+      },
+      onChange(value) {
+        if (!syncingFromTax) {
+          syncTaxCodeFromCompany(value);
+        }
+        fillOriginFromCompany(value);
+      }
+    });
+  } else if (ts) {
+    ts.on('change', function(value) {
+      if (!syncingFromTax) {
+        syncTaxCodeFromCompany(value);
+      }
+      fillOriginFromCompany(value);
+    });
+  } else {
+    companySelect.addEventListener('change', function() {
+      if (!syncingFromTax) {
+        syncTaxCodeFromCompany(this.value);
+      }
+      fillOriginFromCompany(this.value);
+    });
+  }
+
+  // Pre-fill on page load if a company is already selected or tax code is provided
   if (companySelect.value) {
-    // Wait a tick for Alpine to finish initialising
+    if (taxCodeInput && !taxCodeInput.value.trim()) {
+      syncTaxCodeFromCompany(companySelect.value);
+    }
     setTimeout(() => fillOriginFromCompany(companySelect.value), 60);
+  } else if (taxCodeInput && taxCodeInput.value.trim()) {
+    syncCompanyFromTaxCode(taxCodeInput.value);
   }
 });
 

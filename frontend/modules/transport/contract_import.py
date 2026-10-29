@@ -44,15 +44,8 @@ def sync_contracts_from_workbook(
         wb = openpyxl.load_workbook(file_or_path, data_only=True)
 
     # Xác định công ty đang đăng nhập / bên bán xuất hợp đồng (Bên B)
-    active_cid = seller_company_id
-    if not active_cid and request:
-        active_cid = getattr(request, "session", {}).get("active_company_id")
-        if not active_cid and user:
-            try:
-                from frontend.deps import get_menu_context
-                active_cid = get_menu_context(request, user).get("active_company_id")
-            except Exception:
-                pass
+    from frontend.context.company_context import get_current_company_id
+    active_cid = seller_company_id or get_current_company_id() or 33
 
     seller = None
     if active_cid:

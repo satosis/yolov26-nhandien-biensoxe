@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.modules.transport.cash_bank_service import get_company_info
 from frontend.modules.transport.prepaid_expense_service import (
-    DAI_LO_XANH_COMPANY_ID,
     add_prepaid_expense,
     delete_prepaid_expense,
     export_prepaid_expenses_excel,
@@ -99,7 +99,6 @@ async def prepaid_expenses_page(
     selected_year, active_period, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
 
     pe_data = get_prepaid_expenses_data(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
@@ -126,6 +125,7 @@ async def prepaid_expenses_page(
 
 @router.get("/export")
 async def prepaid_expenses_export(
+    request: Request,
     year: int = Query(None),
     period: str = Query("all"),
     date_from: str = Query(None),
@@ -135,12 +135,13 @@ async def prepaid_expenses_export(
     selected_year, _, d_from, d_to = _resolve_period_dates(year, period, date_from, date_to)
 
     excel_bytes = export_prepaid_expenses_excel(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
     )
-    filename = f"Bang_phan_bo_CCDC_242_Nam_{selected_year}_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
+    comp_info = get_company_info()
+    safe_name = "".join(c for c in (comp_info.get("name") or "CongTy") if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+    filename = f"Bang_phan_bo_CCDC_242_Nam_{selected_year}_{safe_name}_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -153,6 +154,7 @@ async def prepaid_expenses_export(
 
 @router.post("/api/add")
 async def api_add_ccdc(
+    request: Request,
     item_code: str = Form(""),
     name: str = Form(...),
     unit: str = Form("Chiếc"),
@@ -170,7 +172,6 @@ async def api_add_ccdc(
     cleaned_acc = accumulated_prev.replace(".", "").replace(",", "").replace(" ", "").strip() or "0"
 
     ok, msg, ins_id = add_prepaid_expense(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         item_code=item_code,
         name=name,
         unit=unit,
@@ -188,8 +189,9 @@ async def api_add_ccdc(
 
 @router.post("/api/{item_id}/delete")
 async def api_delete_ccdc(
+    request: Request,
     item_id: int,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    ok, msg = delete_prepaid_expense(item_id=item_id, company_id=DAI_LO_XANH_COMPANY_ID)
+    ok, msg = delete_prepaid_expense(item_id=item_id)
     return JSONResponse({"ok": ok, "message": msg})

@@ -1,53 +1,87 @@
-<header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 transition-all shadow-sm" x-data="{ mobileMenu: false }">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+<header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/90 transition-all shadow-xs" x-data="{ mobileMenu: false }">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[72px] flex items-center justify-between gap-3 sm:gap-4">
     
-    <!-- Logo & Brand -->
-    <a href="#top" class="flex items-center gap-3.5 group">
-      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-600 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/30 group-hover:scale-105 transition-transform">
-        <span class="material-symbols-outlined text-2xl font-black">precision_manufacturing</span>
-      </div>
+    <!-- Logo & Brand (Clean & Harmonious) -->
+    <a href="{% if active_page == 'weights' %}/qua-can{% else %}/xe-cau{% endif %}" class="flex items-center gap-2.5 sm:gap-3 group shrink-0">
+      <img src="/static/services/crane/img/favicon-crane-180.png?v=5" 
+           alt="{{ company.brand_name }}" 
+           class="w-9 h-9 sm:w-11 sm:h-11 object-contain group-hover:scale-105 transition-transform drop-shadow-xs" />
       <div class="flex flex-col">
-        <span class="text-xl font-black tracking-tight text-slate-900 group-hover:text-emerald-600 transition-colors uppercase">
+        <span class="text-base sm:text-lg font-black tracking-tight text-slate-900 group-hover:text-red-600 transition-colors uppercase leading-tight">
           {{ company.brand_name }}
         </span>
-        <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-widest -mt-0.5">
-          Xe Cẩu Tự Hành Chuyên Nghiệp 24/7
+        <span class="text-[9px] sm:text-[10px] font-bold text-red-600 uppercase tracking-wider">
+          {% if active_page == 'weights' %}
+            Quả Cân Chuẩn ĐLVN · Xe Cẩu 24/7
+          {% else %}
+            Xe Cẩu Tự Hành 24/7
+          {% endif %}
         </span>
       </div>
     </a>
 
-    <!-- Desktop Navigation Links -->
-    <nav class="hidden lg:flex items-center gap-6">
-      <a href="#doi-xe" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">2 Xe Cẩu Chính Chủ</a>
-      <a href="#dich-vu" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Dịch Vụ Cẩu</a>
-      <a href="#hinh-anh" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Ảnh Thực Tế</a>
-      <a href="#bang-gia" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Bảng Giá</a>
-      <a href="#faq" class="text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors">Hỏi Đáp FAQ</a>
-      <a href="#lien-he" class="text-sm font-bold text-emerald-700 hover:text-emerald-800 transition-colors">Yêu Cầu Báo Giá</a>
+    <!-- Desktop Navigation Links (Balanced & Proportional) -->
+    <nav class="hidden lg:flex items-center gap-3 xl:gap-5">
+      <!-- Segmented Service Switcher -->
+      <div class="inline-flex p-1 bg-slate-100 rounded-full border border-slate-200/90 shadow-inner">
+        <a href="/xe-cau" 
+           class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all {% if active_page == 'crane' %}bg-white text-red-600 shadow-xs border border-slate-200/80{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+          <span class="material-symbols-outlined text-[14px] {% if active_page == 'crane' %}text-red-600{% else %}text-slate-400{% endif %}">local_shipping</span>
+          <span>Xe Cẩu 8T–10T</span>
+        </a>
+        <a href="/qua-can" 
+           class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all {% if active_page == 'weights' %}bg-white text-red-600 shadow-xs border border-slate-200/80{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+          <span class="material-symbols-outlined text-[14px] {% if active_page == 'weights' %}text-red-600{% else %}text-slate-400{% endif %}">scale</span>
+          <span>Quả Cân Chuẩn</span>
+        </a>
+      </div>
+
+      <!-- Divider -->
+      <div class="h-4 w-px bg-slate-200"></div>
+
+      <!-- Section Anchors -->
+      <div class="flex items-center gap-3 xl:gap-5 text-xs font-bold uppercase tracking-wide text-slate-600">
+        <a href="#{% if active_page == 'weights' %}danh-muc{% else %}doi-xe{% endif %}" class="hover:text-red-600 transition-colors whitespace-nowrap">
+          {% if active_page == 'weights' %}Sản Phẩm{% else %}Đội Xe{% endif %}
+        </a>
+        <a href="#bang-gia" class="hover:text-red-600 transition-colors whitespace-nowrap">Báo Giá</a>
+        <a href="#hinh-anh" class="hover:text-red-600 transition-colors whitespace-nowrap">Ảnh Thực Tế</a>
+        <a href="#faq" class="hover:text-red-600 transition-colors whitespace-nowrap">Hỏi Đáp</a>
+      </div>
     </nav>
 
-    <!-- Header Actions / CTA -->
-    <div class="flex items-center gap-3">
+    <!-- Header Actions / CTA (Never clipped, Shrink-proof) -->
+    <div class="flex items-center gap-2.5 shrink-0">
       <a href="tel:{{ settings.phone_raw }}" 
-         class="pulse-btn inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-extrabold text-sm shadow-md shadow-emerald-600/30 hover:from-emerald-700 hover:to-green-700 transition-all">
-        <span class="material-symbols-outlined text-xl">call</span>
+         class="pulse-btn shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold text-xs sm:text-sm shadow-md shadow-red-600/30 hover:from-red-700 hover:to-rose-700 transition-all">
+        <span class="material-symbols-outlined text-lg sm:text-xl">call</span>
         <span class="tracking-wide">{{ settings.phone }}</span>
       </a>
 
       <!-- Mobile Menu Toggle Button -->
-      <button @click="mobileMenu = !mobileMenu" class="lg:hidden p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 transition-colors" aria-label="Toggle menu">
+      <button @click="mobileMenu = !mobileMenu" class="lg:hidden p-2 rounded-xl bg-slate-100 text-slate-700 hover:text-slate-900 hover:bg-slate-200 transition-colors shrink-0" aria-label="Toggle menu">
         <span class="material-symbols-outlined text-2xl" x-text="mobileMenu ? 'close' : 'menu'">menu</span>
       </button>
     </div>
   </div>
 
   <!-- Mobile Dropdown Navigation -->
-  <div x-show="mobileMenu" x-cloak x-transition class="lg:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-2.5 shadow-lg">
-    <a href="#doi-xe" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">2 Xe Cẩu Chính Chủ</a>
-    <a href="#dich-vu" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Dịch Vụ Cẩu</a>
-    <a href="#hinh-anh" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Ảnh Thực Tế</a>
-    <a href="#bang-gia" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Bảng Giá</a>
-    <a href="#faq" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-emerald-600">Hỏi Đáp FAQ</a>
-    <a href="#lien-he" @click="mobileMenu = false" class="block py-2 text-sm font-bold text-emerald-600">Yêu Cầu Báo Giá →</a>
+  <div x-show="mobileMenu" x-cloak x-transition class="lg:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-2 shadow-lg">
+    <div class="grid grid-cols-2 gap-2 pb-2 mb-2 border-b border-slate-100">
+      <a href="/xe-cau" class="text-center py-2 px-3 rounded-lg text-xs font-bold {% if active_page == 'crane' %}bg-red-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">
+        Xe Cẩu 8T–10T
+      </a>
+      <a href="/qua-can" class="text-center py-2 px-3 rounded-lg text-xs font-bold {% if active_page == 'weights' %}bg-red-600 text-white{% else %}bg-slate-100 text-slate-700{% endif %}">
+        Cho Thuê Quả Cân
+      </a>
+    </div>
+    <a href="#{% if active_page == 'weights' %}danh-muc{% else %}doi-xe{% endif %}" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-red-600">
+      {% if active_page == 'weights' %}Danh Mục Quả Cân{% else %}2 Dòng Xe Cẩu Chủ Lực{% endif %}
+    </a>
+    <a href="#bang-gia" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-red-600">Báo Giá Dịch Vụ</a>
+    <a href="#hinh-anh" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-red-600">Hình Ảnh Thi Công</a>
+    <a href="#faq" @click="mobileMenu = false" class="block py-2 text-sm font-semibold text-slate-700 hover:text-red-600">Câu Hỏi Thường Gặp</a>
+    <a href="#lien-he" @click="mobileMenu = false" class="block py-2 text-sm font-bold text-red-600">Yêu Cầu Báo Giá Nhanh →</a>
   </div>
 </header>
+

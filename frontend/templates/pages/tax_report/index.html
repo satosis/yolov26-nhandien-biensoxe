@@ -1,15 +1,15 @@
 {% extends "layout.html" %}
-{% block title %}Bảng kê Báo cáo thuế theo quý{% endblock %}
-{% block page_title %}Bảng kê Báo cáo thuế theo quý{% endblock %}
+{% block title %}Bảng kê khai thuế theo quý{% endblock %}
+{% block page_title %}Bảng kê khai thuế theo quý{% endblock %}
 {% block page_back_button %}
 <a href="/admin/vehicles/cargo" class="btn btn-light btn-sm font-weight-bold">
-  <i class="bx bx-arrow-back mr-1"></i> Chuyến hàng
+  <i class="bx bx-arrow-back mr-1"></i> Chuyến hàng (HĐ đầu ra)
 </a>
 {% endblock %}
 {% block page_actions %}
 <div class="d-flex align-items-center" style="gap:8px;">
   <a href="/admin/transport/input-invoices" class="btn btn-outline-primary btn-sm font-weight-bold">
-    <i class="bx bx-receipt mr-1"></i>Hóa đơn đầu vào
+    <i class="bx bx-receipt mr-1"></i>HĐ đầu vào
   </a>
   <a href="/admin/transport/tax-report/export?year={{ year }}&quarter={{ quarter }}{% if company_id %}&company_id={{ company_id }}{% endif %}{% if deductible_in_val is not none %}&deductible_in={{ deductible_in_val }}{% endif %}"
      class="btn btn-success btn-sm font-weight-bold">
@@ -329,17 +329,6 @@
           <option value="{{ y }}" {% if y == year %}selected{% endif %}>Năm {{ y }}</option>
           {% endfor %}
         </select>
-
-        <!-- Chọn Công ty -->
-        {% if companies %}
-        <select name="company_id" class="form-control form-control-sm font-weight-bold ml-1" style="min-width:220px; max-width:360px;" onchange="this.form.submit()">
-          {% for c in companies %}
-          <option value="{{ c.id }}" {% if c.id == company_id %}selected{% endif %}>
-            {{ c.name }}{% if c.tax_code %} ({{ c.tax_code }}){% endif %}
-          </option>
-          {% endfor %}
-        </select>
-        {% endif %}
 
         <!-- Nút Xem báo cáo / Lọc cho iPad và Máy tính -->
         <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3 shadow-sm ml-1" style="display:inline-flex; align-items:center; gap:6px; height:31px; border-radius:6px;">

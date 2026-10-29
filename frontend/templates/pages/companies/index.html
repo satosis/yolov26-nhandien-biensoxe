@@ -312,12 +312,10 @@ compUrl.searchParams.delete('error');
 window.history.replaceState(null, '', compUrl.pathname + compUrl.search + compUrl.hash);
 {% endif %}
 
-let _catalogLoading = false;
 async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
   const tableArea = document.getElementById('catalog-table-area');
   const spinner = document.getElementById('catalog-search-spinner');
   if (!tableArea) return;
-  _catalogLoading = true;
   tableArea.style.opacity = '0.45';
   tableArea.style.pointerEvents = 'none';
   if (spinner) spinner.classList.remove('d-none');
@@ -333,8 +331,7 @@ async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
 
     const newTableArea = doc.getElementById('catalog-table-area');
     if (!newTableArea) {
-      window.location.href = targetUrl;
-      return;
+      throw new Error('Dữ liệu máy chủ trả về không hợp lệ (thiếu bảng danh mục).');
     }
     tableArea.innerHTML = newTableArea.innerHTML;
 
@@ -369,7 +366,6 @@ async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
     tableArea.style.opacity = '1';
     tableArea.style.pointerEvents = '';
     if (spinner) spinner.classList.add('d-none');
-    _catalogLoading = false;
   }
 }
 

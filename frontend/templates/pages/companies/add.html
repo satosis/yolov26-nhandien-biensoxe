@@ -72,9 +72,33 @@
       <form method="post" action="/admin/transport/catalog/companies" id="company-add-form" class="company-form" enctype="multipart/form-data">
         <input type="hidden" name="back" value="{{ back_url }}">
 
+        <!-- Phân loại đối tác (Tổ chức vs Cá nhân) -->
+        <div class="form-group mb-3 pb-3 border-bottom">
+          <label class="small font-weight-bold d-block text-secondary mb-2">Phân loại đối tác:</label>
+          <div class="custom-control custom-radio custom-control-inline">
+            <input type="radio" id="pt_org" name="partner_type" class="custom-control-input" value="organization"
+                   {% if partner_type != 'individual' %}checked{% endif %}
+                   onchange="onPartnerTypeChange(this.value)">
+            <label class="custom-control-label font-weight-bold text-primary cursor-pointer font-size-13" for="pt_org">
+              1. Tổ chức (Doanh nghiệp, Công ty)
+            </label>
+          </div>
+          <div class="custom-control custom-radio custom-control-inline">
+            <input type="radio" id="pt_ind" name="partner_type" class="custom-control-input" value="individual"
+                   {% if partner_type == 'individual' %}checked{% endif %}
+                   onchange="onPartnerTypeChange(this.value)">
+            <label class="custom-control-label font-weight-bold text-success cursor-pointer font-size-13" for="pt_ind">
+              2. Cá nhân
+            </label>
+          </div>
+          <div id="individual-help-note" class="small text-success mt-1 {% if partner_type != 'individual' %}d-none{% endif %}">
+            <i class="bx bx-check-circle mr-1"></i>Đối với đối tác <strong>Cá nhân</strong>: Toàn bộ thông tin Mã số thuế, Địa chỉ, Ngành nghề <strong>không bắt buộc</strong>.
+          </div>
+        </div>
+
         <div class="form-row">
           <div class="col-md-4 mb-3">
-            <label for="add-tax-code" class="small font-weight-bold">Mã số thuế <span class="text-danger">*</span></label>
+            <label for="add-tax-code" class="small font-weight-bold">Mã số thuế <span class="text-danger req-star-tax">*</span></label>
             <div class="input-group">
               <input id="add-tax-code" name="tax_code" maxlength="14" required
                      class="form-control" placeholder="VD: 0100109106"
@@ -89,7 +113,7 @@
             <small id="lookup-message" class="d-block mt-1 text-muted" aria-live="polite"></small>
           </div>
           <div class="col-md-8 mb-3">
-            <label for="add-name" class="small font-weight-bold">Tên công ty / Đơn vị <span class="text-danger">*</span></label>
+            <label for="add-name" id="label-partner-name" class="small font-weight-bold">Tên công ty / Đơn vị <span class="text-danger">*</span></label>
             <input id="add-name" name="name" maxlength="255" required class="form-control">
           </div>
         </div>
@@ -125,13 +149,13 @@
             <input id="add-email" name="email" type="email" class="form-control">
           </div>
           <div class="col-md-8 mb-3">
-            <label for="add-address" class="small font-weight-bold">Địa chỉ <span class="text-danger">*</span></label>
+            <label for="add-address" class="small font-weight-bold">Địa chỉ <span class="text-danger req-star-addr">*</span></label>
             <input id="add-address" name="address" maxlength="500" required class="form-control">
           </div>
         </div>
 
         <div class="form-group mb-3 company-activity-wrapper">
-          <label for="add-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger">*</span></label>
+          <label for="add-business-activity" class="small font-weight-bold">Ngành nghề hoạt động <span class="text-danger req-star-act">*</span></label>
           <input id="add-business-activity" name="business_activity" value="" maxlength="500" required class="form-control" placeholder="Nhập hoặc chọn ngành nghề hoạt động" list="business-activities-list">
           <datalist id="business-activities-list">
             {% for act in business_activities or [
@@ -269,7 +293,10 @@ async function lookupTaxCode() {
       const directorLabel = result.director_label || (result.director_name ? (result.director_username ? `${result.director_name} (${result.director_username})` : result.director_name) : `ID ${result.director_user_id}`);
       let option = Array.from(dirSelect.options).find(opt => opt.value === directorId);
       if (!option) {
-        option = new Option(directorLabel, directorId, true, true);
+        option = document.createElement('option');
+        option.value = directorId;
+        option.text = directorLabel;
+        option.selected = true;
         if (result.director_email) option.setAttribute('data-email', result.director_email);
         if (result.director_phone) option.setAttribute('data-phone', result.director_phone);
         if (result.director_bank_account) option.setAttribute('data-bank-account', result.director_bank_account);
@@ -383,8 +410,64 @@ function setCompanyActivitySelect(select, value) {
   }
 }
 
+function onPartnerTypeChange(val) {
+  const isInd = (val === 'individual');
+  const helpNote = document.getElementById('individual-help-note');
+  if (helpNote) helpNote.classList.toggle('d-none', !isInd);
+
+  // Tax code
+  const taxInput = document.getElementById('add-tax-code');
+  const taxStars = document.querySelectorAll('.req-star-tax');
+  if (taxInput) {
+    if (isInd) {
+      taxInput.removeAttribute('required');
+      taxInput.placeholder = "Không bắt buộc với cá nhân (nếu có)";
+    } else {
+      taxInput.setAttribute('required', 'required');
+      taxInput.placeholder = "VD: 0100109106";
+    }
+  }
+  taxStars.forEach(el => el.style.display = isInd ? 'none' : 'inline');
+
+  // Partner name label
+  const nameLabel = document.getElementById('label-partner-name');
+  if (nameLabel) {
+    nameLabel.innerHTML = (isInd ? 'Họ và tên cá nhân' : 'Tên công ty / Đơn vị') + ' <span class="text-danger">*</span>';
+  }
+
+  // Address
+  const addrInput = document.getElementById('add-address');
+  const addrStars = document.querySelectorAll('.req-star-addr');
+  if (addrInput) {
+    if (isInd) {
+      addrInput.removeAttribute('required');
+      addrInput.placeholder = "Không bắt buộc với cá nhân";
+    } else {
+      addrInput.setAttribute('required', 'required');
+      addrInput.placeholder = "";
+    }
+  }
+  addrStars.forEach(el => el.style.display = isInd ? 'none' : 'inline');
+
+  // Business activity
+  const actInput = document.getElementById('add-business-activity');
+  const actStars = document.querySelectorAll('.req-star-act');
+  if (actInput) {
+    if (isInd) {
+      actInput.removeAttribute('required');
+      actInput.placeholder = "Không bắt buộc với cá nhân";
+    } else {
+      actInput.setAttribute('required', 'required');
+      actInput.placeholder = "Nhập hoặc chọn ngành nghề hoạt động";
+    }
+  }
+  actStars.forEach(el => el.style.display = isInd ? 'none' : 'inline');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.company-activity-select').forEach(initCompanyActivitySelect);
+  const checkedPt = document.querySelector('input[name="partner_type"]:checked')?.value || 'organization';
+  onPartnerTypeChange(checkedPt);
 });
 </script>
 {% endblock %}

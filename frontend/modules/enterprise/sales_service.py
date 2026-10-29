@@ -34,22 +34,6 @@ def get_or_create_customer(
         fetch=True, commit=False
     )
     if existing:
-        updates = []
-        params = []
-        if phone and not existing.get("phone"):
-            updates.append("phone = %s")
-            params.append(phone[:50])
-        if address and not existing.get("address"):
-            updates.append("address = %s")
-            params.append(address[:500])
-        if updates:
-            params.extend([company_id, existing["id"]])
-            db._execute_query(
-                f"UPDATE public.personal_debt_customers SET {', '.join(updates)}, updated_at = NOW() WHERE company_id = %s AND id = %s",
-                tuple(params), commit=True
-            )
-            existing["phone"] = phone if phone and not existing.get("phone") else existing.get("phone")
-            existing["address"] = address if address and not existing.get("address") else existing.get("address")
         return existing
 
     s = unicodedata.normalize('NFKD', clean_name).encode('ASCII', 'ignore').decode('utf-8')

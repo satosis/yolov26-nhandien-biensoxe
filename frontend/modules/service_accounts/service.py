@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 CATEGORIES = {
     "toll": {
@@ -128,8 +129,10 @@ def _service_account_conditions(category=None, search=None, status=None, company
     if status and status in ("active", "locked", "expired"):
         conditions.append("status = %s")
         params.append(status)
+    if company_id is None:
+        company_id = get_current_company_id()
     if company_id is not None:
-        conditions.append("(company_id = %s OR company_id IS NULL)")
+        conditions.append("company_id = %s")
         params.append(company_id)
     if search:
         search_pattern = f"%{search.strip()}%"
@@ -309,7 +312,7 @@ def save_service_account(data: Dict[str, Any], account_id: Optional[int] = None)
         )
         return account_id
     else:
-        company_id = data.get("company_id")
+        company_id = data.get("company_id") or get_current_company_id()
         new_id = db._execute_query(
             """
             INSERT INTO public.transport_service_accounts (

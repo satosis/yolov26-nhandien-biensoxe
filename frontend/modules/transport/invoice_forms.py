@@ -51,6 +51,8 @@ def _money(value, label: str, *, required: bool = False) -> Decimal | None:
         if required:
             raise ValueError(f"Nhập {label}.")
         return None
+    # Xử lý các chuỗi số từ DB/JSON có đuôi thập phân .00, ,00, .0 hoặc ,0
+    raw = re.sub(r"[.,]0+$", "", raw)
     if not re.fullmatch(r"(?:[0-9]+|[0-9]{1,3}(?:[., ][0-9]{3})+)", raw):
         raise ValueError(f"{label.capitalize()} phải là số nguyên đồng.")
     number = Decimal(re.sub(r"[., ]", "", raw))
@@ -164,9 +166,10 @@ def parse_invoice_form(form: dict, *, vehicles: list[dict], buyer: dict,
     lines[-1]["tax_amount"] = tax_remaining
     debt = _money(form.get("debt_amount"), "số tiền còn nợ") if payment_status == "debt" else Decimal(0)
     if payment_status == "debt":
-        debt = gross if debt is None else debt
-        if debt <= 0 or debt > gross:
-            raise ValueError("Số tiền còn nợ phải lớn hơn 0 và không vượt tổng hóa đơn.")
+        if debt is None or debt <= 0:
+            debt = gross
+        elif debt > gross:
+            raise ValueError("Số tiền còn nợ không được vượt tổng thanh toán hóa đơn.")
     return {
         "seller_company_id": seller_company_id,
         "buyer_company_id": buyer["id"], "buyer_tax_code": buyer.get("tax_code") or "",

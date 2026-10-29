@@ -1,0 +1,223 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}Kế Hoạch Từ Khóa & Mẫu Nội Dung Quảng Cáo{% endblock %}
+
+{% block head %}
+<style>
+  .keyword-box {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.875rem;
+    line-height: 1.6;
+    padding: 16px;
+    white-space: pre-wrap;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+  .nav-tabs .nav-link {
+    font-weight: 600;
+    color: #4b5563;
+    border-radius: 8px 8px 0 0;
+  }
+  .nav-tabs .nav-link.active {
+    color: #2563eb;
+    border-bottom: 2px solid #2563eb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- TOP HEADER / BREADCRUMB -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h5 class="mb-1 font-weight-bold text-dark"><i class="bx bx-key text-primary mr-1"></i> Kho Từ Khóa & Nội Dung Mẫu Google Ads</h5>
+        <p class="text-muted small mb-0">Tra cứu nhanh bộ từ khóa chuẩn SEO/Ads và mẫu quảng cáo để dán vào Google Ads hoặc kích hoạt chiến dịch.</p>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="/admin/advertising" class="btn btn-primary btn-sm font-weight-bold">
+          <i class="bx bx-broadcast mr-1"></i> Quản Lý Chiến Dịch Chuyến Đi
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN TABBED CARD -->
+  <div class="card shadow-sm">
+    <div class="card-header bg-white pt-3 pb-0 border-bottom-0">
+      <ul class="nav nav-tabs card-header-tabs" id="adResourcesTabs" role="tablist">
+        <li class="nav-item">
+          <button class="nav-link active" id="crane-tab" data-toggle="tab" data-target="#crane-pane" data-bs-toggle="tab" data-bs-target="#crane-pane" type="button" role="tab">
+            <i class="bx bx-car mr-1"></i> 1. Từ Khóa Xe Cẩu Phú Thọ
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="weights-tab" data-toggle="tab" data-target="#weights-pane" data-bs-toggle="tab" data-bs-target="#weights-pane" type="button" role="tab">
+            <i class="bx bx-cube mr-1"></i> 2. Quả Cân Kiểm Định
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="remote-tab" data-toggle="tab" data-target="#remote-pane" data-bs-toggle="tab" data-bs-target="#remote-pane" type="button" role="tab">
+            <i class="bx bx-navigation mr-1"></i> 3. Đón Chiều Về Tây Bắc
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link text-danger" id="negative-tab" data-toggle="tab" data-target="#negative-pane" data-bs-toggle="tab" data-bs-target="#negative-pane" type="button" role="tab">
+            <i class="bx bx-block mr-1"></i> 4. Từ Khóa Phủ Định (Chặn rác)
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" id="copy-tab" data-toggle="tab" data-target="#copy-pane" data-bs-toggle="tab" data-bs-target="#copy-pane" type="button" role="tab">
+            <i class="bx bx-edit mr-1"></i> 5. Mẫu Tiêu Đề & Mô Tả
+          </button>
+        </li>
+      </ul>
+    </div>
+    <div class="card-body p-4">
+      <div class="tab-content" id="adResourcesTabsContent">
+
+        <!-- TAB 1: XE CẨU -->
+        <div class="tab-pane fade show active" id="crane-pane" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="font-weight-bold mb-0">Bộ từ khóa cho thuê xe cẩu (Phú Thọ, Việt Trì, KCN)</h6>
+              <span class="text-muted small">Khớp cụm từ và khớp chính xác - Giúp gọi xe trực tiếp</span>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="copyText('crane_box')">
+              <i class="bx bx-copy mr-1"></i> Sao chép toàn bộ
+            </button>
+          </div>
+          <div class="keyword-box" id="crane_box">{{ resources.tu_khoa_xe_cau }}</div>
+        </div>
+
+        <!-- TAB 2: QUẢ CÂN -->
+        <div class="tab-pane fade" id="weights-pane" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="font-weight-bold mb-0">Bộ từ khóa cho thuê quả cân kiểm định trạm cân xe tải & thử tải</h6>
+              <span class="text-muted small">Nhắm mục tiêu trạm cân ô tô 20T - 120T, trạm trộn bê tông, thử tải cầu trục</span>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="copyText('weights_box')">
+              <i class="bx bx-copy mr-1"></i> Sao chép toàn bộ
+            </button>
+          </div>
+          <div class="keyword-box" id="weights_box">{{ resources.tu_khoa_qua_can }}</div>
+        </div>
+
+        <!-- TAB 3: ĐÓN CHIỀU VỀ TÂY BẮC -->
+        <div class="tab-pane fade" id="remote-pane" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="font-weight-bold mb-0">Bộ từ khóa chuyến tiện chuyến / Đón hàng chiều về (Lai Châu, Sơn La, Hải Phòng...)</h6>
+              <span class="text-muted small">Chỉ kích hoạt theo khu vực và lịch trình xe để triệt tiêu xe chạy rỗng</span>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="copyText('remote_box')">
+              <i class="bx bx-copy mr-1"></i> Sao chép toàn bộ
+            </button>
+          </div>
+          <div class="keyword-box" id="remote_box">{{ resources.tu_khoa_chuyen_ve }}</div>
+        </div>
+
+        <!-- TAB 4: PHỦ ĐỊNH -->
+        <div class="tab-pane fade" id="negative-pane" role="tabpanel">
+          <div class="alert alert-warning mb-3">
+            <i class="bx bx-info-circle mr-1"></i> <strong>Lưu ý quan trọng:</strong> Cần dán danh sách này vào mục <strong>Từ khóa phủ định cấp chiến dịch</strong> trên Google Ads để không bị mất tiền cho người tìm việc, đồ chơi, game hay mua bán xe cũ.
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="font-weight-bold mb-0 text-danger">Danh sách từ khóa phủ định (Negative Keywords)</h6>
+            <button class="btn btn-outline-danger btn-sm" onclick="copyText('negative_box')">
+              <i class="bx bx-copy mr-1"></i> Sao chép toàn bộ
+            </button>
+          </div>
+          <div class="keyword-box" id="negative_box">{{ resources.tu_khoa_phu_dinh }}</div>
+        </div>
+
+        <!-- TAB 5: MẪU QUẢNG CÁO -->
+        <div class="tab-pane fade" id="copy-pane" role="tabpanel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h6 class="font-weight-bold mb-0">Mẫu tiêu đề (30 ký tự) & mô tả (90 ký tự) chuẩn Google Ads</h6>
+              <span class="text-muted small">Tối ưu điểm chất lượng (Ad Quality Score) và tỷ lệ nhấp chuột (CTR)</span>
+            </div>
+            <button class="btn btn-outline-primary btn-sm" onclick="copyText('copy_box')">
+              <i class="bx bx-copy mr-1"></i> Sao chép toàn bộ
+            </button>
+          </div>
+          <div class="keyword-box" id="copy_box">{{ resources.ad_copy }}</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  // Direct click handler for tabs to guarantee switching across all browser versions
+  document.querySelectorAll("#adResourcesTabs .nav-link").forEach(function(btn) {
+    btn.addEventListener("click", function(e) {
+      e.preventDefault();
+      const targetId = this.getAttribute("data-target") || this.getAttribute("data-bs-target");
+      if (!targetId) return;
+
+      // Deactivate all tabs
+      document.querySelectorAll("#adResourcesTabs .nav-link").forEach(function(t) {
+        t.classList.remove("active");
+        t.setAttribute("aria-selected", "false");
+      });
+      document.querySelectorAll("#adResourcesTabsContent .tab-pane").forEach(function(p) {
+        p.classList.remove("show", "active");
+      });
+
+      // Activate current
+      this.classList.add("active");
+      this.setAttribute("aria-selected", "true");
+      const targetPane = document.querySelector(targetId);
+      if (targetPane) {
+        targetPane.classList.add("show", "active");
+      }
+    });
+  });
+});
+
+function copyText(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const text = el.innerText || el.textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      if (window.showNotify) {
+        window.showNotify("Đã sao chép nội dung vào Clipboard!", "success");
+      } else {
+        alert("Đã sao chép nội dung vào Clipboard!");
+      }
+    }).catch(() => {
+      _fallbackCopy(text);
+    });
+  } else {
+    _fallbackCopy(text);
+  }
+}
+
+function _fallbackCopy(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    if (window.showNotify) window.showNotify("Đã sao chép nội dung!", "success");
+    else alert("Đã sao chép nội dung!");
+  } catch(e) {
+    alert("Không thể tự động sao chép. Vui lòng bôi đen và nhấn Ctrl + C.");
+  }
+  document.body.removeChild(textarea);
+}
+</script>
+{% endblock %}

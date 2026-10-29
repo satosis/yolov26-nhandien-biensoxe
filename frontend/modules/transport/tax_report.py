@@ -15,6 +15,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 
 def quarter_bounds(year: int, quarter: int | None = None) -> tuple[date, date, str]:
@@ -32,6 +33,8 @@ def quarter_bounds(year: int, quarter: int | None = None) -> tuple[date, date, s
 
 def get_output_tax_invoices(start_date: date, end_date: date, seller_company_id: int | None = None) -> list[dict]:
     """Retrieve output (sales) VAT invoices within date range."""
+    if seller_company_id is None:
+        seller_company_id = get_current_company_id()
     params: list[object] = [start_date, end_date]
     company_filter = ""
     if seller_company_id:
@@ -89,6 +92,8 @@ def get_output_tax_invoices(start_date: date, end_date: date, seller_company_id:
 
 def get_input_tax_invoices(start_date: date, end_date: date, buyer_company_id: int | None = None) -> list[dict]:
     """Retrieve input (purchases/expenses) VAT invoices within date range."""
+    if buyer_company_id is None:
+        buyer_company_id = get_current_company_id()
     params: list[object] = [start_date, end_date]
     company_filter = ""
     if buyer_company_id:
@@ -165,6 +170,8 @@ def get_previous_quarter_deductible(
     seller_company_id: int | None = None,
 ) -> Decimal:
     """Calculate [22] - deductible VAT carried forward from immediately preceding quarter."""
+    if seller_company_id is None:
+        seller_company_id = get_current_company_id()
     if not quarter or quarter not in (1, 2, 3, 4):
         return Decimal(0)
     if quarter == 1:

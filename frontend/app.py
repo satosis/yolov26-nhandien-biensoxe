@@ -21,6 +21,7 @@ from backend.services import config as cfg
 cfg.setup_logging("frontend.log")
 
 from frontend.notifications import InquiryNotification, manager
+from frontend.context.company_context import company_context
 from frontend.modules.auth import router as auth_router
 from frontend.modules.invoices import router as input_invoices_router, companies_router
 from frontend.modules.enterprise import enterprise_router, supplier_router
@@ -41,12 +42,13 @@ from frontend.modules.transport.trial_balance_router import router as trial_bala
 from frontend.modules.transport.cash_bank_router import router as cash_bank_router
 from frontend.modules.transport.prepaid_expenses_router import router as prepaid_expenses_router
 from frontend.modules.zalo import router as zalo_inbox_router
+from frontend.modules.advertising import advertising_router
 
 from frontend.routers.cameras_router import router as cameras_router
 from frontend.routers.administrative_divisions_router import router as administrative_divisions_router
 from frontend.routers.api_keys_router import router as api_keys_router, alias_router as api_keys_alias_router
 from frontend.routers.cms_router import router as cms_router
-from frontend.routers.detection_router import router as detection_router
+from frontend.routers.detection import router as detection_router
 from frontend.routers.door_providers_router import router as door_providers_router
 from frontend.routers.inquiries_router import router as inquiries_router
 from frontend.routers.kyc_router import router as kyc_router
@@ -87,7 +89,54 @@ self.addEventListener('activate', (event) => {
 
 app = FastAPI(title="Parking Camera")
 
-_SESSION_SECRET = os.environ.get("SESSION_SECRET")
+class StaticCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/static/vendor/"):
+            response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        elif path.startswith("/static/") and path.endswith(STATIC_CACHE_EXTENSIONS):
+            response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+        return response
+
+
+_SKIP_COMPANY_PREFIXES = (
+    "/static",
+    "/snapshots",
+    "/upload",
+    "/known_faces",
+    "/data/recordings",
+    "/sw.js",
+    "/favicon.ico",
+)
+
+
+def _extract_company_id(request: Request) -> int | None:
+    raw = request.query_params.get("company_id")
+    if not raw and "session" in request.scope:
+        sess = request.session
+        u = sess.get("user")
+        raw = sess.get("active_company_id") or (u.get("company_id") if isinstance(u, dict) else None)
+    try:
+        val = int(raw)
+        return val if val > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+class CompanyContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith(_SKIP_COMPANY_PREFIXES):
+            return await call_next(request)
+
+        with company_context(_extract_company_id(request)):
+            return await call_next(request)
+
+
+app.add_middleware(CompanyContextMiddleware)
+app.add_middleware(StaticCacheMiddleware)
+
+_SESSION_SECRET = os.environ.get("SESSION_SECRET", "son-lam-industrial-transport-secret-key-2026")
 app.add_middleware(
     SessionMiddleware,
     secret_key=_SESSION_SECRET,
@@ -95,21 +144,6 @@ app.add_middleware(
     max_age=60 * 60 * 24 * 7,
     https_only=False,
 )
-
-
-class StaticCacheMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        path = request.url.path
-        if path.startswith("/static/"):
-            if path.endswith(STATIC_CACHE_EXTENSIONS):
-                response.headers["Cache-Control"] = "public, max-age=604800, immutable"
-            elif path.startswith("/static/vendor/"):
-                response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
-        return response
-
-
-app.add_middleware(StaticCacheMiddleware)
 
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
@@ -142,6 +176,7 @@ ADMIN_ROUTERS = [
     api_keys_router,
     api_keys_alias_router,
     cargo_trips_router,
+    advertising_router,
     contracts_router,
     catalog_router,
     transport_catalog_router,
@@ -222,4 +257,4 @@ async def notify_inquiry(data: InquiryNotification, background_tasks: Background
         background_tasks.add_task(send_inquiry_telegram_alert, inq_item, data.id, base_url)
     except Exception as exc:
         logging.getLogger(__name__).warning("Could not dispatch Telegram alert: %s", exc)
-    return {"status": "ok"}
+    return {"status": "ok"}

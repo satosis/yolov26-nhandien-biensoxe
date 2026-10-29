@@ -126,9 +126,9 @@ def build_command(trip: dict, buyer: dict) -> dict:
     revenue = Decimal(str(trip.get("freight_revenue") or 0))
     if not revenue.is_finite() or revenue <= 0:
         raise ValueError("Cước vận chuyển phải lớn hơn 0.")
-    vat_rate = parse_vat_rate(trip.get("vat_rate")) or DEFAULT_INVOICE_VAT_RATE
-    if vat_rate not in _TAX_IDS:
-        raise ValueError("Thuế suất chưa được BKAV hỗ trợ; hãy dùng 0%, 5%, 8% hoặc 10%.")
+    vat_rate = parse_vat_rate(trip.get("vat_rate"))
+    if vat_rate is None or vat_rate not in _TAX_IDS:
+        raise ValueError("Thuế suất chưa được BKAV hỗ trợ hoặc chưa có; hãy chọn 0%, 5%, 8% hoặc 10%.")
     service = str(trip.get("service_name") or DEFAULT_SERVICE_NAME).strip() or DEFAULT_SERVICE_NAME
     content = str(trip.get("trip_note") or "").strip()
     if content.startswith("Nội dung hóa đơn gốc:"):
@@ -342,12 +342,17 @@ def push_invoice(trip: dict, buyer: dict, seller: dict) -> dict:
     config = configuration(seller_tax)
     if not seller or str(seller.get("tax_code") or "").strip() != config["seller_tax"]:
         raise ValueError("Mã số thuế bên bán của chuyến hàng không khớp tài khoản BKAV đã cấu hình.")
-    imported = db._execute_query(
-        "SELECT 1 FROM public.bkav_invoice_imports WHERE trip_id = %s",
-        (trip["id"],), fetch=True, commit=False,
+    import_table = db._execute_query(
+        "SELECT to_regclass('public.bkav_invoice_imports') AS table_name",
+        fetch=True, commit=False,
     )
-    if imported:
-        raise ValueError("Hóa đơn của chuyến hàng này đã có trên BKAV; không thể gửi lại.")
+    if import_table and import_table.get("table_name"):
+        imported = db._execute_query(
+            "SELECT 1 FROM public.bkav_invoice_imports WHERE trip_id = %s",
+            (trip["id"],), fetch=True, commit=False,
+        )
+        if imported:
+            raise ValueError("Hóa đơn của chuyến hàng này đã có trên BKAV; không thể gửi lại.")
     command = build_command(trip, buyer)
     trip_id = int(trip["id"])
     previous = _reserve(trip_id, config["seller_tax"])
@@ -397,8 +402,10 @@ def push_saved_invoice(invoice: dict, lines: list[dict], buyer: dict, seller: di
         raise ValueError("Không tìm thấy công ty bên bán.")
     seller_tax = str(seller.get("tax_code") or "").strip()
     config = configuration(seller_tax)
+    if not buyer or not all(str(buyer.get(k) or "").strip() for k in ("name", "address", "tax_code")):
+        raise ValueError("Chọn đơn vị mua có đủ tên, địa chỉ và mã số thuế.")
     if invoice.get("entry_origin") not in ("manual", "edited", None):
-        raise ValueError("Hóa đơn này đã có trên BKAV; không gửi lại.")
+        raise ValueError("Hóa đơn này đã có trên BKAV; không thể gửi lại để tránh trùng dữ liệu.")
     if not lines:
         raise ValueError("Hóa đơn chưa có dòng xe để đồng bộ.")
     rate = parse_vat_rate(invoice.get("vat_rate"))
@@ -421,24 +428,23 @@ def push_saved_invoice(invoice: dict, lines: list[dict], buyer: dict, seller: di
         if not plate:
             plate = str(invoice.get("plate_number") or "Xe").strip()
         amount = Decimal(str(line.get("amount") or 0))
-        if not description or not plate or not amount.is_finite() or amount <= 0 or amount != amount.to_integral_value():
+        if not description or not plate or not amount.is_finite() or amount <= 0:
             raise ValueError(f"Dòng xe {index} thiếu biển số, nội dung hoặc cước hợp lệ.")
         tax = (amount * rate).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        if line.get("tax_amount") is not None and Decimal(str(line["tax_amount"])) != tax:
-            raise ValueError(f"Thuế dòng xe {index} không khớp số tiền đã lưu.")
         subtotal += amount
         total_tax += tax
         segments.append({"description": description, "plate_number": plate, "amount": amount,
                          "origin": line.get("origin"), "destination": line.get("destination"),
                          "via_points": line.get("via_points") or []})
-    if subtotal != Decimal(str(invoice.get("subtotal") or 0)) or subtotal + total_tax != Decimal(str(invoice.get("gross") or 0)):
-        raise ValueError("Tổng tiền hóa đơn không khớp các dòng xe đã lưu.")
+
+    saved_subtotal = Decimal(str(invoice.get("subtotal") or 0))
+    freight_revenue = saved_subtotal if saved_subtotal > 0 else subtotal
 
     virtual_trip = {
         "id": 1,
         "invoice_date": invoice.get("invoice_date"),
         "document_number": str(invoice.get("invoice_number") or "").zfill(8),
-        "freight_revenue": subtotal,
+        "freight_revenue": freight_revenue,
         "vat_rate": rate,
         "payment_method": invoice.get("payment_method"),
         "service_name": invoice.get("service_name"),

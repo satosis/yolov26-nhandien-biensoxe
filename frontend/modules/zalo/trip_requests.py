@@ -100,7 +100,7 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
                     "coordinates": coord_vals,
                     "message_id": item["id"],
                 })
-    map_places = [item.get("address") or item.get("label") or item.get("url") for item in map_locations]
+    map_places = [item.get("url") or item.get("address") or item.get("label") for item in map_locations]
     origin = map_places[0] if len(map_places) >= 2 else (origin_province or (route.group(1).strip() if route else ""))
     destination = map_places[-1] if len(map_places) >= 2 else (destination_province or (route.group(2).strip() if route else ""))
 
@@ -158,7 +158,7 @@ def build_trip_draft(messages: list[dict], *, provinces: list[str],
             name = (m.group(2) or "").strip()
             if name.lower() in {"xuat", "chua", "roi", "di", "ve", "nay", "do", "can", "chuyen", "vat"}:
                 name = ""
-            vehicle_nickname = f"{title} {name}".strip() if name else title
+            vehicle_nickname = name if name else title
             break
     if not vehicle_nickname:
         plate_match = re.search(r"\b(\d{2}[A-Z]-?\d{3}\.?\d{2})\b", " ".join(texts), re.I)

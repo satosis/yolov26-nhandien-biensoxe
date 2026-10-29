@@ -17,27 +17,51 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 DAI_LO_XANH_COMPANY_ID = 33
 
 
 def get_depreciation_data(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int = 2026,
     as_of_month: int | None = None,
     full_year: bool = False,
 ) -> dict[str, Any]:
     """Calculate depreciation schedule for all vehicles and fixed assets of the company."""
+    if company_id is None:
+        company_id = get_current_company_id()
+
     if as_of_month is None:
         today = date.today()
         as_of_month = today.month if today.year == year else 12
+
+    if not company_id or int(company_id) <= 0:
+        return {
+            "year": year,
+            "as_of_month": as_of_month,
+            "full_year": full_year,
+            "company": None,
+            "company_name": "",
+            "rows": [],
+            "totals": {
+                "original_cost": 0,
+                "accumulated_depreciation_prev": 0,
+                "monthly_depreciation": 0,
+                "depreciation_current_period": 0,
+                "depreciation_current_year": 0,
+                "accumulated_depreciation_end": 0,
+                "remaining_book_value": 0,
+            },
+            "row_count": 0,
+        }
 
     # Query company info
     company = db._execute_query(
         "SELECT * FROM public.invoice_companies WHERE id = %s",
         (company_id,), fetch=True, commit=False,
     ) or {}
-    company_name = company.get("name") or "CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH"
+    company_name = company.get("name") or ""
 
     # Query vehicles from plate_whitelist
     vehicles = db._execute_query("""
@@ -51,7 +75,7 @@ def get_depreciation_data(
     # Also query enterprise_assets if any
     assets = db._execute_query("""
         SELECT id, asset_code, name, category, serial_number, acquired_date,
-               purchase_cost, assigned_to, note
+               purchase_cost, assigned_to, note, COALESCE(depreciation_years, 5) as depreciation_years
         FROM public.enterprise_assets
         WHERE company_id = %s AND purchase_cost > 0
         ORDER BY id ASC
@@ -169,7 +193,8 @@ def get_depreciation_data(
         code = str(a.get("asset_code") or f"TS-{a['id']}").strip()
         name = str(a.get("name") or "").strip()
         orig_price = int(a.get("purchase_cost") or 0)
-        total_months = 60  # Default 5 years
+        dur_years = int(a.get("depreciation_years") or 5)
+        total_months = dur_years * 12 if dur_years > 0 else 60
         start_d = a.get("acquired_date") or date(year, 1, 1)
         if isinstance(start_d, str):
             try:
@@ -251,12 +276,16 @@ def get_depreciation_data(
 
 
 def export_depreciation_excel(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int = 2026,
     as_of_month: int | None = None,
     full_year: bool = False,
 ) -> bytes:
     """Build depreciation schedule Excel workbook following the exact accounting template."""
+    if company_id is None:
+        company_id = get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return b""
     data = get_depreciation_data(company_id=company_id, year=year, as_of_month=as_of_month, full_year=full_year)
     rows = data["rows"]
     totals = data["totals"]

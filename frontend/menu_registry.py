@@ -18,6 +18,11 @@ MENU_GROUPS = {
         "strangers": "👤 Người lạ",
         "pending_plates": "🚘 Biển số chờ duyệt",
     },
+    "💼 Phương Nam": {
+        "debts": "📑 Quản lý công nợ",
+        "sales": "🧾 Lịch sử bán hàng",
+        "suppliers": "📦 Nhà cung cấp",
+    },
     "🏢 Doanh nghiệp": {
         "enterprise": "🏢 Thông tin doanh nghiệp",
         "departments": "🏛️ Cơ cấu phòng ban",
@@ -26,13 +31,14 @@ MENU_GROUPS = {
         "advances": "💵 Tạm ứng & Hoàn ứng",
         "assets": "📦 Tài sản",
         "payroll": "💰 Lương nhân sự",
-        "debts": "📑 Quản lý công nợ",
-        "sales": "🧾 Lịch sử bán hàng",
-        "suppliers": "📦 Nhà cung cấp",
     },
     "🚚 Vận chuyển": {
         "vehicles": "🚚 Quản lý vận chuyển",
         "tax_checklist": "📑 Checklist Kế toán & Thuế",
+    },
+    "📢 Quảng cáo": {
+        "advertising": "📢 Chiến dịch Google Ads",
+        "advertising_keywords": "🔑 Kế hoạch & Từ khóa",
     },
     "⚙️ Hệ thống": {
         "companies": "🏢 Danh sách đơn vị",

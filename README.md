@@ -67,7 +67,7 @@ python backend/main.py
 > 📖 **Xem hướng dẫn chi tiết:** Xem file [INSTALL.md](INSTALL.md) để biết chi tiết các phương thức cài đặt (Ubuntu, macOS, Windows, Docker, và đặc biệt là triển khai lên **NVIDIA Jetson Nano**).
 
 **Truy cập:**
-- Chạy bằng Docker: `http://localhost:8080` (truy cập từ xa: `http://100.83.133.85:8080` hoặc `http://192.168.1.18:8080`)
+- Chạy bằng Docker: `http://localhost:8080` (truy cập từ xa: `http://100.80.242.108:8080` hoặc `http://10.1.120.246:8080`)
 - Chạy thủ công (Uvicorn): `http://localhost:8000`
 
 ## 💻 Kết nối từ xa bằng Antigravity IDE (Remote Development qua Tailscale)
@@ -86,6 +86,7 @@ Hệ thống hỗ trợ lập trình và điều khiển từ xa:
 3. Máy Windows đã kết nối thành công với thông số:
    - **Tên máy Windows**: `desktop-nie6arf`
    - **IP Tailscale của máy Windows**: `100.80.242.108`
+   - **IP Mạng LAN (cùng WiFi/Ethernet)**: `10.1.120.246`
 
 #### Bước 2: Bật dịch vụ OpenSSH Server trên Windows
 Mở **PowerShell với quyền Quản trị viên (Run as Administrator)** trên máy Windows và dán các lệnh sau:
@@ -107,19 +108,24 @@ Trong cửa sổ PowerShell / CMD của Windows, gõ:
 ```powershell
 whoami
 ```
-*(Hệ thống sẽ trả về dạng `COMPUTERNAME\username`, bạn chỉ cần lấy phần `username` sau dấu gạch chéo).*
+*(Trên máy chủ Windows hiện tại, tài khoản đăng nhập là: `admin`).*
 
 ---
 
 ### 2. Thiết lập trên Máy Phụ (MacBook)
 
 #### Cấu hình file `~/.ssh/config` trên Mac
-Mở file `~/.ssh/config` trên máy Mac và dán nội dung sau:
+Mở file `~/.ssh/config` trên máy Mac và dán nội dung sau (đã điền sẵn thông số thực tế):
 
 ```ssh
 Host win-tailscale
     HostName 100.80.242.108
-    User <USERNAME_MÁY_WINDOWS>
+    User admin
+    Port 22
+
+Host win-lan
+    HostName 10.1.120.246
+    User admin
     Port 22
 ```
 

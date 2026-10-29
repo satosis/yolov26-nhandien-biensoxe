@@ -7,6 +7,9 @@ from backend.ai.inference import inference_process
 from backend.camera.recorder import recorder_worker
 from backend.services.database import db
 from backend.util.system_utils import log_system_health
+from backend.camera import camera_service as cam_svc
+from backend.services.retention_manager import RetentionManager
+from backend.ai.stranger_manager import merge_duplicate_strangers
 logger = logging.getLogger("orchestrator")
 
 def _reap(p, timeout):
@@ -58,7 +61,6 @@ class CameraOrchestrator:
 
     def spawn_grabber(self, cam):
         cam_id = str(cam['id'])
-        from backend.camera import camera_service as cam_svc
         rtsp_url = cam_svc.get_camera_rtsp_url(cam['id'])
 
         if not rtsp_url:
@@ -129,7 +131,6 @@ class CameraOrchestrator:
                 elif not grabber.is_alive():
                     logger.warning("Grabber %s for camera %s stopped (exitcode %s)", grabber.name, cid, grabber.exitcode)
                     self.stop_grabber(cid)
-                    from backend.camera import camera_service as cam_svc
                     cam_svc.set_camera_streaming(cam['id'], False)
 
             if streaming_cams and not self.core_processes:
@@ -142,20 +143,20 @@ class CameraOrchestrator:
                 
             if now - self._last_cleanup_ts > 43200:
                 self._last_cleanup_ts = now
-                from backend.services.retention_manager import RetentionManager
                 RetentionManager().run()
 
             if now - self._last_stranger_merge_ts > 60:
                 self._last_stranger_merge_ts = now
-                try:
-                    from backend.ai.stranger_manager import merge_duplicate_strangers
-                    merged = merge_duplicate_strangers()
-                    if merged > 0:
-                        logger.info("Auto-merged %d duplicate stranger records", merged)
-                except Exception as e:
-                    logger.warning("Periodic stranger merge error: %s", e)
+                # Chỉ chạy merge người lạ khi có camera đang hoạt động
+                if streaming_cams:
+                    try:
+                        merged = merge_duplicate_strangers()
+                        if merged > 0:
+                            logger.info("Auto-merged %d duplicate stranger records", merged)
+                    except Exception as e:
+                        logger.warning("Periodic stranger merge error: %s", e)
 
-            time.sleep(1)
+            time.sleep(1 if streaming_cams else 3)
 
     def cleanup(self):
         logger.info("Cleaning up processes...")

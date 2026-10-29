@@ -10,8 +10,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
-from backend.services.database import db
-from frontend.deps import get_menu_context, require_menu, templates
+from frontend.deps import get_current_company_id, get_menu_context, require_menu, templates
 from frontend.modules.invoices.companies import get_company, list_companies
 from frontend.modules.transport.tax_report import (
     compute_tax_summary, export_quarterly_tax_excel,
@@ -51,7 +50,6 @@ async def tax_report_page(
     request: Request,
     year: int = Query(None),
     quarter: int = Query(None),
-    company_id: int | None = Query(None),
     deductible_in: str | None = Query(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
@@ -60,22 +58,8 @@ async def tax_report_page(
     selected_year = int(year) if year and str(year).isdigit() and 2000 <= int(year) <= 2100 else today.year
     selected_quarter = int(quarter) if quarter is not None and str(quarter).isdigit() and int(quarter) in (1, 2, 3, 4, 0) else _current_quarter(today)
 
-    all_companies = list_companies() or []
-    # Chỉ giữ lại công ty Vận Tải Đại Lộ Xanh theo yêu cầu người dùng
-    companies = [
-        c for c in all_companies
-        if c.get("id") == 33 or "ĐẠI LỘ XANH" in (c.get("name") or "").upper()
-    ]
-    if not companies and all_companies:
-        companies = [c for c in all_companies if "ĐẠI LỘ" in (c.get("name") or "").upper()] or all_companies[:1]
-
-    seller_company_id = int(company_id) if company_id is not None and str(company_id).isdigit() else None
-    if seller_company_id is None and companies:
-        seller_company_id = companies[0]["id"]
-    elif seller_company_id is None:
-        seller_company_id = 33
-
-    current_company = get_company(seller_company_id) if seller_company_id else None
+    companies = ctx.get("user_companies") or list_companies() or []
+    current_company = ctx.get("active_company") or get_company(get_current_company_id())
 
     start_date, end_date, period_label = quarter_bounds(selected_year, selected_quarter if selected_quarter != 0 else None)
 
@@ -83,12 +67,11 @@ async def tax_report_page(
     prev_deductible = _parse_deductible(deductible_in)
     if prev_deductible is None:
         prev_deductible = get_previous_quarter_deductible(
-            selected_year, selected_quarter if selected_quarter != 0 else None,
-            seller_company_id=seller_company_id,
+            selected_year, selected_quarter if selected_quarter != 0 else None
         )
 
-    output_invoices = get_output_tax_invoices(start_date, end_date, seller_company_id=seller_company_id)
-    input_invoices = get_input_tax_invoices(start_date, end_date, buyer_company_id=seller_company_id)
+    output_invoices = get_output_tax_invoices(start_date, end_date)
+    input_invoices = get_input_tax_invoices(start_date, end_date)
     summary = compute_tax_summary(output_invoices, input_invoices, previous_deductible=prev_deductible)
 
     available_years = [selected_year, selected_year - 1, selected_year - 2, 2026, 2025, 2024]
@@ -127,7 +110,7 @@ async def tax_report_page(
         quarter=selected_quarter,
         period_label=period_label,
         available_years=available_years,
-        company_id=seller_company_id,
+        company_id=get_current_company_id(),
         current_company=current_company,
         companies=companies,
         start_date=start_date.isoformat(),
@@ -158,7 +141,6 @@ async def export_tax_report(
     request: Request,
     year: int = Query(None),
     quarter: int = Query(None),
-    company_id: int | None = Query(None),
     deductible_in: str | None = Query(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
@@ -166,21 +148,19 @@ async def export_tax_report(
     selected_year = int(year) if year and str(year).isdigit() and 2000 <= int(year) <= 2100 else today.year
     selected_quarter = int(quarter) if quarter is not None and str(quarter).isdigit() and int(quarter) in (1, 2, 3, 4, 0) else _current_quarter(today)
 
-    ctx = get_menu_context(request, user)
-    seller_company_id = int(company_id) if company_id is not None and str(company_id).isdigit() else (ctx.get("active_company_id") or 33)
-    company = get_company(seller_company_id) if seller_company_id else None
+    cid = get_current_company_id()
+    company = get_company(cid) if cid else None
 
     start_date, end_date, period_label = quarter_bounds(selected_year, selected_quarter if selected_quarter != 0 else None)
 
     prev_deductible = _parse_deductible(deductible_in)
     if prev_deductible is None:
         prev_deductible = get_previous_quarter_deductible(
-            selected_year, selected_quarter if selected_quarter != 0 else None,
-            seller_company_id=seller_company_id,
+            selected_year, selected_quarter if selected_quarter != 0 else None
         )
 
-    output_invoices = get_output_tax_invoices(start_date, end_date, seller_company_id=seller_company_id)
-    input_invoices = get_input_tax_invoices(start_date, end_date, buyer_company_id=seller_company_id)
+    output_invoices = get_output_tax_invoices(start_date, end_date)
+    input_invoices = get_input_tax_invoices(start_date, end_date)
     summary = compute_tax_summary(output_invoices, input_invoices, previous_deductible=prev_deductible)
 
     excel_bytes = export_quarterly_tax_excel(period_label, company, output_invoices, input_invoices, summary)

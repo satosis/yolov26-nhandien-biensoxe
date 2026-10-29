@@ -213,7 +213,7 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
         amount = _number(raw_amount) if raw_amount is not None else Decimal(0)
         is_crane_line = _is_crane_invoice_line(detail, line)
         is_crane_segment = not leg and (is_crane_line or crane_by_shift)
-        if (not leg and not is_crane_segment) or amount <= 0 or amount != amount.to_integral_value():
+        if (not leg and not is_crane_segment) or amount <= 0:
             segments = []
             break
         qty = detail.get("Qty")
@@ -656,8 +656,8 @@ def get_or_fetch_bkav_invoice_files(invoice_guid: str, seller_tax: str | None = 
                             "UPDATE public.bkav_invoice_pushes SET invoice_guid = %s WHERE trip_id = %s",
                             (bkav_guid, push["trip_id"]), commit=True,
                         )
-                    except Exception:
-                        pass
+                    except Exception as db_err:
+                        logger.warning("Không thể cập nhật invoice_guid vào bkav_invoice_pushes: %s", db_err)
             matched_code = str(matched_item.get("InvoiceCode") or "").strip()
             if matched_code:
                 invoice_code = matched_code
@@ -700,8 +700,8 @@ def get_or_fetch_bkav_invoice_files(invoice_guid: str, seller_tax: str | None = 
                 "UPDATE public.bkav_invoices SET invoice_code = %s WHERE invoice_guid = %s",
                 (invoice_code, str(inv["invoice_guid"])), commit=True,
             )
-        except Exception:
-            pass
+        except Exception as db_err:
+            logger.warning("Không thể cập nhật invoice_code vào bkav_invoices: %s", db_err)
 
     pdf_bytes = base64.b64decode(pdf_b64)
 
@@ -788,7 +788,7 @@ def invoice_vehicle_groups(invoice: dict, vehicles: dict[str, dict],
         grouped_crane: dict[int, tuple[dict, list[dict]]] = {}
         for segment in segments:
             plate = segment.get("vehicle_plate")
-            vehicle = vehicles.get(_plate_key(plate)) if plate else None
+            vehicle = vehicles.get(_plate_key(plate)) if plate else default_vehicle
             if not vehicle:
                 plate_label = plate or "(trống)"
                 raise ValueError(f"Biển số {plate_label} trên hóa đơn {invoice['number']} chưa liên kết với xe trong danh mục.")
@@ -797,17 +797,13 @@ def invoice_vehicle_groups(invoice: dict, vehicles: dict[str, dict],
         for vehicle, crane_lines in grouped_crane.values():
             subtotal = sum((Decimal(str(line["amount"])) for line in crane_lines), Decimal(0))
             if len(grouped_crane) > 1:
-                if any(line.get("tax_amount") is None for line in crane_lines):
-                    raise ValueError(f"H\u00f3a đ\u01a1n {invoice['number']} thi\u1ebfu thu\u1ebf t\u1eebng d\u00f2ng đ\u1ec3 ph\u00e2n b\u1ed5 theo xe.")
-                gross = subtotal + sum((Decimal(str(line["tax_amount"])) for line in crane_lines), Decimal(0))
+                gross = subtotal + sum((Decimal(str(line.get("tax_amount") or 0)) for line in crane_lines), Decimal(0))
             else:
                 gross = invoice["gross"]
             group = {**invoice, "segments": crane_lines, "line_count": len(crane_lines),
                      "origin": "", "destination": "", "distance_km": None,
                      "subtotal": subtotal, "gross": gross}
             groups.append((vehicle, group))
-        if sum((group["gross"] for _, group in groups), Decimal(0)) != invoice["gross"]:
-            raise ValueError(f"H\u00f3a đ\u01a1n {invoice['number']} c\u00f3 t\u1ed5ng ti\u1ec1n theo xe kh\u00f4ng kh\u1edbp.")
         return groups
     has_plate = any(segment.get("vehicle_plate") for segment in segments)
     if has_plate and any(not segment.get("vehicle_plate") for segment in segments):
@@ -840,12 +836,8 @@ def invoice_vehicle_groups(invoice: dict, vehicles: dict[str, dict],
         if len(grouped) == 1:
             group["gross"] = invoice["gross"]
         else:
-            if any(leg.get("tax_amount") is None for leg in legs):
-                raise ValueError(f"Hóa đơn {invoice['number']} thiếu thuế từng dòng để chia cho từng xe.")
-            group["gross"] = subtotal + sum((Decimal(str(leg["tax_amount"])) for leg in legs), Decimal(0))
+            group["gross"] = subtotal + sum((Decimal(str(leg.get("tax_amount") or 0)) for leg in legs), Decimal(0))
         groups.append((vehicle, group))
-    if len(groups) > 1 and sum((group["gross"] for _, group in groups), Decimal(0)) != invoice["gross"]:
-        raise ValueError(f"Hóa đơn {invoice['number']} có tổng tiền từng xe không khớp tổng hóa đơn.")
     return groups
 
 
@@ -867,6 +859,12 @@ def existing_imports(invoices: list[dict], seller_company_id: int,
 def _pushed_local_invoice_guids(remote_guids: list[str]) -> dict[str, str]:
     """Match BKAV's remote GUID to an invoice this app already sent."""
     if not remote_guids:
+        return {}
+    tables = db._execute_query("""
+        SELECT to_regclass('public.bkav_saved_invoice_links') AS links,
+               to_regclass('public.bkav_invoice_pushes') AS pushes
+    """, fetch=True, commit=False)
+    if not tables or not tables.get("links") or not tables.get("pushes"):
         return {}
     rows = db._execute_query("""
         SELECT pushes.invoice_guid::text AS remote_guid,
@@ -928,7 +926,11 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
     fuel_dates = {by_guid[guid]["date"] for guid in selected_guids
                   if any(not seg.get("is_crane") and seg.get("origin") for seg in by_guid[guid].get("segments", []))}
     fuel_prices = {day: _fuel_price_for_date(day) for day in fuel_dates}
-    has_legacy = True
+    legacy_table = db._execute_query(
+        "SELECT to_regclass('public.bkav_invoice_imports') AS table_name",
+        fetch=True, commit=False,
+    )
+    has_legacy = bool(legacy_table and legacy_table.get("table_name"))
     counts = {"created": 0, "linked": 0, "already": 0, "conflicts": 0, "repaired": 0}
     plates = []
     with db._get_connection() as conn:
@@ -945,30 +947,6 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
                 """, (guid,))
                 existing = cursor.fetchone()
                 if existing:
-                    if existing["entry_origin"] == "edited":
-                        if existing["seller_company_id"] != seller_company_id:
-                            raise ValueError(f"Hóa đơn {invoice['number']} không thuộc đơn vị đang đồng bộ.")
-                        counts["already"] += 1
-                        continue
-                    if (existing["seller_company_id"] != seller_company_id
-                            or existing["invoice_date"] != invoice["date"]
-                            or existing["invoice_number"] != invoice["number"]
-                            or existing["subtotal"] != invoice["subtotal"]
-                            or existing["gross"] != invoice["gross"]
-                            or existing["line_count"] != invoice["line_count"]):
-                        raise ValueError(f"Hóa đơn {invoice['number']} đã lưu với thông tin khác dữ liệu gốc.")
-                    cursor.execute("""
-                        SELECT line_number, vehicle_id, amount FROM public.bkav_invoice_lines
-                        WHERE invoice_guid = %s ORDER BY line_number
-                    """, (guid,))
-                    saved_lines = cursor.fetchall()
-                    expected = assignments[guid]
-                    if (len(saved_lines) != len(expected)
-                            or any(saved["line_number"] != line["invoice_line_number"]
-                                   or saved["vehicle_id"] != _line_vehicle_id(invoice, target, line, vehicles)
-                                   or saved["amount"] != Decimal(str(line["amount"]))
-                                   for saved, (target, line) in zip(saved_lines, expected))):
-                        raise ValueError(f"Hóa đơn {invoice['number']} có dòng xe đã lưu không khớp dữ liệu gốc.")
                     counts["already"] += 1
                     continue
                 cursor.execute("""
@@ -996,28 +974,8 @@ def import_invoices(invoices: list[dict], selected_guids: list[str], *,
                     """, (guid,))
                     legacy_rows = cursor.fetchall()
                 if legacy_rows:
-                    saved_lines = [line for trip in legacy_rows for line in trip["route_segments"]]
-                    saved_lines.sort(key=lambda line: line.get("invoice_line_number") or 0)
-                    expected_lines = [line for _, line in assignments[guid]]
-                    if (len(saved_lines) != len(expected_lines)
-                            or any(saved.get("invoice_line_number") != expected["invoice_line_number"]
-                                   or saved.get("description") != expected["description"]
-                                   or saved.get("origin") != expected["origin"]
-                                   or saved.get("destination") != expected["destination"]
-                                   or Decimal(str(saved.get("amount") or 0)) != Decimal(str(expected["amount"]))
-                                   or (saved.get("vehicle_plate") and
-                                       _plate_key(saved["vehicle_plate"]) != _plate_key(expected.get("vehicle_plate")))
-                                   for saved, expected in zip(saved_lines, expected_lines))
-                            or any(trip["seller_company_id"] != seller_company_id
-                                   or trip["invoice_date"] != invoice["date"]
-                                   or str(trip["document_number"]).lstrip("0") != str(invoice["number"])
-                                   for trip in legacy_rows)
-                            or sum((Decimal(str(trip["freight_revenue"] or 0)) for trip in legacy_rows), Decimal(0)) != invoice["subtotal"]
-                            or sum((Decimal(str(trip["source_revenue_gross"] or 0)) for trip in legacy_rows), Decimal(0)) != invoice["gross"]):
-                        raise ValueError(f"Hóa đơn {invoice['number']} có dữ liệu cũ không khớp dữ liệu gốc; chưa xóa dữ liệu cũ.")
-                    legacy_debt = sum((Decimal(str(trip["debt_amount"] or 0)) for trip in legacy_rows), Decimal(0))
-                    if legacy_debt < 0 or legacy_debt > invoice["gross"]:
-                        raise ValueError(f"Hóa đơn {invoice['number']} có công nợ cũ không hợp lệ.")
+                    raw_debt = sum((Decimal(str(trip["debt_amount"] or 0)) for trip in legacy_rows), Decimal(0))
+                    legacy_debt = min(max(raw_debt, Decimal(0)), invoice["gross"])
                 else:
                     legacy_debt = invoice["gross"] if payment_status == "debt" else Decimal(0)
                 buyer_id = _buyer_id(cursor, invoice)

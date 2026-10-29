@@ -9,12 +9,14 @@ from psycopg2.extras import RealDictCursor
 
 from backend.services.database import db
 from frontend.deps import format_currency
+from frontend.context.company_context import get_current_company_id
 
 logger = logging.getLogger(__name__)
 
 
-def get_company_debt(company_id: int, owner_company_id: int | None) -> Decimal:
+def get_company_debt(company_id: int, owner_company_id: int | None = None) -> Decimal:
     """Return a partner balance only inside the caller's company ledger."""
+    owner_company_id = owner_company_id or get_current_company_id()
     if not owner_company_id:
         return Decimal("0")
     row = db._execute_query(
@@ -28,7 +30,7 @@ def get_company_debt(company_id: int, owner_company_id: int | None) -> Decimal:
 def adjust_company_debt(
     company_id: int,
     amount: Decimal | float | int | str,
-    owner_company_id: int | None,
+    owner_company_id: int | None = None,
     debt_type: str = "manual_add",
     note: str = "",
     reference_doc: str = "",
@@ -36,6 +38,7 @@ def adjust_company_debt(
     user_id: Optional[int] = None,
 ) -> tuple[bool, str, Decimal]:
     """Adjust one partner's balance in the specified owning company's ledger."""
+    owner_company_id = owner_company_id or get_current_company_id()
     if not owner_company_id:
         return False, "Chưa chọn doanh nghiệp.", Decimal("0")
     try:
@@ -95,10 +98,11 @@ def adjust_company_debt(
 
 def get_company_debt_logs(
     company_id: int,
-    owner_company_id: int | None,
+    owner_company_id: int | None = None,
     limit: int = 100,
 ) -> list[dict]:
     """Get history for a partner, restricted to its owning company."""
+    owner_company_id = owner_company_id or get_current_company_id()
     if not owner_company_id:
         return []
     rows = db._execute_query(
@@ -136,9 +140,10 @@ def get_company_debt_logs(
 
 def delete_company_debt_log(
     log_id: int,
-    owner_company_id: int | None,
+    owner_company_id: int | None = None,
 ) -> tuple[bool, str, Decimal]:
     """Delete a ledger entry only when it belongs to the requested owner."""
+    owner_company_id = owner_company_id or get_current_company_id()
     if not owner_company_id:
         return False, "Chưa chọn doanh nghiệp.", Decimal("0")
     try:
@@ -177,13 +182,14 @@ def delete_company_debt_log(
 
 def update_company_debt_log(
     log_id: int,
-    owner_company_id: int | None,
-    amount: Decimal,
-    note: str,
-    reference_doc: str,
-    recorded_date: date,
+    owner_company_id: int | None = None,
+    amount: Decimal = Decimal("0"),
+    note: str = "",
+    reference_doc: str = "",
+    recorded_date: Optional[date] = None,
 ) -> tuple[bool, str, Decimal]:
     """Edit a manual ledger movement and apply its delta to that owner's balance."""
+    owner_company_id = owner_company_id or get_current_company_id()
     if not owner_company_id:
         return False, "Chưa chọn doanh nghiệp.", Decimal("0")
     if not amount.is_finite() or amount <= 0:

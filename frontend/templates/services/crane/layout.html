@@ -15,10 +15,10 @@
   <script src="/static/vendor/tailwind.min.js"></script>
   <script defer src="/static/user/js/alpine.min.js?v=2.1"></script>
   <!-- Favicons for Crane Services -->
-  <link rel="icon" type="image/svg+xml" href="/static/services/crane/img/favicon-crane.svg?v=4">
-  <link rel="alternate icon" type="image/png" sizes="32x32" href="/static/services/crane/img/favicon-crane-32.png?v=4">
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/services/crane/img/favicon-crane-180.png?v=4">
-  <link rel="shortcut icon" href="/static/services/crane/img/favicon-crane.ico?v=4">
+  <link rel="icon" type="image/svg+xml" href="/static/services/crane/img/favicon-crane.svg?v=5">
+  <link rel="alternate icon" type="image/png" sizes="32x32" href="/static/services/crane/img/favicon-crane-32.png?v=5">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/services/crane/img/favicon-crane-180.png?v=5">
+  <link rel="shortcut icon" href="/static/services/crane/img/favicon-crane.ico?v=5">
 
   {% block seo %}
   <meta name="description" content="{{ company.seo_config.description }}">
@@ -70,7 +70,7 @@
             "name": "Giá thuê xe cẩu tự hành được tính theo hình thức nào?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Chúng tôi áp dụng hình thức thuê linh hoạt: Theo ca làm việc (7 tiếng từ 2.800.000đ - 3.500.000đ/ca), theo chuyến hàng, theo tháng hoặc trọn gói công trình. Đã bao gồm lái xe chuyên nghiệp và nhiên liệu."
+              "text": "Chúng tôi áp dụng hình thức thuê linh hoạt và báo giá trực tiếp theo từng nhu cầu: Theo ca làm việc (7 tiếng), theo chuyến hàng, theo tháng hoặc trọn gói công trình. Giá chính chủ tốt nhất không qua trung gian, đã bao gồm lái xe chuyên nghiệp và nhiên liệu."
             }
           },
           {
@@ -134,11 +134,11 @@
     }
     [x-cloak] { display: none !important; }
     
-    /* Animation pulse for CTA buttons */
+    /* Animation pulse for CTA buttons (UNIC Red matching logo) */
     @keyframes pulse-ring {
-      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
-      70% { transform: scale(1); box-shadow: 0 0 0 14px rgba(22, 163, 74, 0); }
-      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
     }
     .pulse-btn {
       animation: pulse-ring 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
@@ -147,14 +147,14 @@
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #f8fafc; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+    ::-webkit-scrollbar-thumb:hover { background: #ef4444; }
 
     @media (max-width: 768px) {
       body { padding-bottom: 74px; }
     }
   </style>
 </head>
-<body id="top" class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
+<body id="top" class="bg-slate-50 text-slate-800 antialiased selection:bg-red-600 selection:text-white">
 
   {% if settings.gtm_id %}
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ settings.gtm_id }}"
@@ -179,7 +179,7 @@
   <div class="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur-xl border-t border-slate-200/90 p-2.5 px-4 shadow-[0_-4px_25px_rgba(0,0,0,0.08)]">
     <div class="grid grid-cols-2 gap-3 max-w-md mx-auto">
       <a href="tel:{{ settings.phone_raw }}" 
-         class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-extrabold text-sm shadow-md shadow-emerald-600/30 active:scale-95 transition-all">
+         class="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white font-extrabold text-sm shadow-md shadow-red-600/30 active:scale-95 transition-all">
         <span class="material-symbols-outlined text-[20px]">call</span>
         <span>GỌI ĐIỀU XE</span>
       </a>

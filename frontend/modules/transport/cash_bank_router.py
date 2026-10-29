@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from datetime import date, datetime
 import logging
+import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from frontend.deps import get_menu_context, require_menu, templates
+from frontend.deps import get_menu_context, require_menu, templates, get_active_company_id
+from frontend.modules.invoices.companies import list_companies
 from frontend.modules.transport.cash_bank_service import (
-    DAI_LO_XANH_COMPANY_ID,
     delete_cash_or_bank_entry,
     export_bank_book_excel,
     export_cash_book_excel,
@@ -20,6 +21,7 @@ from frontend.modules.transport.cash_bank_service import (
     get_bank_book_data,
     get_cash_book_data,
     get_cash_or_bank_entry,
+    get_company_info,
     get_opening_balance_setting,
     import_bank_transactions_from_excel,
     import_cash_transactions_from_excel,
@@ -109,10 +111,11 @@ async def cash_book_page(
     user: dict = Depends(require_menu("vehicles")),
 ):
     ctx = get_menu_context(request, user)
+    cid = get_active_company_id(request, user)
     selected_year, active_period, d_from, d_to = _resolve_dates(year, period, date_from, date_to)
 
     cash_data = get_cash_book_data(
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
@@ -125,6 +128,8 @@ async def cash_book_page(
         "current_menu": "cash_book",
         "transport_active": "cash_book",
         "cash_data": cash_data,
+        "companies": list_companies() or [],
+        "selected_company_id": cid,
         "selected_year": selected_year,
         "available_years": available_years,
         "active_period": active_period,
@@ -139,20 +144,23 @@ async def cash_book_page(
 
 @router.get("/cash-book/export")
 async def cash_book_export(
+    request: Request,
     year: int = Query(None),
     period: str = Query("all"),
     date_from: str = Query(None),
-    date_to: str = Query(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    selected_year, _, d_from, d_to = _resolve_dates(year, period, date_from, date_to)
+    cid = get_active_company_id(request, user)
+    selected_year, _, d_from, d_to = _resolve_dates(year, period, date_from, None)
     excel_bytes = export_cash_book_excel(
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
     )
-    filename = f"S04a_DNN_So_quy_tien_mat_DAI_LO_XANH_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
+    comp_info = get_company_info(cid)
+    ascii_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", comp_info.get("name") or "company").strip("_") or f"company_{cid}"
+    filename = f"S04a_DNN_So_quy_tien_mat_{ascii_name}_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -178,10 +186,11 @@ async def bank_book_page(
     user: dict = Depends(require_menu("vehicles")),
 ):
     ctx = get_menu_context(request, user)
+    cid = get_active_company_id(request, user)
     selected_year, active_period, d_from, d_to = _resolve_dates(year, period, date_from, date_to)
 
     bank_data = get_bank_book_data(
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
@@ -195,6 +204,8 @@ async def bank_book_page(
         "current_menu": "bank_book",
         "transport_active": "bank_book",
         "bank_data": bank_data,
+        "companies": list_companies() or [],
+        "selected_company_id": cid,
         "selected_year": selected_year,
         "available_years": available_years,
         "active_period": active_period,
@@ -210,21 +221,24 @@ async def bank_book_page(
 
 @router.get("/bank-book/export")
 async def bank_book_export(
+    request: Request,
     year: int = Query(None),
     period: str = Query("all"),
     date_from: str = Query(None),
     date_to: str = Query(None),
-    account_no: str = Query(""),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    cid = get_active_company_id(request, user)
     selected_year, _, d_from, d_to = _resolve_dates(year, period, date_from, date_to)
     excel_bytes = export_bank_book_excel(
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         year=selected_year,
         date_from=d_from,
         date_to=d_to,
     )
-    filename = f"S05a_DNN_So_tien_gui_NH_DAI_LO_XANH_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
+    comp_info = get_company_info(cid)
+    ascii_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", comp_info.get("name") or "company").strip("_") or f"company_{cid}"
+    filename = f"S05a_DNN_So_tien_gui_NH_{ascii_name}_{d_from.strftime('%Y%m%d')}_{d_to.strftime('%Y%m%d')}.xlsx"
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -240,6 +254,7 @@ async def bank_book_export(
 # =====================================================================
 @router.post("/api/cash-bank/entry")
 async def api_add_cash_bank_entry(
+    request: Request,
     book_type: str = Form(...),          # 'cash' hoặc 'bank'
     voucher_type: str = Form(...),       # 'receipt' (Thu) hoặc 'payment' (Chi)
     amount: str = Form(...),
@@ -248,13 +263,17 @@ async def api_add_cash_bank_entry(
     description: str = Form(""),
     offset_account: str = Form("131"),
     partner_name: str = Form(""),
+    partner_code: str = Form(""),
     bank_account_no: str = Form(""),
+    bank_name: str = Form(""),
     note: str = Form(""),
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    cid = company_id or get_active_company_id(request, user)
     cleaned = amount.replace(".", "").replace(",", "").replace(" ", "").strip()
     ok, msg, ins_id = record_cash_or_bank_entry(
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         book_type=book_type,
         voucher_type=voucher_type,
         amount=cleaned,
@@ -263,7 +282,9 @@ async def api_add_cash_bank_entry(
         description=description,
         offset_account=offset_account,
         partner_name=partner_name,
+        partner_code=partner_code,
         bank_account_no=bank_account_no,
+        bank_name=bank_name,
         note=note,
     )
     return JSONResponse({"ok": ok, "message": msg, "id": ins_id})
@@ -271,10 +292,13 @@ async def api_add_cash_bank_entry(
 
 @router.get("/api/cash-bank/entry/{entry_id}")
 async def api_get_cash_bank_entry(
+    request: Request,
     entry_id: int,
+    company_id: int | None = Query(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    entry = get_cash_or_bank_entry(entry_id=entry_id, company_id=DAI_LO_XANH_COMPANY_ID)
+    cid = company_id or get_active_company_id(request, user)
+    entry = get_cash_or_bank_entry(entry_id=entry_id, company_id=cid)
     if not entry:
         return JSONResponse({"ok": False, "message": "Không tìm thấy chứng từ."}, status_code=404)
     return JSONResponse({"ok": True, "entry": entry})
@@ -282,6 +306,7 @@ async def api_get_cash_bank_entry(
 
 @router.post("/api/cash-bank/entry/{entry_id}/update")
 async def api_update_cash_bank_entry(
+    request: Request,
     entry_id: int,
     voucher_type: str = Form(None),
     amount: str = Form(None),
@@ -290,17 +315,20 @@ async def api_update_cash_bank_entry(
     description: str = Form(None),
     offset_account: str = Form(None),
     partner_name: str = Form(None),
+    partner_code: str = Form(None),
     bank_account_no: str = Form(None),
     bank_name: str = Form(None),
     note: str = Form(None),
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    cid = company_id or get_active_company_id(request, user)
     cleaned_amount = None
     if amount is not None:
         cleaned_amount = amount.replace(".", "").replace(",", "").replace(" ", "").strip()
     ok, msg = update_cash_or_bank_entry(
         entry_id=entry_id,
-        company_id=DAI_LO_XANH_COMPANY_ID,
+        company_id=cid,
         voucher_type=voucher_type,
         amount=cleaned_amount,
         voucher_date=voucher_date,
@@ -308,6 +336,7 @@ async def api_update_cash_bank_entry(
         description=description,
         offset_account=offset_account,
         partner_name=partner_name,
+        partner_code=partner_code,
         bank_account_no=bank_account_no,
         bank_name=bank_name,
         note=note,
@@ -317,10 +346,13 @@ async def api_update_cash_bank_entry(
 
 @router.post("/api/cash-bank/entry/{entry_id}/delete")
 async def api_delete_cash_bank_entry(
+    request: Request,
     entry_id: int,
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    ok, msg = delete_cash_or_bank_entry(entry_id=entry_id, company_id=DAI_LO_XANH_COMPANY_ID)
+    cid = company_id or get_active_company_id(request, user)
+    ok, msg = delete_cash_or_bank_entry(entry_id=entry_id, company_id=cid)
     return JSONResponse({"ok": ok, "message": msg})
 
 
@@ -345,14 +377,14 @@ async def bank_book_download_template(
 
 @router.post("/bank-book/import-excel")
 async def bank_book_import_excel(
+    request: Request,
     file: UploadFile = File(...),
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    cid = company_id or get_active_company_id(request, user)
     content = await file.read()
-    ok, msg, count = import_bank_transactions_from_excel(
-        file_content=content,
-        company_id=DAI_LO_XANH_COMPANY_ID,
-    )
+    ok, msg, count = import_bank_transactions_from_excel(file_content=content, company_id=cid)
     return JSONResponse({"ok": ok, "message": msg, "count": count})
 
 
@@ -374,14 +406,14 @@ async def cash_book_download_template(
 
 @router.post("/cash-book/import-excel")
 async def cash_book_import_excel(
+    request: Request,
     file: UploadFile = File(...),
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
+    cid = company_id or get_active_company_id(request, user)
     content = await file.read()
-    ok, msg, count = import_cash_transactions_from_excel(
-        file_content=content,
-        company_id=DAI_LO_XANH_COMPANY_ID,
-    )
+    ok, msg, count = import_cash_transactions_from_excel(file_content=content, company_id=cid)
     return JSONResponse({"ok": ok, "message": msg, "count": count})
 
 
@@ -390,23 +422,26 @@ async def cash_book_import_excel(
 # =====================================================================
 @router.post("/api/cash-bank/opening-balance")
 async def api_set_opening_balance(
+    request: Request,
     book_type: str = Form(...),      # 'bank' hoặc 'cash'
     amount: str = Form(...),
+    company_id: int | None = Form(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    ok, msg = set_opening_balance_setting(
-        book_type=book_type,
-        amount=amount,
-        company_id=DAI_LO_XANH_COMPANY_ID,
-    )
+    cid = company_id or get_active_company_id(request, user)
+    ok, msg = set_opening_balance_setting(book_type=book_type, amount=amount, company_id=cid)
     return JSONResponse({"ok": ok, "message": msg})
 
 
 @router.get("/api/cash-bank/opening-balance")
 async def api_get_opening_balance(
+    request: Request,
     book_type: str = Query("bank"),
+    company_id: int | None = Query(None),
     user: dict = Depends(require_menu("vehicles")),
 ):
-    val = get_opening_balance_setting(book_type=book_type, company_id=DAI_LO_XANH_COMPANY_ID)
+    cid = company_id or get_active_company_id(request, user)
+    val = get_opening_balance_setting(book_type=book_type, company_id=cid)
     return JSONResponse({"ok": True, "book_type": book_type, "opening_balance": int(val)})
+
 

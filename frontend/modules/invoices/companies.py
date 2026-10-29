@@ -21,7 +21,7 @@ _LOOKUP_URL = "https://api.vietqr.io/v2/business/{}"
 _COMPANY_COLUMNS = """c.id, c.name, c.address, c.tax_code, c.email, c.phone,
     c.bank_account, c.bank_name, c.director_user_id,
     c.signature_url, c.stamp_url, 0::numeric AS current_debt,
-    c.business_activity,
+    c.business_activity, c.partner_type, c.is_customer, c.is_vendor,
     COALESCE(NULLIF(btrim(u.full_name), ''), u.username) AS director_name,
     u.username AS director_username,
     u.gender AS director_gender"""
@@ -583,9 +583,9 @@ def _validate_director_user_id(value: int | str | None) -> int | None:
 
 
 def save_company(
-    tax_code: str,
+    tax_code: str | None,
     name: str,
-    address: str,
+    address: str = "",
     email: str = "",
     phone: str = "",
     bank_account: str | None = None,
@@ -594,48 +594,69 @@ def save_company(
     signature_url: str | None = None,
     stamp_url: str | None = None,
     business_activity: str | None = None,
+    partner_type: str = "organization",
 ) -> dict:
-    """Create or update a company keyed by its canonical tax code."""
+    """Create or update a company or individual partner."""
+    p_type = "individual" if partner_type in ("individual", "cá nhân", "ca_nhan") else "organization"
+    clean_name = _clean_required_text(name, "Họ và tên cá nhân" if p_type == "individual" else "Tên đơn vị", _MAX_NAME_LENGTH)
 
-    code = normalize_tax_code(tax_code)
-    clean_name = _clean_required_text(name, "Tên đơn vị", _MAX_NAME_LENGTH)
-    clean_address = _clean_required_text(address, "Địa chỉ đơn vị", _MAX_ADDRESS_LENGTH)
-    clean_email = email.strip()
+    if p_type == "individual":
+        code = normalize_tax_code(tax_code) if (tax_code and tax_code.strip()) else None
+        clean_address = address.strip() if address else ""
+    else:
+        code = normalize_tax_code(tax_code or "")
+        clean_address = _clean_required_text(address, "Địa chỉ đơn vị", _MAX_ADDRESS_LENGTH)
+
+    clean_email = email.strip() if email else ""
     clean_phone = phone.strip() if phone else ""
     clean_bank = bank_account.strip() if bank_account is not None else None
     clean_bank_name = bank_name.strip() if bank_name is not None else None
-    clean_director = _validate_director_user_id(director_user_id)
+    clean_director = _validate_director_user_id(director_user_id) if p_type == "organization" else None
     clean_activity = business_activity.strip() if business_activity is not None else None
-    res = db._execute_query(
-        f"""WITH saved AS (
-           INSERT INTO public.invoice_companies (tax_code, name, address, email, phone, bank_account, director_user_id, bank_name, signature_url, stamp_url, business_activity)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-           ON CONFLICT (tax_code) DO UPDATE SET
-               name = EXCLUDED.name,
-               address = EXCLUDED.address,
-               email = CASE WHEN EXCLUDED.email <> '' THEN EXCLUDED.email ELSE invoice_companies.email END,
-               phone = CASE WHEN EXCLUDED.phone <> '' THEN EXCLUDED.phone ELSE invoice_companies.phone END,
-               bank_account = COALESCE(EXCLUDED.bank_account, invoice_companies.bank_account),
-               bank_name = COALESCE(EXCLUDED.bank_name, invoice_companies.bank_name),
-               director_user_id = COALESCE(EXCLUDED.director_user_id, invoice_companies.director_user_id),
-               signature_url = COALESCE(EXCLUDED.signature_url, invoice_companies.signature_url),
-               stamp_url = COALESCE(EXCLUDED.stamp_url, invoice_companies.stamp_url),
-               business_activity = COALESCE(EXCLUDED.business_activity, invoice_companies.business_activity),
-               updated_at = NOW()
-           RETURNING *
-           ) SELECT {_COMPANY_COLUMNS} FROM saved c {_DIRECTOR_JOIN}""",
-        (code, clean_name, clean_address, clean_email, clean_phone, clean_bank, clean_director, clean_bank_name, signature_url, stamp_url, clean_activity),
-        fetch=True,
-        commit=True,
-    )
+
+    if code:
+        res = db._execute_query(
+            f"""WITH saved AS (
+               INSERT INTO public.invoice_companies (tax_code, name, address, email, phone, bank_account, director_user_id, bank_name, signature_url, stamp_url, business_activity, partner_type)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON CONFLICT (tax_code) DO UPDATE SET
+                   name = EXCLUDED.name,
+                   address = EXCLUDED.address,
+                   email = CASE WHEN EXCLUDED.email <> '' THEN EXCLUDED.email ELSE invoice_companies.email END,
+                   phone = CASE WHEN EXCLUDED.phone <> '' THEN EXCLUDED.phone ELSE invoice_companies.phone END,
+                   bank_account = COALESCE(EXCLUDED.bank_account, invoice_companies.bank_account),
+                   bank_name = COALESCE(EXCLUDED.bank_name, invoice_companies.bank_name),
+                   director_user_id = COALESCE(EXCLUDED.director_user_id, invoice_companies.director_user_id),
+                   signature_url = COALESCE(EXCLUDED.signature_url, invoice_companies.signature_url),
+                   stamp_url = COALESCE(EXCLUDED.stamp_url, invoice_companies.stamp_url),
+                   business_activity = COALESCE(EXCLUDED.business_activity, invoice_companies.business_activity),
+                   partner_type = EXCLUDED.partner_type,
+                   updated_at = NOW()
+               RETURNING *
+               ) SELECT {_COMPANY_COLUMNS} FROM saved c {_DIRECTOR_JOIN}""",
+            (code, clean_name, clean_address, clean_email, clean_phone, clean_bank, clean_director, clean_bank_name, signature_url, stamp_url, clean_activity, p_type),
+            fetch=True,
+            commit=True,
+        )
+    else:
+        res = db._execute_query(
+            f"""WITH saved AS (
+               INSERT INTO public.invoice_companies (tax_code, name, address, email, phone, bank_account, director_user_id, bank_name, signature_url, stamp_url, business_activity, partner_type)
+               VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING *
+               ) SELECT {_COMPANY_COLUMNS} FROM saved c {_DIRECTOR_JOIN}""",
+            (clean_name, clean_address, clean_email, clean_phone, clean_bank, clean_director, clean_bank_name, signature_url, stamp_url, clean_activity, p_type),
+            fetch=True,
+            commit=True,
+        )
     return res
 
 
 def update_company(
     company_id: int,
-    tax_code: str,
+    tax_code: str | None,
     name: str,
-    address: str,
+    address: str = "",
     email: str = "",
     phone: str = "",
     bank_account: str = "",
@@ -646,18 +667,32 @@ def update_company(
     remove_signature: bool = False,
     remove_stamp: bool = False,
     business_activity: str | None = None,
+    partner_type: str | None = None,
 ) -> dict:
-    code = normalize_tax_code(tax_code)
-    clean_name = _clean_required_text(name, "Tên đơn vị", _MAX_NAME_LENGTH)
-    clean_address = _clean_required_text(address, "Địa chỉ đơn vị", _MAX_ADDRESS_LENGTH)
+    curr = get_company(company_id)
+    if not curr:
+        raise ValueError("Không tìm thấy đơn vị.")
+
+    p_type = partner_type if partner_type in ("individual", "organization") else (curr.get("partner_type") or "organization")
+    clean_name = _clean_required_text(name, "Họ và tên cá nhân" if p_type == "individual" else "Tên đơn vị", _MAX_NAME_LENGTH)
+
+    if p_type == "individual":
+        code = normalize_tax_code(tax_code) if (tax_code and tax_code.strip()) else None
+        clean_address = address.strip() if address else ""
+    else:
+        code = normalize_tax_code(tax_code or "")
+        clean_address = _clean_required_text(address, "Địa chỉ đơn vị", _MAX_ADDRESS_LENGTH)
+
     clean_phone = phone.strip() if phone else ""
-    clean_director = _validate_director_user_id(director_user_id)
-    duplicate = db._execute_query(
-        "SELECT id FROM public.invoice_companies WHERE tax_code = %s AND id <> %s",
-        (code, company_id), fetch=True, commit=False,
-    )
-    if duplicate:
-        raise ValueError("Mã số thuế đã thuộc đơn vị khác.")
+    clean_director = _validate_director_user_id(director_user_id) if p_type == "organization" else None
+
+    if code:
+        duplicate = db._execute_query(
+            "SELECT id FROM public.invoice_companies WHERE tax_code = %s AND id <> %s",
+            (code, company_id), fetch=True, commit=False,
+        )
+        if duplicate:
+            raise ValueError("Mã số thuế đã thuộc đơn vị khác.")
 
     sig_clause = ", signature_url = NULL" if remove_signature else (", signature_url = %s" if signature_url is not None else "")
     stamp_clause = ", stamp_url = NULL" if remove_stamp else (", stamp_url = %s" if stamp_url is not None else "")
@@ -669,13 +704,13 @@ def update_company(
         extra_params.append(stamp_url)
 
     clean_activity = business_activity.strip() if business_activity is not None else None
-    params = (code, clean_name, clean_address, email.strip(), clean_phone, bank_account.strip(), clean_director, bank_name.strip(), clean_activity, *extra_params, company_id)
+    params = (code, clean_name, clean_address, email.strip(), clean_phone, bank_account.strip(), clean_director, bank_name.strip(), clean_activity, p_type, *extra_params, company_id)
 
     updated = db._execute_query(
         f"""WITH saved AS (
            UPDATE public.invoice_companies SET tax_code = %s, name = %s,
            address = %s, email = %s, phone = %s, bank_account = %s, director_user_id = %s, bank_name = %s,
-           business_activity = %s{sig_clause}{stamp_clause}, updated_at = NOW()
+           business_activity = %s, partner_type = %s{sig_clause}{stamp_clause}, updated_at = NOW()
            WHERE id = %s RETURNING *
            ) SELECT {_COMPANY_COLUMNS} FROM saved c {_DIRECTOR_JOIN}""",
         params,

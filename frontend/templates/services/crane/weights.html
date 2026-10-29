@@ -1,0 +1,774 @@
+{% extends "services/crane/layout.html" %}
+
+{% block content %}
+
+<!-- 1. HERO BANNER — CÂN BẰNG, CHO THUÊ QUẢ CÂN CHUẨN KIỂM ĐỊNH -->
+<section class="relative bg-gradient-to-b from-red-50/50 via-white to-slate-50 py-6 sm:py-8 lg:py-10 border-b border-slate-200/90 overflow-hidden">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <div class="grid lg:grid-cols-12 gap-6 lg:gap-10 items-center">
+      
+      <!-- Cột Nội Dung (Trái - 7 cột) -->
+      <div class="lg:col-span-7 space-y-4 text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-800 text-[11px] font-bold shadow-2xs">
+          <span class="material-symbols-outlined text-xs text-red-600">verified</span>
+          <span>{{ company.company_name }} · MST: {{ company.tax_id }}</span>
+        </div>
+
+        <h1 class="text-2xl sm:text-3xl lg:text-[34px] font-black text-slate-900 tracking-tight leading-[1.25]">
+          Cho Thuê Quả Cân Chuẩn <br class="hidden sm:inline">
+          <span class="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 bg-clip-text text-transparent">
+            Kiểm Định Cân Điện Tử 1kg – 1000kg
+          </span>
+        </h1>
+
+        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+          Chuyên cho thuê <strong class="text-slate-900 font-bold">quả cân chuẩn khối lượng (cấp F1, F2, M1)</strong> làm đối chứng kiểm định, hiệu chuẩn cân điện tử, cân sàn và trạm cân xe tải 60 – 120 tấn tại Vĩnh Phúc, Phú Thọ &amp; Miền Bắc. Sẵn sàng hàng chục quả cân <strong class="text-red-700 font-bold">500KG gang đúc</strong> đi kèm <strong class="text-red-700 font-bold">xe cẩu tự hành 8T–10T</strong> cẩu đặt định vị trọn gói theo chuẩn ĐLVN.
+        </p>
+
+        <!-- Nút Gọi & Báo Giá -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-1">
+          <a href="tel:{{ settings.phone_raw }}" 
+             class="pulse-btn px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-red-600/30 hover:shadow-lg hover:shadow-red-600/40 hover:-translate-y-0.5 transition-all">
+            <span class="material-symbols-outlined text-base">call</span>
+            <span>GỌI THUÊ QUẢ CÂN: {{ settings.phone }}</span>
+          </a>
+          <a href="#lien-he" 
+             class="px-5 py-2.5 sm:py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-800 font-bold text-xs sm:text-sm border border-slate-300 shadow-xs hover:border-slate-400 flex items-center gap-1.5 hover:-translate-y-0.5 transition-all">
+            <span>YÊU CẦU BÁO GIÁ</span>
+            <span class="material-symbols-outlined text-xs text-slate-500">arrow_downward</span>
+          </a>
+        </div>
+
+        <!-- Trust tags dưới nút -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 pt-1 text-[11px] sm:text-xs text-slate-500">
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> 100% Đạt Chuẩn ĐLVN</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> Trọn gói xe cẩu tự hành 8T–10T</span>
+          <span class="flex items-center gap-1"><span class="material-symbols-outlined text-sm text-emerald-600">check_circle</span> Hóa đơn VAT &amp; Biên bản nghiệm thu</span>
+        </div>
+      </div>
+
+      <!-- Cột Ảnh Hero (Phải - 5 cột, Tỷ lệ chuẩn mực) -->
+      <div class="lg:col-span-5 relative">
+        <div class="rounded-2xl overflow-hidden border border-slate-200/90 shadow-xl bg-white relative group">
+          <div class="relative h-[250px] sm:h-[280px] lg:h-[300px]">
+            <img src="/static/services/crane/img/weights_truck_scale_outdoor.jpg" 
+                 alt="Cho thuê quả cân chuẩn kiểm định trạm cân xe tải Đại Lộ Xanh" 
+                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/20 to-transparent"></div>
+          </div>
+          
+          <!-- Floating Badge Top Right -->
+          <div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-slate-900/85 backdrop-blur-md text-white text-[10px] font-bold border border-white/20 shadow-md flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Sẵn sàng 40+ quả 500KG</span>
+          </div>
+
+          <!-- Floating Badge Top Left -->
+          <div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-600/90 backdrop-blur-md text-white text-[10px] font-bold border border-white/20 shadow-md flex items-center gap-1">
+            <span class="material-symbols-outlined text-xs">verified</span>
+            <span>Chuẩn Đo Lường ĐLVN</span>
+          </div>
+
+          <!-- Bottom Floating Status Bar (Sleek, No Truncation, Pure Polish) -->
+          <div class="absolute bottom-3 left-3 right-3 p-2.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <div class="min-w-0">
+                <p class="font-extrabold text-slate-900 text-xs truncate">Quả Cân Chuẩn 500KG Sẵn Kho</p>
+                <p class="text-slate-500 text-[10px] truncate">Hotline tư vấn: <span class="text-red-600 font-bold">{{ settings.phone }}</span></p>
+              </div>
+            </div>
+            <a href="tel:{{ settings.phone_raw }}" 
+               class="px-3 py-1.5 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shrink-0 shadow-xs flex items-center gap-1 transition-all">
+              <span class="material-symbols-outlined text-xs">call</span>
+              <span>Gọi ngay</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 4 HUY HIỆU DẢI RỘNG CÂN BẰNG TOÀN KHUNG HÌNH (12 CỘT) -->
+    <div class="mt-5 pt-5 border-t border-slate-200/80">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">scale</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Khối Lượng Đối Chứng</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">1kg – 1000kg</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">verified</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Cấp Chính Xác</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">Cấp F1 · F2 · M1</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">local_shipping</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Trọn Gói Phương Tiện</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">Xe Cẩu 8T – 10T</strong>
+          </div>
+        </div>
+
+        <div class="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:border-red-300 hover:shadow-sm transition-all flex items-center gap-3 group">
+          <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center shrink-0 group-hover:bg-red-600 group-hover:text-white transition-colors">
+            <span class="material-symbols-outlined text-xl">receipt_long</span>
+          </div>
+          <div>
+            <span class="text-slate-500 block text-[10px] sm:text-[11px] font-semibold">Pháp Lý Đo Lường</span>
+            <strong class="text-slate-900 font-black text-xs sm:text-sm">Đạt Chuẩn ĐLVN</strong>
+          </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- 2. DANH MỤC 4 PHÂN KHÚC QUẢ CÂN CHO THUÊ -->
+<section id="danh-muc" class="scroll-mt-24 py-12 lg:py-16 bg-white border-b border-slate-200/90">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-2xl mx-auto mb-10">
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Thiết Bị Đo Lường Thực Tế</span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">4 Dòng Quả Cân Chuẩn &amp; Dịch Vụ Chủ Lực</h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1">Lựa chọn khối lượng đối chứng và cấp chính xác phù hợp với từng loại cân công nghiệp và quy trình kiểm định.</p>
+    </div>
+
+    <!-- Grid 4 Card -->
+    <div class="grid md:grid-cols-2 gap-6 lg:gap-8">
+      
+      <!-- Card 1: Quả cân gang 500kg - 1000kg -->
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
+        <div>
+          <div class="relative h-60 overflow-hidden">
+            <img src="/static/services/crane/img/weights_500kg_truck_bed.jpg" alt="Dàn quả cân gang chuẩn 500kg trên xe cẩu" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
+              Khối Lượng: 500KG &amp; 1000KG
+            </span>
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-red-600 text-white text-[11px] font-bold shadow-sm">
+              Cấp M1 · Chuyên Trạm Cân Xe Tải
+            </span>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">Quả Cân Chuẩn Gang Đúc 500KG – 1000KG</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Gang đúc nguyên khối chịu tải, quai móc cẩu chắc chắn, hốc hiệu chỉnh niêm chì</p>
+            </div>
+
+            <ul class="space-y-2 text-xs text-slate-700">
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Khối lượng:</strong> 500kg &amp; 1000kg chuẩn cấp M1, buồng niêm chì chống sai số</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Số lượng lớn:</strong> Sẵn sàng 20–40 quả cân 500kg tại bãi phục vụ kiểm định 60T – 120T</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Ứng dụng:</strong> Kiểm định cân ô tô, trạm cân xe tải mỏ khoáng sản, nhà máy xi măng, thức ăn chăn nuôi</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="p-6 pt-0">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-base">call</span>
+            <span>ĐẶT QUẢ CÂN 500KG: {{ settings.phone }}</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 2: Dịch vụ trọn gói xe cẩu + quả cân -->
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
+        <div>
+          <div class="relative h-60 overflow-hidden">
+            <img src="/static/services/crane/img/weights_truck_scale_outdoor.jpg" alt="Dịch vụ trọn gói xe cẩu và quả cân kiểm định" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
+              Trọn Gói Tiết Kiệm
+            </span>
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-slate-900 text-white text-xs font-bold shadow-sm border border-slate-700">
+              Xe Cẩu 8T–10T + Quả Cân + Thợ Lái
+            </span>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">Dịch Vụ Trọn Gói Kiểm Định Trạm Cân Ô Tô</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Vận chuyển quả cân đến trạm, cẩu đặt định vị từng góc và phối hợp cùng đoàn đo lường</p>
+            </div>
+
+            <ul class="space-y-2 text-xs text-slate-700">
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Đồng bộ tối đa:</strong> Vừa có quả cân chuẩn vừa có xe cẩu tự hành chính chủ không qua môi giới</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Thợ cẩu lành nghề:</strong> Thao tác hạ quả cân chuẩn xác, nhẹ nhàng, chống hư hại mặt bàn cân và loadcell</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Thời gian linh hoạt:</strong> Phục vụ cả ngày nghỉ thứ 7, Chủ Nhật và ca đêm theo lịch hẹn của đoàn kiểm định</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="p-6 pt-0">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-base">call</span>
+            <span>TƯ VẤN TRỌN GÓI TRẠM CÂN: {{ settings.phone }}</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 3: Bộ quả cân hộp gỗ nhung -->
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
+        <div>
+          <div class="relative h-60 overflow-hidden">
+            <img src="/static/services/crane/img/weights_precision_wooden_boxes.jpg" alt="Bộ quả cân chuẩn hộp gỗ lót nhung F1 F2" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
+              Cấp F1 / F2 Cao Cấp
+            </span>
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-amber-600 text-white text-[11px] font-bold shadow-sm">
+              Hộp Gỗ Tự Nhiên Lót Nhung Đỏ
+            </span>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">Bộ Quả Cân Chuẩn Hộp Gỗ Nhung (F1 / F2)</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Bảo quản chuyên nghiệp chống oxy hóa, phục vụ phòng Lab, KCS và kiểm định cân vi lượng</p>
+            </div>
+
+            <ul class="space-y-2 text-xs text-slate-700">
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Bộ dải tiêu chuẩn:</strong> Dải khối lượng từ 1g – 5kg và 1kg – 20kg đựng trong hộp gỗ gài khóa inox</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Độ chính xác cao:</strong> Chuẩn cấp F1/F2 có giấy chứng nhận hiệu chuẩn của trung tâm đo lường</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Ứng dụng:</strong> Phòng kiểm nghiệm R&amp;D, nhà máy dược phẩm, phòng thử nghiệm vật liệu, linh kiện điện tử</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="p-6 pt-0">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-base">call</span>
+            <span>ĐẶT BỘ QUẢ CÂN HỘP GỖ: {{ settings.phone }}</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Card 4: Quả cân trụ inox lẻ -->
+      <div class="rounded-2xl bg-slate-50/70 border border-slate-200 overflow-hidden shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-xl transition-all">
+        <div>
+          <div class="relative h-60 overflow-hidden">
+            <img src="/static/services/crane/img/weights_lab_calibration_set.jpg" alt="Dàn quả cân chuẩn trụ inox 1kg 20kg" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent"></div>
+            <span class="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 text-slate-900 text-xs font-black border border-slate-200 shadow-sm">
+              Inox 304 Kháng Từ
+            </span>
+            <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-md bg-slate-900 text-white text-xs font-bold shadow-sm border border-slate-700">
+              Quả Cân Lẻ 1KG – 20KG
+            </span>
+          </div>
+
+          <div class="p-6 space-y-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">Quả Cân Chuẩn Trụ Inox Lẻ (1KG – 20KG)</h3>
+              <p class="text-xs text-slate-500 mt-0.5">Thép không gỉ 304 không từ tính, mạ crom bóng gương, buồng niêm chì chống mài mòn</p>
+            </div>
+
+            <ul class="space-y-2 text-xs text-slate-700">
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Khối lượng đa dạng:</strong> Loại 1kg, 2kg, 5kg, 10kg, 20kg phục vụ kiểm tra cân bàn và cân sàn nhỏ</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Đặc tính kỹ thuật:</strong> Từ tính cực thấp, không bị gỉ sét trong môi trường ẩm ướt hoặc hóa chất</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-red-600 text-base shrink-0">check_circle</span>
+                <span><strong>Ứng dụng:</strong> Hiệu chuẩn cân đóng gói bao bì, cân bàn phân loại sản phẩm, cân thủy sản, cân thực phẩm</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="p-6 pt-0">
+          <a href="tel:{{ settings.phone_raw }}" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-base">call</span>
+            <span>THUÊ QUẢ CÂN INOX LẺ: {{ settings.phone }}</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- 3. ƯU THẾ VƯỢT TRỘI CỦA DỊCH VỤ QUẢ CÂN ĐẠI LỘ XANH -->
+<section class="py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-2xl mx-auto mb-10">
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Năng Lực Độc Tôn</span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Tại Sao Doanh Nghiệp Chọn Đại Lộ Xanh?</h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1">Đơn vị duy nhất tại Vĩnh Phúc &amp; Phú Thọ tích hợp trọn gói cả dàn quả cân chuẩn và đội xe cẩu tự hành.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      
+      <!-- Lợi thế 1 -->
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
+            <span class="material-symbols-outlined text-xl">forklift</span>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Xe Cẩu Chính Chủ</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Sở hữu trực tiếp 2 xe cẩu thùng dài 8.5m tải chở 14T, không qua trung gian môi giới, tối ưu chi phí cẩu vận chuyển tới 30%.
+          </p>
+        </div>
+        <span class="text-xs font-bold text-red-600 mt-3 block">Chính chủ 100%</span>
+      </div>
+
+      <!-- Lợi thế 2 -->
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
+            <span class="material-symbols-outlined text-xl">scale</span>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Số Lượng Hơn 40 Quả</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Kho quả cân dồi dào sẵn sàng đáp ứng kiểm định các trạm cân xe tải công suất lớn từ 60 tấn, 80 tấn đến 120 tấn đồng thời.
+          </p>
+        </div>
+        <span class="text-xs font-bold text-red-600 mt-3 block">Sẵn sàng tại kho</span>
+      </div>
+
+      <!-- Lợi thế 3 -->
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
+            <span class="material-symbols-outlined text-xl">verified_user</span>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Hồ Sơ Chuẩn ĐLVN</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Quả cân có giấy chứng nhận hiệu chuẩn đo lường hợp lệ, buồng niêm chì nguyên vẹn, phục vụ nghiệm thu pháp lý trạm cân nhanh chóng.
+          </p>
+        </div>
+        <span class="text-xs font-bold text-red-600 mt-3 block">Chứng chỉ đầy đủ</span>
+      </div>
+
+      <!-- Lợi thế 4 -->
+      <div class="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm flex flex-col justify-between hover:border-red-500/60 hover:shadow-lg transition-all">
+        <div>
+          <div class="w-10 h-10 rounded-xl bg-red-50 border border-red-100 text-red-600 flex items-center justify-center mb-3">
+            <span class="material-symbols-outlined text-xl">alarm</span>
+          </div>
+          <h3 class="font-extrabold text-slate-900 text-base mb-1.5">Cơ Động 15–30 Phút</h3>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Hai bãi tập kết tại KCN Cổ Tiết (Phú Thọ) và Tề Lỗ (Vĩnh Phúc), tiếp cận hiện trường nhanh nhất phục vụ các ca kiểm định khẩn cấp.
+          </p>
+        </div>
+        <span class="text-xs font-bold text-red-600 mt-3 block">Phục vụ 24/7</span>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- 4. HÌNH ẢNH THỰC TẾ DÀN QUẢ CÂN VÀ XE CẨU — GRID 6 ẢNH PHÓNG TO -->
+<section id="hinh-anh" class="scroll-mt-24 py-12 lg:py-16 bg-white border-b border-slate-200/90" x-data="{
+  modalOpen: false,
+  modalImg: '',
+  modalTitle: '',
+  openModal(img, title) {
+    this.modalImg = img;
+    this.modalTitle = title;
+    this.modalOpen = true;
+  }
+}">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-2xl mx-auto mb-8">
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Hình Ảnh Thực Tế 100%</span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Hình Ảnh Dàn Quả Cân &amp; Thi Công Thực Tế</h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1">Ảnh chụp thực tế từ các trạm cân ô tô, phòng Lab và bãi phương tiện của Đại Lộ Xanh.</p>
+    </div>
+
+    <!-- 6 Ảnh Tiêu Biểu -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-3.5 sm:gap-5">
+      
+      <div @click="openModal('/static/services/crane/img/weights_truck_scale_outdoor.jpg', 'Xe cẩu UNIC cẩu hạ dàn quả cân 500KG trên bàn cân xe tải công trường')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/weights_truck_scale_outdoor.jpg" alt="Cẩu quả cân trên bàn cân" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-white truncate">Cẩu quả cân 500KG trên bàn cân ô tô</p>
+      </div>
+
+      <div @click="openModal('/static/services/crane/img/weights_500kg_truck_bed.jpg', 'Dàn quả cân chuẩn 500KG xếp hàng dài trên thùng xe tải Hyundai')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/weights_500kg_truck_bed.jpg" alt="Dàn quả cân 500kg trên xe tải" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-white truncate">Dàn quả cân 500KG xếp trên thùng xe</p>
+      </div>
+
+      <div @click="openModal('/static/services/crane/img/weights_precision_wooden_boxes.jpg', 'Bộ quả cân chuẩn F1/F2 lót nhung đỏ trong hộp gỗ cao cấp')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/weights_precision_wooden_boxes.jpg" alt="Bộ quả cân hộp gỗ nhung" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-white truncate">Bộ quả cân chuẩn F1/F2 hộp gỗ nhung</p>
+      </div>
+
+      <div @click="openModal('/static/services/crane/img/weights_lab_calibration_set.jpg', 'Dàn quả cân trụ inox chuẩn và pa lăng cẩu thử tải tại xưởng')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/weights_lab_calibration_set.jpg" alt="Quả cân inox xưởng kiểm định" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-white truncate">Dàn quả cân inox &amp; xưởng kiểm định</p>
+      </div>
+
+      <div @click="openModal('/static/services/crane/img/crane_scale_weights.jpg', 'Cẩu định vị quả cân 500KG kiểm định trạm cân xe tải 80 tấn')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/crane_scale_weights.jpg" alt="Kiểm định trạm cân 80 tấn" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-white truncate">Định vị quả cân tại trạm cân 80T</p>
+      </div>
+
+      <div @click="openModal('/static/services/crane/img/crane_scale_foundation.jpg', 'Vận chuyển thiết bị và quả cân đến hố móng trạm cân xe tải')" 
+           class="group rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm cursor-pointer relative h-48 sm:h-56">
+        <img src="/static/services/crane/img/crane_scale_foundation.jpg" alt="Vận chuyển quả cân đến móng trạm cân" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent"></div>
+        <p class="absolute bottom-2.5 left-3 right-3 text-[11px] sm:text-xs font-bold text-rose-300 truncate">Vận chuyển đến móng trạm cân xe tải</p>
+      </div>
+
+    </div>
+
+    <!-- Lightbox Zoom Modal -->
+    <div x-show="modalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" @keydown.escape.window="modalOpen = false">
+      <div class="relative max-w-3xl w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xl" @click.away="modalOpen = false">
+        <button @click="modalOpen = false" class="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-slate-900/80 text-white hover:bg-slate-900 flex items-center justify-center transition-colors">
+          <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+        <div class="max-h-[65vh] flex items-center justify-center bg-slate-950">
+          <img :src="modalImg" :alt="modalTitle" class="max-h-[65vh] w-auto object-contain">
+        </div>
+        <div class="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
+          <p class="text-sm font-bold text-slate-900 truncate" x-text="modalTitle"></p>
+          <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shrink-0 flex items-center gap-1 shadow-sm">
+            <span class="material-symbols-outlined text-sm">call</span>
+            <span>Gọi: {{ settings.phone }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- 5. BÁO GIÁ CHO THUÊ QUẢ CÂN CHUẨN — BÁO GIÁ TRỰC TIẾP KHÔNG QUA TRUNG GIAN -->
+<section id="bang-gia" class="scroll-mt-24 py-12 lg:py-16 bg-slate-50 border-b border-slate-200/90">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-10">
+      <span class="text-red-600 font-bold uppercase text-[11px] tracking-wider block mb-1">Báo Giá Trực Tiếp</span>
+      <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Báo Giá Cho Thuê Quả Cân Chuẩn</h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl mx-auto">Báo giá linh hoạt theo số lượng quả, thời gian thuê hoặc trọn gói kèm xe cẩu tự hành — Đầy đủ chứng nhận kiểm định ĐLVN &amp; hóa đơn VAT.</p>
+    </div>
+
+    <div class="overflow-x-auto rounded-2xl border border-slate-200/90 shadow-sm bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-100/90 text-slate-700 uppercase text-xs font-bold border-b border-slate-200">
+          <tr>
+            <th class="px-6 py-4">Loại Quả Cân / Dịch Vụ</th>
+            <th class="px-6 py-4">Quy Cách &amp; Cấp Chính Xác</th>
+            <th class="px-6 py-4 text-center">Hình Thức Báo Giá</th>
+            <th class="px-6 py-4 text-right">Liên Hệ Trực Tiếp</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 bg-white">
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Quả Cân Chuẩn Gang 500KG</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Cấp M1 · Gang đúc có quai móc cẩu</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 font-bold text-xs border border-red-200/80 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                Báo giá theo số lượng quả
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Báo giá ngay</span>
+              </a>
+            </td>
+          </tr>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Bộ Quả Cân Chuẩn Hộp Gỗ (1g–5kg)</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Cấp F1 / F2 · Hộp gỗ lót nhung đỏ</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 font-bold text-xs border border-red-200/80 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                Báo giá theo bộ dải đo
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Báo giá ngay</span>
+              </a>
+            </td>
+          </tr>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Quả Cân Trụ Inox Lẻ (1KG – 20KG)</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Cấp F2 / M1 · Inox 304 không từ tính</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-700 font-bold text-xs border border-red-200/80 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+                Báo giá theo quả lẻ
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Báo giá ngay</span>
+              </a>
+            </td>
+          </tr>
+          <tr class="hover:bg-red-50/40 transition-colors">
+            <td class="px-6 py-4 font-bold text-slate-900">Trọn Gói Kiểm Định Trạm Cân 60T – 120T</td>
+            <td class="px-6 py-4 text-slate-700 text-xs font-medium">Xe cẩu 8T–10T + 20-40 quả 500kg + Thợ cẩu</td>
+            <td class="px-6 py-4 text-center">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white font-bold text-xs shadow-xs whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Báo giá trọn gói ưu đãi
+              </span>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <a href="tel:{{ settings.phone_raw }}" class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-bold text-xs shadow-xs hover:shadow-md transition-all whitespace-nowrap">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span>Tư vấn trọn gói</span>
+              </a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+<!-- 6. CÂU HỎI THƯỜNG GẶP FAQ VỀ QUẢ CÂN CHUẨN -->
+<section id="faq" class="scroll-mt-24 py-14 lg:py-20 bg-white" x-data="{ activeFaq: 1 }">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-10">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-50 text-red-800 border border-red-200 mb-3 shadow-sm">
+        <span class="material-symbols-outlined text-xs text-red-600">help</span>
+        <span>Giải Đáp Thắc Mắc</span>
+      </div>
+      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
+        Câu Hỏi Thường Gặp (FAQ) Về Quả Cân
+      </h2>
+      <p class="text-xs sm:text-sm text-slate-600 mt-2 max-w-2xl mx-auto">
+        Tổng hợp những câu hỏi phổ biến của trạm cân, nhà máy sản xuất và đơn vị kiểm định khi thuê quả cân chuẩn tại Đại Lộ Xanh.
+      </p>
+    </div>
+
+    <!-- Accordion List -->
+    <div class="space-y-3.5">
+      
+      <!-- FAQ 1 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 1 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 1 ? null : 1"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">1</span>
+            <span>Quả cân cho thuê của Đại Lộ Xanh có giấy chứng nhận kiểm định ĐLVN không?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 1 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 1" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              <strong>Có 100%</strong>. Toàn bộ quả cân chuẩn 500kg (cấp M1), quả cân inox và bộ quả cân hộp gỗ (cấp F1, F2) của Đại Lộ Xanh đều được kiểm định, hiệu chuẩn định kỳ tại các Trung tâm Kỹ thuật Tiêu chuẩn Đo lường Chất lượng (Quatest). Tất cả quả cân đều còn hiệu lực tem và giấy chứng nhận kiểm định hợp lệ, có buồng niêm chì chống can thiệp khối lượng.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 2 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 2 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 2 ? null : 2"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">2</span>
+            <span>Một trạm cân xe tải 60T – 100T cần thuê bao nhiêu quả cân 500KG?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 2 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 2" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              Theo quy trình kiểm định đo lường ĐLVN 13:2009 cho cân ô tô:
+            </p>
+            <ul class="list-disc pl-5 mt-2 space-y-1 text-slate-700">
+              <li>Trạm cân 40 – 60 tấn: Cần từ <strong>16 – 24 quả cân 500kg</strong> (tương đương 8 – 12 tấn tải trọng đối chứng).</li>
+              <li>Trạm cân 80 – 120 tấn: Cần từ <strong>24 – 40 quả cân 500kg</strong> (tương đương 12 – 20 tấn tải trọng đối chứng).</li>
+            </ul>
+            <p class="mt-2 text-red-800 font-semibold">
+              ✔ Xe cẩu tự hành Hyundai thùng 8.5m của Đại Lộ Xanh chở được trọn vẹn dàn 20–30 quả cân trong một chuyến duy nhất, tiết kiệm tối đa chi phí vận chuyển.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 3 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 3 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 3 ? null : 3"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">3</span>
+            <span>Đại Lộ Xanh có hỗ trợ thợ cẩu đặt quả cân vào từng vị trí góc bàn cân không?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 3 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 3" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              <strong>Chắc chắn có</strong>. Khi quý khách chọn gói dịch vụ trọn gói, thợ lái xe cẩu của chúng tôi (có chứng chỉ nghề vận hành thiết bị nâng TCVN 4244) sẽ trực tiếp điều khiển cần cẩu UNIC/Dongyang hạ từng quả cân nhẹ nhàng vào đúng tâm hoặc các góc dầm cân theo yêu cầu của kỹ thuật viên đoàn kiểm định, giúp tiết kiệm thời gian và đảm bảo an toàn tuyệt đối cho thiết bị cảm biến lực (loadcell).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 4 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 4 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 4 ? null : 4"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">4</span>
+            <span>Thời gian điều quả cân và xe cẩu đến hiện trường mất bao lâu?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 4 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 4" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              Bãi tập kết quả cân và xe cẩu của chúng tôi đặt tại <strong>Khu Đồng Dâu, KCN Cổ Tiết (Phú Thọ)</strong> và <strong>Tề Lỗ, Yên Lạc (Vĩnh Phúc)</strong>. Quả cân có thể có mặt tại hiện trường chỉ sau <strong>15 – 30 phút</strong> tại Bình Xuyên, Vĩnh Yên, Phúc Yên, Tam Nông, Việt Trì, Lâm Thao. Phục vụ 24/7 kể cả ngày lễ và ca đêm.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 5 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 5 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 5 ? null : 5"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">5</span>
+            <span>Công ty có xuất hóa đơn GTGT (VAT) và hợp đồng cho thuê quả cân không?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 5 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 5" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              <strong>Có đầy đủ</strong>. Pháp nhân <strong>CÔNG TY TNHH VẬN TẢI ĐẠI LỘ XANH</strong> (MST: <strong>{{ company.tax_id }}</strong>) trực tiếp ký kết hợp đồng kinh tế, lập biên bản bàn giao thiết bị đo lường và xuất hóa đơn điện tử VAT đầy đủ theo quy định của pháp luật.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ 6 -->
+      <div class="rounded-2xl border transition-all duration-200 shadow-sm overflow-hidden"
+           :class="activeFaq === 6 ? 'border-red-500 bg-red-50/20' : 'border-slate-200 bg-white hover:border-red-300'">
+        <button type="button" @click="activeFaq = activeFaq === 6 ? null : 6"
+                class="w-full py-4 px-5 sm:px-6 text-left flex items-center justify-between gap-4">
+          <span class="font-extrabold text-sm sm:text-base text-slate-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-black text-xs flex items-center justify-center shrink-0">6</span>
+            <span>Quy trình đặt thuê quả cân chuẩn như thế nào?</span>
+          </span>
+          <span class="material-symbols-outlined text-slate-400 text-xl transition-transform duration-200 shrink-0"
+                :class="activeFaq === 6 ? 'rotate-180 text-red-600' : ''">expand_more</span>
+        </button>
+        <div x-show="activeFaq === 6" x-collapse>
+          <div class="px-5 sm:px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-600 leading-relaxed border-t border-slate-100">
+            <p>
+              Quy trình nhanh chóng chỉ với 3 bước:
+            </p>
+            <ol class="list-decimal pl-5 mt-2 space-y-1.5 text-slate-700">
+              <li><strong>Bước 1:</strong> Quý khách gọi Hotline <strong>{{ settings.phone }}</strong> hoặc gửi yêu cầu qua Zalo thông báo công suất cân và thời gian kiểm định.</li>
+              <li><strong>Bước 2:</strong> Đại Lộ Xanh tư vấn số lượng quả cân cần thiết, phương án xe cẩu và báo giá trọn gói cạnh tranh nhất.</li>
+              <li><strong>Bước 3:</strong> Xe cẩu vận chuyển quả cân đến đúng giờ hẹn, thi công hạ quả cân, nghiệm thu và hoàn tất thủ tục thanh toán.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Hỗ Trợ Trực Tuyến Banner Nhỏ Dưới FAQ -->
+    <div class="mt-8 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-red-50 via-rose-50/60 to-slate-50 border border-red-200/80 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5 text-center sm:text-left">
+        <div class="w-11 h-11 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-md shadow-red-600/20 shrink-0">
+          <span class="material-symbols-outlined text-2xl">support_agent</span>
+        </div>
+        <div>
+          <h4 class="font-black text-slate-900 text-sm sm:text-base">Quý khách cần tư vấn chọn bộ quả cân phù hợp?</h4>
+          <p class="text-xs text-slate-600 mt-0.5">Kỹ sư điều vận của Đại Lộ Xanh luôn sẵn sàng hỗ trợ tính toán tải trọng kiểm định tối ưu.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2.5 shrink-0">
+        <a href="tel:{{ settings.phone_raw }}" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-700 text-white font-extrabold text-xs shadow-md shadow-red-600/20 transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-base">call</span>
+          <span>Gọi: {{ settings.phone }}</span>
+        </a>
+        <a href="{{ settings.zalo }}" target="_blank" rel="noopener" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-sky-700 font-extrabold text-xs border border-sky-200 shadow-sm transition-all flex items-center gap-1.5">
+          <span class="material-symbols-outlined text-base">chat</span>
+          <span>Chat Zalo</span>
+        </a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}

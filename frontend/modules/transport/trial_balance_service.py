@@ -17,14 +17,90 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
+import json
 import os
 from typing import Any
 
 import openpyxl
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 DAI_LO_XANH_COMPANY_ID = 33
 SAMPLE_EXCEL_PATH = r"C:\Users\admin\Downloads\F01_DNN_Bang_can_doi_tai_khoan.xls"
+
+
+def get_tb_overrides() -> dict[str, dict]:
+    company_id = get_current_company_id()
+    if not company_id:
+        return {}
+    from backend.services.settings_service import get_app_setting
+    raw = get_app_setting(f"trial_balance_overrides_{company_id}", "{}")
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {}
+
+
+def save_tb_override(code: str = "", name: str | None = None, open_dr: int | None = None, open_cr: int | None = None) -> bool:
+    company_id = get_current_company_id()
+    if not company_id:
+        return False
+    from backend.services.settings_service import set_app_setting
+    ovs = get_tb_overrides()
+    cur = ovs.get(code, {})
+    if name is not None:
+        cur["name"] = name.strip()
+    if open_dr is not None:
+        cur["open_dr"] = int(open_dr)
+    if open_cr is not None:
+        cur["open_cr"] = int(open_cr)
+    ovs[code] = cur
+    return set_app_setting(f"trial_balance_overrides_{company_id}", json.dumps(ovs))
+
+
+def get_tb_custom_accounts() -> list[dict]:
+    company_id = get_current_company_id()
+    if not company_id:
+        return []
+    from backend.services.settings_service import get_app_setting
+    raw = get_app_setting(f"trial_balance_custom_accounts_{company_id}", "[]")
+    try:
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+def add_tb_custom_account(code: str = "", name: str = "", parent_code: str = "", open_dr: int = 0, open_cr: int = 0) -> bool:
+    company_id = get_current_company_id()
+    if not company_id:
+        return False
+    from backend.services.settings_service import set_app_setting
+    accs = get_tb_custom_accounts()
+    accs = [a for a in accs if a.get("code") != code]
+    accs.append({
+        "code": code.strip(),
+        "name": name.strip(),
+        "parent_code": parent_code.strip(),
+        "open_dr": int(open_dr),
+        "open_cr": int(open_cr),
+        "is_custom": True,
+    })
+    return set_app_setting(f"trial_balance_custom_accounts_{company_id}", json.dumps(accs))
+
+
+def delete_tb_account(code: str = "") -> bool:
+    company_id = get_current_company_id()
+    if not company_id:
+        return False
+    from backend.services.settings_service import set_app_setting
+    accs = get_tb_custom_accounts()
+    new_accs = [a for a in accs if a.get("code") != code]
+    set_app_setting(f"trial_balance_custom_accounts_{company_id}", json.dumps(new_accs))
+    ovs = get_tb_overrides()
+    if code in ovs:
+        del ovs[code]
+        set_app_setting(f"trial_balance_overrides_{company_id}", json.dumps(ovs))
+    return True
 
 
 def read_f01_dnn_sample(file_path: str = SAMPLE_EXCEL_PATH) -> dict[str, Any] | None:
@@ -83,17 +159,38 @@ def read_f01_dnn_sample(file_path: str = SAMPLE_EXCEL_PATH) -> dict[str, Any] | 
 
 
 def get_trial_balance_data(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int = 2026,
     date_from: date | None = None,
     date_to: date | None = None,
     as_of_date: date | None = None,
 ) -> dict[str, Any]:
+    company_id = company_id or get_current_company_id()
     if date_from is None:
         date_from = date(year, 1, 1)
     if date_to is None:
         date_to = as_of_date or date.today()
     as_of_date = date_to
+
+    if not company_id or int(company_id) <= 0:
+        empty_tot = {k: 0 for k in ("open_dr", "open_cr", "ps_dr", "ps_cr", "close_dr", "close_cr")}
+        return {
+            "all_rows": [],
+            "rows": [],
+            "summary_rows": [],
+            "totals": empty_tot,
+            "summary_totals": empty_tot.copy(),
+            "has_sub_accounts": False,
+            "is_balanced": True,
+            "diff_open": 0,
+            "diff_ps": 0,
+            "diff_close": 0,
+            "date_from": date_from,
+            "date_to": date_to,
+            "as_of_date": as_of_date,
+            "year": year,
+            "company": {"name": "", "tax_code": "", "address": ""},
+        }
 
     # 1. Output invoices (TK 511, 3331, 131)
     out_inv = db._execute_query("""
@@ -110,20 +207,44 @@ def get_trial_balance_data(
     total_receivable_131 = int(round(float(out_inv.get("gross") or 0)))
     count_inv_out = int(out_inv.get("count_inv") or 0)
 
-    # 2. Input invoices (TK 154/632, 133, 331)
-    in_inv = db._execute_query("""
-        SELECT COALESCE(SUM(subtotal), 0) as sub,
+    # 2. Input invoices (TK 153, 154/632, 133, 331, 642)
+    in_inv_rows = db._execute_query("""
+        SELECT COALESCE(NULLIF(TRIM(tk_no_cost), ''), '154') as tk_cost,
+               COALESCE(SUM(subtotal), 0) as sub,
                COALESCE(SUM(vat_amount), 0) as vat,
                COALESCE(SUM(total), 0) as total,
                COUNT(*) as count_inv
         FROM public.transport_input_invoices
         WHERE buyer_company_id = %s AND invoice_date >= %s AND invoice_date <= %s
-    """, (company_id, date_from, date_to), fetch=True, commit=False) or {}
+        GROUP BY COALESCE(NULLIF(TRIM(tk_no_cost), ''), '154')
+    """, (company_id, date_from, date_to), fetchall=True, commit=False) or []
 
-    total_cost_154 = int(round(float(in_inv.get("sub") or 0)))
-    total_vat_in_133 = int(round(float(in_inv.get("vat") or 0)))
-    total_payable_331 = total_cost_154 + total_vat_in_133
-    count_inv_in = int(in_inv.get("count_inv") or 0)
+    total_cost_154 = 0
+    total_cost_153 = 0
+    count_inv_153 = 0
+    total_cost_642_inv = 0
+    total_vat_in_133 = 0
+    total_payable_331 = 0
+    count_inv_in = 0
+
+    for r in in_inv_rows:
+        tk = str(r.get("tk_cost") or "154").strip()
+        sub = int(round(float(r.get("sub") or 0)))
+        vat = int(round(float(r.get("vat") or 0)))
+        tot = int(round(float(r.get("total") or 0)))
+        cnt = int(r.get("count_inv") or 0)
+
+        total_vat_in_133 += vat
+        total_payable_331 += tot
+        count_inv_in += cnt
+
+        if tk.startswith("153"):
+            total_cost_153 += sub
+            count_inv_153 += cnt
+        elif tk.startswith("642"):
+            total_cost_642_inv += sub
+        else:
+            total_cost_154 += sub
 
     company = db._execute_query(
         "SELECT * FROM public.invoice_companies WHERE id = %s",
@@ -157,20 +278,27 @@ def get_trial_balance_data(
     bank_ps_cr = bank_data["total_withdraw"]
     bank_close = bank_data["closing_balance"]
 
-    cust_paid_bank = bank_ps_dr
-    supplier_paid_bank = bank_ps_cr
+    cust_paid_cash = int(round(sum(float(e.get("receipt_amount") or 0) for e in cash_data.get("entries", []) if str(e.get("offset_account") or "").startswith("131"))))
+    cust_paid_bank = int(round(sum(float(e.get("deposit_amount") or 0) for e in bank_data.get("entries", []) if str(e.get("offset_account") or "").startswith("131"))))
+    total_cust_paid = cust_paid_cash + cust_paid_bank
+
+    supplier_paid_cash = int(round(sum(float(e.get("payment_amount") or 0) for e in cash_data.get("entries", []) if str(e.get("offset_account") or "").startswith("331") or str(e.get("offset_account") or "") in ["154", "642"])))
+    supplier_paid_bank = int(round(sum(float(e.get("withdraw_amount") or 0) for e in bank_data.get("entries", []) if str(e.get("offset_account") or "").startswith("331") or str(e.get("offset_account") or "") in ["154", "642"])))
+    total_supplier_paid = supplier_paid_cash + supplier_paid_bank
+
     prepaid_242_rem_start = pe_tot["rem_start"]
     prepaid_242_alloc = pe_tot["alloc_year"]
     prepaid_242_rem_end = pe_tot["rem_end"]
     other_admin_exp = 0
 
-    # Chi tiet chi phi truc tiep tu DB (TK nho cua 154)
+    # Chi tiet chi phi truc tiep tu DB (TK nho cua 154) - loc chat che theo company_id cua xe
     vexp_rows = db._execute_query('''
-        SELECT expense_type, COALESCE(SUM(amount), 0) as total_amt
-        FROM public.vehicle_expenses
-        WHERE expense_date >= %s AND expense_date <= %s
-        GROUP BY expense_type
-    ''', (date_from, date_to), fetchall=True, commit=False) or []
+        SELECT ve.expense_type, COALESCE(SUM(ve.amount), 0) as total_amt
+        FROM public.vehicle_expenses ve
+        JOIN public.plate_whitelist pw ON pw.id = ve.vehicle_id
+        WHERE pw.company_id = %s AND ve.expense_date >= %s AND ve.expense_date <= %s
+        GROUP BY ve.expense_type
+    ''', (company_id, date_from, date_to), fetchall=True, commit=False) or []
     vexp_map = {str(r.get("expense_type") or "").lower(): int(round(float(r.get("total_amt") or 0))) for r in vexp_rows}
 
     db_fuel = vexp_map.get("fuel", 0)
@@ -204,6 +332,145 @@ def get_trial_balance_data(
         cost_driver_1542 = 0
         cost_repair_1543 = 0
         cost_other_1547 = 0
+
+    # 3b. Phân bổ Tài sản cố định 211 theo ngày phát sinh (đầu kỳ vs trong kỳ)
+    orig_211_open = 0
+    orig_211_ps = 0
+    sub_211 = []
+    for r in depr_data.get("rows", []):
+        price = int(r.get("original_price") or 0)
+        start_d = r.get("depreciation_start_date") or r.get("increase_date")
+        if isinstance(start_d, str):
+            try:
+                start_d = date.fromisoformat(start_d[:10])
+            except Exception:
+                start_d = date(selected_year, 1, 1)
+        elif not isinstance(start_d, date):
+            start_d = date(selected_year, 1, 1)
+
+        if start_d < date_from:
+            v_open = price
+            v_ps = 0
+            v_close = price
+            orig_211_open += price
+        elif start_d <= date_to:
+            v_open = 0
+            v_ps = price
+            v_close = price
+            orig_211_ps += price
+        else:
+            v_open = 0
+            v_ps = 0
+            v_close = 0
+
+        sub_211.append({
+            "code": "2113",
+            "name": f"Phương tiện vận tải: {r.get('asset_code') or r.get('plate_number') or r.get('name') or 'Xe tải'}",
+            "open_dr": v_open,
+            "open_cr": 0,
+            "ps_dr": v_ps,
+            "ps_cr": 0,
+            "close_dr": v_close,
+            "close_cr": 0,
+            "source_note": f"Nguyên giá {r.get('asset_code') or r.get('plate_number') or ''}".strip(),
+            "source_url": "/admin/transport/depreciation",
+        })
+
+    # 4. Vốn đầu tư của chủ sở hữu (TK 411, 4111) từ sổ quỹ tiền mặt & ngân hàng
+    capital_rows = db._execute_query('''
+        SELECT 
+            id, voucher_no, entry_date, voucher_date, voucher_type,
+            amount, partner_name, description, offset_account
+        FROM public.transport_cash_book
+        WHERE company_id = %s 
+          AND (offset_account ILIKE %s OR description ILIKE %s OR description ILIKE %s)
+          AND entry_date >= %s AND entry_date <= %s
+        ORDER BY entry_date ASC, id ASC
+    ''', (company_id, '%411%', '%góp vốn%', '%VĐL%', date_from, date_to), fetchall=True, commit=False) or []
+
+    prev_capital_rows = db._execute_query('''
+        SELECT 
+            COALESCE(SUM(CASE WHEN voucher_type = 'receipt' THEN amount ELSE 0 END), 0) as prev_cr,
+            COALESCE(SUM(CASE WHEN voucher_type = 'payment' THEN amount ELSE 0 END), 0) as prev_dr
+        FROM public.transport_cash_book
+        WHERE company_id = %s 
+          AND (offset_account ILIKE %s OR description ILIKE %s OR description ILIKE %s)
+          AND entry_date < %s
+    ''', (company_id, '%411%', '%góp vốn%', '%VĐL%', date_from), fetch=True, commit=False) or {}
+    prev_cap_cr = int(round(float(prev_capital_rows.get("prev_cr") or 0)))
+    prev_cap_dr = int(round(float(prev_capital_rows.get("prev_dr") or 0)))
+
+    initial_capital = cash_open + bank_open + orig_211_open + prepaid_242_rem_start
+    open_cr_411 = initial_capital + prev_cap_cr - prev_cap_dr
+    cap_ps_cr = int(round(sum(float(r["amount"] or 0) for r in capital_rows if r["voucher_type"] == "receipt")))
+    cap_ps_dr = int(round(sum(float(r["amount"] or 0) for r in capital_rows if r["voucher_type"] == "payment")))
+    close_cr_411 = open_cr_411 + cap_ps_cr - cap_ps_dr
+
+    partner_cap = {}
+    partner_cap[director_name] = {
+        "name": f"Vốn góp của {director_name} (Chủ sở hữu)",
+        "open_cr": open_cr_411,
+        "ps_dr": 0,
+        "ps_cr": 0,
+        "close_cr": open_cr_411,
+    }
+    def _norm_str(s: str) -> str:
+        import unicodedata
+        return unicodedata.normalize("NFC", str(s or "").strip().lower())
+
+    for r in capital_rows:
+        pname = (r.get("partner_name") or "").strip() or director_name
+        match_key = next((k for k in partner_cap if _norm_str(k) == _norm_str(pname)), None)
+        if not match_key:
+            match_key = pname
+            partner_cap[match_key] = {
+                "name": f"Vốn góp của {pname}",
+                "open_cr": 0,
+                "ps_dr": 0,
+                "ps_cr": 0,
+                "close_cr": 0,
+            }
+        amt = int(round(float(r["amount"] or 0)))
+        if r["voucher_type"] == "receipt":
+            partner_cap[match_key]["ps_cr"] += amt
+            partner_cap[match_key]["close_cr"] += amt
+        else:
+            partner_cap[match_key]["ps_dr"] += amt
+            partner_cap[match_key]["close_cr"] -= amt
+
+    sub_411 = []
+    for pname, pdata in partner_cap.items():
+        sub_411.append({
+            "code": "4111",
+            "name": pdata["name"],
+            "open_dr": 0,
+            "open_cr": pdata["open_cr"],
+            "ps_dr": pdata["ps_dr"],
+            "ps_cr": pdata["ps_cr"],
+            "close_dr": 0,
+            "close_cr": pdata["close_cr"],
+            "source_note": "Phiếu thu góp vốn điều lệ",
+            "source_url": "/admin/transport/cash-book",
+        })
+
+    if orig_211_open > 0 or orig_211_ps > 0:
+        sub_411.append({
+            "code": "4111",
+            "name": f"Vốn góp bằng TSCĐ ({len(depr_data.get('rows', []))} xe tải)",
+            "open_dr": 0,
+            "open_cr": orig_211_open,
+            "ps_dr": 0,
+            "ps_cr": orig_211_ps,
+            "close_dr": 0,
+            "close_cr": orig_211_open + orig_211_ps,
+            "source_note": "Tài sản cố định góp vốn ban đầu",
+            "source_url": "/admin/transport/depreciation",
+        })
+
+    total_cap_open_cr = open_cr_411 + orig_211_open
+    total_cap_ps_cr = cap_ps_cr + orig_211_ps
+    total_cap_ps_dr = cap_ps_dr
+    total_cap_close_cr = total_cap_open_cr + total_cap_ps_cr - total_cap_ps_dr
 
     # Base Parent Accounts (TK Cap 1: 3 chu so)
     parent_accounts = [
@@ -259,18 +526,18 @@ def get_trial_balance_data(
             "open_dr": 0,
             "open_cr": 0,
             "ps_dr": total_receivable_131,
-            "ps_cr": cust_paid_bank,
-            "close_dr": total_receivable_131 - cust_paid_bank,
-            "close_cr": 0,
-            "source_note": "Bảng kê 92 HĐ BKAV bán ra",
+            "ps_cr": total_cust_paid,
+            "close_dr": max(0, total_receivable_131 - total_cust_paid),
+            "close_cr": max(0, total_cust_paid - total_receivable_131),
+            "source_note": f"Bảng kê {count_inv_out} HĐ BKAV bán ra",
             "source_url": "/admin/vehicles/cargo",
             "sub_accounts": [
                 {
                     "code": "1311",
-                    "name": "Phải thu cước vận tải khách hàng (92 HĐ BKAV)",
+                    "name": f"Phải thu cước vận tải khách hàng ({count_inv_out} HĐ BKAV)",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": total_receivable_131, "ps_cr": cust_paid_bank,
-                    "close_dr": total_receivable_131 - cust_paid_bank, "close_cr": 0,
+                    "ps_dr": total_receivable_131, "ps_cr": total_cust_paid,
+                    "close_dr": max(0, total_receivable_131 - total_cust_paid), "close_cr": max(0, total_cust_paid - total_receivable_131),
                     "source_note": "Hóa đơn điện tử BKAV bán ra",
                     "source_url": "/admin/vehicles/cargo",
                 }
@@ -350,31 +617,40 @@ def get_trial_balance_data(
             ]
         },
         {
+            "code": "153",
+            "name": "Công cụ, dụng cụ",
+            "open_dr": 0,
+            "open_cr": 0,
+            "ps_dr": total_cost_153,
+            "ps_cr": 0,
+            "close_dr": total_cost_153,
+            "close_cr": 0,
+            "source_note": f"Hóa đơn mua CCDC ({count_inv_153} HĐ)",
+            "source_url": "/admin/transport/input-invoices",
+            "sub_accounts": [
+                {
+                    "code": "1531",
+                    "name": "Công cụ, dụng cụ (Quả chuẩn 500kg, thiết bị)",
+                    "open_dr": 0, "open_cr": 0,
+                    "ps_dr": total_cost_153, "ps_cr": 0,
+                    "close_dr": total_cost_153, "close_cr": 0,
+                    "source_note": "Hóa đơn CCDC nhập kho",
+                    "source_url": "/admin/transport/input-invoices",
+                }
+            ]
+        },
+        {
             "code": "211",
             "name": "Tài sản cố định hữu hình",
-            "open_dr": total_original_211,
+            "open_dr": orig_211_open,
             "open_cr": 0,
-            "ps_dr": 0,
+            "ps_dr": orig_211_ps,
             "ps_cr": 0,
-            "close_dr": total_original_211,
+            "close_dr": orig_211_open + orig_211_ps,
             "close_cr": 0,
             "source_note": "Bảng tính khấu hao TSCĐ",
             "source_url": "/admin/transport/depreciation",
-            "sub_accounts": [
-                {
-                    "code": "2113",
-                    "name": f"Phương tiện vận tải: {r.get('plate_number') or r.get('name') or 'Xe tải'}",
-                    "open_dr": int(r.get("original_price") or 0),
-                    "open_cr": 0,
-                    "ps_dr": 0,
-                    "ps_cr": 0,
-                    "close_dr": int(r.get("original_price") or 0),
-                    "close_cr": 0,
-                    "source_note": f"Nguyên giá {r.get('plate_number') or ''}".strip(),
-                    "source_url": "/admin/transport/depreciation",
-                }
-                for r in depr_data.get("rows", [])
-            ]
+            "sub_accounts": sub_211,
         },
         {
             "code": "214",
@@ -431,10 +707,10 @@ def get_trial_balance_data(
             "name": "Phải trả cho người bán",
             "open_dr": 0,
             "open_cr": 0,
-            "ps_dr": supplier_paid_bank,
+            "ps_dr": total_supplier_paid,
             "ps_cr": total_payable_331,
-            "close_dr": 0,
-            "close_cr": total_payable_331 - supplier_paid_bank,
+            "close_dr": max(0, total_supplier_paid - total_payable_331),
+            "close_cr": max(0, total_payable_331 - total_supplier_paid),
             "source_note": f"Công nợ {count_inv_in} HĐ mua vào",
             "source_url": "/admin/transport/input-invoices",
             "sub_accounts": [
@@ -442,8 +718,8 @@ def get_trial_balance_data(
                     "code": "3311",
                     "name": f"Phải trả người bán ngắn hạn ({count_inv_in} HĐ mua vào)",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": supplier_paid_bank, "ps_cr": total_payable_331,
-                    "close_dr": 0, "close_cr": total_payable_331 - supplier_paid_bank,
+                    "ps_dr": total_supplier_paid, "ps_cr": total_payable_331,
+                    "close_dr": max(0, total_supplier_paid - total_payable_331), "close_cr": max(0, total_payable_331 - total_supplier_paid),
                     "source_note": "Sổ chi tiết công nợ nhà cung cấp",
                     "source_url": "/admin/transport/input-invoices",
                 }
@@ -476,34 +752,24 @@ def get_trial_balance_data(
             "code": "411",
             "name": "Vốn đầu tư của chủ sở hữu",
             "open_dr": 0,
-            "open_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
-            "ps_dr": 0,
-            "ps_cr": 0,
+            "open_cr": total_cap_open_cr,
+            "ps_dr": total_cap_ps_dr,
+            "ps_cr": total_cap_ps_cr,
             "close_dr": 0,
-            "close_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
-            "source_note": "Vốn điều lệ công ty (ĐKKD)",
-            "source_url": None,
-            "sub_accounts": [
-                {
-                    "code": "4111",
-                    "name": f"Vốn góp của chủ sở hữu ({director_name})",
-                    "open_dr": 0, "open_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
-                    "ps_dr": 0, "ps_cr": 0,
-                    "close_dr": 0, "close_cr": cash_open + bank_open + total_original_211 + prepaid_242_rem_start,
-                    "source_note": "Giấy chứng nhận đăng ký kinh doanh",
-                    "source_url": None,
-                }
-            ]
+            "close_cr": total_cap_close_cr,
+            "source_note": f"Vốn điều lệ công ty ({len(sub_411)} khoản góp vốn)",
+            "source_url": "/admin/transport/cash-book",
+            "sub_accounts": sub_411,
         },
         {
             "code": "421",
             "name": "Lợi nhuận sau thuế chưa phân phối",
             "open_dr": 0,
             "open_cr": 0,
-            "ps_dr": 0,
-            "ps_cr": 0,
-            "close_dr": 0,
-            "close_cr": 0,
+            "ps_dr": (abs(total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) < 0 else 0),
+            "ps_cr": ((total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) >= 0 else 0),
+            "close_dr": (abs(total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) < 0 else 0),
+            "close_cr": ((total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) >= 0 else 0),
             "source_note": "Kết chuyển kết quả kinh doanh",
             "source_url": None,
             "sub_accounts": [
@@ -511,8 +777,10 @@ def get_trial_balance_data(
                     "code": "4212",
                     "name": "Lợi nhuận sau thuế chưa phân phối năm nay",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": 0,
-                    "close_dr": 0, "close_cr": 0,
+                    "ps_dr": (abs(total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) < 0 else 0),
+                    "ps_cr": ((total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) >= 0 else 0),
+                    "close_dr": (abs(total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) < 0 else 0),
+                    "close_cr": ((total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) if (total_revenue_511 - (total_cost_154 + total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv)) >= 0 else 0),
                     "source_note": "Xác định KQKD cuối năm",
                     "source_url": None,
                 }
@@ -523,20 +791,20 @@ def get_trial_balance_data(
             "name": "Doanh thu bán hàng và cung cấp DV",
             "open_dr": 0,
             "open_cr": 0,
-            "ps_dr": 0,
+            "ps_dr": total_revenue_511,
             "ps_cr": total_revenue_511,
             "close_dr": 0,
-            "close_cr": total_revenue_511,
-            "source_note": f"Doanh thu cước vận chuyển ({count_inv_out} HĐ)",
+            "close_cr": 0,
+            "source_note": f"Doanh thu cước vận chuyển ({count_inv_out} HĐ) đã K/C sang 911",
             "source_url": "/admin/vehicles/cargo",
             "sub_accounts": [
                 {
                     "code": "5113",
                     "name": "Doanh thu cung cấp dịch vụ vận tải hàng hóa",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": 0, "ps_cr": total_revenue_511,
-                    "close_dr": 0, "close_cr": total_revenue_511,
-                    "source_note": f"{count_inv_out} HĐ cước vận chuyển đã phát hành",
+                    "ps_dr": total_revenue_511, "ps_cr": total_revenue_511,
+                    "close_dr": 0, "close_cr": 0,
+                    "source_note": f"{count_inv_out} HĐ cước vận chuyển (K/C sang 911)",
                     "source_url": "/admin/vehicles/cargo",
                 }
             ]
@@ -547,18 +815,18 @@ def get_trial_balance_data(
             "open_dr": 0,
             "open_cr": 0,
             "ps_dr": total_cost_154,
-            "ps_cr": 0,
-            "close_dr": total_cost_154,
+            "ps_cr": total_cost_154,
+            "close_dr": 0,
             "close_cr": 0,
-            "source_note": "Chi phí trực tiếp xe tải (từ TK 154)",
+            "source_note": "Chi phí trực tiếp xe tải (K/C sang 911)",
             "source_url": "/admin/transport/input-invoices",
             "sub_accounts": [
                 {
                     "code": "632",
-                    "name": "Giá vốn dịch vụ vận tải (Kết chuyển toàn bộ từ 154)",
+                    "name": "Giá vốn dịch vụ vận tải (Kết chuyển sang 911)",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": total_cost_154, "ps_cr": 0,
-                    "close_dr": total_cost_154, "close_cr": 0,
+                    "ps_dr": total_cost_154, "ps_cr": total_cost_154,
+                    "close_dr": 0, "close_cr": 0,
                     "source_note": "Kết chuyển chi phí chuyến xe",
                     "source_url": "/admin/transport/input-invoices",
                 }
@@ -569,43 +837,138 @@ def get_trial_balance_data(
             "name": "Chi phí quản lý kinh doanh",
             "open_dr": 0,
             "open_cr": 0,
-            "ps_dr": total_accum_depr_214 + prepaid_242_alloc + other_admin_exp,
-            "ps_cr": 0,
-            "close_dr": total_accum_depr_214 + prepaid_242_alloc + other_admin_exp,
+            "ps_dr": total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv,
+            "ps_cr": total_accum_depr_214 + prepaid_242_alloc + other_admin_exp + total_cost_642_inv,
+            "close_dr": 0,
             "close_cr": 0,
-            "source_note": "Khấu hao, quản lý, phân bổ",
+            "source_note": "Khấu hao, quản lý, phân bổ (K/C sang 911)",
             "source_url": "/admin/transport/depreciation",
             "sub_accounts": [
                 {
                     "code": "6422",
                     "name": f"Chi phí khấu hao phương tiện vận tải ({len(depr_data.get('rows', []))} xe tải)",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": total_accum_depr_214, "ps_cr": 0,
-                    "close_dr": total_accum_depr_214, "close_cr": 0,
-                    "source_note": "Từ Bảng tính khấu hao TSCĐ",
+                    "ps_dr": total_accum_depr_214, "ps_cr": total_accum_depr_214,
+                    "close_dr": 0, "close_cr": 0,
+                    "source_note": "Từ Bảng tính khấu hao TSCĐ (K/C sang 911)",
                     "source_url": "/admin/transport/depreciation",
                 },
                 {
                     "code": "6422",
                     "name": "Chi phí phân bổ CCDC, bảo hiểm xe",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": prepaid_242_alloc, "ps_cr": 0,
-                    "close_dr": prepaid_242_alloc, "close_cr": 0,
-                    "source_note": "Phân bổ từ TK 242",
+                    "ps_dr": prepaid_242_alloc, "ps_cr": prepaid_242_alloc,
+                    "close_dr": 0, "close_cr": 0,
+                    "source_note": "Phân bổ từ TK 242 (K/C sang 911)",
                     "source_url": None,
                 },
                 {
                     "code": "6428",
-                    "name": "Chi phí quản lý điều hành & văn phòng khác",
+                    "name": "Chi phí quản lý điều hành & dịch vụ mua ngoài (CKS BKAV...)",
                     "open_dr": 0, "open_cr": 0,
-                    "ps_dr": other_admin_exp, "ps_cr": 0,
-                    "close_dr": other_admin_exp, "close_cr": 0,
-                    "source_note": "Chi phí văn phòng, thông tin liên lạc",
-                    "source_url": None,
+                    "ps_dr": other_admin_exp + total_cost_642_inv, "ps_cr": other_admin_exp + total_cost_642_inv,
+                    "close_dr": 0, "close_cr": 0,
+                    "source_note": "Hóa đơn quản lý điều hành (CKS BKAV)",
+                    "source_url": "/admin/transport/input-invoices",
                 },
             ]
         },
+        {
+            "code": "911",
+            "name": "Xác định kết quả kinh doanh",
+            "open_dr": 0,
+            "open_cr": 0,
+            "ps_dr": total_revenue_511,
+            "ps_cr": total_revenue_511,
+            "close_dr": 0,
+            "close_cr": 0,
+            "source_note": "Kết chuyển doanh thu, giá vốn, CP QLDN và lợi nhuận",
+            "source_url": None,
+            "sub_accounts": [
+                {
+                    "code": "911",
+                    "name": "Kết chuyển doanh thu thuần và chi phí",
+                    "open_dr": 0, "open_cr": 0,
+                    "ps_dr": total_revenue_511, "ps_cr": total_revenue_511,
+                    "close_dr": 0, "close_cr": 0,
+                    "source_note": "Kết chuyển KQKD",
+                    "source_url": None,
+                }
+            ]
+        },
     ]
+
+    # Áp dụng Tùy chỉnh (Sửa tài khoản / Thêm tài khoản theo yêu cầu người dùng)
+    ovs = get_tb_overrides()
+    custom_accs = get_tb_custom_accounts()
+
+    # 1. Áp dụng Overrides cho các tài khoản hiện có
+    if ovs:
+        for p in parent_accounts:
+            p_code = p["code"]
+            if p_code in ovs:
+                if "name" in ovs[p_code]:
+                    p["name"] = ovs[p_code]["name"]
+                if "open_dr" in ovs[p_code]:
+                    p["open_dr"] = ovs[p_code]["open_dr"]
+                if "open_cr" in ovs[p_code]:
+                    p["open_cr"] = ovs[p_code]["open_cr"]
+                net = (p["open_dr"] - p["open_cr"]) + (p["ps_dr"] - p["ps_cr"])
+                p["close_dr"] = max(0, net)
+                p["close_cr"] = max(0, -net)
+            for s in p.get("sub_accounts", []):
+                s_code = s["code"]
+                if s_code in ovs:
+                    if "name" in ovs[s_code]:
+                        s["name"] = ovs[s_code]["name"]
+                    if "open_dr" in ovs[s_code]:
+                        s["open_dr"] = ovs[s_code]["open_dr"]
+                    if "open_cr" in ovs[s_code]:
+                        s["open_cr"] = ovs[s_code]["open_cr"]
+                    net_s = (s["open_dr"] - s["open_cr"]) + (s["ps_dr"] - s["ps_cr"])
+                    s["close_dr"] = max(0, net_s)
+                    s["close_cr"] = max(0, -net_s)
+
+    # 2. Thêm các tài khoản mới người dùng tạo (Thêm tài khoản)
+    if custom_accs:
+        parent_map = {p["code"]: p for p in parent_accounts}
+        for ca in custom_accs:
+            code = ca.get("code")
+            name = ca.get("name")
+            p_code = ca.get("parent_code") or ""
+            o_dr = int(ca.get("open_dr") or 0)
+            o_cr = int(ca.get("open_cr") or 0)
+            p_dr = int(ca.get("ps_dr") or 0)
+            p_cr = int(ca.get("ps_cr") or 0)
+            net_c = (o_dr - o_cr) + (p_dr - p_cr)
+            c_dr = max(0, net_c)
+            c_cr = max(0, -net_c)
+            acc_entry = {
+                "code": code,
+                "name": name,
+                "open_dr": o_dr,
+                "open_cr": o_cr,
+                "ps_dr": p_dr,
+                "ps_cr": p_cr,
+                "close_dr": c_dr,
+                "close_cr": c_cr,
+                "source_note": "Tài khoản thêm thủ công",
+                "source_url": None,
+                "is_custom": True,
+            }
+            if p_code and p_code in parent_map:
+                parent_map[p_code].setdefault("sub_accounts", []).append(acc_entry)
+                parent_map[p_code]["open_dr"] += o_dr
+                parent_map[p_code]["open_cr"] += o_cr
+                parent_map[p_code]["ps_dr"] += p_dr
+                parent_map[p_code]["ps_cr"] += p_cr
+                net_p = (parent_map[p_code]["open_dr"] - parent_map[p_code]["open_cr"]) + (parent_map[p_code]["ps_dr"] - parent_map[p_code]["ps_cr"])
+                parent_map[p_code]["close_dr"] = max(0, net_p)
+                parent_map[p_code]["close_cr"] = max(0, -net_p)
+            else:
+                acc_entry["sub_accounts"] = []
+                parent_accounts.append(acc_entry)
+                parent_map[code] = acc_entry
 
     # Calculate Totals strictly on Parent Accounts (Level 1) to prevent double counting
     totals = {
@@ -634,6 +997,7 @@ def get_trial_balance_data(
             "is_parent": True,
             "level": 1,
             "sub_count": len(p.get("sub_accounts", [])),
+            "is_custom": p.get("is_custom", False),
         }
         flattened_rows.append(p_row)
         for s in p.get("sub_accounts", []):
@@ -651,6 +1015,7 @@ def get_trial_balance_data(
                 "is_parent": False,
                 "parent_code": p["code"],
                 "level": 2,
+                "is_custom": s.get("is_custom", False),
             }
             flattened_rows.append(s_row)
 
@@ -679,14 +1044,17 @@ def get_trial_balance_data(
 
 
 def export_trial_balance_excel(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int = 2026,
     date_from: date | None = None,
     date_to: date | None = None,
     as_of_date: date | None = None,
     include_sub_accounts: bool = True,
 ) -> bytes:
-    data = get_trial_balance_data(company_id=company_id, year=year, date_from=date_from, date_to=date_to, as_of_date=as_of_date)
+    company_id = company_id or get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return b""
+    data = get_trial_balance_data(year=year, date_from=date_from, date_to=date_to, as_of_date=as_of_date)
     rows_to_export = data["all_rows"] if include_sub_accounts else [r for r in data["all_rows"] if r["is_parent"]]
     totals = data["totals"]
 
@@ -866,16 +1234,31 @@ def export_trial_balance_excel(
 
 def get_account_ledger_data(
     code: str,
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> dict[str, Any]:
+    company_id = company_id or get_current_company_id()
     if date_from is None:
         date_from = date(2026, 1, 1)
     if date_to is None:
         date_to = date.today()
 
     code_clean = str(code).strip()
+    if not company_id or int(company_id) <= 0:
+        return {
+            "account_code": code_clean,
+            "account_name": "",
+            "parent_code": "",
+            "open_dr": 0, "open_cr": 0,
+            "ps_dr": 0, "ps_cr": 0,
+            "close_dr": 0, "close_cr": 0,
+            "date_from": date_from,
+            "date_to": date_to,
+            "company": {"name": "", "tax_code": "", "address": ""},
+            "transactions": [],
+            "totals": {"open_dr": 0, "open_cr": 0, "ps_dr": 0, "ps_cr": 0, "close_dr": 0, "close_cr": 0},
+        }
     tb_data = get_trial_balance_data(company_id=company_id, year=date_from.year, date_from=date_from, date_to=date_to)
 
     # Tìm thông tin tài khoản từ Bảng cân đối
@@ -909,8 +1292,8 @@ def get_account_ledger_data(
 
     if code_clean in ("131", "1311"):
         title = "TỔNG HỢP CÔNG NỢ PHẢI THU"
-        external_link = "/admin/enterprise/debts"
-        external_label = "Mở Sổ công nợ khách hàng"
+        external_link = "/admin/transport/catalog?tab=companies&subtab=131"
+        external_label = "Mở Sheet 2: Sổ chi tiết TK 131"
         cust_rows = db._execute_query('''
             SELECT COALESCE(c.name, b.buyer_tax_code, 'Khách hàng lẻ') as name,
                    COALESCE(b.buyer_tax_code, 'KH-' || COALESCE(b.buyer_company_id, 0)) as code,
@@ -968,8 +1351,8 @@ def get_account_ledger_data(
 
     elif code_clean in ("331", "3311"):
         title = "TỔNG HỢP CÔNG NỢ PHẢI TRẢ"
-        external_link = "/admin/enterprise/suppliers"
-        external_label = "Mở Sổ nhà cung cấp & Nhập hàng"
+        external_link = "/admin/transport/catalog?tab=companies&subtab=331"
+        external_label = "Mở Sheet 3: Sổ chi tiết TK 331"
         sup_rows = db._execute_query('''
             SELECT seller_name as name,
                    COALESCE(seller_tax_code, 'NCC-LE') as code,
@@ -1001,7 +1384,10 @@ def get_account_ledger_data(
         inp_invs = db._execute_query('''
             SELECT invoice_date, invoice_number, serial, seller_name as partner,
                    COALESCE(NULLIF(note, ''), 'Mua hàng / Chi phí xe tải') as description,
-                   subtotal, vat_amount, total
+                   subtotal, vat_amount, total,
+                   COALESCE(tk_no_cost, '154') as tk_no_cost,
+                   COALESCE(tk_no_vat, '1331') as tk_no_vat,
+                   COALESCE(tk_co_pay, '331') as tk_co_pay
             FROM public.transport_input_invoices
             WHERE buyer_company_id = %s AND invoice_date >= %s AND invoice_date <= %s
             ORDER BY invoice_date DESC, invoice_number DESC LIMIT 100
@@ -1013,11 +1399,56 @@ def get_account_ledger_data(
                 "serial": inv["serial"] or "—",
                 "partner": inv["partner"],
                 "description": inv["description"],
-                "debit_acc": "154, 1331",
-                "credit_acc": "331",
+                "debit_acc": f"{inv.get('tk_no_cost') or '154'}, {inv.get('tk_no_vat') or '1331'}",
+                "credit_acc": inv.get("tk_co_pay") or "331",
                 "amount": int(round(float(inv["total"] or 0))),
                 "status": "Đã ghi sổ",
                 "link": "/admin/transport/input-invoices",
+            })
+
+    elif code_clean.startswith("153"):
+        title = "SỔ CHI TIẾT CÔNG CỤ DỤNG CỤ (TK 153)"
+        external_link = "/admin/transport/input-invoices"
+        external_label = "Mở Hóa đơn đầu vào CCDC"
+        row_153 = next((p for p in tb_data.get("parent_rows", []) if p["code"] == "153"), None)
+        sub_list = row_153.get("sub_accounts", []) if row_153 else []
+        for sub in sub_list:
+            items.append({
+                "code": sub["code"],
+                "name": sub["name"],
+                "account_code": sub["code"],
+                "open_dr": sub.get("open_dr", 0),
+                "open_cr": sub.get("open_cr", 0),
+                "ps_dr": sub.get("ps_dr", 0),
+                "ps_cr": sub.get("ps_cr", 0),
+                "close_dr": sub.get("close_dr", 0),
+                "close_cr": sub.get("close_cr", 0),
+                "inv_count": sub.get("source_note") or "",
+            })
+        inp_invs = db._execute_query('''
+            SELECT id, invoice_date, invoice_number, serial, seller_name as partner,
+                   COALESCE(NULLIF(note, ''), 'Mua quả cân chuẩn 500kg / CCDC') as description,
+                   subtotal, vat_amount, total,
+                   COALESCE(tk_no_cost, '153') as tk_no_cost,
+                   COALESCE(tk_no_vat, '1331') as tk_no_vat,
+                   COALESCE(tk_co_pay, '331') as tk_co_pay
+            FROM public.transport_input_invoices
+            WHERE buyer_company_id = %s AND invoice_date >= %s AND invoice_date <= %s
+              AND tk_no_cost = '153'
+            ORDER BY invoice_date DESC, invoice_number DESC
+        ''', (company_id, date_from, date_to), fetchall=True, commit=False) or []
+        for inv in inp_invs:
+            transactions.append({
+                "date": inv["invoice_date"].strftime("%d/%m/%Y") if inv["invoice_date"] else "",
+                "number": inv["invoice_number"] or "—",
+                "serial": inv["serial"] or "—",
+                "partner": inv["partner"],
+                "description": inv["description"],
+                "debit_acc": f"{inv.get('tk_no_cost') or '153'}, {inv.get('tk_no_vat') or '1331'}",
+                "credit_acc": inv.get("tk_co_pay") or "331",
+                "amount": int(round(float(inv["total"] or 0))),
+                "status": "Đã ghi sổ",
+                "link": f"/admin/transport/input-invoices?edit={inv.get('id', '')}",
             })
 
     elif code_clean.startswith("154") or code_clean == "632":
@@ -1196,10 +1627,80 @@ def get_account_ledger_data(
 
     elif code_clean.startswith("411"):
         title = "SỔ THEO DÕI VỐN GÓP CHỦ SỞ HỮU"
-        val_411 = account_row.get("open_cr", 0) if account_row else 0
-        items = [
-            {"code": "4111", "name": f"Vốn góp của {director_name} (Vốn điều lệ đăng ký)", "account_code": "4111", "open_dr": 0, "open_cr": val_411, "ps_dr": 0, "ps_cr": 0, "close_dr": 0, "close_cr": val_411, "inv_count": f"MST {tax_code}" if tax_code else "ĐKKD"},
-        ]
+        external_link = "/admin/transport/cash-book"
+        external_label = "Mở Sổ quỹ tiền mặt (Lập phiếu góp vốn)"
+        capital_rows = db._execute_query('''
+            SELECT 
+                id, voucher_no, entry_date, voucher_date, voucher_type,
+                amount, partner_name, description, offset_account
+            FROM public.transport_cash_book
+            WHERE company_id = %s 
+              AND (offset_account ILIKE %s OR description ILIKE %s OR description ILIKE %s)
+              AND entry_date >= %s AND entry_date <= %s
+            ORDER BY entry_date ASC, id ASC
+        ''', (company_id, '%411%', '%góp vốn%', '%VĐL%', date_from, date_to), fetchall=True, commit=False) or []
+
+        initial_cap = int(round(account_row.get("open_cr", 0) if account_row else 0))
+
+        partner_cap = {}
+        partner_cap[director_name] = {
+            "name": f"Vốn góp của {director_name} (Chủ sở hữu)",
+            "open_cr": initial_cap,
+            "ps_dr": 0,
+            "ps_cr": 0,
+            "close_cr": initial_cap,
+        }
+        def _norm_str(s: str) -> str:
+            import unicodedata
+            return unicodedata.normalize("NFC", str(s or "").strip().lower())
+
+        for r in capital_rows:
+            pname = (r.get("partner_name") or "").strip() or director_name
+            match_key = next((k for k in partner_cap if _norm_str(k) == _norm_str(pname)), None)
+            if not match_key:
+                match_key = pname
+                partner_cap[match_key] = {
+                    "name": f"Vốn góp của {pname}",
+                    "open_cr": 0,
+                    "ps_dr": 0,
+                    "ps_cr": 0,
+                    "close_cr": 0,
+                }
+            amt = int(round(float(r["amount"] or 0)))
+            if r["voucher_type"] == "receipt":
+                partner_cap[match_key]["ps_cr"] += amt
+                partner_cap[match_key]["close_cr"] += amt
+            else:
+                partner_cap[match_key]["ps_dr"] += amt
+                partner_cap[match_key]["close_cr"] -= amt
+
+            transactions.append({
+                "date": r["entry_date"].strftime("%d/%m/%Y") if r["entry_date"] else "",
+                "number": r["voucher_no"] or "—",
+                "serial": r["voucher_date"].strftime("%d/%m/%Y") if r["voucher_date"] else "",
+                "partner": pname,
+                "description": r["description"] or "Góp vốn điều lệ",
+                "debit_acc": "1111" if r["voucher_type"] == "receipt" else (r["offset_account"] or "4111"),
+                "credit_acc": (r["offset_account"] or "4111") if r["voucher_type"] == "receipt" else "1111",
+                "amount": amt,
+                "status": "Góp vốn" if r["voucher_type"] == "receipt" else "Rút vốn",
+                "link": "/admin/transport/cash-book",
+            })
+
+        items = []
+        for pname, pdata in partner_cap.items():
+            items.append({
+                "code": "4111",
+                "name": pdata["name"],
+                "account_code": "4111",
+                "open_dr": 0,
+                "open_cr": pdata["open_cr"],
+                "ps_dr": pdata["ps_dr"],
+                "ps_cr": pdata["ps_cr"],
+                "close_dr": 0,
+                "close_cr": pdata["close_cr"],
+                "inv_count": "Vốn góp",
+            })
 
     elif code_clean.startswith("421"):
         title = "SỔ THEO DÕI LỢI NHUẬN SAU THUẾ CHƯA PHÂN PHỐI"
@@ -1226,13 +1727,51 @@ def get_account_ledger_data(
             }
         ]
 
+    # For running-balance books like Cash (111) and Bank (112), items rows are individual transactions,
+    # so sum(close_dr) would sum cumulative running balances repeatedly.
+    if code_clean.startswith("111"):
+        from frontend.modules.transport.cash_bank_service import get_cash_book_data
+        cash_res = get_cash_book_data(company_id=company_id, year=date_from.year, date_from=date_from, date_to=date_to)
+        t_open_dr = int(round(cash_res.get("opening_balance") or 0))
+        t_open_cr = 0
+        t_ps_dr = int(round(cash_res.get("total_receipt") or 0))
+        t_ps_cr = int(round(cash_res.get("total_payment") or 0))
+        # Số dư cuối kỳ ở dòng Tổng cộng phải bằng số dư của dòng cuối cùng ngay trên nó, không phải cộng dồn
+        if items:
+            t_close_dr = int(items[-1].get("close_dr") or 0)
+            t_close_cr = int(items[-1].get("close_cr") or 0)
+        else:
+            t_close_dr = int(round(cash_res.get("closing_balance") or 0))
+            t_close_cr = 0
+    elif code_clean.startswith("112"):
+        from frontend.modules.transport.cash_bank_service import get_bank_book_data
+        bank_res = get_bank_book_data(company_id=company_id, year=date_from.year, date_from=date_from, date_to=date_to)
+        t_open_dr = int(round(bank_res.get("opening_balance") or 0))
+        t_open_cr = 0
+        t_ps_dr = int(round(bank_res.get("total_deposit") or 0))
+        t_ps_cr = int(round(bank_res.get("total_withdraw") or 0))
+        # Số dư cuối kỳ ở dòng Tổng cộng phải bằng số dư của dòng cuối cùng ngay trên nó, không phải cộng dồn
+        if items:
+            t_close_dr = int(items[-1].get("close_dr") or 0)
+            t_close_cr = int(items[-1].get("close_cr") or 0)
+        else:
+            t_close_dr = int(round(bank_res.get("closing_balance") or 0))
+            t_close_cr = 0
+    else:
+        t_open_dr = sum(int(i.get("open_dr") or 0) for i in items)
+        t_open_cr = sum(int(i.get("open_cr") or 0) for i in items)
+        t_ps_dr = sum(int(i.get("ps_dr") or 0) for i in items)
+        t_ps_cr = sum(int(i.get("ps_cr") or 0) for i in items)
+        t_close_dr = sum(int(i.get("close_dr") or 0) for i in items)
+        t_close_cr = sum(int(i.get("close_cr") or 0) for i in items)
+
     totals = {
-        "open_dr": sum(int(i.get("open_dr") or 0) for i in items),
-        "open_cr": sum(int(i.get("open_cr") or 0) for i in items),
-        "ps_dr": sum(int(i.get("ps_dr") or 0) for i in items),
-        "ps_cr": sum(int(i.get("ps_cr") or 0) for i in items),
-        "close_dr": sum(int(i.get("close_dr") or 0) for i in items),
-        "close_cr": sum(int(i.get("close_cr") or 0) for i in items),
+        "open_dr": t_open_dr,
+        "open_cr": t_open_cr,
+        "ps_dr": t_ps_dr,
+        "ps_cr": t_ps_cr,
+        "close_dr": t_close_dr,
+        "close_cr": t_close_cr,
         "count": len(items),
     }
 
@@ -1255,11 +1794,14 @@ def get_account_ledger_data(
 
 def export_account_ledger_excel(
     code: str,
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> bytes:
-    data = get_account_ledger_data(code=code, company_id=company_id, date_from=date_from, date_to=date_to)
+    company_id = company_id or get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return b""
+    data = get_account_ledger_data(code=code, date_from=date_from, date_to=date_to)
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = f"TK_{data['account_code']}"

@@ -13,6 +13,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from backend.services.database import db
+from frontend.context.company_context import get_current_company_id
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +21,45 @@ DAI_LO_XANH_COMPANY_ID = 33
 
 
 def get_prepaid_expenses_data(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int | None = None,
     as_of_month: int | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> dict[str, Any]:
     """Retrieve full allocation schedule for TK 242 across 12 months of the year."""
+    if company_id is None:
+        company_id = get_current_company_id()
+
     today = date.today()
     selected_year = int(year) if year and str(year).isdigit() and 2000 <= int(year) <= 2100 else today.year
     active_month = as_of_month if as_of_month and 1 <= as_of_month <= 12 else (today.month if today.year == selected_year else 12)
+
+    if not company_id or int(company_id) <= 0:
+        return {
+            "selected_year": selected_year,
+            "active_month": active_month,
+            "date_from": (date_from or date(selected_year, 1, 1)).strftime("%Y-%m-%d"),
+            "date_to": (date_to or date(selected_year, 12, 31)).strftime("%Y-%m-%d"),
+            "date_from_display": (date_from or date(selected_year, 1, 1)).strftime("%d/%m/%Y"),
+            "date_to_display": (date_to or date(selected_year, 12, 31)).strftime("%d/%m/%Y"),
+            "period_months": [],
+            "items": [],
+            "totals": {
+                "original_cost": 0,
+                "acc_start": 0,
+                "rem_start": 0,
+                "months": [0] * 12,
+                "alloc_year": 0,
+                "period_alloc": 0,
+                "period_months": [],
+                "m_start": 1,
+                "m_end": 12,
+                "acc_end": 0,
+                "rem_end": 0,
+                "count": 0,
+            },
+        }
 
     rows_db = db._execute_query('''
         SELECT id, item_code, name, unit, quantity, start_date, total_months,
@@ -203,6 +233,10 @@ def add_prepaid_expense(
     note: str = "",
 ) -> tuple[bool, str, int]:
     """Add a new prepaid expense/CCDC."""
+    if company_id is None:
+        company_id = get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return False, "Chưa chọn công ty làm việc.", 0
     try:
         orig = Decimal(str(original_cost))
         acc = Decimal(str(accumulated_prev or 0))
@@ -240,8 +274,12 @@ def add_prepaid_expense(
     return True, "Đã thêm CCDC phân bổ 242 thành công.", ins_id
 
 
-def delete_prepaid_expense(item_id: int, company_id: int = DAI_LO_XANH_COMPANY_ID) -> tuple[bool, str]:
+def delete_prepaid_expense(item_id: int, company_id: int | None = None) -> tuple[bool, str]:
     """Delete a prepaid expense item."""
+    if company_id is None:
+        company_id = get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return False, "Chưa chọn công ty làm việc."
     row = db._execute_query('''
         DELETE FROM public.transport_prepaid_expenses
         WHERE id = %s AND company_id = %s
@@ -253,12 +291,16 @@ def delete_prepaid_expense(item_id: int, company_id: int = DAI_LO_XANH_COMPANY_I
 
 
 def export_prepaid_expenses_excel(
-    company_id: int = DAI_LO_XANH_COMPANY_ID,
+    company_id: int | None = None,
     year: int = 2026,
     date_from: date | None = None,
     date_to: date | None = None,
 ) -> bytes:
     """Export TK 242 allocation schedule to Excel matching Phuong Nam layout."""
+    if company_id is None:
+        company_id = get_current_company_id()
+    if not company_id or int(company_id) <= 0:
+        return b""
     data = get_prepaid_expenses_data(company_id=company_id, year=year, date_from=date_from, date_to=date_to)
 
     wb = openpyxl.Workbook()

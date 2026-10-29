@@ -43,6 +43,7 @@ from frontend.modules.invoices import personal_debt_service
 from frontend.modules.enterprise import assets_service
 from frontend.modules.enterprise import sales_service
 from frontend.modules.enterprise import sales_import
+from frontend.context.company_context import get_current_company_id
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,36 @@ def _clean_numeric(value) -> Decimal:
 
 
 def _personal_month_range(value: str | None = None) -> tuple[str, date, date]:
-    try:
-        month_start = datetime.strptime((value or "").strip(), "%Y-%m").date().replace(day=1)
-    except ValueError:
+    cleaned = (value or "").strip().lower()
+    month_start = None
+    if cleaned:
+        if cleaned in ("all", "all_year", "tat_ca"):
+            cur_y = date.today().year
+            return "all", date(cur_y, 1, 1), date(cur_y + 1, 1, 1)
+        m_year_all = re.match(r"^(\d{4})-(all|00)$", cleaned)
+        if m_year_all:
+            y = int(m_year_all.group(1))
+            return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
+        m = re.match(r"^(\d{4})[-/](\d{1,2})$", cleaned)
+        if m:
+            y, mo = int(m.group(1)), int(m.group(2))
+            if 1 <= mo <= 12:
+                try:
+                    month_start = date(y, mo, 1)
+                    if mo == 12:
+                        month_end = date(y + 1, 1, 1)
+                    else:
+                        month_end = date(y, mo + 1, 1)
+                    return month_start.strftime("%Y-%m"), month_start, month_end
+                except Exception:
+                    pass
+        elif cleaned.rstrip("-").isdigit() and len(cleaned.rstrip("-")) == 4:
+            y = int(cleaned.rstrip("-"))
+            return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
+
+    if not month_start:
         month_start = date.today().replace(day=1)
+
     if month_start.month == 12:
         month_end = date(month_start.year + 1, 1, 1)
     else:
@@ -862,9 +889,8 @@ async def asset_assignment_delete(
     return RedirectResponse("/admin/enterprise/assets?message=" + urllib.parse.quote("Đã xóa biên bản bàn giao."), status_code=303)
 
 
-def _asset_company_id(request: Request, user: dict) -> int | None:
-    company_id = get_menu_context(request, user).get("active_company_id")
-    return int(company_id) if company_id else None
+def _asset_company_id(*args, **kwargs) -> int | None:
+    return get_current_company_id()
 
 
 def _asset_row_json(row: dict) -> dict:
@@ -1167,6 +1193,9 @@ async def enterprise_debts_page(
 
     log_where = ["l.owner_company_id = %s"]
     log_params = [owner_company_id]
+    if month_start and month_end:
+        log_where.append("l.recorded_date >= %s AND l.recorded_date < %s")
+        log_params.extend([month_start, month_end])
     if effective_q:
         term = f"%{effective_q}%"
         log_where.append("(c.name ILIKE %s OR c.tax_code ILIKE %s OR l.note ILIKE %s OR l.reference_doc ILIKE %s)")
@@ -1365,9 +1394,6 @@ async def enterprise_debt_add(
     note: str = Form(""),
     user: dict = Depends(require_menu("debts")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    if not owner_company_id:
-        return RedirectResponse("/admin/enterprise/debts", status_code=303)
     cleaned = re.sub(r"[^\d]", "", amount or "")
     if not cleaned:
         return RedirectResponse("/admin/enterprise/debts?error=" + urllib.parse.quote("Số tiền không hợp lệ."), status_code=303)
@@ -1378,7 +1404,6 @@ async def enterprise_debt_add(
     ok, msg, new_balance = adjust_company_debt(
         company_id=company_id,
         amount=val,
-        owner_company_id=owner_company_id,
         debt_type="manual_add",
         note=note.strip() or "Ghi nhận nợ ngoài",
         reference_doc=reference_doc.strip(),
@@ -1400,9 +1425,6 @@ async def enterprise_debt_pay(
     payment_method: str = Form("bank"),
     user: dict = Depends(require_menu("debts")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    if not owner_company_id:
-        return RedirectResponse("/admin/enterprise/debts", status_code=303)
     cleaned = re.sub(r"[^\d]", "", amount or "")
     if not cleaned:
         return RedirectResponse("/admin/enterprise/debts?error=" + urllib.parse.quote("Số tiền không hợp lệ."), status_code=303)
@@ -1413,7 +1435,6 @@ async def enterprise_debt_pay(
     ok, msg, new_balance = adjust_company_debt(
         company_id=company_id,
         amount=-val,
-        owner_company_id=owner_company_id,
         debt_type="payment",
         note=note.strip() or "Thu / Trả nợ",
         reference_doc=reference_doc.strip(),
@@ -1429,7 +1450,6 @@ async def enterprise_debt_pay(
             is_cash = "tiền mặt" in (payment_method or "").lower() or payment_method == "cash"
             b_type = "cash" if is_cash else "bank"
             record_cash_or_bank_entry(
-                company_id=owner_company_id,
                 book_type=b_type,
                 voucher_type="receipt",
                 amount=val,
@@ -1456,8 +1476,7 @@ async def enterprise_debt_delete(
     request: Request,
     user: dict = Depends(require_menu("debts")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    ok, msg, new_balance = delete_company_debt_log(log_id, owner_company_id)
+    ok, msg, new_balance = delete_company_debt_log(log_id)
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("accept", "")
     if is_ajax:
         return JSONResponse({"ok": ok, "message": msg, "new_balance": float(new_balance)})
@@ -1471,7 +1490,6 @@ async def enterprise_debt_update(
     request: Request,
     user: dict = Depends(require_menu("debts")),
 ):
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
     try:
         data = await request.json()
         amount = Decimal(str(data.get("amount") or "0"))
@@ -1482,7 +1500,6 @@ async def enterprise_debt_update(
         return JSONResponse({"ok": False, "message": "Thông tin giao dịch không hợp lệ."}, status_code=400)
     ok, msg, new_balance = update_company_debt_log(
         log_id=log_id,
-        owner_company_id=owner_company_id,
         amount=amount,
         note=str(data.get("note") or "").strip(),
         reference_doc=str(data.get("reference_doc") or "").strip(),
@@ -1500,9 +1517,8 @@ async def enterprise_debt_company_logs(
     comp = get_company(company_id)
     if not comp:
         return JSONResponse({"ok": False, "message": "Không tìm thấy đơn vị"}, status_code=404)
-    owner_company_id = get_menu_context(request, user).get("active_company_id")
-    logs = get_company_debt_logs(company_id, owner_company_id)
-    current_debt = get_company_debt(company_id, owner_company_id)
+    logs = get_company_debt_logs(company_id)
+    current_debt = get_company_debt(company_id)
     return JSONResponse({
         "ok": True,
         "company": {"id": comp["id"], "name": comp["name"], "tax_code": comp.get("tax_code", "")},
@@ -1512,8 +1528,8 @@ async def enterprise_debt_company_logs(
     })
 
 
-def _personal_debt_company_id(request: Request, user: dict) -> int | None:
-    return get_menu_context(request, user).get("active_company_id")
+def _personal_debt_company_id(*args, **kwargs) -> int | None:
+    return get_current_company_id()
 
 
 @router.post("/debts/individuals/import/preview")
@@ -1856,8 +1872,14 @@ def _sale_row_json(row: dict) -> dict:
     return result
 
 
-def _sales_company_id(request: Request, user: dict) -> int | None:
-    return get_menu_context(request, user).get("active_company_id")
+def _sales_company_id(request: Request | None = None, user: dict | None = None, *args, **kwargs) -> int | None:
+    cid = get_current_company_id()
+    if cid and cid > 0:
+        return cid
+    if request:
+        from frontend.context.menu_context import get_active_company_id
+        return get_active_company_id(request, user)
+    return None
 
 
 @router.get("/sales")

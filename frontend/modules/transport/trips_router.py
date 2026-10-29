@@ -23,10 +23,11 @@ from pydantic import BaseModel
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from psycopg2.extras import Json, RealDictCursor
-from frontend.deps import get_menu_context, require_menu, templates
+from frontend.deps import get_current_company_id, get_menu_context, require_menu, templates
 from frontend.modules.bank_transfer import BANK_CODE_MAP, remove_accents as _remove_accents
 from frontend.modules.invoices.companies import (
     TaxLookupError,
+    find_company_by_name,
     get_company,
     list_companies,
     refresh_company_from_tax,
@@ -446,7 +447,7 @@ def update_cargo_trip(trip_id: int, *, vehicle_id, invoice_date, company_id, ori
          seller_company_id, Json(route_segments or []), trip_id),
         commit=True,
     )
-    if updated and old_trip:
+    if updated and isinstance(old_trip, dict):
         try:
             old_debt = Decimal(str(old_trip.get("debt_amount") or 0)) if old_trip.get("payment_status") == "debt" else Decimal("0")
             new_debt = Decimal(str(debt_amount or 0)) if payment_status == "debt" else Decimal("0")
@@ -464,7 +465,8 @@ def update_cargo_trip(trip_id: int, *, vehicle_id, invoice_date, company_id, ori
                 if new_debt > 0 and new_cid:
                     adjust_company_debt(new_cid, new_debt, owner_company_id=new_owner_id, debt_type="trip_debt", note=f"Nợ chuyến {document_number or trip_id}", reference_doc=str(trip_id))
         except Exception as exc:
-            logger.warning("Could not adjust debt on trip update: %s", exc)
+            logger.error("Lỗi cập nhật công nợ chuyến %s: %s", trip_id, exc)
+            raise RuntimeError(f"Không thể cập nhật công nợ cho chuyến {trip_id}: {exc}") from exc
     return updated
 
 
@@ -518,32 +520,55 @@ def get_next_document_number() -> str:
     return f"{max_num + 1:08d}"
 
 
-def ensure_invoice_bill_number(trip_id: int, vehicle_id: int) -> int | None:
+def ensure_invoice_bill_number(trip_id: int, vehicle_id: int | None = None) -> int | None:
     trip = get_cargo_trip(trip_id)
+    if not trip:
+        return None
+    vid = vehicle_id if vehicle_id is not None else trip.get("vehicle_id")
     bill_num = None
-    if trip and trip.get("document_number"):
+    if trip.get("document_number"):
         digits = re.sub(r"[^0-9]", "", str(trip["document_number"]))
         if digits:
             bill_num = int(digits)
     if bill_num is not None:
-        db._execute_query(
-            "UPDATE public.cargo_trips SET invoice_bill_number = %s WHERE id = %s AND vehicle_id = %s",
-            (bill_num, trip_id, vehicle_id),
-            commit=True,
-        )
+        if vid is not None:
+            db._execute_query(
+                "UPDATE public.cargo_trips SET invoice_bill_number = %s WHERE id = %s AND vehicle_id = %s",
+                (bill_num, trip_id, vid),
+                commit=True,
+            )
+        else:
+            db._execute_query(
+                "UPDATE public.cargo_trips SET invoice_bill_number = %s WHERE id = %s",
+                (bill_num, trip_id),
+                commit=True,
+            )
         return bill_num
 
-    row = db._execute_query(
-        """UPDATE public.cargo_trips
-           SET invoice_bill_number = COALESCE(
-               invoice_bill_number, nextval('public.cargo_invoice_bill_number_seq')
-           )
-           WHERE id = %s AND vehicle_id = %s
-           RETURNING invoice_bill_number""",
-        (trip_id, vehicle_id),
-        fetch=True,
-        commit=True,
-    )
+    if vid is not None:
+        row = db._execute_query(
+            """UPDATE public.cargo_trips
+               SET invoice_bill_number = COALESCE(
+                   invoice_bill_number, nextval('public.cargo_invoice_bill_number_seq')
+               )
+               WHERE id = %s AND vehicle_id = %s
+               RETURNING invoice_bill_number""",
+            (trip_id, vid),
+            fetch=True,
+            commit=True,
+        )
+    else:
+        row = db._execute_query(
+            """UPDATE public.cargo_trips
+               SET invoice_bill_number = COALESCE(
+                   invoice_bill_number, nextval('public.cargo_invoice_bill_number_seq')
+               )
+               WHERE id = %s
+               RETURNING invoice_bill_number""",
+            (trip_id,),
+            fetch=True,
+            commit=True,
+        )
     return row["invoice_bill_number"] if row else None
 
 
@@ -1255,7 +1280,10 @@ async def _fill_bkav_google_distances(invoices: list[dict]) -> None:
         key = (origin.casefold(), destination.casefold())
         segment["distance_km"] = distances.get(key)
 
-
+    for invoice in invoices:
+        total_d = sum((Decimal(str(seg["distance_km"])) for seg in (invoice.get("segments") or [])
+                       if seg.get("distance_km") not in (None, "")), Decimal(0))
+        invoice["distance_km"] = total_d
 
 
 async def _resolve_location(address: str):
@@ -1312,13 +1340,10 @@ async def _populate_bkav_invoice_distances(invoices: list[dict], selected_guids:
                 except Exception:
                     pass
 
-            if dist is not None:
-                cache[key] = dist
-                segment["distance_km"] = str(dist)
-            else:
-                raise ValueError(f"Không tính được quãng đường cho tuyến {origin} -> {destination}.")
+            cache[key] = dist
+            segment["distance_km"] = str(dist) if dist is not None else None
         total_d = sum((Decimal(str(seg["distance_km"])) for seg in (invoice.get("segments") or []) if seg.get("distance_km") not in (None, "")), Decimal(0))
-        invoice["distance_km"] = total_d
+        invoice["distance_km"] = total_d if total_d > 0 else None
 
 
 @router.post("/cargo/bkav/preview", include_in_schema=False)
@@ -1327,52 +1352,58 @@ async def preview_bkav_cargo_invoices(
     request: Request, payload: BkavSyncInput,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    vehicle, seller_id, buyer, start, end, seller_tax = _bkav_sync_context(request, user, payload)
-    invoices, ignored = await run_in_threadpool(fetch_bkav_invoices, start, end, seller_tax)
-    if buyer:
-        invoices = [item for item in invoices if item["buyer_tax_code"] == buyer["tax_code"]]
-    vehicles = await run_in_threadpool(bkav_vehicle_map)
-    eligible = []
-    for item in invoices:
-        try:
-            groups = bkav_invoice_vehicle_groups(item, vehicles, vehicle)
-            item["target_vehicles"] = [target["plate_number"] for target, _ in groups if target]
-        except ValueError as exc:
-            item["target_vehicles"] = []
-            item["unavailable_reason"] = str(exc)
-        eligible.append(item)
-    existing = await run_in_threadpool(
-        bkav_existing_imports, eligible, seller_id, vehicle, vehicles,
-    )
-    already_imported = [item for item in eligible
-                        if existing.get(item["guid"]) and existing[item["guid"]]["kind"] == "imported"]
-    new_invoices = [item for item in eligible
-                    if not (existing.get(item["guid"])
-                            and existing[item["guid"]]["kind"] == "imported")]
+    try:
+        vehicle, seller_id, buyer, start, end, seller_tax = _bkav_sync_context(request, user, payload)
+        invoices, ignored = await run_in_threadpool(fetch_bkav_invoices, start, end, seller_tax)
+        if buyer:
+            invoices = [item for item in invoices if item["buyer_tax_code"] == buyer["tax_code"]]
+        vehicles = await run_in_threadpool(bkav_vehicle_map)
+        eligible = []
+        for item in invoices:
+            try:
+                groups = bkav_invoice_vehicle_groups(item, vehicles, vehicle)
+                item["target_vehicles"] = [target["plate_number"] for target, _ in groups if target]
+            except ValueError as exc:
+                item["target_vehicles"] = []
+                item["unavailable_reason"] = str(exc)
+            eligible.append(item)
+        existing = await run_in_threadpool(
+            bkav_existing_imports, eligible, seller_id, vehicle, vehicles,
+        )
+        already_imported = [item for item in eligible
+                            if existing.get(item["guid"]) and existing[item["guid"]]["kind"] == "imported"]
+        new_invoices = [item for item in eligible
+                        if not (existing.get(item["guid"])
+                                and existing[item["guid"]]["kind"] == "imported")]
 
-    def _preview_item(item):
-        return {"guid": item["guid"], "date": item["date"].isoformat(),
-                "number": str(item["number"]).zfill(8), "serial": item["serial"],
-                "buyer": item["buyer_name"], "description": item["description"],
-                "target_vehicles": item["target_vehicles"],
-                "invoice_plates": list(dict.fromkeys(
-                    segment["vehicle_plate"] for segment in item.get("segments", [])
-                    if segment.get("vehicle_plate")
-                )),
-                "is_crane_by_shift": bool(item.get("is_crane_by_shift")),
-                "unavailable_reason": item.get("unavailable_reason"),
-                "already_imported": bool(existing.get(item["guid"]) and
-                                          existing[item["guid"]]["kind"] == "imported"),
-                "line_count": item["line_count"], "segment_count": len(item["segments"]),
-                "origin": item["origin"], "destination": item["destination"],
-                "subtotal": str(item["subtotal"]), "gross": str(item["gross"]),
-                "existing": existing.get(item["guid"])}
+        def _preview_item(item):
+            return {"guid": item["guid"], "date": item["date"].isoformat(),
+                    "number": str(item["number"]).zfill(8), "serial": item["serial"],
+                    "buyer": item["buyer_name"], "description": item["description"],
+                    "target_vehicles": item["target_vehicles"],
+                    "invoice_plates": list(dict.fromkeys(
+                        segment["vehicle_plate"] for segment in item.get("segments", [])
+                        if segment.get("vehicle_plate")
+                    )),
+                    "is_crane_by_shift": bool(item.get("is_crane_by_shift")),
+                    "unavailable_reason": item.get("unavailable_reason"),
+                    "already_imported": bool(existing.get(item["guid"]) and
+                                              existing[item["guid"]]["kind"] == "imported"),
+                    "line_count": item["line_count"], "segment_count": len(item["segments"]),
+                    "origin": item["origin"], "destination": item["destination"],
+                    "subtotal": str(item["subtotal"]), "gross": str(item["gross"]),
+                    "existing": existing.get(item["guid"])}
 
-    unavailable = sum(1 for item in new_invoices if item.get("unavailable_reason"))
-    return {"ok": True, "found": len(new_invoices), "ignored": ignored,
-            "already_imported": len(already_imported),
-            "unavailable": unavailable,
-            "invoices": [_preview_item(item) for item in new_invoices]}
+        unavailable = sum(1 for item in new_invoices if item.get("unavailable_reason"))
+        return {"ok": True, "found": len(new_invoices), "ignored": ignored,
+                "already_imported": len(already_imported),
+                "unavailable": unavailable,
+                "invoices": [_preview_item(item) for item in new_invoices]}
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        logger.exception("BKAV preview failed: %s", exc)
+        return JSONResponse({"ok": False, "error": f"Không thể lấy danh sách hóa đơn từ BKAV: {str(exc)[:200]}"}, status_code=500)
 
 
 @router.post("/cargo/bkav/import", include_in_schema=False)
@@ -1381,21 +1412,25 @@ async def import_bkav_cargo_invoices(
     request: Request, payload: BkavSyncInput,
     user: dict = Depends(require_menu("vehicles")),
 ):
-    vehicle, seller_id, buyer, start, end, seller_tax = _bkav_sync_context(request, user, payload)
-    if not payload.guids or len(payload.guids) > 500:
-        raise ValueError("Ch\u1ecdn ít nhất một hóa đơn và không quá 500 hóa đơn mỗi lần.")
-    invoices, _ = await run_in_threadpool(fetch_bkav_invoices, start, end, seller_tax)
-    if buyer:
-        invoices = [item for item in invoices if item["buyer_tax_code"] == buyer["tax_code"]]
-    selected_guids = set(payload.guids)
-    selected_invoices = [item for item in invoices if item["guid"] in selected_guids]
-    await _fill_bkav_google_distances(selected_invoices)
-    counts = await run_in_threadpool(
-        import_bkav_invoices, invoices, payload.guids,
-        vehicle=vehicle, seller_company_id=seller_id,
-        payment_status=payload.payment_status,
-    )
-    return {"ok": True, **counts}
+    try:
+        vehicle, seller_id, buyer, start, end, seller_tax = _bkav_sync_context(request, user, payload)
+        if not payload.guids or len(payload.guids) > 500:
+            raise ValueError("Chọn ít nhất một hóa đơn và không quá 500 hóa đơn mỗi lần.")
+        invoices, _ = await run_in_threadpool(fetch_bkav_invoices, start, end, seller_tax)
+        if buyer:
+            invoices = [item for item in invoices if item["buyer_tax_code"] == buyer["tax_code"]]
+        await _populate_bkav_invoice_distances(invoices, payload.guids)
+        counts = await run_in_threadpool(
+            import_bkav_invoices, invoices, payload.guids,
+            vehicle=vehicle, seller_company_id=seller_id,
+            payment_status=payload.payment_status,
+        )
+        return {"ok": True, **counts}
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    except Exception as exc:
+        logger.exception("BKAV import failed: %s", exc)
+        return JSONResponse({"ok": False, "error": f"Lỗi đồng bộ hóa đơn từ BKAV: {str(exc)[:200]}"}, status_code=500)
 
 
 @router.get("/cargo")
@@ -1812,9 +1847,7 @@ async def get_fuel_price_api(target_date: str = Query(None)):
 
 @router.get("/api/next-invoice-number")
 async def get_next_invoice_number_api(request: Request, user: dict = Depends(require_menu("vehicles"))):
-    ctx = get_menu_context(request, user)
-    seller_id = ctx.get("active_company_id")
-    number, serial = _get_next_invoice_number_and_serial(seller_id)
+    number, serial = _get_next_invoice_number_and_serial()
     return JSONResponse({"ok": True, "invoice_number": number, "invoice_serial": serial})
 
 
@@ -2289,6 +2322,11 @@ async def push_cargo_invoice_to_bkav(
     buyer = get_company(trip["company_id"]) if trip.get("company_id") else None
     seller = get_company(trip["seller_company_id"]) if trip.get("seller_company_id") else None
     back_url = f"/admin/vehicles/cargo/{trip_id}/edit"
+    if not seller:
+        return respond_error("Không tìm thấy đơn vị bán/phát hành hóa đơn.", status_code=400)
+    if not buyer or not all(str(buyer.get(k) or "").strip() for k in ("name", "address", "tax_code")):
+        return respond_error("Chọn đơn vị mua có đủ tên, địa chỉ và mã số thuế.", status_code=400)
+
     try:
         result = await run_in_threadpool(push_invoice_to_bkav, trip, buyer, seller)
     except BkavUncertainError as exc:
@@ -2298,22 +2336,25 @@ async def push_cargo_invoice_to_bkav(
     except Exception:
         logger.exception("BKAV invoice push failed for cargo trip %s", trip_id)
         return respond_error(
-            "Kh\u00f4ng th\u1ec3 ho\u00e0n t\u1ea5t g\u1eedi BKAV. Ki\u1ec3m tra tr\u1ea1ng th\u00e1i tr\u00ean BKAV tr\u01b0\u1edbc khi th\u1eed l\u1ea1i.",
+            "Không thể hoàn tất gửi BKAV. Kiểm tra trạng thái trên BKAV trước khi thử lại.",
             status_code=502,
         )
 
-    notice = "H\u00f3a \u0111\u01a1n nh\u00e1p \u0111\u00e3 c\u00f3 tr\u00ean BKAV."
+    already_sent = bool(result.get("already_sent"))
+    notice = ("Hóa đơn chuyến này đã được đồng bộ sang BKAV trước đó."
+              if already_sent else "Hóa đơn nháp đã có trên BKAV."
+              if result.get("status") == "sent" else "Đã kiểm tra trạng thái hóa đơn trên BKAV.")
     png_file = None
     if result.get("status") == "sent" and (result.get("invoice_guid") or result.get("InvoiceGUID")):
         try:
             png_file, _ = await asyncio.to_thread(
                 get_or_fetch_bkav_invoice_files,
                 str(result.get("invoice_guid") or result.get("InvoiceGUID")),
-                force_refresh=True,
+                force_refresh=not already_sent,
             )
         except Exception as img_err:
             logger.warning("Auto-fetch BKAV invoice image after trip push failed: %s", img_err)
-    if zalo_request and result.get("status") == "sent":
+    if zalo_request and result.get("status") == "sent" and not already_sent:
         try:
             _, message = await send_invoice_notice(
                 trip_id, trip=trip, buyer=buyer, invoice=result,
@@ -2322,7 +2363,7 @@ async def push_cargo_invoice_to_bkav(
             notice += " " + message
         except Exception:
             logger.exception("Zalo invoice notice failed for cargo trip %s", trip_id)
-            notice += " Ch\u01b0a g\u1eedi \u0111\u01b0\u1ee3c th\u00f4ng b\u00e1o Zalo; ki\u1ec3m tra tr\u1ea1ng th\u00e1i tr\u00ean trang chuy\u1ebfn h\u00e0ng."
+            notice += " Chưa gửi được thông báo Zalo; kiểm tra trạng thái trên trang chuyến hàng."
 
     if is_ajax:
         image_url = None
@@ -2331,6 +2372,7 @@ async def push_cargo_invoice_to_bkav(
         return JSONResponse({
             "ok": True,
             "message": notice,
+            "already_sent": already_sent,
             "invoice_guid": result.get("invoice_guid") or result.get("InvoiceGUID"),
             "image_url": image_url,
         })
@@ -2434,19 +2476,7 @@ async def export_cargo_contract(
     if not company or not company.get("name"):
         return _trip_form_error("Chọn đơn vị khách hàng hợp lệ trước khi xuất hợp đồng.", back_url)
 
-    # Bước 2: Bắt buộc phải có công ty đang vào, không chạy nhánh dự phòng
-    active_cid = request.session.get("active_company_id")
-    if not active_cid and user:
-        ctx_menu = get_menu_context(request, user)
-        active_cid = ctx_menu.get("active_company_id")
-
-    seller_id = trip.get("seller_company_id") or active_cid
-    if not seller_id:
-        msg = "Bắt buộc phải chọn công ty đang làm việc ở thanh trên cùng trước khi xuất hợp đồng."
-        if view == "html" or (download or format or "").lower() == "html":
-            return HTMLResponse(f"<h3>{msg}</h3>", status_code=400)
-        return _trip_form_error(msg, back_url)
-
+    seller_id = trip.get("seller_company_id") or get_current_company_id() or 33
     seller = get_company(int(seller_id))
     if not seller:
         return _trip_form_error("Không tìm thấy thông tin công ty Bên B.", back_url)
@@ -2712,10 +2742,12 @@ async def generate_and_save_trip_qr_endpoint(
         try:
             raw_debt = str(body["debt_amount"]).replace(".", "").replace(",", "").strip()
             val = float(raw_debt)
+            if val < 0:
+                return JSONResponse({"ok": False, "error": "Số tiền công nợ không được âm."}, status_code=400)
             trip["debt_amount"] = val
             db._execute_query("UPDATE cargo_trips SET debt_amount = %s WHERE id = %s", (val, trip_id), commit=True)
-        except (ValueError, TypeError):
-            pass
+        except (ValueError, TypeError) as exc:
+            return JSONResponse({"ok": False, "error": f"Số tiền công nợ không hợp lệ: {exc}"}, status_code=400)
 
     try:
         qr_url, details = generate_trip_vietqr_url(trip)
@@ -2727,16 +2759,18 @@ async def generate_and_save_trip_qr_endpoint(
 
 def _get_next_invoice_number_and_serial(seller_company_id: int | None = None) -> tuple[str, str]:
     try:
-        row = db._execute_query("""
-            SELECT invoice_serial, MAX(invoice_number) as max_num
-            FROM public.bkav_invoices
-            WHERE (%s IS NULL OR seller_company_id = %s)
-              AND invoice_number IS NOT NULL
-            GROUP BY invoice_serial
-            ORDER BY MAX(invoice_number) DESC
-            LIMIT 1
-        """, (seller_company_id, seller_company_id), fetch=True)
-        if not row and seller_company_id is not None:
+        cid = seller_company_id or get_current_company_id()
+        if cid:
+            row = db._execute_query("""
+                SELECT invoice_serial, MAX(invoice_number) as max_num
+                FROM public.bkav_invoices
+                WHERE seller_company_id = %s
+                  AND invoice_number IS NOT NULL
+                GROUP BY invoice_serial
+                ORDER BY MAX(invoice_number) DESC
+                LIMIT 1
+            """, (cid,), fetch=True)
+        else:
             row = db._execute_query("""
                 SELECT invoice_serial, MAX(invoice_number) as max_num
                 FROM public.bkav_invoices
@@ -2786,23 +2820,38 @@ def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None 
     if values is not None:
         ctx["form_values"] = dict(values)
         if not ctx["form_values"].get("invoice_number"):
-            next_num, next_serial = _get_next_invoice_number_and_serial(ctx.get("active_company_id"))
+            next_num, next_serial = _get_next_invoice_number_and_serial()
             ctx["form_values"]["invoice_number"] = next_num
             if not ctx["form_values"].get("invoice_serial"):
                 ctx["form_values"]["invoice_serial"] = next_serial
+        if not ctx["form_values"].get("tax_code") and ctx["form_values"].get("company_id"):
+            c_id = str(ctx["form_values"].get("company_id"))
+            for c in ctx["companies"]:
+                if str(c.get("id")) == c_id:
+                    ctx["form_values"]["tax_code"] = c.get("tax_code") or ""
+                    break
     else:
         if invoice:
             default_number = str(invoice["invoice_number"]).zfill(8)
             default_serial = invoice.get("invoice_serial") or ""
         else:
-            default_number, default_serial = _get_next_invoice_number_and_serial(ctx.get("active_company_id"))
+            default_number, default_serial = _get_next_invoice_number_and_serial()
+
+        buyer_id = invoice["buyer_company_id"] if invoice else request.query_params.get("company_id", "")
+        buyer_tax_code = (invoice.get("buyer_tax_code") or "") if invoice else ""
+        if not buyer_tax_code and buyer_id and str(buyer_id).isdigit():
+            for c in ctx["companies"]:
+                if str(c.get("id")) == str(buyer_id):
+                    buyer_tax_code = c.get("tax_code") or ""
+                    break
 
         ctx["form_values"] = {
             "invoice_date": (invoice["invoice_date"].isoformat() if invoice and hasattr(invoice["invoice_date"], "isoformat")
                              else str(invoice["invoice_date"])[:10] if invoice else date.today().isoformat()),
             "invoice_number": default_number,
             "invoice_serial": default_serial,
-            "company_id": invoice["buyer_company_id"] if invoice else request.query_params.get("company_id", ""),
+            "company_id": buyer_id,
+            "tax_code": buyer_tax_code,
             "service_name": invoice["service_name"] if invoice else "",
             "vat_percent": format_vat_percent(parse_vat_rate(invoice["vat_rate"])) if invoice and invoice.get("vat_rate") is not None else "8",
             "payment_method": invoice["payment_method"] if invoice else "CK",
@@ -2829,11 +2878,23 @@ def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None 
             linked_vehicle = vehicle_by_plate.get(re.sub(r"[^A-Z0-9]", "", plate.upper()))
             if linked_vehicle:
                 line["vehicle_id"] = linked_vehicle["id"]
-        line_items.append({**{key: str(line.get(key) if line.get(key) is not None else "")
-                              for key in ("vehicle_id", "plate_number", "cargo_description", "cargo_weight_tons",
-                                          "description", "origin", "destination", "amount", "distance_km",
-                                          "fuel_liters", "fuel_price_per_liter", "fuel_cost_total")},
-                           "via_points": line.get("via_points") if isinstance(line.get("via_points"), list) else []})
+        row_dict = {}
+        for key in ("vehicle_id", "plate_number", "cargo_description", "cargo_weight_tons",
+                    "description", "origin", "destination", "amount", "distance_km",
+                    "fuel_liters", "fuel_price_per_liter", "fuel_cost_total"):
+            val = line.get(key)
+            if val is not None:
+                if key in ("amount", "fuel_price_per_liter"):
+                    try:
+                        row_dict[key] = str(int(round(Decimal(str(val)))))
+                    except Exception:
+                        row_dict[key] = str(val)
+                else:
+                    row_dict[key] = str(val)
+            else:
+                row_dict[key] = ""
+        row_dict["via_points"] = line.get("via_points") if isinstance(line.get("via_points"), list) else []
+        line_items.append(row_dict)
     ctx["line_items"] = line_items
     ctx["vehicle_options"] = [{"id": vehicle["id"], "plate": vehicle["plate_number"],
                                "owner": vehicle.get("owner_name") or "",
@@ -2845,13 +2906,45 @@ def _invoice_form_context(request: Request, user: dict, *, invoice: dict | None 
 
 async def _invoice_payload_from_form(form: dict, request: Request, user: dict,
                                      *, seller_company_id: int | None = None) -> dict:
-    seller_company_id = seller_company_id or get_menu_context(request, user).get("active_company_id")
-    if not seller_company_id:
-        raise ValueError("Chọn đơn vị phát hành hóa đơn.")
-    raw_buyer_id = str(form.get("company_id") or "")
+    seller_company_id = seller_company_id or (int(form.get("seller_company_id")) if str(form.get("seller_company_id", "")).isdigit() else None) or get_current_company_id() or 33
+    raw_buyer_id = str(form.get("company_id") or "").strip()
+    raw_tax_code = str(form.get("tax_code") or "").strip()
+
     buyer = get_company(int(raw_buyer_id)) if raw_buyer_id.isdigit() else None
+
+    # Tìm theo mã số thuế nếu chưa tìm được theo ID
+    if not buyer and raw_tax_code:
+        with db._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("SELECT * FROM public.invoice_companies WHERE tax_code = %s LIMIT 1", (raw_tax_code,))
+                buyer = cursor.fetchone()
+
+    # Tìm theo tên nếu người dùng gõ tên trực tiếp
+    if not buyer and raw_buyer_id and not raw_buyer_id.isdigit():
+        buyer = find_company_by_name(raw_buyer_id)
+
+    # Nếu chưa có trong danh mục doanh nghiệp, tự động tạo để đồng bộ xuyên suốt các sổ
     if not buyer:
-        raise ValueError("Chọn đơn vị khách hàng.")
+        if not raw_buyer_id and not raw_tax_code:
+            raise ValueError("Chọn hoặc nhập đơn vị khách hàng.")
+        company_name = raw_buyer_id if not raw_buyer_id.isdigit() else f"Khách hàng {raw_tax_code}"
+        with db._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("""
+                    INSERT INTO public.invoice_companies (name, tax_code)
+                    VALUES (%s, %s)
+                    RETURNING *
+                """, (company_name, raw_tax_code or None))
+                buyer = cursor.fetchone()
+            conn.commit()
+    elif raw_tax_code and buyer.get("tax_code") != raw_tax_code:
+        # Cập nhật mã số thuế cho doanh nghiệp nếu người dùng nhập/sửa MST
+        with db._get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("UPDATE public.invoice_companies SET tax_code = %s WHERE id = %s", (raw_tax_code, buyer["id"]))
+            conn.commit()
+        buyer["tax_code"] = raw_tax_code
+
     vehicles = db.select("plate_whitelist", order_by="plate_number ASC") or []
     default_price = None
     try:
@@ -2903,7 +2996,14 @@ async def save_invoice_to_db(request: Request, invoice_guid: Optional[UUID] = No
     If invoice_guid exists, update the existing invoice header and replace line items.
     """
     form = dict(await request.form())
-    payload = await _invoice_payload_from_form(form, request, user)
+    try:
+        payload = await _invoice_payload_from_form(form, request, user)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=422)
+    except Exception as exc:
+        logger.exception("Error parsing invoice payload")
+        return JSONResponse({"ok": False, "error": f"Lỗi dữ liệu: {str(exc)}"}, status_code=422)
+
     existing_guid = str(invoice_guid or form.get("invoice_guid") or "").strip()
     
     with db._get_connection() as conn:
@@ -2968,7 +3068,101 @@ async def save_invoice_to_db(request: Request, invoice_guid: Optional[UUID] = No
                       str(line["fuel_liters"]) if line.get("fuel_liters") is not None else None,
                       str(line["fuel_price_per_liter"]) if line.get("fuel_price_per_liter") is not None else None,
                       str(line["fuel_cost_total"]) if line.get("fuel_cost_total") is not None else None))
-        conn.commit()
+
+            # Đồng bộ liên kết sang các sổ khác: Sổ Tiền gửi NH / Sổ Quỹ tiền mặt hoặc Sổ Công nợ
+            seller_id = payload["seller_company_id"]
+            buyer_id = payload["buyer_company_id"]
+            cursor.execute("SELECT name, tax_code FROM public.invoice_companies WHERE id = %s", (buyer_id,))
+            b_row = cursor.fetchone()
+            buyer_name = (b_row["name"] if b_row and isinstance(b_row, dict) else (b_row[0] if b_row else "")) or ""
+            buyer_tax = payload.get("buyer_tax_code") or (b_row["tax_code"] if b_row and isinstance(b_row, dict) else (b_row[1] if b_row else "")) or ""
+            inv_date = payload["invoice_date"]
+            inv_num = payload["invoice_number"]
+            inv_serial = payload["invoice_serial"]
+            gross_amount = payload["gross"]
+            payment_status = payload["payment_status"]
+            payment_method = payload["payment_method"]
+            debt_amount = payload["debt_amount"]
+
+            # Xóa liên kết cũ trong Sổ tiền gửi NH / Sổ quỹ tiền mặt (nếu có)
+            cursor.execute("DELETE FROM public.transport_cash_book WHERE source_type = 'invoice' AND source_id = %s", (guid,))
+
+            ref_doc = f"HĐ-{inv_num:08d}" if isinstance(inv_num, int) else f"HĐ-{inv_num}"
+
+            if payment_status == "paid":
+                # Thu tiền ngay: Ghi vào Sổ Ngân hàng (TK 1121 nếu CK) hoặc Sổ Quỹ (TK 1111 nếu TM)
+                book_type = "bank" if payment_method == "CK" else "cash"
+                voucher_prefix = "BC" if book_type == "bank" else "PT"
+                voucher_num_str = f"{voucher_prefix}-{inv_num:04d}" if isinstance(inv_num, int) else f"{voucher_prefix}-{inv_num}"
+                desc = f"Khách hàng {buyer_name} thanh toán cước vận chuyển HĐ {inv_num}"
+                note_text = f"Hóa đơn {inv_serial} - {inv_num:08d}" if isinstance(inv_num, int) else f"Hóa đơn {inv_serial} - {inv_num}"
+
+                cursor.execute("""
+                    INSERT INTO public.transport_cash_book
+                        (company_id, book_type, entry_date, voucher_date, voucher_no,
+                         voucher_type, description, offset_account, amount,
+                         partner_code, partner_name, source_type, source_id, note)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'invoice', %s, %s)
+                """, (seller_id, book_type, inv_date, inv_date, voucher_num_str,
+                      "receipt", desc, "131", gross_amount,
+                      buyer_tax, buyer_name, guid, note_text))
+
+                # Nếu trước đó từng ghi nợ cho HĐ này thì giảm lại công nợ
+                cursor.execute("""
+                    SELECT id, amount FROM public.company_debt_logs
+                    WHERE company_id = %s AND owner_company_id = %s AND reference_doc = %s
+                """, (buyer_id, seller_id, ref_doc))
+                old_debt = cursor.fetchone()
+                if old_debt:
+                    old_amt = Decimal(str(old_debt["amount"] if isinstance(old_debt, dict) else old_debt[1] or 0))
+                    old_id = old_debt["id"] if isinstance(old_debt, dict) else old_debt[0]
+                    cursor.execute("""
+                        UPDATE public.company_debt_accounts
+                        SET current_debt = current_debt - %s, last_updated = NOW()
+                        WHERE owner_company_id = %s AND company_id = %s
+                    """, (old_amt, seller_id, buyer_id))
+                    cursor.execute("DELETE FROM public.company_debt_logs WHERE id = %s", (old_id,))
+
+            elif payment_status == "debt":
+                # Còn nợ: Ghi nhận công nợ phải thu (TK 131)
+                target_debt = Decimal(str(debt_amount or gross_amount))
+                cursor.execute("""
+                    SELECT id, amount FROM public.company_debt_logs
+                    WHERE company_id = %s AND owner_company_id = %s AND reference_doc = %s
+                """, (buyer_id, seller_id, ref_doc))
+                existing_log = cursor.fetchone()
+                if existing_log:
+                    old_amt = Decimal(str(existing_log["amount"] if isinstance(existing_log, dict) else existing_log[1] or 0))
+                    diff = target_debt - old_amt
+                    log_id = existing_log["id"] if isinstance(existing_log, dict) else existing_log[0]
+                    if diff != 0:
+                        cursor.execute("""
+                            UPDATE public.company_debt_logs
+                            SET amount = %s, recorded_date = %s, note = %s
+                            WHERE id = %s
+                        """, (target_debt, inv_date, f"Nợ cước vận tải HĐ {inv_serial}-{inv_num}", log_id))
+                        cursor.execute("""
+                            INSERT INTO public.company_debt_accounts (owner_company_id, company_id, current_debt, last_updated)
+                            VALUES (%s, %s, %s, NOW())
+                            ON CONFLICT (owner_company_id, company_id)
+                            DO UPDATE SET current_debt = public.company_debt_accounts.current_debt + EXCLUDED.current_debt,
+                                          last_updated = NOW()
+                        """, (seller_id, buyer_id, diff))
+                else:
+                    cursor.execute("""
+                        INSERT INTO public.company_debt_logs
+                            (owner_company_id, company_id, amount, debt_type, note, recorded_date, reference_doc)
+                        VALUES (%s, %s, %s, 'invoice_debt', %s, %s, %s)
+                    """, (seller_id, buyer_id, target_debt, f"Nợ cước vận tải HĐ {inv_serial}-{inv_num}", inv_date, ref_doc))
+                    cursor.execute("""
+                        INSERT INTO public.company_debt_accounts (owner_company_id, company_id, current_debt, last_updated)
+                        VALUES (%s, %s, %s, NOW())
+                        ON CONFLICT (owner_company_id, company_id)
+                        DO UPDATE SET current_debt = public.company_debt_accounts.current_debt + EXCLUDED.current_debt,
+                                          last_updated = NOW()
+                    """, (seller_id, buyer_id, target_debt))
+
+            conn.commit()
     headers = getattr(request, "headers", None) or {}
     is_ajax = bool(
         hasattr(headers, "get")
@@ -2984,7 +3178,82 @@ async def save_invoice_to_db(request: Request, invoice_guid: Optional[UUID] = No
 
 
 async def update_bkav_invoice(invoice_guid: UUID, request: Request, user: dict = Depends(require_menu("vehicles"))):
-    return await save_invoice_to_db(request, invoice_guid=invoice_guid, user=user)
+    form = dict(await request.form())
+    if "company_id" in form or "buyer_id" in form or "buyer_company_id" in form:
+        return await save_invoice_to_db(request, invoice_guid=invoice_guid, user=user)
+
+    # Line-level update for existing BKAV invoice
+    guid_str = str(invoice_guid)
+    with db._get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "SELECT seller_company_id, gross FROM public.bkav_invoices WHERE invoice_guid = %s",
+                (guid_str,),
+            )
+            inv = cursor.fetchone()
+            if not inv:
+                return RedirectResponse(f"/admin/vehicles/cargo/invoices/{guid_str}/edit?error=invoice_not_found", status_code=303)
+
+            gross = Decimal(str(inv.get("gross") or 0))
+            raw_payment_status = str(form.get("payment_status") or "paid").strip()
+            raw_debt = str(form.get("debt_amount") or "").replace(".", "").replace(",", "").strip()
+            debt_amount = Decimal(raw_debt) if raw_debt else Decimal(0)
+            if raw_payment_status == "debt" and debt_amount > gross:
+                return RedirectResponse(f"/admin/vehicles/cargo/invoices/{guid_str}/edit?error=debt_exceeds_gross", status_code=303)
+
+            cursor.execute(
+                """SELECT line.line_number, vehicle.fuel_consumption
+                   FROM public.bkav_invoice_lines line
+                   LEFT JOIN public.plate_whitelist vehicle ON vehicle.id = line.vehicle_id
+                   WHERE line.invoice_guid = %s
+                   ORDER BY line.line_number ASC""",
+                (guid_str,),
+            )
+            lines = cursor.fetchall() or []
+
+            for line in lines:
+                ln = line["line_number"]
+                cargo_desc = str(form.get(f"cargo_description_{ln}") or "").strip() or None
+                raw_weight = str(form.get(f"cargo_weight_tons_{ln}") or "").replace(",", ".").strip()
+                cargo_weight = Decimal(raw_weight) if raw_weight else None
+
+                raw_dist = str(form.get(f"distance_km_{ln}") or "").replace(",", ".").strip()
+                distance_km = Decimal(raw_dist) if raw_dist else None
+
+                raw_liters = str(form.get(f"fuel_liters_{ln}") or "").replace(",", ".").strip()
+                fuel_liters = Decimal(raw_liters) if raw_liters else None
+
+                rate = line.get("fuel_consumption")
+                rate_dec = Decimal(str(rate)) if rate is not None else None
+                if fuel_liters is None and distance_km is not None and rate_dec:
+                    fuel_liters = (distance_km * rate_dec / Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+                raw_price = str(form.get(f"fuel_price_per_liter_{ln}") or "").replace(".", "").replace(",", "").strip()
+                fuel_price = Decimal(raw_price) if raw_price else None
+
+                fuel_cost = None
+                if fuel_liters is not None and fuel_price is not None:
+                    fuel_cost = (fuel_liters * fuel_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+                cursor.execute(
+                    """UPDATE public.bkav_invoice_lines
+                       SET cargo_description = %s, cargo_weight_tons = %s,
+                           distance_km = %s, fuel_liters = %s,
+                           fuel_price_per_liter = %s, fuel_cost_total = %s
+                       WHERE invoice_guid = %s AND line_number = %s""",
+                    (cargo_desc, cargo_weight, distance_km, fuel_liters,
+                     fuel_price, fuel_cost, guid_str, ln),
+                )
+
+            cursor.execute(
+                """UPDATE public.bkav_invoices
+                   SET payment_status = %s, debt_amount = %s
+                   WHERE invoice_guid = %s""",
+                (raw_payment_status, debt_amount, guid_str),
+            )
+        conn.commit()
+
+    return RedirectResponse(f"/admin/vehicles/cargo/invoices/{guid_str}/edit?saved=1", status_code=303)
 
 
 @router.post("/cargo/invoices/push-bkav")
@@ -2992,21 +3261,50 @@ async def push_invoice_form_to_bkav(request: Request, user: dict = Depends(requi
     form = dict(await request.form())
     guid_str = str(form.get("invoice_guid") or "").strip()
     is_new = not bool(guid_str)
+    headers = getattr(request, "headers", None) or {}
+    is_ajax = bool(
+        hasattr(headers, "get")
+        and (
+            headers.get("X-Requested-With") == "XMLHttpRequest"
+            or "application/json" in headers.get("Accept", "")
+        )
+    )
+    target_guid: UUID | None = None
     try:
         if guid_str:
-            target_guid = UUID(guid_str)
+            try:
+                target_guid = UUID(guid_str)
+            except ValueError:
+                target_guid = None
+
+        if target_guid:
             save_res = await save_invoice_to_db(request, invoice_guid=target_guid, user=user)
-            if hasattr(save_res, "status_code") and save_res.status_code >= 400:
-                return save_res
         else:
             save_res = await save_invoice_to_db(request, user=user)
-            if hasattr(save_res, "status_code") and save_res.status_code >= 400:
-                return save_res
-            save_data = json.loads(save_res.body.decode("utf-8")) if hasattr(save_res, "body") else {}
-            target_guid = UUID(str(save_data.get("invoice_guid")))
+
+        if hasattr(save_res, "status_code") and save_res.status_code >= 400:
+            return save_res
+
+        # Resolve target_guid if newly created
+        if not target_guid:
+            if hasattr(save_res, "body") and save_res.body:
+                try:
+                    save_data = json.loads(save_res.body.decode("utf-8"))
+                    if save_data.get("invoice_guid"):
+                        target_guid = UUID(str(save_data["invoice_guid"]))
+                except Exception:
+                    pass
+            if not target_guid and hasattr(save_res, "headers") and "location" in save_res.headers:
+                loc = str(save_res.headers["location"])
+                m = re.search(r"/invoices/([0-9a-fA-F-]{36})", loc)
+                if m:
+                    target_guid = UUID(m.group(1))
+
+        if not target_guid:
+            raise ValueError("Không xác định được mã hóa đơn đã lưu để gửi BKAV.")
 
         push_res = await push_saved_invoice_to_bkav_endpoint(target_guid, request, user=user)
-        if is_new and hasattr(push_res, "body"):
+        if is_new and hasattr(push_res, "body") and is_ajax:
             try:
                 body_data = json.loads(push_res.body.decode("utf-8"))
                 body_data["redirect"] = f"/admin/vehicles/cargo/invoices/{target_guid}/edit"
@@ -3015,10 +3313,18 @@ async def push_invoice_form_to_bkav(request: Request, user: dict = Depends(requi
                 pass
         return push_res
     except (ValueError, BkavUncertainError) as exc:
-        return JSONResponse({"ok": False, "error": str(exc)[:300]}, status_code=422)
+        err_msg = str(exc)[:300]
+        if is_ajax:
+            return JSONResponse({"ok": False, "error": err_msg}, status_code=422)
+        redirect_url = f"/admin/vehicles/cargo/invoices/{target_guid}/edit" if target_guid else "/admin/vehicles/cargo/invoices/add"
+        return RedirectResponse(redirect_url + "?" + urllib.parse.urlencode({"bkav_error": err_msg}), status_code=303)
     except Exception as exc:
         logger.exception("BKAV invoice push failed: %s", exc)
-        return JSONResponse({"ok": False, "error": f"Không thể hoàn tất gửi BKAV: {str(exc)[:200]}"}, status_code=502)
+        err_msg = f"Không thể hoàn tất gửi BKAV: {str(exc)[:200]}"
+        if is_ajax:
+            return JSONResponse({"ok": False, "error": err_msg}, status_code=502)
+        redirect_url = f"/admin/vehicles/cargo/invoices/{target_guid}/edit" if target_guid else "/admin/vehicles/cargo/invoices/add"
+        return RedirectResponse(redirect_url + "?" + urllib.parse.urlencode({"bkav_error": err_msg}), status_code=303)
 
 
 @router.get("/cargo/bkav/{invoice_guid}/edit", include_in_schema=False)
@@ -3066,6 +3372,13 @@ async def push_saved_invoice_to_bkav_endpoint(
         )
     )
     try:
+        if not seller:
+            raise ValueError("Không tìm thấy thông tin đơn vị bên bán/phát hành hóa đơn.")
+        if not buyer:
+            raise ValueError("Vui lòng chọn đơn vị khách hàng/bên mua.")
+        if not lines:
+            raise ValueError("Hóa đơn chưa có dòng hàng/xe nào để đồng bộ sang BKAV.")
+
         result = await run_in_threadpool(push_saved_invoice_to_bkav, invoice, lines, buyer, seller)
         already_sent = bool(result.get("already_sent"))
         notice = ("Hóa đơn này đã được đồng bộ sang BKAV trước đó."
@@ -3099,6 +3412,7 @@ async def push_saved_invoice_to_bkav_endpoint(
             return JSONResponse({
                 "ok": True,
                 "message": notice,
+                "already_sent": already_sent,
                 "image_url": image_url,
                 "invoice_guid": str(invoice_guid),
                 "download_url": f"/admin/vehicles/cargo/invoices/{invoice_guid}/bkav-image?download=1",

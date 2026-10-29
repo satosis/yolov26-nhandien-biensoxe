@@ -1,0 +1,55 @@
+# ==============================================================================
+# DANH SÁCH TỪ KHÓA PHỦ ĐỊNH (NEGATIVE KEYWORDS) BẮT BUỘC
+# Mục đích: Chặn người tìm kiếm click vào quảng cáo gây lãng phí ngân sách
+# Cài đặt: Thêm toàn bộ danh sách này vào cấp Chiến dịch (Campaign Level)
+# ==============================================================================
+
+# --- NHÓM 1: TÌM VIỆC LÀM & TUYỂN DỤNG ---
+tuyển dụng
+tuyển lái xe
+tuyển phụ xe
+tìm việc lái xe
+việc làm xe cẩu
+lương lái xe cẩu
+học lái xe cẩu
+dạy lái xe cẩu
+chứng chỉ xe cẩu
+bằng lái xe cẩu
+
+# --- NHÓM 2: MUA BÁN XE CŨ, THANH LÝ, PHỤ TÙNG ---
+mua bán
+mua xe
+bán xe cẩu
+xe cẩu cũ
+thanh lý xe cẩu
+phụ tùng xe cẩu
+chế xe cẩu
+tự chế
+bán cẩu unic cũ
+bán cẩu soosan cũ
+định giá xe cẩu
+
+# --- NHÓM 3: ĐỒ CHƠI, MÔ HÌNH, TRÒ CHƠI, PHIM ẢNH ---
+đồ chơi
+mô hình
+game xe cẩu
+game
+trò chơi
+hoạt hình
+tô màu
+video xe cẩu
+tai nạn xe cẩu
+lật xe cẩu
+cháy xe cẩu
+
+# --- NHÓM 4: CẨU CÁC LOẠI KHÔNG LIÊN QUAN ---
+cẩu tháp cũ
+thang nâng người mini
+xe nâng tay
+cẩu móc động cơ
+máy cẩu mini đồ chơi
+giải cứu
+cứu hộ giao thông (nếu công ty không làm cứu hộ tai nạn xe con)
+cẩu dừa
+cẩu cá
+cần câu cá

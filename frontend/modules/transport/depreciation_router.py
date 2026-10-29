@@ -1,5 +1,3 @@
-"""Fixed asset depreciation schedule router for Dai Lo Xanh."""
-
 from __future__ import annotations
 
 from datetime import date
@@ -10,8 +8,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
 from frontend.deps import get_menu_context, require_menu, templates
+from frontend.modules.transport.cash_bank_service import get_company_info
 from frontend.modules.transport.depreciation_service import (
-    DAI_LO_XANH_COMPANY_ID,
     export_depreciation_excel,
     get_depreciation_data,
 )
@@ -63,7 +61,6 @@ async def depreciation_page(
         active_period = "ytd"
 
     depr_data = get_depreciation_data(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         as_of_month=as_of_m,
         full_year=is_full_year,
@@ -88,6 +85,7 @@ async def depreciation_page(
 
 @router.get("/export")
 async def export_depreciation(
+    request: Request,
     year: int = Query(None),
     mode: str = Query("ytd"),
     period: str = Query(None),
@@ -116,13 +114,14 @@ async def export_depreciation(
         as_of_m = today.month if today.year == selected_year else 12
 
     excel_bytes = export_depreciation_excel(
-        company_id=DAI_LO_XANH_COMPANY_ID,
         year=selected_year,
         as_of_month=as_of_m,
         full_year=is_full_year,
     )
 
-    filename = f"BANG_TINH_KHAU_HAO_TAI_SAN_CO_DINH_NAM_{selected_year}_DAI_LO_XANH.xlsx"
+    comp_info = get_company_info()
+    safe_name = "".join(c for c in (comp_info.get("name") or "CongTy") if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+    filename = f"BANG_TINH_KHAU_HAO_TAI_SAN_CO_DINH_NAM_{selected_year}_{safe_name}.xlsx"
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

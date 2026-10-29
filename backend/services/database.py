@@ -23,7 +23,18 @@ class DatabaseManager:
             finally:
                 self._pool.putconn(conn)
 
-    def _execute_query(self, query, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
+    get_connection = _get_connection
+
+    @contextmanager
+    def transaction(self):
+        """Context manager for explicit transaction blocks."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+                yield cursor
+            conn.commit()
+
+    def query(self, query: str, params=None, fetch=False, fetchall=False, commit=True, return_id=False):
+        """Execute a SQL query with automatic connection and transaction management."""
         words = query.lstrip().split(None, 1)
         raw_statement = words[0].upper() if words else ""
         statement = raw_statement if raw_statement in {"SELECT", "INSERT", "UPDATE", "DELETE", "WITH"} else "OTHER"
@@ -44,8 +55,9 @@ class DatabaseManager:
                     conn.commit()
         return result
 
-    execute_query = _execute_query
-    get_connection = _get_connection
+    # Backward compatibility aliases
+    _execute_query = query
+    execute_query = query
 
     def insert(self, table_name, data: dict, returning=None):
         columns = ', '.join(data.keys())
@@ -53,7 +65,7 @@ class DatabaseManager:
         query = f"INSERT INTO {table_name} ({columns}) VALUES ({values_template})"
         if returning:
             query += f" RETURNING {returning}"
-        return self._execute_query(query, tuple(data.values()), commit=True, return_id=bool(returning))
+        return self.query(query, tuple(data.values()), commit=True, return_id=bool(returning))
 
     def update(self, table_name, data: dict, conditions: dict):
         if not data:
@@ -64,7 +76,7 @@ class DatabaseManager:
         where_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
         query = f"UPDATE {table_name} SET {set_clause} WHERE {where_clause}"
         params = tuple(data.values()) + tuple(conditions.values())
-        return self._execute_query(query, params, commit=True)
+        return self.query(query, params, commit=True)
 
     def select(self, table_name, columns='*', conditions=None, order_by=None, limit=None, fetchall=True):
         if isinstance(columns, list):
@@ -80,14 +92,14 @@ class DatabaseManager:
         if limit:
             query += " LIMIT %s"
             params.append(int(limit))
-        return self._execute_query(query, tuple(params) if params else None, fetch=not fetchall, fetchall=fetchall, commit=False)
+        return self.query(query, tuple(params) if params else None, fetch=not fetchall, fetchall=fetchall, commit=False)
 
     def delete(self, table_name, conditions: dict):
         if not conditions:
             raise ValueError("Database delete requires conditions")
         where_clause = ' AND '.join([f"{k} = %s" for k in conditions.keys()])
         query = f"DELETE FROM {table_name} WHERE {where_clause}"
-        return self._execute_query(query, tuple(conditions.values()), commit=True)
+        return self.query(query, tuple(conditions.values()), commit=True)
 
 
 # Global database manager instance
@@ -96,5 +108,3 @@ db = DatabaseManager()
 
 def get_db() -> DatabaseManager:
     return db
-
-
