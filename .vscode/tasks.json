@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start Web + AI + Zalo + Cloudflare",
+      "type": "shell",
+      "command": "python",
+      "args": ["-u", "${workspaceFolder}/scripts/dev_stack.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

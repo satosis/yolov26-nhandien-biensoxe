@@ -1,0 +1,644 @@
+{% extends "layout.html" %}
+{% block title %}KYC — Xác minh danh tính{% endblock %}
+{% block page_title %}Xác minh danh tính (KYC){% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width:720px;">
+
+
+  {% set level = kyc.kyc_level or 0 %}
+  {% if level == 4 %}
+  <div class="alert alert-success d-flex align-items-center mb-4" style="gap:12px;">
+    <span style="font-size:2rem;">✅</span>
+    <div>
+      <p class="font-weight-bold mb-0">Đã xác minh thành công</p>
+      <small class="text-muted">Duyệt bởi {{ kyc.kyc_reviewed_by }} lúc {{ kyc.kyc_reviewed_at.strftime('%d/%m/%Y %H:%M') if kyc.kyc_reviewed_at else '—' }}</small>
+    </div>
+  </div>
+  {% elif level == -1 %}
+  <div class="alert alert-danger mb-4">
+    <div class="d-flex align-items-center mb-3" style="gap:12px;">
+      <span style="font-size:2rem;">❌</span>
+      <div>
+        <p class="font-weight-bold mb-0">Xác minh bị từ chối</p>
+        <small class="text-muted">Lý do: {{ kyc.kyc_reject_reason or 'Không rõ' }}</small>
+      </div>
+    </div>
+    <form method="POST" action="/kyc/reset">
+      <button type="submit" class="btn btn-primary btn-sm">🔄 Thử lại từ đầu</button>
+    </form>
+  </div>
+  {% elif level == 3 %}
+  <div class="alert alert-info d-flex align-items-center mb-4" style="gap:12px;">
+    <div class="spinner-border spinner-border-sm text-primary mr-2" role="status"></div>
+    <div>
+      <p class="font-weight-bold mb-0">Đang chờ Admin duyệt</p>
+    </div>
+  </div>
+  {% endif %}
+
+
+  <div class="card mb-4">
+    <div class="card-body">
+      {% set steps = [
+        ('1', 'Thông tin', level >= 1),
+        ('2', 'Giấy tờ', level >= 2),
+        ('3', 'Khuôn mặt', level >= 3)
+      ] %}
+      <div class="d-flex align-items-center justify-content-between">
+        {% for num, label, done in steps %}
+        <div class="d-flex align-items-center {% if not loop.first %}flex-fill{% endif %}">
+          {% if not loop.first %}
+          <div class="flex-fill border-top {% if done %}border-primary{% endif %} mx-2"></div>
+          {% endif %}
+          <div class="d-flex flex-column align-items-center" style="gap:4px;">
+            <div class="rounded-circle d-flex align-items-center justify-content-center font-weight-bold"
+                 style="width:40px;height:40px;font-size:14px;
+                        {% if done %}background:#6366f1;color:#fff;{% else %}background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;{% endif %}">
+              {% if done %}✓{% else %}{{ num }}{% endif %}
+            </div>
+            <span class="text-uppercase font-weight-bold {% if done %}text-primary{% else %}text-muted{% endif %}" style="font-size:10px;letter-spacing:.05em;">{{ label }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+
+  {% if level < 1 %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 1 — Thông tin cá nhân</h5>
+    </div>
+    <div class="card-body">
+      <form method="POST" action="/kyc/basic-info">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Họ và tên *</label>
+            <input name="full_name" required value="{{ kyc.full_name or '' }}" placeholder="Nguyễn Văn A"
+                   class="form-control">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Ngày sinh *</label>
+            <input name="date_of_birth" type="date" required value="{{ kyc.date_of_birth or '' }}"
+                   class="form-control">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Số điện thoại *</label>
+            <input name="phone" required value="{{ kyc.phone or '' }}" placeholder="0912345678" pattern="[0-9]{10,11}"
+                   class="form-control">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="font-weight-bold" style="font-size:13px;">Email *</label>
+            <input name="email" type="email" required value="{{ kyc.email or '' }}" placeholder="email@example.com"
+                   class="form-control">
+          </div>
+        </div>
+        <div class="mb-3" style="max-width:360px;">
+          <label class="font-weight-bold" style="font-size:13px;">Số CMND/CCCD *</label>
+          <input name="id_number" required value="{{ kyc.id_number or '' }}" placeholder="001234567890" pattern="[0-9]{9,12}"
+                 class="form-control">
+        </div>
+        <button type="submit" class="btn btn-primary">Tiếp tục →</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+
+  {% if level >= 1 and level < 2 %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 2 — Xác minh giấy tờ</h5>
+    </div>
+    <div class="card-body">
+
+      <div class="mb-4">
+        <label class="font-weight-bold" style="font-size:13px;">Mặt trước CMND/CCCD *</label>
+        <div id="drop-id-front" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
+             onclick="document.getElementById('file-id-front').click()">
+          <input type="file" id="file-id-front" accept="image/*" class="d-none" onchange="uploadIdDoc('id_front', this)">
+          <div id="preview-id-front" class="{% if docs.get('id_front') %}{% else %}d-none{% endif %}">
+            {% if docs.get('id_front') %}
+            <img src="/kyc/uploads/{{ kyc.id }}/id_front.jpg" class="img-fluid rounded mx-auto d-block" style="max-height:160px;">
+            <p class="text-success font-weight-bold mt-2 mb-0" style="font-size:12px;">✅ Đã tải lên</p>
+            {% endif %}
+          </div>
+          <div id="placeholder-id-front" class="{% if docs.get('id_front') %}d-none{% endif %}">
+            <span style="font-size:2rem;">🪪</span>
+            <p class="text-muted mb-0 mt-2" style="font-size:13px;">Kéo thả hoặc nhấn để chọn ảnh</p>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="mb-3">
+        <label class="font-weight-bold" style="font-size:13px;">Mặt sau CMND/CCCD *</label>
+        <div id="drop-id-back" class="border rounded text-center p-4" style="border-style:dashed!important;cursor:pointer;"
+             onclick="document.getElementById('file-id-back').click()">
+          <input type="file" id="file-id-back" accept="image/*" class="d-none" onchange="uploadIdDoc('id_back', this)">
+          <div id="preview-id-back" class="{% if docs.get('id_back') %}{% else %}d-none{% endif %}">
+            {% if docs.get('id_back') %}
+            <img src="/kyc/uploads/{{ kyc.id }}/id_back.jpg" class="img-fluid rounded mx-auto d-block" style="max-height:160px;">
+            <p class="text-success font-weight-bold mt-2 mb-0" style="font-size:12px;">✅ Đã tải lên</p>
+            {% endif %}
+          </div>
+          <div id="placeholder-id-back" class="{% if docs.get('id_back') %}d-none{% endif %}">
+            <span style="font-size:2rem;">🪪</span>
+            <p class="text-muted mb-0 mt-2" style="font-size:13px;">Kéo thả hoặc nhấn để chọn ảnh</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+
+  {% if level >= 2 and level < 3 %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0 font-weight-bold">Bước 3 — Xác minh khuôn mặt</h5>
+    </div>
+    <div class="card-body d-flex flex-column align-items-center" style="gap:20px;">
+
+
+      <div class="d-flex" style="gap:12px;">
+        {% set face_angles = ['front','left','right','up','down'] %}
+        {% set face_labels = {'front':'Thẳng','left':'Trái','right':'Phải','up':'Lên','down':'Xuống'} %}
+        {% for angle in face_angles %}
+        <div id="face-badge-{{ angle }}" class="d-flex flex-column align-items-center" style="gap:4px;">
+          <div class="rounded-circle d-flex align-items-center justify-content-center font-weight-bold"
+               style="width:40px;height:40px;font-size:14px;
+                      {% if docs.get('face_' + angle) %}background:#d1fae5;color:#059669;border:1px solid #6ee7b7;{% else %}background:#f1f5f9;color:#94a3b8;border:1px solid #e2e8f0;{% endif %}">
+            {% if docs.get('face_' + angle) %}✓{% else %}📷{% endif %}
+          </div>
+          <span class="text-muted text-uppercase font-weight-bold" style="font-size:9px;letter-spacing:.05em;">{{ face_labels[angle] }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+
+      <div class="d-flex flex-column align-items-center" style="gap:16px;">
+        <div id="video-ring" class="rounded-circle overflow-hidden border" style="width:224px;height:224px;border-width:4px!important;border-color:#e2e8f0!important;position:relative;box-shadow:0 0 30px rgba(0,0,0,.1);transition:all .3s;">
+          <video id="webcam-video" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+          <canvas id="capture-canvas" class="d-none"></canvas>
+          <div id="capture-flash" style="position:absolute;inset:0;background:#fff;z-index:40;opacity:0;pointer-events:none;transition:opacity .15s;"></div>
+          <div id="camera-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#f8fafc;z-index:30;">
+            <div class="d-flex flex-column align-items-center" style="gap:8px;">
+              <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+              <p class="text-muted text-uppercase font-weight-bold mb-0" style="font-size:9px;letter-spacing:.1em;">Đang tải AI...</p>
+            </div>
+          </div>
+          <div id="success-overlay" class="d-none" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,150,105,.8);z-index:30;">
+            <span class="text-white" style="font-size:3rem;">✓</span>
+          </div>
+        </div>
+
+
+        <div class="rounded" style="width:224px;height:6px;background:#e2e8f0;overflow:hidden;">
+          <div id="hold-bar" class="h-100 rounded bg-success" style="width:0%;transition:width .1s;"></div>
+        </div>
+        <p id="kyc-status-text" class="text-muted text-center mb-0" style="font-size:13px;"></p>
+      </div>
+
+      <p id="kyc-instruction" class="font-weight-bold mb-0" style="font-size:15px;">Nhấn bắt đầu để xác minh</p>
+
+      <button id="btn-start-camera" onclick="startKYC()" class="btn btn-primary btn-lg">
+        📷 Bắt đầu xác minh khuôn mặt
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+
+{% if level >= 2 and level < 3 %}
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+let stream = null;
+let currentStep = 0;
+let kycRunning = false;
+let detectInterval = null;
+let holdStart = 0;
+const HOLD_TIME = 1000;
+let modelsLoaded = false;
+let dirHistory = [];
+const HISTORY_SIZE = 3;
+const MAX_UPLOAD_FAILURES = 3;
+const MAX_START_FAILURES = 3;
+const MAX_DETECTION_FAILURES = 3;
+const MAX_NO_FRAME_CHECKS = 30;
+const SOURCE_TIMEOUT_MS = 30000;
+const DETECTION_TIMEOUT_MS = 5000;
+let uploadFailures = 0;
+let uploadInProgress = false;
+let startFailures = 0;
+let detectionFailures = 0;
+let detectionInProgress = false;
+let detectionGeneration = 0;
+let kycStarting = false;
+let noFrameChecks = 0;
+
+const doneFaces = new Set([
+  {% for angle in face_angles %}{% if docs.get('face_' + angle) %}'{{ angle }}',{% endif %}{% endfor %}
+]);
+
+const kycSteps = [
+    { id: 'front', instruction: 'Nhìn thẳng vào camera' },
+    { id: 'left',  instruction: 'Quay đầu sang trái' },
+    { id: 'right', instruction: 'Quay đầu sang phải' },
+    { id: 'up',    instruction: 'Ngước đầu lên trên' },
+    { id: 'down',  instruction: 'Cúi đầu xuống dưới' }
+].filter(s => !doneFaces.has(s.id));
+
+function loadModels() {
+    if (modelsLoaded) return Promise.resolve({ ok: true });
+    if (!window.faceapi || !faceapi.nets ||
+        !faceapi.nets.tinyFaceDetector || !faceapi.nets.faceLandmark68TinyNet) {
+        console.error('Face model library unavailable');
+        return Promise.resolve({ ok: false, message: 'Không tải được thư viện nhận diện khuôn mặt.' });
+    }
+    const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Face model load timed out');
+            resolve({
+                ok: false,
+                code: 'timeout',
+                message: 'Tải mô hình nhận diện quá lâu. Vui lòng thử lại.'
+            });
+        }, SOURCE_TIMEOUT_MS);
+    });
+    const load = Promise.resolve().then(() => Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL)
+    ])).then(
+        () => {
+            modelsLoaded = true;
+            return { ok: true };
+        },
+        error => {
+            if (!timedOut) console.error('Face model load failed:', error && error.name || 'UnknownError');
+            return { ok: false, message: 'Không tải được mô hình nhận diện khuôn mặt.' };
+        }
+    );
+    return Promise.race([load, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
+function openKycCamera() {
+    if (typeof window.cameraRequest !== 'function') {
+        console.error('Camera request helper unavailable');
+        return Promise.resolve({ ok: false, message: 'Không thể khởi tạo camera.' });
+    }
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Camera access timed out');
+            resolve({
+                ok: false,
+                code: 'timeout',
+                message: 'Camera không phản hồi.'
+            });
+        }, SOURCE_TIMEOUT_MS);
+    });
+    const attempt = cameraRequest({
+        video: { width: { ideal: 640 }, height: { ideal: 640 }, facingMode: 'user' }
+    }).then(
+        result => {
+            if (timedOut && result.ok) result.stream.getTracks().forEach(track => track.stop());
+            return result;
+        }
+    );
+    return Promise.race([attempt, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
+function stopKyc(message) {
+    kycStarting = false;
+    kycRunning = false;
+    detectionGeneration++;
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = null;
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    stream = null;
+    document.getElementById('webcam-video').srcObject = null;
+    document.getElementById('camera-loading').style.display = 'none';
+    document.getElementById('kyc-status-text').textContent = '❌ ' + message;
+    const button = document.getElementById('btn-start-camera');
+    button.classList.remove('d-none');
+    button.disabled = startFailures >= MAX_START_FAILURES;
+    if (button.disabled) button.textContent = 'Đã dừng sau 3 lần thử. Hãy tải lại trang.';
+}
+
+function estimateDirection(landmarks) {
+    const jaw = landmarks.getJawOutline();
+    const nose = landmarks.getNose();
+    const faceLeft = jaw[0], faceRight = jaw[16], chin = jaw[8];
+    const faceW = Math.max(20, Math.abs(faceRight.x - faceLeft.x));
+    const faceCX = (faceLeft.x + faceRight.x) / 2;
+    const noseTip = nose[3] || nose[6] || landmarks.positions[30];
+    const yaw = (noseTip.x - faceCX) / faceW;
+
+    const dLeftJaw = Math.hypot(noseTip.x - faceRight.x, noseTip.y - faceRight.y);
+    const dRightJaw = Math.hypot(noseTip.x - faceLeft.x, noseTip.y - faceLeft.y);
+    const asymYaw = (dRightJaw - dLeftJaw) / (dRightJaw + dLeftJaw + 0.001);
+
+    const brows = [...landmarks.getLeftEyeBrow(), ...landmarks.getRightEyeBrow()];
+    const browCenter = brows.reduce((s, p) => s + p.y, 0) / brows.length;
+    const noseToBrow = Math.max(1, noseTip.y - browCenter);
+    const noseToChin = Math.max(1, chin.y - noseTip.y);
+    const pitchRatio = noseToBrow / (noseToChin + 0.001);
+
+    dirHistory.push({ yaw, asymYaw, pitchRatio });
+    if (dirHistory.length > HISTORY_SIZE) dirHistory.shift();
+
+    const avgYaw = dirHistory.reduce((s, d) => s + d.yaw, 0) / dirHistory.length;
+    const avgAsym = dirHistory.reduce((s, d) => s + d.asymYaw, 0) / dirHistory.length;
+    const avgPR = dirHistory.reduce((s, d) => s + d.pitchRatio, 0) / dirHistory.length;
+
+    if (avgPR < 0.95) return 'up';
+    if (avgPR > 1.85) return 'down';
+    if (avgYaw > 0.07 || avgAsym > 0.12) return 'left';
+    if (avgYaw < -0.07 || avgAsym < -0.12) return 'right';
+    return 'front';
+}
+
+function faceDetectionResult(video) {
+    let timeoutId;
+    let timedOut = false;
+    const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => {
+            timedOut = true;
+            console.error('Face detection timed out');
+            resolve({ ok: false, message: 'Nhận diện khuôn mặt quá lâu.' });
+        }, DETECTION_TIMEOUT_MS);
+    });
+    const detectionTask = Promise.resolve().then(async () => {
+        const detection = await faceapi.detectSingleFace(
+            video,
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 })
+        ).withFaceLandmarks(true);  
+        if (timedOut) return { ok: false, message: 'Nhận diện khuôn mặt quá lâu.' };
+        return detection
+            ? { ok: true, hasFace: true, direction: estimateDirection(detection.landmarks) }
+            : { ok: true, hasFace: false };
+    }).then(
+        result => result,
+        error => {
+            if (!timedOut) console.error('Face detection failed:', error && error.name || 'UnknownError');
+            return { ok: false, message: 'Nhận diện khuôn mặt gặp lỗi.' };
+        }
+    );
+    return Promise.race([detectionTask, timeout]).then(result => {
+        clearTimeout(timeoutId);
+        return result;
+    });
+}
+
+async function startKYC() {
+    if (kycRunning || kycStarting || startFailures >= MAX_START_FAILURES) return;
+    kycStarting = true;
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang tải AI nhận diện...';
+    document.getElementById('btn-start-camera').classList.add('d-none');
+    document.getElementById('camera-loading').style.display = 'flex';
+    const models = await loadModels();
+    if (!models.ok) {
+        startFailures++;
+        stopKyc(models.message);
+        return;
+    }
+    const camera = await openKycCamera();
+    if (!camera.ok) {
+        startFailures++;
+        stopKyc(camera.message);
+        return;
+    }
+    stream = camera.stream;
+    document.getElementById('webcam-video').srcObject = stream;
+    document.getElementById('camera-loading').style.display = 'none';
+    kycStarting = false;
+    kycRunning = true;
+    startFailures = 0;
+    uploadFailures = 0;
+    runStep();
+}
+
+function runStep() {
+    if (currentStep >= kycSteps.length) { kycComplete(); return; }
+    const step = kycSteps[currentStep];
+    document.getElementById('kyc-instruction').textContent = step.instruction;
+    document.getElementById('success-overlay').classList.add('d-none');
+    document.getElementById('hold-bar').style.width = '0%';
+    document.getElementById('video-ring').style.borderColor = '#e2e8f0';
+    document.getElementById('kyc-status-text').textContent = '';
+    holdStart = 0;
+    dirHistory = [];
+    uploadInProgress = false;
+    detectionFailures = 0;
+    noFrameChecks = 0;
+    detectionGeneration++;
+    const generation = detectionGeneration;
+    if (detectInterval) clearInterval(detectInterval);
+    detectInterval = setInterval(() => detectFace(step.id, generation), 250);
+}
+
+function handleUploadFailure(message) {
+    if (!kycRunning) return;
+    uploadFailures++;
+    const status = document.getElementById('kyc-status-text');
+    if (uploadFailures >= MAX_UPLOAD_FAILURES) {
+        stopKyc(`${message} Đã dừng sau ${MAX_UPLOAD_FAILURES} lần thử.`);
+        window.dispatchEvent(new CustomEvent('showToast', {
+            detail: { msg: status.textContent, type: 'error' }
+        }));
+        return;
+    }
+    status.textContent = `❌ ${message} Đang thử lại (${uploadFailures}/${MAX_UPLOAD_FAILURES})...`;
+    setTimeout(() => runStep(), 3000);
+}
+
+async function detectFace(expectedDir, generation) {
+    if (!kycRunning || detectionInProgress || generation !== detectionGeneration) return;
+    const video = document.getElementById('webcam-video');
+    if (video.readyState < 2) {
+        noFrameChecks++;
+        if (noFrameChecks >= MAX_NO_FRAME_CHECKS) {
+            console.error('Camera frames unavailable');
+            stopKyc('Camera không gửi hình ảnh. Hãy kiểm tra thiết bị và thử lại.');
+        }
+        return;
+    }
+    noFrameChecks = 0;
+    detectionInProgress = true;
+    const result = await faceDetectionResult(video);
+    detectionInProgress = false;
+    if (uploadInProgress || !kycRunning || generation !== detectionGeneration) return;
+    const ring = document.getElementById('video-ring');
+    const bar = document.getElementById('hold-bar');
+    const status = document.getElementById('kyc-status-text');
+    if (!result.ok) {
+        detectionFailures++;
+        if (detectionFailures >= MAX_DETECTION_FAILURES) {
+            stopKyc(result.message + ' Đã dừng sau 3 lần lỗi.');
+        } else {
+            status.textContent = '❌ ' + result.message + ' Đang thử lại (' +
+                detectionFailures + '/' + MAX_DETECTION_FAILURES + ')...';
+        }
+        return;
+    }
+    detectionFailures = 0;
+    if (!result.hasFace) {
+        ring.style.borderColor = 'rgba(255,100,100,0.5)';
+        ring.style.boxShadow = 'none';
+        bar.style.width = '0%';
+        holdStart = 0;
+        status.textContent = '❌ Không phát hiện khuôn mặt';
+        return;
+    }
+    const dir = result.direction;
+    if (dir === expectedDir) {
+        ring.style.borderColor = 'rgba(100,255,150,0.8)';
+        ring.style.boxShadow = '0 0 20px rgba(100,255,150,0.3)';
+        if (holdStart === 0) holdStart = Date.now();
+        const elapsed = Date.now() - holdStart;
+        const pct = Math.min(100, (elapsed / HOLD_TIME) * 100);
+        bar.style.width = pct + '%';
+        const remainingSec = Math.max(1, Math.ceil((HOLD_TIME - elapsed) / 1000));
+        status.textContent = `✅ Giữ yên... ${remainingSec}s`;
+        if (elapsed >= HOLD_TIME && !uploadInProgress) {
+            uploadInProgress = true;
+            clearInterval(detectInterval);
+            autoCaptureAndUpload();
+        }
+    } else {
+        ring.style.borderColor = '#e2e8f0';
+        ring.style.boxShadow = 'none';
+        bar.style.width = '0%';
+        holdStart = 0;
+        status.textContent = '';
+    }
+}
+
+async function autoCaptureAndUpload() {
+    const video = document.getElementById('webcam-video');
+    const canvas = document.getElementById('capture-canvas');
+    const flash = document.getElementById('capture-flash');
+    const step = kycSteps[currentStep];
+    if (!(video.videoWidth > 0 && video.videoHeight > 0)) {
+        console.error('KYC camera frame has invalid dimensions');
+        handleUploadFailure('Camera chưa có hình ảnh để chụp.');
+        return;
+    }
+    const context = canvas.getContext('2d');
+    if (!context) {
+        console.error('KYC capture canvas unavailable');
+        handleUploadFailure('Không thể chụp ảnh từ camera.');
+        return;
+    }
+    flash.style.opacity = '1';
+    setTimeout(() => flash.style.opacity = '0', 150);
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0);
+    document.getElementById('kyc-status-text').textContent = '⏳ Đang lưu...';
+    document.getElementById('hold-bar').style.width = '100%';
+    canvas.toBlob(async (blob) => {
+        if (!blob) {
+            console.error('KYC camera frame encoding returned no image');
+            handleUploadFailure('Không thể chụp ảnh.');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('angle', step.id);
+        formData.append('file', blob, `${step.id}.jpg`);
+        const data = await apiRequest('/kyc/upload-face', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!data.ok) {
+            handleUploadFailure(data.message || 'Đã xảy ra lỗi hệ thống.');
+            return;
+        }
+        if (data.angle !== step.id) {
+            console.error('KYC face upload returned an unexpected angle');
+            handleUploadFailure('Phản hồi lưu ảnh không hợp lệ.');
+            return;
+        }
+
+        uploadFailures = 0;
+        document.getElementById('success-overlay').classList.remove('d-none');
+        document.getElementById('success-overlay').style.display = 'flex';
+        document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+        document.getElementById('kyc-status-text').textContent = `✅ Đã lưu ${step.id}`;
+        const badge = document.getElementById(`face-badge-${step.id}`);
+        if (badge) {
+            const circle = badge.querySelector('div');
+            circle.style.background = '#d1fae5';
+            circle.style.color = '#059669';
+            circle.style.border = '1px solid #6ee7b7';
+            circle.textContent = '✓';
+        }
+        setTimeout(() => { currentStep++; runStep(); }, 1000);
+    }, 'image/jpeg', 0.95);
+}
+
+function kycComplete() {
+    if (detectInterval) clearInterval(detectInterval);
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    document.getElementById('kyc-instruction').textContent = '🎉 Hoàn tất xác minh khuôn mặt!';
+    document.getElementById('kyc-status-text').textContent = 'Đang tải lại trang...';
+    document.getElementById('video-ring').style.borderColor = 'rgba(100,255,150,0.8)';
+    setTimeout(() => window.location.reload(), 1500);
+}
+</script>
+{% endif %}
+
+
+{% if level >= 1 and level < 2 %}
+<script>
+async function uploadIdDoc(docType, input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('doc_type', docType);
+    formData.append('file', file);
+
+    const preview = document.getElementById('preview-' + docType);
+    const placeholder = document.getElementById('placeholder-' + docType);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        preview.innerHTML = `<img src="${e.target.result}" class="img-fluid rounded mx-auto d-block" style="max-height:160px;"><p class="text-warning font-weight-bold mt-2 mb-0 animate-pulse" style="font-size:12px;">⏳ Đang tải lên...</p>`;
+        preview.classList.remove('d-none');
+        placeholder.classList.add('d-none');
+        const data = await apiRequest('/kyc/upload-id', { method: 'POST', body: formData });
+        const status = preview.querySelector('p');
+        if (data.ok) {
+            status.textContent = '✅ Đã tải lên';
+            status.className = 'text-success font-weight-bold mt-2 mb-0';
+            setTimeout(() => window.location.reload(), 500);
+            return;
+        }
+        status.textContent = `❌ ${data.message || 'Không thể tải giấy tờ lên.'}`;
+        status.className = 'text-danger font-weight-bold mt-2 mb-0';
+    };
+    reader.readAsDataURL(file);
+}
+</script>
+{% endif %}
+{% endblock %}

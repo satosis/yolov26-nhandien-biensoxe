@@ -1,0 +1,293 @@
+{% extends "layout.html" %}
+
+{% block title %}Đơn hàng các dịch vụ{% endblock %}
+{% block page_title %}Đơn hàng các dịch vụ{% if service and service in services %} · {{ services[service] }}{% endif %}{% endblock %}
+
+{% block content %}
+{% macro orders_url(s=service, st=status, query=q) -%}
+/admin/account-sales/orders
+{%- set parts = [] -%}
+{%- if s %}{% set _ = parts.append('service=' ~ (s|urlencode)) %}{% endif -%}
+{%- if st %}{% set _ = parts.append('status=' ~ (st|urlencode)) %}{% endif -%}
+{%- if query %}{% set _ = parts.append('q=' ~ (query|urlencode)) %}{% endif -%}
+{%- if parts %}?{{ parts|join('&') }}{% endif -%}
+{%- endmacro %}
+
+<style>
+  .service-tabs .nav-link { font-size: 13px; padding: 6px 12px; color: #475569; white-space: nowrap; }
+  .service-tabs .nav-link.active { color: #2563eb; border-bottom: 2px solid #2563eb; background: transparent; font-weight: 600; }
+  .service-tabs .count { color: #94a3b8; font-size: 12px; margin-left: 2px; }
+</style>
+
+<div class="container-fluid px-0 w-100">
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+          <span class="font-weight-bold">Danh sách đơn ({{ pagination.total }})</span>
+          <form method="get" action="/admin/account-sales/orders" class="d-flex align-items-center flex-wrap" style="gap:6px;">
+            {% if service %}<input type="hidden" name="service" value="{{ service }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:200px;" placeholder="Tìm khách, SĐT, SP, mã CK...">
+            <select name="status" class="form-control form-control-sm" style="width:155px;" onchange="this.form.submit()">
+              <option value="">Tất cả trạng thái</option>
+              {% for key, label in statuses.items() %}
+              <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-sm btn-light border font-weight-bold">Tìm</button>
+            {% if q or status %}
+            <a href="{{ orders_url(s=service, st='', query='') }}" class="btn btn-sm btn-light border">Bỏ lọc</a>
+            {% endif %}
+          </form>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddOrderModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm đơn hàng
+          </button>
+        </div>
+      </div>
+
+      <ul class="nav service-tabs mt-2">
+        <li class="nav-item">
+          <a class="nav-link {% if not service %}active{% endif %}" href="{{ orders_url(s='', st=status, query=q) }}">
+            Tất cả<span class="count">({{ total_all }})</span>
+          </a>
+        </li>
+        {% for key, label in services.items() %}
+        <li class="nav-item">
+          <a class="nav-link {% if service == key %}active{% endif %}" href="{{ orders_url(s=key, st=status, query=q) }}">
+            {{ label }}<span class="count">({{ service_counts.get(key, 0) }})</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:44px;" class="text-center">STT</th>
+            <th style="width:56px;">Mã</th>
+            <th style="width:96px;">Thời gian</th>
+            <th>Sản phẩm</th>
+            <th class="text-nowrap">Dịch vụ</th>
+            <th style="width:96px;" class="text-right">Thành tiền</th>
+            <th style="width:112px;">Mã chuyển khoản</th>
+            <th style="width:92px;" class="text-right">Đã nhận</th>
+            <th>Khách</th>
+            <th style="width:196px;" class="text-right">Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in orders %}
+          <tr>
+            <td class="text-center text-muted align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">#{{ o.id }}</td>
+            <td class="align-middle text-nowrap">{{ o.created_local.strftime('%d/%m %H:%M') }}</td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ o.product_name }}</div>
+              <div class="text-muted small">Số lượng {{ o.quantity }}</div>
+            </td>
+            <td class="align-middle text-nowrap"><span class="badge badge-light border">{{ o.service_label }}</span></td>
+            <td class="text-right align-middle">{{ "{:,.0f}".format(o.total).replace(",", ".") }}đ</td>
+            <td class="align-middle"><code class="text-dark">{{ o.payment_code }}</code></td>
+            <td class="text-right align-middle">
+              {% if (o.paid_amount or 0)|int > 0 %}{{ "{:,.0f}".format(o.paid_amount).replace(",", ".") }}đ{% endif %}
+            </td>
+            <td class="align-middle">
+              <div>{{ o.buyer_name }}</div>
+              <div class="text-muted small">{{ o.buyer_contact }}</div>
+            </td>
+            <td class="text-right align-middle">
+              <form method="post" action="/admin/account-sales/orders/{{ o.id }}/status" class="d-inline-flex" style="gap:6px;">
+                <input type="hidden" name="service" value="{{ service }}">
+                <input type="hidden" name="filter_status" value="{{ status }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <select name="status" class="form-control form-control-sm" style="width:128px;">
+                  {% for key, label in statuses.items() %}
+                  <option value="{{ key }}" {% if o.status == key %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm btn-light border font-weight-bold">Lưu</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="10" class="text-center py-4 text-muted">
+              Chưa có đơn hàng đã thanh toán{% if service and service in services %} cho dịch vụ {{ services[service] }}{% endif %}.
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+
+<div class="modal fade" id="orderModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Thêm đơn hàng theo dịch vụ</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form id="orderCreateForm" method="post" action="/admin/account-sales/orders">
+        <input type="hidden" name="filter_status" value="{{ status }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Dịch vụ <span class="text-danger">*</span></label>
+              <select name="service" id="order-service" class="form-control form-control-sm" onchange="refreshOrderProductPicker()">
+                {% for key, label in services.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-7 mb-2">
+              <label class="small font-weight-bold">Chọn nhanh sản phẩm từ danh mục</label>
+              <select name="product_id" id="order-product-select" class="form-control form-control-sm" onchange="applySelectedOrderProduct()">
+                <option value="">-- Nhập thủ công / Tùy chọn --</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên sản phẩm / Gói dịch vụ <span class="text-danger">*</span></label>
+              <input type="text" name="product_name" id="order-product-name" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-2 mb-2">
+              <label class="small font-weight-bold">Số lượng</label>
+              <input type="number" min="1" name="quantity" id="order-quantity" class="form-control form-control-sm" value="1" required>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Đơn giá (đ)</label>
+              <input type="number" min="0" name="unit_price" id="order-unit-price" class="form-control form-control-sm" value="0" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Tên khách hàng <span class="text-danger">*</span></label>
+              <input type="text" name="buyer_name" id="order-buyer-name" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">SĐT / Email / Zalo <span class="text-danger">*</span></label>
+              <input type="text" name="buyer_contact" id="order-buyer-contact" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Trạng thái</label>
+              <select name="status" id="order-status" class="form-control form-control-sm">
+                {% for key, label in statuses.items() %}
+                <option value="{{ key }}" {% if key == 'paid' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Tạo đơn</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script id="order-catalog-data" type="application/json">{{ catalog_options | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+var CURRENT_ORDER_SERVICE = {{ (service or 'tai-khoan') | tojson }};
+var ORDER_CATALOG = [];
+try {
+  var _catEl = document.getElementById('order-catalog-data');
+  ORDER_CATALOG = _catEl ? JSON.parse(_catEl.textContent || '[]') : [];
+} catch (e) {
+  ORDER_CATALOG = [];
+}
+
+function setSelectVal(el, val) {
+  if (!el) return;
+  if (typeof window.setAdminSelectValue === 'function') {
+    window.setAdminSelectValue(el, val);
+  } else {
+    el.value = String(val || '');
+  }
+}
+
+function refreshOrderProductPicker() {
+  var svcEl = document.getElementById('order-service');
+  var sel = document.getElementById('order-product-select');
+  if (!svcEl || !sel) return;
+  var svc = svcEl.value || 'tai-khoan';
+
+  sel.textContent = '';
+  var defOpt = document.createElement('option');
+  defOpt.value = '';
+  defOpt.textContent = '-- Nhập thủ công / Tùy chọn --';
+  sel.appendChild(defOpt);
+
+  var tsItems = [{ value: '', text: '-- Nhập thủ công / Tùy chọn --' }];
+  ORDER_CATALOG.forEach(function (item) {
+    if (item.service === svc) {
+      var opt = document.createElement('option');
+      opt.value = String(item.id);
+      opt.setAttribute('data-name', item.name || '');
+      opt.setAttribute('data-price', String(item.price || 0));
+      var priceTxt = Number(item.price || 0) > 0
+        ? Number(item.price).toLocaleString('vi-VN') + 'đ'
+        : 'Liên hệ';
+      var label = (item.name || '') + ' (' + priceTxt + ')';
+      opt.textContent = label;
+      sel.appendChild(opt);
+      tsItems.push({ value: String(item.id), text: label });
+    }
+  });
+
+  if (sel.tomselect) {
+    sel.tomselect.clear(true);
+    sel.tomselect.clearOptions();
+    sel.tomselect.addOptions(tsItems);
+    sel.tomselect.refreshOptions(false);
+    sel.tomselect.setValue('', true);
+  } else {
+    sel.value = '';
+  }
+}
+
+function applySelectedOrderProduct() {
+  var sel = document.getElementById('order-product-select');
+  var nameInp = document.getElementById('order-product-name');
+  var priceInp = document.getElementById('order-unit-price');
+  if (!sel || !sel.value) return;
+  var opt = sel.querySelector('option[value="' + sel.value + '"]');
+  if (!opt) return;
+  if (nameInp) nameInp.value = opt.getAttribute('data-name') || '';
+  if (priceInp) priceInp.value = opt.getAttribute('data-price') || '0';
+}
+
+function openAddOrderModal() {
+  var fields = [
+    ['order-product-name', ''],
+    ['order-quantity', '1'],
+    ['order-unit-price', '0'],
+    ['order-buyer-name', ''],
+    ['order-buyer-contact', ''],
+  ];
+  fields.forEach(function (pair) {
+    var inp = document.getElementById(pair[0]);
+    if (inp) inp.value = pair[1];
+  });
+  var svcEl = document.getElementById('order-service');
+  setSelectVal(svcEl, CURRENT_ORDER_SERVICE);
+  refreshOrderProductPicker();
+  setSelectVal(document.getElementById('order-status'), 'paid');
+  $('#orderModal').modal('show');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,561 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý Cửa cuốn{% endblock %}
+{% block page_title %}Quản lý Cửa cuốn{% endblock %}
+{% block page_back_button %}
+{% if door is defined and door %}<a href="/admin/rolling_doors" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endif %}
+{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <button onclick="startDiscovery()"
+          class="btn btn-light btn-sm font-weight-bold">
+    <i class="bx bx-radar mr-1"></i> Quét thiết bị
+  </button>
+  <button onclick="openModal('add-door-modal')"
+          class="btn btn-primary btn-sm font-weight-bold">
+    <i class="bx bx-plus mr-1"></i> Thêm cửa mới
+  </button>
+</div>
+{% endblock %}
+
+{% block head %}
+<style>
+  .supplier-group {
+    border-left: 3px solid #6366f1;
+    padding-left: 1.5rem;
+    position: relative;
+  }
+  .supplier-group::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #6366f1;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+
+
+  <div class="card mb-4">
+    <div class="card-body p-0">
+      <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between" style="background:#f8f9fa;">
+        <div class="d-flex align-items-center" style="gap:10px;">
+          <div class="rounded d-flex align-items-center justify-content-center text-primary" style="width:32px;height:32px;background:rgba(99,102,241,.1);">
+            <i class="bx bx-cloud"></i>
+          </div>
+          <h6 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:1px;">Cấu hình Tuya Mặc định</h6>
+        </div>
+
+      </div>
+
+      <div class="p-4">
+
+
+        <form action="/admin/rolling_doors/tuya_global" method="post">
+          <div class="row">
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tuya Device ID</label>
+              <input type="text" name="device_id" value="{{ global_tuya_device_id }}" placeholder="Nhập ID thiết bị..."
+                     class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tuya Local Key</label>
+              <input type="password" name="local_key" value="{{ global_tuya_local_key }}" placeholder="Nhập Local Key..."
+                     class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Địa chỉ IP (Tùy chọn)</label>
+              <input type="text" name="ip" value="{{ global_tuya_ip }}" placeholder="VD: 192.168.1.100"
+                     class="form-control">
+            </div>
+          </div>
+          <div class="d-flex justify-content-end mt-2">
+            <button type="submit" class="btn btn-primary font-weight-bold" style="font-size:12px;letter-spacing:1px;">
+              CẬP NHẬT CẤU HÌNH TUYA
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="discovery-modal" class="hidden"
+       style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1060;display:none;align-items:center;justify-content:center;padding:24px;"
+       onclick="if(event.target===this) closeModal('discovery-modal')">
+    <div class="position-fixed" style="top:0;left:0;width:100%;height:100%;z-index:-1;background:rgba(15,23,42,.55);"></div>
+    <div class="card shadow-lg w-100" style="max-width:640px;z-index:1;">
+      <div id="discovery-searching" class="card-body p-5 text-center">
+        <div class="mx-auto mb-4 d-flex align-items-center justify-content-center" style="width:72px;height:72px;position:relative;">
+          <div class="spinner-border text-primary" role="status" style="width:72px;height:72px;"></div>
+          <i class="fas fa-satellite-dish text-primary position-absolute" style="font-size:24px;"></i>
+        </div>
+        <h5 class="font-weight-bold mb-2">Đang tìm kiếm cửa cuốn...</h5>
+      </div>
+
+      <div id="discovery-results" class="hidden" style="display:none;">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h6 class="mb-0 font-weight-bold">Thiết bị Phát hiện</h6>
+          <button onclick="closeModal('discovery-modal')" class="btn btn-sm btn-light">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div id="discovery-list" class="card-body p-3" style="max-height:400px;overflow-y:auto;">
+
+        </div>
+        <div class="card-footer d-flex justify-content-end">
+          <button onclick="startDiscovery()" class="btn btn-link btn-sm text-primary font-weight-bold" style="font-size:11px;letter-spacing:1px;text-transform:uppercase;">QUÉT LẠI</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div>
+    {% if not grouped_doors %}
+    <div class="card">
+      <div class="card-body py-5 text-center">
+        <div class="mb-3" style="font-size:48px;opacity:.3;">🚪</div>
+        <p class="text-muted font-weight-bold mb-1">Chưa có cửa cuốn nào được đăng ký.</p>
+
+      </div>
+    </div>
+    {% else %}
+      {% for s_name, s_doors in grouped_doors.items() %}
+      <div class="supplier-group mb-5">
+        <div class="d-flex align-items-center mb-4" style="gap:12px;">
+          <h5 class="mb-0 font-weight-bold text-uppercase" style="letter-spacing:1px;">{{ s_name }}</h5>
+          <hr class="flex-grow-1 my-0 mx-2">
+          <span class="badge badge-pill badge-secondary" style="font-size:11px;">{{ s_doors|length }} CỬA</span>
+        </div>
+
+        <div class="row" data-bulk-list>
+          {% for door in s_doors %}
+          <div class="col-12 col-md-6 col-lg-4 mb-4" data-bulk-item>
+            <div class="card h-100">
+              <div class="card-body d-flex flex-column">
+                <div class="d-flex align-items-start justify-content-between mb-3">
+                  <div>
+                    <h6 class="font-weight-bold mb-0">{{ door.name }}</h6>
+                    <span class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;">{{ door.site_name }}</span>
+                  </div>
+                  <div class="d-flex" style="gap:4px;">
+                    <button data-door="{{ door|tojson|forceescape }}" onclick="editDoor(this.dataset.door)" class="btn btn-sm btn-light" title="Sửa">
+                      <i class="bx bx-edit-alt"></i>
+                    </button>
+                    <form action="/admin/rolling_doors/{{ door.id }}/delete" method="post" onsubmit="return confirm('Xóa cửa cuốn này?')" class="d-inline">
+                      <button type="submit" class="btn btn-sm btn-danger" title="Xóa">
+                        <i class="bx bx-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                <div class="mb-3 flex-grow-1">
+                  <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <span class="text-muted font-weight-bold text-uppercase" style="font-size:11px;">Loại relay</span>
+                    <code class="text-primary" style="font-size:12px;">{{ door.relay_type|upper }}</code>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                    <span class="text-muted font-weight-bold text-uppercase" style="font-size:11px;">Địa chỉ IP</span>
+                    <code style="font-size:12px;">{% if door.relay_config %}{{ door.relay_config.get('ip', 'N/A') }}{% else %}N/A{% endif %}</code>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center py-2">
+                    <span class="text-muted font-weight-bold text-uppercase" style="font-size:11px;">Trạng thái</span>
+                    {% if door.is_active %}
+                    <span class="badge badge-pill badge-success">HOẠT ĐỘNG</span>
+                    {% else %}
+                    <span class="badge badge-pill badge-secondary">DỪNG</span>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="d-flex" style="gap:8px;">
+                  <button data-bulk-action="open-door" data-bulk-url="/admin/rolling_doors/{{ door.id }}/control" data-bulk-method="POST" data-bulk-value="OPEN" data-bulk-label="Mở cửa" onclick="controlDoor(this, '{{ door.id }}', 'OPEN')" class="btn btn-outline-primary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">MỞ CỬA</button>
+                  <button data-bulk-action="close-door" data-bulk-url="/admin/rolling_doors/{{ door.id }}/control" data-bulk-method="POST" data-bulk-value="CLOSE" data-bulk-label="Đóng cửa" onclick="controlDoor(this, '{{ door.id }}', 'CLOSE')" class="btn btn-outline-secondary btn-sm flex-fill font-weight-bold" style="font-size:11px;letter-spacing:1px;">ĐÓNG CỬA</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+  {% include "partials/pagination.html" %}
+
+
+  <div id="add-door-modal"
+       style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.45);"
+       onclick="if(event.target===this) closeModal('add-door-modal')">
+    <div class="card shadow-lg w-100" style="max-width:600px;max-height:90vh;overflow-y:auto;">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <h6 id="modal-title" class="mb-0 font-weight-bold">Thêm Cửa cuốn Mới</h6>
+        <button onclick="closeModal('add-door-modal')" class="btn btn-sm btn-light">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <form action="/admin/rolling_doors" method="post" class="card-body">
+        <input type="hidden" id="door-id" name="door_id">
+
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên cửa cuốn *</label>
+            <input type="text" id="door-name" name="name" required placeholder="VD: Cửa số 1" class="form-control">
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Nhà cung cấp (Không bắt buộc)</label>
+            <select id="door-supplier" name="supplier_key" class="form-control">
+              <option value="">Cá nhân (Tự định nghĩa)</option>
+              {% for s in suppliers %}
+              <option value="{{ s.provider_key }}">{{ s.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Địa điểm *</label>
+            <select id="door-site" name="site_id" required class="form-control">
+              <option value="" disabled selected>Chọn địa điểm...</option>
+              {% for s in sites %}
+              <option value="{{ s.id }}">{{ s.site_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Loại Relay *</label>
+            <select id="door-relay-type" name="relay_type" required class="form-control">
+              <option value="http">HTTP Request</option>
+              <option value="tuya_local">Tuya Local</option>
+              <option value="hunonic_cloud">Hunonic Cloud (Account)</option>
+              <option value="tasmota">Tasmota (Toggle)</option>
+              <option value="gpio">GPIO Pin</option>
+            </select>
+          </div>
+        </div>
+
+
+        <div id="config-standard" class="pt-3 mt-2 border-top">
+          <p class="text-primary font-weight-bold text-uppercase mb-3" style="font-size:10px;letter-spacing:2px;">THÔNG SỐ KỸ THUẬT (JSON)</p>
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Địa chỉ IP</label>
+              <input type="text" id="door-relay-ip" name="relay_ip" placeholder="192.168.1.xxx" class="form-control">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Device ID / PIN</label>
+              <input type="text" id="door-relay-id" name="relay_id" placeholder="ID hoặc số PIN" class="form-control">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Local Key / Secret</label>
+            <input type="text" id="door-relay-key" name="relay_key" placeholder="Phụ thuộc loại relay" class="form-control">
+          </div>
+        </div>
+
+
+        <div id="config-hunonic" class="hidden pt-3 mt-2 border-top" style="display:none;">
+          <p class="text-primary font-weight-bold text-uppercase mb-3" style="font-size:10px;letter-spacing:2px;">TÀI KHOẢN HUNONIC CLOUD</p>
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Số điện thoại</label>
+              <input type="text" id="hunonic-phone" name="hunonic_phone" placeholder="09xxxxxxxx" class="form-control">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Mật khẩu</label>
+              <div class="input-group">
+                <input type="password" id="hunonic-password" name="hunonic_password" placeholder="••••••••" class="form-control">
+                <div class="input-group-append">
+                  <button type="button" onclick="togglePassword('hunonic-password')" class="btn btn-light border">
+                    <i id="toggle-icon-hunonic-password" class="fas fa-eye" style="font-size:12px;"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">ID thiết bị Hunonic</label>
+            <div class="input-group">
+              <input type="text" id="hunonic-device-id" name="hunonic_device_id" placeholder="ID từ danh sách" class="form-control">
+              <div class="input-group-append">
+                <button type="button" onclick="fetchHunonicDevices(this)" class="btn btn-light border" style="font-size:10px;font-weight:700;letter-spacing:1px;">LẤY DANH SÁCH</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-check mt-3">
+          <input type="checkbox" id="door-active" name="is_active" checked class="form-check-input">
+          <label for="door-active" class="form-check-label" style="font-size:14px;">Đang hoạt động</label>
+        </div>
+
+
+        <div class="mt-3 pt-3 border-top">
+          <div class="form-check mb-3">
+            <input type="checkbox" id="door-auto-close" name="auto_close_enabled" class="form-check-input">
+            <label for="door-auto-close" class="form-check-label font-weight-bold" style="font-size:14px;">Tự đóng khi không có người</label>
+          </div>
+          <div class="row">
+            <div class="col-6 mb-2">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Camera giám sát</label>
+              <select id="door-camera" name="camera_id" class="form-control">
+                <option value="">-- Chọn camera --</option>
+                {% for cam in cameras %}
+                <option value="{{ cam.id }}">{{ cam.camera_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 mb-2">
+              <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Thời gian chờ (giây)</label>
+              <input type="number" id="door-delay" name="auto_close_delay_sec" value="300" min="30" max="3600" class="form-control">
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-end mt-4 pt-3 border-top" style="gap:8px;">
+          <button type="button" onclick="closeModal('add-door-modal')" class="btn btn-light font-weight-bold" style="font-size:13px;">HỦY</button>
+          <button type="submit" class="btn btn-primary font-weight-bold" style="font-size:12px;letter-spacing:1px;">LƯU CẤU HÌNH</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function discoveredDeviceItem(name, details, label, onSelect) {
+    const item = document.createElement('div');
+    item.className = 'card mb-2';
+    const body = document.createElement('div');
+    body.className = 'card-body p-3 d-flex align-items-center justify-content-between';
+    const description = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'font-weight-bold';
+    title.style.fontSize = '14px';
+    title.textContent = name;
+    const metadata = document.createElement('code');
+    metadata.style.cssText = 'font-size:10px;letter-spacing:1px;';
+    metadata.textContent = details;
+    description.append(title, metadata);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm btn-primary font-weight-bold';
+    button.style.cssText = 'font-size:11px;letter-spacing:1px;';
+    button.textContent = label;
+    button.addEventListener('click', onSelect);
+    body.append(description, button);
+    item.appendChild(body);
+    return item;
+  }
+
+  function controlDoor(btn, doorId, action) {
+    const originalText = btn.innerText;
+    btn.innerText = '...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('action', action);
+
+    apiRequest(`/admin/rolling_doors/${doorId}/control`, {
+      method: 'POST',
+      body: formData
+    })
+    .then(data => {
+      if (data.ok && data.api_status === 'success') {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Đã gửi lệnh điều khiển cửa.', type: 'success'}
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Không thể điều khiển cửa.', type: 'error'}
+        }));
+      }
+    })
+    .finally(() => {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    });
+  }
+
+  function openModal(id) {
+    const m = document.getElementById(id);
+    m.style.display = 'flex';
+    if (id === 'add-door-modal') {
+      document.getElementById('modal-title').innerText = 'Thêm Cửa cuốn Mới';
+      document.getElementById('door-id').value = '';
+      document.querySelector('#add-door-modal form').reset();
+    }
+  }
+
+  function startDiscovery() {
+    openModal('discovery-modal');
+    document.getElementById('discovery-searching').style.display = '';
+    document.getElementById('discovery-results').style.display = 'none';
+
+    apiRequest('/admin/rolling_doors/scan', { method: 'POST' })
+      .then(data => {
+        document.getElementById('discovery-searching').style.display = 'none';
+        document.getElementById('discovery-results').style.display = '';
+
+        const list = document.getElementById('discovery-list');
+        list.replaceChildren();
+
+        if (!data.ok) {
+          list.textContent = data.message || 'Không thể quét thiết bị.';
+          return;
+        }
+
+        if (data.api_status === 'success' && Array.isArray(data.devices) && data.devices.length > 0) {
+          data.devices.forEach(dev => {
+            list.appendChild(discoveredDeviceItem(
+              dev.name,
+              `IP: ${dev.ip} | ID: ${dev.device_id} | Ver: ${dev.version}`,
+              'DÙNG THIẾT BỊ NÀY',
+              () => selectDiscovered(dev.ip, dev.device_id, 'tuya_local'),
+            ));
+          });
+        } else {
+          list.innerHTML = '<div class="py-4 text-center text-muted" style="font-size:13px;">Không tìm thấy thiết bị nào.</div>';
+        }
+      });
+  }
+
+  function selectDiscovered(ip, id, type) {
+    closeModal('discovery-modal');
+    openModal('add-door-modal');
+    document.getElementById('door-relay-ip').value = ip;
+    document.getElementById('door-relay-id').value = id;
+    setAdminSelectValue(document.getElementById('door-relay-type'), type);
+  }
+
+  function closeModal(id) {
+    const m = document.getElementById(id);
+    m.style.display = 'none';
+  }
+
+  function editDoor(doorJson) {
+    const door = JSON.parse(doorJson);
+    openModal('add-door-modal');
+    document.getElementById('modal-title').innerText = 'Cập nhật Cấu hình Cửa';
+    document.getElementById('door-id').value = door.id;
+    document.getElementById('door-name').value = door.name;
+    setAdminSelectValue(document.getElementById('door-supplier'), door.supplier_key);
+    setAdminSelectValue(document.getElementById('door-site'), door.site_id);
+    setAdminSelectValue(document.getElementById('door-relay-type'), door.relay_type || 'http');
+    document.getElementById('door-active').checked = door.is_active;
+
+    if (door.relay_config) {
+      document.getElementById('door-relay-ip').value = door.relay_config.ip || '';
+      document.getElementById('door-relay-id').value = door.relay_config.device_id || door.relay_config.pin || '';
+      document.getElementById('door-relay-key').value = door.relay_config.local_key || '';
+
+      document.getElementById('hunonic-phone').value = door.relay_config.phone || '';
+      document.getElementById('hunonic-password').value = door.relay_config.password || '';
+      document.getElementById('hunonic-device-id').value = door.relay_config.device_id || '';
+    }
+
+    document.getElementById('door-auto-close').checked = door.auto_close_enabled || false;
+    setAdminSelectValue(document.getElementById('door-camera'), door.camera_id || '');
+    document.getElementById('door-delay').value = door.auto_close_delay_sec || 300;
+
+    toggleRelayFields();
+  }
+
+  function toggleRelayFields() {
+    const type = document.getElementById('door-relay-type').value;
+    const std = document.getElementById('config-standard');
+    const hunonic = document.getElementById('config-hunonic');
+
+    if (type === 'hunonic_cloud') {
+      std.style.display = 'none';
+      hunonic.style.display = '';
+    } else {
+      std.style.display = '';
+      hunonic.style.display = 'none';
+    }
+  }
+
+  function fetchHunonicDevices(btn) {
+    const phone = document.getElementById('hunonic-phone').value;
+    const pass = document.getElementById('hunonic-password').value;
+
+    if (!phone || !pass) {
+      window.dispatchEvent(new CustomEvent('showToast', {
+        detail: {msg: 'Vui lòng nhập SĐT và Mật khẩu Hunonic.', type: 'warning'}
+      }));
+      return;
+    }
+
+    const originalText = btn.innerText;
+    btn.innerText = 'ĐANG TẢI...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('phone', phone);
+    formData.append('password', pass);
+
+    apiRequest('/admin/rolling_doors/hunonic/devices', {
+      method: 'POST',
+      body: formData
+    })
+    .then(data => {
+      if (data.ok && data.api_status === 'success' && Array.isArray(data.devices)) {
+        openModal('discovery-modal');
+        document.getElementById('discovery-searching').style.display = 'none';
+        document.getElementById('discovery-results').style.display = '';
+
+        const list = document.getElementById('discovery-list');
+        list.replaceChildren();
+
+        data.devices.forEach(dev => {
+          list.appendChild(discoveredDeviceItem(
+            dev.name || 'Hunonic Device',
+            `ID: ${dev.id}`,
+            'CHỌN',
+            () => selectHunonicDevice(dev.id),
+          ));
+        });
+      } else {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {msg: data.message || 'Không thể lấy danh sách thiết bị.', type: 'error'}
+        }));
+      }
+    })
+    .finally(() => {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    });
+  }
+
+  function selectHunonicDevice(deviceId) {
+    document.getElementById('hunonic-device-id').value = deviceId;
+    closeModal('discovery-modal');
+  }
+
+  function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = document.getElementById('toggle-icon-' + inputId);
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.classList.remove('fa-eye');
+      icon.classList.add('fa-eye-slash');
+    } else {
+      input.type = 'password';
+      icon.classList.remove('fa-eye-slash');
+      icon.classList.add('fa-eye');
+    }
+  }
+
+  document.getElementById('door-relay-type').addEventListener('change', toggleRelayFields);
+
+</script>
+{% endblock %}

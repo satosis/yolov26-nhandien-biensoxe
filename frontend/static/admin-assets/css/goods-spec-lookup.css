@@ -1,0 +1,21 @@
+/* Bảng kết quả tra cứu BAZEM (trang Quy cách hàng hóa và Sổ bán hàng): chữ lớn, tiêu đề mỗi cột một màu, ô kết quả nền trắng. */
+#lookupResultWrap .table thead th,
+#lookupShapeWrap .table thead th {
+    font-size: 14px !important;
+    padding: 8px 14px !important;
+    color: #000 !important;
+}
+#lookupResultWrap .table tbody td,
+#lookupShapeWrap .table tbody td {
+    font-size: 18px !important;
+    padding: 8px 14px !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    background: #fff !important;
+}
+#lookupResultWrap .table thead th:nth-child(1),
+#lookupShapeWrap .table thead th:nth-child(1) { background: #bae6fd !important; }
+#lookupResultWrap .table thead th:nth-child(2),
+#lookupShapeWrap .table thead th:nth-child(2) { background: #fde68a !important; }
+#lookupResultWrap .table thead th:nth-child(3),
+#lookupShapeWrap .table thead th:nth-child(3) { background: #bbf7d0 !important; }

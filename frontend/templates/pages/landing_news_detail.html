@@ -1,0 +1,28 @@
+{% extends "landing_base_legacy.html" %}
+
+{% block title %}{{ item.title }} - THÉP SƠN LÂM{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1 class="page-title">{{ item.title }}</h1>
+        <p class="page-subtitle">{{ item.category }} &bull; {{ item.publish_date_str or item.publish_date }}</p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container" style="max-width: 800px; margin: 0 auto; line-height: 1.8;">
+        {% if item.image %}
+        <img src="{{ item.image }}" alt="{{ item.title }}" style="width:100%; border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+        {% endif %}
+        
+        <div class="prose" style="font-size: 1.1rem; color: #4b5563;">
+            {{ item.content | safe }}
+        </div>
+        
+        <div style="margin-top: 3rem; text-align: center;">
+            <a href="/tin-tuc" class="btn btn-outline">Quay lại danh sách tin tức</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

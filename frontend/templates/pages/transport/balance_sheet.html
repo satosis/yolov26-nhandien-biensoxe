@@ -1,0 +1,201 @@
+{% extends "layout.html" %}
+
+{% block title %}Báo cáo tình hình tài chính (B01b-DNN) - Đại Lộ Xanh{% endblock %}
+{% block page_title %}Báo cáo tình hình tài chính{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="/static/admin-assets/css/report-tables.css?v=20261104-1">
+<style>
+  .tb-page-wrap { padding-bottom: 30px; }
+  .tb-money {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .is-row-bold td { font-weight: 700; background: #f8fafc; }
+  /* Báo cáo rộng: chữ trong bảng to hơn các sổ khác dùng chung report-tables.css */
+  .tb-page-wrap .tb-table thead th { font-size: 14px !important; padding: 9px 12px !important; }
+  .tb-page-wrap .tb-table thead tr:nth-child(2) th { font-size: 12.5px !important; padding: 5px 12px !important; }
+  .tb-page-wrap .tb-table tbody td { font-size: 15px !important; padding: 8px 12px !important; }
+</style>
+
+{% macro format_val(v) -%}
+  {%- if v is not none and v < 0 -%}
+    ({{ (-v)|format_number }})
+  {%- elif v == 0 -%}
+    -
+  {%- elif v is not none -%}
+    {{ v|format_number }}
+  {%- endif -%}
+{%- endmacro %}
+
+<div class="container-fluid px-0 w-100 tb-page-wrap">
+  <!-- Top Bar: Title & Status -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:12px;">
+    <div>
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <span class="badge badge-primary px-2 py-1 font-weight-bold" style="font-size:12px;">ĐẠI LỘ XANH</span>
+        <h4 class="mb-0 font-weight-bold" style="color:#1e293b; font-size:18px;">
+          BÁO CÁO TÌNH HÌNH TÀI CHÍNH (MẪU SỐ B01b-DNN)
+        </h4>
+      </div>
+      <div class="text-muted mt-1" style="font-size:12.5px;">
+        <i class="bx bx-buildings mr-1"></i><strong>{{ report.company_name }}</strong>
+        <span class="mx-2">•</span>
+        <i class="bx bx-receipt mr-1"></i>MST: <strong>{{ report.tax_code }}</strong>
+        <span class="mx-2">•</span>
+        <span class="badge badge-warning text-dark font-weight-bold px-2 py-1" style="font-size:12px; border:1px solid #fde047;">
+          <i class="bx bx-calendar mr-1"></i>Tại ngày {{ date_to_display }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+      <a href="/admin/transport/trial-balance?year={{ selected_year }}&period={{ active_period }}&date_from={{ date_from }}&date_to={{ date_to }}"
+         class="btn btn-outline-info btn-sm font-weight-bold">
+        <i class="bx bx-git-merge mr-1"></i>Bảng cân đối tài khoản (F01)
+      </a>
+      <a href="/admin/transport/trial-balance/balance-sheet/export?year={{ selected_year }}&period={{ active_period }}&date_from={{ date_from }}&date_to={{ date_to }}"
+         class="btn btn-success btn-sm font-weight-bold shadow-sm">
+        <i class="bx bx-download mr-1"></i>Xuất Excel B01b-DNN
+      </a>
+    </div>
+  </div>
+
+  <!-- BỘ LỌC CHỌN KỲ BÁO CÁO -->
+  <div class="tb-filter-bar mb-3">
+    <form id="tbFilterForm" method="get" action="/admin/transport/trial-balance/balance-sheet" class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+      <div class="d-flex align-items-center flex-wrap" style="gap:10px;">
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <label class="mb-0 font-weight-bold text-dark font-size-12 text-nowrap"><i class="bx bx-calendar mr-1 text-primary"></i>Năm:</label>
+          <select name="year" id="tbYearSelect" class="form-control form-control-sm font-weight-bold" style="width:110px;" onchange="handleYearChange(this.value)">
+            {% for y in available_years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>Năm {{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <label class="mb-0 font-weight-bold text-dark font-size-12 text-nowrap"><i class="bx bx-time-five mr-1 text-primary"></i>Chọn theo kỳ:</label>
+          <select name="period" id="tbPeriodSelect" class="form-control form-control-sm font-weight-bold" style="width:170px;" onchange="handlePeriodChange(this.value)">
+            <option value="today" {% if active_period == 'today' %}selected{% endif %}>📅 Đến hiện tại ({{ date_to_display }})</option>
+            <option value="all" {% if active_period == 'all' or active_period == 'year' %}selected{% endif %}>📆 Cả năm {{ selected_year }}</option>
+            <option value="q1" {% if active_period == 'q1' %}selected{% endif %}>Quý 1 (01/01 - 31/03)</option>
+            <option value="q2" {% if active_period == 'q2' %}selected{% endif %}>Quý 2 (01/04 - 30/06)</option>
+            <option value="q3" {% if active_period == 'q3' %}selected{% endif %}>Quý 3 (01/07 - 30/09)</option>
+            <option value="q4" {% if active_period == 'q4' %}selected{% endif %}>Quý 4 (01/10 - 31/12)</option>
+            <option value="m1" {% if active_period == 'm1' %}selected{% endif %}>Tháng 1/{{ selected_year }}</option>
+            <option value="m2" {% if active_period == 'm2' %}selected{% endif %}>Tháng 2/{{ selected_year }}</option>
+            <option value="m3" {% if active_period == 'm3' %}selected{% endif %}>Tháng 3/{{ selected_year }}</option>
+            <option value="m4" {% if active_period == 'm4' %}selected{% endif %}>Tháng 4/{{ selected_year }}</option>
+            <option value="m5" {% if active_period == 'm5' %}selected{% endif %}>Tháng 5/{{ selected_year }}</option>
+            <option value="m6" {% if active_period == 'm6' %}selected{% endif %}>Tháng 6/{{ selected_year }}</option>
+            <option value="m7" {% if active_period == 'm7' %}selected{% endif %}>Tháng 7/{{ selected_year }}</option>
+            <option value="m8" {% if active_period == 'm8' %}selected{% endif %}>Tháng 8/{{ selected_year }}</option>
+            <option value="m9" {% if active_period == 'm9' %}selected{% endif %}>Tháng 9/{{ selected_year }}</option>
+            <option value="m10" {% if active_period == 'm10' %}selected{% endif %}>Tháng 10/{{ selected_year }}</option>
+            <option value="m11" {% if active_period == 'm11' %}selected{% endif %}>Tháng 11/{{ selected_year }}</option>
+            <option value="m12" {% if active_period == 'm12' %}selected{% endif %}>Tháng 12/{{ selected_year }}</option>
+            <option value="custom" {% if active_period == 'custom' %}selected{% endif %}>Tùy chọn ngày...</option>
+          </select>
+        </div>
+
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <label class="mb-0 text-muted font-size-12 text-nowrap">Từ ngày:</label>
+          <input type="date" name="date_from" id="tbDateFrom" class="form-control form-control-sm font-weight-bold" style="width:138px;" value="{{ date_from }}">
+        </div>
+
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <label class="mb-0 text-muted font-size-12 text-nowrap">Đến ngày:</label>
+          <input type="date" name="date_to" id="tbDateTo" class="form-control form-control-sm font-weight-bold" style="width:138px;" value="{{ date_to }}">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3">
+          <i class="bx bx-filter-alt mr-1"></i>Lọc dữ liệu
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- BẢNG BÁO CÁO B01b-DNN -->
+  <div class="tb-table-card">
+    <div class="p-3 bg-white border-bottom">
+      <div class="row">
+        <div class="col-md-7">
+          <div class="font-weight-bold text-dark" style="font-size:16px;">{{ report.company_name }}</div>
+          <div class="text-muted" style="font-size:14px;">Địa chỉ: {{ report.address }}</div>
+          <div class="text-muted" style="font-size:14px;">Mã số thuế: {{ report.tax_code }}</div>
+        </div>
+        <div class="col-md-5 text-md-right mt-2 mt-md-0">
+          <div class="font-weight-bold text-dark" style="font-size:16px;">Mẫu số B01b-DNN</div>
+          <div class="text-muted font-italic" style="font-size:13px;">(Ban hành theo Thông tư số 133/2016/TT-BTC ngày 26/8/2016 của Bộ Tài chính)</div>
+          <div class="font-weight-bold text-primary mt-1" style="font-size:15px;">Tại ngày {{ date_to_display }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm tb-table mb-0">
+        <thead>
+          <tr>
+            <th class="text-left">TÀI SẢN/NGUỒN VỐN</th>
+            <th style="width: 80px;">Mã số</th>
+            <th style="width: 90px;">Thuyết minh</th>
+            <th class="text-right" style="width: 180px;">Số cuối năm<br><small class="text-muted">{{ date_to_display }}</small></th>
+            <th class="text-right" style="width: 180px;">Số đầu năm<br><small class="text-muted">01/01/{{ selected_year }}</small></th>
+          </tr>
+          <tr style="background:#f8fafc; color:#64748b; font-style:italic;">
+            <th>1</th>
+            <th>2</th>
+            <th>3</th>
+            <th class="text-right">4</th>
+            <th class="text-right">5</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report.rows %}
+          {% if row.kind == 'section' %}
+          <tr style="background:#f1f5f9; font-weight:700;">
+            <td colspan="5" class="text-left font-weight-bold" style="padding:6px 8px; color:#0f172a; letter-spacing:0.5px;">
+              {{ row.label }}
+            </td>
+          </tr>
+          {% else %}
+          <tr class="{{ 'is-row-bold' if row.kind == 'group' else '' }}">
+            <td class="text-left">{{ row.label }}</td>
+            <td class="text-center">{{ row.code }}</td>
+            <td class="text-center"></td>
+            <td class="tb-money">
+              {{ format_val(row.current) }}
+            </td>
+            <td class="tb-money">
+              {{ format_val(row.opening) }}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if not report.is_balanced %}
+  <div class="alert alert-danger mt-3 mb-2" role="alert" style="font-size: 13px;">
+    <i class="bx bx-error-circle mr-1"></i>
+    Chênh lệch Tài sản − Nguồn vốn: {{ report.difference|format_number }} đ
+  </div>
+  {% endif %}
+</div>
+
+<script src="/static/admin-assets/js/report-period.js?v=20261104-1"></script>
+<script>
+function handleYearChange(val) {
+  document.getElementById('tbFilterForm').submit();
+}
+
+function handlePeriodChange(val) {
+  applyReportPeriod(val, {year: 'tbYearSelect', from: 'tbDateFrom', to: 'tbDateTo', form: 'tbFilterForm',
+    defaultYear: '{{ selected_year }}', today: '{{ today.strftime("%Y-%m-%d") if today else date_to }}'});
+}
+</script>
+{% endblock %}

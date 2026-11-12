@@ -1,0 +1,62 @@
+# ==============================================================================
+# BỘ TỪ KHÓA QUẢNG CÁO XE CẨU (PHÚ THỌ & KHU VỰC LÂN CẬN)
+# Cú pháp Google Ads:
+#   "từ khóa" : Khớp cụm từ (Phrase Match - Khuyên dùng)
+#   [từ khóa] : Khớp chính xác (Exact Match)
+# ==============================================================================
+
+# --- NHÓM 1: THUÊ XE CẨU CHUNG TẠI PHÚ THỌ ---
+"thuê xe cẩu phú thọ"
+[thuê xe cẩu phú thọ]
+"cho thuê xe cẩu phú thọ"
+[cho thuê xe cẩu phú thọ]
+"thuê cẩu phú thọ"
+[thuê cẩu phú thọ]
+"xe cẩu việt trì"
+[xe cẩu việt trì]
+"thuê xe cẩu việt trì"
+[thuê xe cẩu việt trì]
+"cho thuê xe cẩu việt trì"
+"dịch vụ xe cẩu phú thọ"
+"giá thuê xe cẩu phú thọ"
+"bảng giá thuê xe cẩu phú thọ"
+"số điện thoại xe cẩu phú thọ"
+"hotline xe cẩu việt trì"
+
+# --- NHÓM 2: CÁC HUYỆN & KHU CÔNG NGHIỆP TẠI PHÚ THỌ ---
+"thuê xe cẩu lâm thao"
+"thuê xe cẩu phù ninh"
+"thuê xe cẩu tam nông"
+"thuê xe cẩu thanh ba"
+"thuê xe cẩu cẩm khê"
+"thuê xe cẩu thanh thủy"
+"thuê xe cẩu tx phú thọ"
+"thuê xe cẩu hạ hòa"
+"thuê xe cẩu đoan hùng"
+"xe cẩu kcn thụy vân"
+"xe cẩu kcn phú hà"
+"xe cẩu kcn cẩm khê"
+"thuê xe cẩu kcn trung hà"
+
+# --- NHÓM 3: LOẠI XE CẨU (TỰ HÀNH & KATO CHUYÊN DÙNG) ---
+"thuê xe cẩu tự hành phú thọ"
+[thuê xe cẩu tự hành phú thọ]
+"cho thuê cẩu tự hành việt trì"
+"thuê xe cẩu 2.5 tấn phú thọ"
+"thuê xe cẩu 3.5 tấn phú thọ"
+"thuê xe cẩu 5 tấn phú thọ"
+"thuê xe cẩu 8 tấn phú thọ"
+"thuê xe cẩu 10 tấn phú thọ"
+"thuê xe cẩu 15 tấn phú thọ"
+"thuê cẩu kato phú thọ"
+"cho thuê xe cẩu thùng phú thọ"
+"thuê cẩu bánh lốp phú thọ"
+
+# --- NHÓM 4: DỊCH VỤ CẨU HẠ, RÚT CONTAINER, DI DỜI MÁY MÓC ---
+"dịch vụ cẩu hàng phú thọ"
+"cẩu hạ máy móc phú thọ"
+"thuê cẩu lắp dựng nhà xưởng phú thọ"
+"rút container máy móc phú thọ"
+"di dời thiết bị nặng phú thọ"
+"cẩu cây cảnh việt trì phú thọ"
+"cẩu sắt thép công trình phú thọ"

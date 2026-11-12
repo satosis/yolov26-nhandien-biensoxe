@@ -1,0 +1,37 @@
+.company-activity-wrapper .ts-dropdown {
+  border-radius: 12px !important;
+  border: 1px solid #EAECF0 !important;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12) !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+  font-size: 13px !important;
+  z-index: 1050 !important;
+  margin-top: 4px !important;
+  background: #ffffff !important;
+}
+.company-activity-wrapper .ts-dropdown .option {
+  padding: 8px 14px !important;
+  color: #232A2F !important;
+  cursor: pointer !important;
+  border-bottom: 1px solid #f8fafc !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  transition: background-color 0.15s ease;
+}
+.company-activity-wrapper .ts-dropdown .option:hover,
+ .company-activity-wrapper .ts-dropdown .option.active {
+  background-color: #EDF4F8 !important;
+  color: #232A2F !important;
+}
+.company-activity-wrapper .ts-dropdown .option.selected {
+  background-color: #e8f0fe !important;
+  font-weight: 600 !important;
+  color: #1967d2 !important;
+}
+.company-activity-wrapper .ts-dropdown .create {
+  padding: 8px 14px !important;
+  color: #1a73e8 !important;
+  background-color: #f8f9fa !important;
+  cursor: pointer !important;
+}

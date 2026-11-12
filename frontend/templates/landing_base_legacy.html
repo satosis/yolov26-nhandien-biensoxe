@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>{% block title %}THÉP SƠN LÂM Industrial Core{% endblock %}</title>
+
+
+  <link rel="stylesheet" href="/static/user/css/landing.css?v=2.5">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0">
+
+  <script defer src="/static/user/js/alpine.min.js?v=2.1"></script>
+
+  <link rel="icon" href="/static/favicon.ico?v=clean">
+  <link rel="sitemap" type="application/xml" href="/sitemap.xml">
+
+  {% block seo %}
+  <meta name="description" content="THÉP SƠN LÂM Industrial Core — Cho thuê nhà xưởng xây sẵn tại KCN Trung Hà và KCN Cổ Tiết, tỉnh Phú Thọ. Hạ tầng đồng bộ, PCCC tự động, trạm điện 5000 KVA.">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="THÉP SƠN LÂM Industrial Core">
+  <link rel="canonical" href="{{ request.url }}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="vi_VN">
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:site_name" content="THÉP SƠN LÂM Industrial Core">
+  <meta property="og:title" content="THÉP SƠN LÂM Industrial Core — Nhà xưởng xây sẵn Phú Thọ">
+  <meta property="og:description" content="Cho thuê nhà xưởng xây sẵn KCN Trung Hà & Cổ Tiết, Phú Thọ. Hạ tầng đồng bộ, bàn giao ngay.">
+  <meta property="og:image" content="{{ request.base_url }}static/brain/tsl/hero_factory.png">
+  <meta property="og:url" content="{{ request.url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {% endblock %}
+
+  {% include "partials/landing_i18n.html" %}
+
+  <style>
+    :root, html, body {
+      font-family: "Be Vietnam Pro", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      font-size: 16px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    [x-cloak]{display:none!important}
+    html{scroll-behavior:smooth;scroll-padding-top:80px}
+    .goog-te-banner-frame, .skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+    .goog-te-gadget { display: none !important; }
+  </style>
+  {% include "partials/tracking_head.html" %}
+  {% block head %}{% endblock %}
+  <script defer src="/static/user/js/htmx.min.js?v=2.1"></script>
+</head>
+<body class="notranslate-root" x-data>
+  {% include "partials/tracking_body.html" %}
+
+  {% include "partials/landing_header_legacy.html" %}
+
+  <div id="google_translate_element" style="display:none" aria-hidden="true"></div>
+  <script defer src="/static/user/js/google-translate.js?v=20261104-1"></script>
+  <script defer src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+  <main id="main-content" role="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% include "partials/landing_footer_legacy.html" %}
+
+
+  <div class="lightbox" id="lightbox">
+    <span class="lightbox-close" id="lightbox-close">&times;</span>
+    <img class="lightbox-content" id="lightbox-img" alt="Phóng to hình ảnh">
+  </div>
+
+  <script src="/static/user/js/landing.js?v=2.1"></script>
+  <script defer src="/static/user/js/contact-form.js?v=1.3"></script>
+  {% block scripts %}{% endblock %}
+
+  <!-- LIVE CHATBOT TOÀN HỆ THỐNG -->
+  {% include "partials/live_chat_widget.html" %}
+</body>
+</html>

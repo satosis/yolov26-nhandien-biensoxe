@@ -1,0 +1,1414 @@
+{% extends "layout.html" %}
+
+{% block title %}Bảng tính khấu hao TSCĐ - Đại Lộ Xanh{% endblock %}
+{% block page_title %}Bảng tính khấu hao Tài sản cố định{% endblock %}
+
+{% block content %}
+<style>
+  .depr-page-wrap {
+    padding-bottom: 30px;
+  }
+  .depr-summary-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    padding: 16px 20px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .depr-summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .depr-stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    margin-bottom: 6px;
+  }
+  .depr-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  .depr-stat-sub {
+    font-size: 11.5px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  .depr-table-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+  .depr-table.table {
+    width: 100% !important;
+    table-layout: auto !important;
+    margin-bottom: 0 !important;
+  }
+  .depr-table.table thead th {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    background: #adc7e7 !important;
+    color: #1e293b !important;
+    border: 1px solid #8faadc !important;
+    white-space: normal !important;
+    padding: 4px 3px !important;
+    line-height: 1.2 !important;
+  }
+  .depr-table.table thead th.th-sub {
+    background: #cfe2f3 !important;
+    font-weight: 600 !important;
+    font-size: 12.5px !important;
+    color: #1e293b !important;
+    padding: 3px 2px !important;
+  }
+  .depr-table.table tbody td {
+    font-size: 13.5px !important;
+    vertical-align: middle !important;
+    padding: 3px 3px !important;
+    border: 1px solid #e2e8f0 !important;
+    white-space: nowrap !important;
+    color: #334155 !important;
+  }
+  .depr-table.table tbody tr:hover {
+    background: #f8fafc !important;
+  }
+  /* Số liệu & ô thường in thường trong tbody */
+  .depr-table.table tbody td,
+  .depr-table.table tbody td .font-weight-bold,
+  .depr-table.table tbody td strong,
+  .depr-table.table tbody td b {
+    font-weight: 400 !important;
+  }
+  .depr-table.table tbody td .badge,
+  .depr-table.table tbody td .btn,
+  .depr-table.table tbody td .depr-badge {
+    font-weight: 600 !important;
+  }
+  /* Cột chữ cho phép xuống dòng */
+  .depr-table.table tbody td.depr-cell-name,
+  .depr-table.table tbody td.depr-cell-type,
+  .depr-table.table tbody td.depr-cell-dept,
+  .depr-table.table tbody td.depr-cell-reason,
+  .depr-table.table tbody td.depr-cell-exp {
+    white-space: normal !important;
+    word-break: normal !important;
+    line-height: 1.25 !important;
+  }
+  .depr-table.table tbody td.depr-cell-name {
+    text-align: left !important;
+  }
+  /* Dòng tổng trong tfoot và các dòng tổng cộng/định khoản in đậm */
+  .depr-table.table tfoot td,
+  .depr-table.table tfoot td * {
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    background: #f1f5f9;
+    border-top: 2px solid #0f172a !important;
+    border-bottom: 3px double #0f172a !important;
+    padding: 4px 3px !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+  }
+  .depr-money {
+    text-align: right !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+  .depr-badge {
+    display: inline-block;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .depr-badge-cost { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+  .depr-badge-depr { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+  .depr-badge-exp { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+  /* Cột thao tác <= 56px */
+  .depr-table.table .depr-actions {
+    position: sticky !important;
+    right: 0 !important;
+    z-index: 2 !important;
+    background: #ffffff !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+    padding: 2px 1px !important;
+    text-align: center !important;
+    box-shadow: -2px 0 4px rgba(0,0,0,0.06) !important;
+  }
+  .depr-table.table thead th.depr-actions {
+    background: #adc7e7 !important;
+    color: #1e293b !important;
+    z-index: 3 !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+    padding: 4px 1px !important;
+  }
+  .depr-table.table tfoot td.depr-actions {
+    background: #f1f5f9 !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+    padding: 2px 1px !important;
+  }
+  .depr-table.table .depr-actions .btn {
+    padding: 1px 2px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    width: 20px !important;
+    height: 20px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .depr-table.table .depr-actions .btn i {
+    font-size: 11px !important;
+  }
+  /* Bảng ma trận 34 cột */
+  .depr-table-matrix.table thead th {
+    font-size: 13.5px !important;
+    padding: 4px 2px !important;
+    letter-spacing: -0.01em !important;
+  }
+  .depr-table-matrix.table thead th.th-sub {
+    font-size: 13px !important;
+    padding: 3px 2px !important;
+  }
+  .depr-table-matrix.table tbody td {
+    font-size: 14px !important;
+    padding: 3px 2px !important;
+  }
+  .depr-table-matrix.table tfoot td,
+  .depr-table-matrix.table tfoot td * {
+    font-size: 14px !important;
+    padding: 3px 2px !important;
+  }
+  /* Hai cột đầu (Mã, Tên TSCĐ) đứng yên khi cuộn ngang bảng ma trận */
+  .depr-table-matrix.table thead tr:first-child th:nth-child(-n+2),
+  .depr-table-matrix.table tbody td:nth-child(-n+2):not([colspan]) {
+    position: sticky !important;
+    z-index: 2;
+  }
+  .depr-table-matrix.table thead tr:first-child th:nth-child(-n+2) {
+    z-index: 4;
+  }
+  .depr-table-matrix.table tbody td:nth-child(-n+2):not([colspan]) {
+    background: #ffffff !important;
+  }
+  .depr-table-matrix.table thead tr:first-child th:nth-child(1),
+  .depr-table-matrix.table tbody td:nth-child(1):not([colspan]) {
+    left: 0;
+    width: 100px;
+    min-width: 100px;
+    max-width: 100px;
+  }
+  .depr-table-matrix.table thead tr:first-child th:nth-child(2),
+  .depr-table-matrix.table tbody td:nth-child(2):not([colspan]) {
+    left: 100px;
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+    box-shadow: 2px 0 3px -1px rgba(0,0,0,0.12);
+  }
+  .depr-table-matrix.table tbody td.depr-cell-name {
+    min-width: 80px;
+    max-width: 140px;
+  }
+  .depr-table-matrix.table tbody td.depr-cell-type {
+    min-width: 60px;
+    max-width: 85px;
+  }
+  .depr-table-matrix.table tbody td.depr-cell-dept {
+    min-width: 55px;
+    max-width: 80px;
+  }
+  .depr-table-matrix .depr-badge {
+    padding: 1px 2px !important;
+    font-size: 13.5px !important;
+    letter-spacing: -0.02em !important;
+  }
+  @media (max-width: 1700px) {
+    .depr-table.table thead th {
+      font-size: 12.5px !important;
+      padding: 3px 2px !important;
+    }
+    .depr-table.table tbody td {
+      font-size: 13px !important;
+      padding: 2.5px 2px !important;
+    }
+    .depr-table.table tfoot td,
+    .depr-table.table tfoot td * {
+      font-size: 13px !important;
+      padding: 3px 2px !important;
+    }
+    .depr-table-matrix.table thead th {
+      font-size: 13px !important;
+      padding: 3px 1.5px !important;
+    }
+    .depr-table-matrix.table thead th.th-sub {
+      font-size: 12.5px !important;
+      padding: 3px 1.5px !important;
+    }
+    .depr-table-matrix.table tbody td {
+      font-size: 13.5px !important;
+      padding: 2.5px 1.5px !important;
+    }
+    .depr-table-matrix.table tfoot td,
+    .depr-table-matrix.table tfoot td * {
+      font-size: 13.5px !important;
+      padding: 2.5px 1.5px !important;
+    }
+  }
+  .link-so-card {
+    border-left: 4px solid #3b82f6;
+    background: #f8fafc;
+  }
+  .process-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 16px;
+    transition: all 0.2s ease;
+    text-decoration: none !important;
+    display: block;
+    color: inherit;
+    height: 100%;
+  }
+  .process-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+    border-color: #3b82f6;
+    color: inherit;
+  }
+</style>
+
+<div class="container-fluid px-0 w-100 depr-page-wrap">
+  <!-- Top Bar / Controls -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:12px;">
+    <div>
+      <div class="d-flex align-items-center" style="gap:8px;">
+        <span class="badge badge-primary px-2 py-1 font-weight-bold" style="font-size:12px;">ĐẠI LỘ XANH</span>
+        <h4 class="mb-0 font-weight-bold" style="color:#1e293b; font-size:18px;">
+          {% for k, lbl, ic in book_tabs if k == active_tab %}{{ lbl|upper }} — {% endfor %}TÀI SẢN CỐ ĐỊNH NĂM {{ selected_year }}
+        </h4>
+      </div>
+      <div class="text-muted mt-1" style="font-size:12.5px;">
+        <i class="bx bx-buildings mr-1"></i>Đơn vị: <strong>{{ depr_data.company_name }}</strong>
+        <span class="mx-2">•</span>
+        <i class="bx bx-receipt mr-1"></i>MST: <strong>{{ depr_data.company.tax_code or '2500774911' }}</strong>
+        <span class="mx-2">•</span>
+        <i class="bx bx-check-shield mr-1 text-success"></i>Mẫu chuẩn Thông tư 133 / MISA
+      </div>
+    </div>
+
+    <!-- Filter & Export -->
+    <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+      <form method="get" action="/admin/transport/depreciation" class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+        <div class="d-flex align-items-center" style="gap:5px;">
+          <span class="font-size-12 text-muted font-weight-bold">Năm:</span>
+          <select name="year" class="form-control form-control-sm font-weight-bold" style="width:105px;" onchange="this.form.submit()">
+            {% for y in available_years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>Năm {{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="d-flex align-items-center" style="gap:5px;">
+          <span class="font-size-12 text-muted font-weight-bold">Kỳ tính:</span>
+          <select name="period" class="form-control form-control-sm font-weight-bold" style="width:190px;" onchange="this.form.submit()">
+            <option value="ytd" {% if active_period == 'ytd' %}selected{% endif %}>📅 Đến hiện tại (T{{ depr_data.as_of_month }})</option>
+            <option value="full" {% if active_period == 'full' %}selected{% endif %}>📆 Cả năm 12 tháng</option>
+            <option value="q1" {% if active_period == 'q1' %}selected{% endif %}>Quý 1 (Đến T3)</option>
+            <option value="q2" {% if active_period == 'q2' %}selected{% endif %}>Quý 2 (Đến T6)</option>
+            <option value="q3" {% if active_period == 'q3' %}selected{% endif %}>Quý 3 (Đến T9)</option>
+            <option value="q4" {% if active_period == 'q4' %}selected{% endif %}>Quý 4 (Đến T12)</option>
+            <option value="m1" {% if active_period == 'm1' %}selected{% endif %}>Tháng 1</option>
+            <option value="m2" {% if active_period == 'm2' %}selected{% endif %}>Tháng 2</option>
+            <option value="m3" {% if active_period == 'm3' %}selected{% endif %}>Tháng 3</option>
+            <option value="m4" {% if active_period == 'm4' %}selected{% endif %}>Tháng 4</option>
+            <option value="m5" {% if active_period == 'm5' %}selected{% endif %}>Tháng 5</option>
+            <option value="m6" {% if active_period == 'm6' %}selected{% endif %}>Tháng 6</option>
+            <option value="m7" {% if active_period == 'm7' %}selected{% endif %}>Tháng 7</option>
+            <option value="m8" {% if active_period == 'm8' %}selected{% endif %}>Tháng 8</option>
+            <option value="m9" {% if active_period == 'm9' %}selected{% endif %}>Tháng 9</option>
+            <option value="m10" {% if active_period == 'm10' %}selected{% endif %}>Tháng 10</option>
+            <option value="m11" {% if active_period == 'm11' %}selected{% endif %}>Tháng 11</option>
+            <option value="m12" {% if active_period == 'm12' %}selected{% endif %}>Tháng 12</option>
+          </select>
+        </div>
+      </form>
+
+      <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold shadow-sm" onclick="$('#pendingTscdModal').modal('show')">
+        <i class="bx bx-receipt mr-1"></i>Hóa đơn TK 211 chưa thêm TSCĐ
+        <span class="badge {% if pending_invoices|length > 0 %}badge-danger{% else %}badge-secondary{% endif %} ml-1">{{ pending_invoices|length }}</span>
+      </button>
+      <button type="button" class="btn btn-primary btn-sm font-weight-bold shadow-sm" onclick="openDeprAdd()">
+        <i class="bx bx-plus mr-1"></i>Thêm tài sản
+      </button>
+      <a href="/admin/transport/depreciation/export?year={{ selected_year }}&period={{ active_period }}" class="btn btn-success btn-sm font-weight-bold shadow-sm">
+        <i class="bx bx-download mr-1"></i>Xuất Excel theo mẫu
+      </a>
+    </div>
+  </div>
+
+  <!-- Thanh mục kiểu MISA -->
+  {% with tab_base_url="/admin/transport/depreciation", tab_query="year=" ~ selected_year ~ "&period=" ~ active_period %}
+    {% include "pages/transport/_asset_book_tabs.html" %}
+  {% endwith %}
+
+  <!-- Summary Cards -->
+  <div class="row mb-3" style="margin-left:-8px; margin-right:-8px;">
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="depr-summary-card">
+        <div class="depr-stat-label"><i class="bx bx-coin-stack mr-1 text-primary"></i>Tổng nguyên giá TSCĐ (TK 211)</div>
+        <div class="depr-stat-value text-primary">{{ depr_data.totals.original_price|format_currency }}</div>
+        <div class="depr-stat-sub">{{ depr_data.row_count }} tài sản / xe tải</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="depr-summary-card">
+        <div class="depr-stat-label"><i class="bx bx-calendar mr-1 text-info"></i>Khấu hao 1 tháng</div>
+        <div class="depr-stat-value text-info">{{ depr_data.totals.monthly_depreciation|format_currency }}</div>
+        <div class="depr-stat-sub">Mức trích hàng tháng đều đặn</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="depr-summary-card">
+        <div class="depr-stat-label"><i class="bx bx-trending-down mr-1 text-warning"></i>Hao mòn lũy kế (TK 214)</div>
+        <div class="depr-stat-value text-warning">{{ depr_data.totals.cumulative_depreciation|format_currency }}</div>
+        <div class="depr-stat-sub">Tổng đã trích lũy kế đến nay</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="depr-summary-card">
+        <div class="depr-stat-label"><i class="bx bx-shield-quarter mr-1 text-success"></i>Giá trị còn lại</div>
+        <div class="depr-stat-value text-success">{{ depr_data.totals.remaining_value|format_currency }}</div>
+        <div class="depr-stat-sub">Giá trị chưa khấu hao</div>
+      </div>
+    </div>
+  </div>
+
+  {% if active_tab == 'depreciation' %}
+  <!-- Main Depreciation Schedule Table -->
+  <div class="depr-table-card mb-4">
+    <div class="p-2 border-bottom bg-light d-flex align-items-center justify-content-between">
+      <span class="badge badge-light border text-muted invisible" aria-hidden="true" style="user-select:none; pointer-events:none;">
+        33 cột chuẩn MISA & Thông tư Bộ Tài chính
+      </span>
+      <strong style="font-size:13px; color:#334155; flex:1; text-align:center;">
+        <i class="bx bx-table mr-1"></i>Chi tiết tính khấu hao từng tài sản / xe vận tải
+      </strong>
+      <span class="badge badge-light border text-muted">
+        33 cột chuẩn MISA & Thông tư Bộ Tài chính
+      </span>
+    </div>
+
+    <div class="table-responsive" style="max-height: 580px;">
+      <table class="table table-sm mb-0 depr-table depr-table-matrix">
+        <thead>
+          <!-- Row 3: Main Group Headers -->
+          <tr>
+            <th rowspan="2">Mã TSCĐ</th>
+            <th rowspan="2">Tên TSCĐ</th>
+            <th rowspan="2">Loại TSCĐ</th>
+            <th rowspan="2">Đơn vị sử dụng</th>
+            <th rowspan="2">Ngày ghi tăng</th>
+            <th rowspan="2">Ngày bắt đầu KH</th>
+            <th rowspan="2">Nguyên giá TSCĐ</th>
+            <th rowspan="2">Giá trị tính KH</th>
+            <th rowspan="2">Thời gian SD (tháng)</th>
+            <th rowspan="2">Giá trị KH tháng</th>
+            <th rowspan="2">TG đã SD trước đó</th>
+            <th rowspan="2">Đã KH trước đó</th>
+            <th colspan="13" class="th-main-kh">Giá trị khấu hao theo tháng năm {{ selected_year }}</th>
+            <th rowspan="2">Tổng TG đã SD</th>
+            <th rowspan="2">Hao mòn lũy kế</th>
+            <th rowspan="2">TG còn lại (tháng)</th>
+            <th rowspan="2">Giá trị còn lại</th>
+            <th rowspan="2">TK nguyên giá</th>
+            <th rowspan="2">TK khấu hao</th>
+            <th rowspan="2">TK chi phí</th>
+            <th rowspan="2">Khoản mục CP</th>
+            <th rowspan="2" class="depr-actions">Thao tác</th>
+          </tr>
+          <!-- Row 4: Sub Headers for Month 1..12 and Total -->
+          <tr>
+            <th class="th-sub">T1</th>
+            <th class="th-sub">T2</th>
+            <th class="th-sub">T3</th>
+            <th class="th-sub">T4</th>
+            <th class="th-sub">T5</th>
+            <th class="th-sub">T6</th>
+            <th class="th-sub">T7</th>
+            <th class="th-sub">T8</th>
+            <th class="th-sub">T9</th>
+            <th class="th-sub">T10</th>
+            <th class="th-sub">T11</th>
+            <th class="th-sub">T12</th>
+            <th class="th-sub font-weight-bold" style="background:#bfdbfe;">Tổng cộng</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in depr_data.rows %}
+          <tr>
+            <td class="font-weight-bold text-primary">
+              {{ r.asset_code }}
+              {% if r.decreased_on %}
+              <span class="badge badge-secondary ml-1" style="font-size:10px;">Ghi giảm {{ r.decreased_on.strftime('%d/%m') }}</span>
+              {% endif %}
+            </td>
+            <td class="font-weight-bold depr-cell-name">{{ r.asset_name }}</td>
+            <td class="text-muted depr-cell-type">{{ r.asset_type }}</td>
+            <td class="depr-cell-dept">{{ r.department }}</td>
+            <td class="text-center">{{ r.increase_date.strftime('%d/%m/%Y') if r.increase_date else '-' }}</td>
+            <td class="text-center">{{ r.depreciation_start_date.strftime('%d/%m/%Y') if r.depreciation_start_date else '-' }}</td>
+            <td class="depr-money font-weight-bold">{{ r.original_price|format_number }}</td>
+            <td class="depr-money">{{ r.calculation_value|format_number }}</td>
+            <td class="text-center">{{ r.usage_months_total }}</td>
+            <td class="depr-money text-info font-weight-bold">{{ r.monthly_depreciation|format_number }}</td>
+            <td class="text-center text-muted">{{ r.prior_usage_months }}</td>
+            <td class="depr-money text-muted">{{ r.prior_depreciation_value|format_number }}</td>
+
+            <!-- 12 Months -->
+            {% for m_val in r.monthly_kh %}
+            <td class="depr-money {% if m_val > 0 %}text-dark{% else %}text-muted{% endif %}">
+              {{ m_val|format_number if m_val > 0 else '0' }}
+            </td>
+            {% endfor %}
+
+            <!-- Total Year -->
+            <td class="depr-money font-weight-bold text-primary" style="background:#f1f5f9;">
+              {{ r.year_depreciation_total|format_number }}
+            </td>
+
+            <!-- Totals & Remaining -->
+            <td class="text-center font-weight-bold">{{ r.total_usage_months }}</td>
+            <td class="depr-money font-weight-bold text-warning">{{ r.cumulative_depreciation|format_number }}</td>
+            <td class="text-center font-weight-bold text-success">{{ r.remaining_usage_months }}</td>
+            <td class="depr-money font-weight-bold text-success">{{ r.remaining_value|format_number }}</td>
+
+            <!-- Accounting Accounts -->
+            <td class="text-center"><span class="depr-badge depr-badge-cost">{{ r.account_cost }}</span></td>
+            <td class="text-center"><span class="depr-badge depr-badge-depr">{{ r.account_depreciation }}</span></td>
+            <td class="text-center"><span class="depr-badge depr-badge-exp">{{ r.account_expense }}</span></td>
+            <td class="text-muted text-center depr-cell-exp">{{ r.expense_item or '-' }}</td>
+            <td class="depr-actions">
+              <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-row='{{ r.edit|tojson }}' onclick="openDeprEdit(this)"><i class="bx bx-edit-alt"></i></button>
+              <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" data-row='{{ r.edit|tojson }}' onclick="deleteDeprAsset(this)"><i class="bx bx-trash"></i></button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="34" class="text-center text-muted py-3">Chưa có tài sản cố định. Nhấn "Thêm tài sản" để thêm.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" class="font-weight-bold">Số dòng = {{ depr_data.row_count }}</td>
+            <td class="depr-money">{{ depr_data.totals.original_price|format_number }}</td>
+            <td class="depr-money">{{ depr_data.totals.calculation_value|format_number }}</td>
+            <td class="text-center">{{ depr_data.totals.usage_months_total }}</td>
+            <td class="depr-money">{{ depr_data.totals.monthly_depreciation|format_number }}</td>
+            <td class="text-center">{{ depr_data.totals.prior_usage_months }}</td>
+            <td class="depr-money">{{ depr_data.totals.prior_depreciation_value|format_number }}</td>
+
+            <!-- 12 Months Totals -->
+            {% for m_val in depr_data.totals.monthly_kh %}
+            <td class="depr-money">{{ m_val|format_number if m_val > 0 else '0' }}</td>
+            {% endfor %}
+
+            <!-- Year Total -->
+            <td class="depr-money text-primary" style="background:#e2e8f0;">{{ depr_data.totals.year_depreciation_total|format_number }}</td>
+
+            <!-- Used, Cumulative, Remaining -->
+            <td class="text-center">{{ depr_data.totals.total_usage_months }}</td>
+            <td class="depr-money text-warning">{{ depr_data.totals.cumulative_depreciation|format_number }}</td>
+            <td class="text-center text-success">{{ depr_data.totals.remaining_usage_months }}</td>
+            <td class="depr-money text-success">{{ depr_data.totals.remaining_value|format_number }}</td>
+
+            <td colspan="4"></td>
+            <td class="depr-actions"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Sơ đồ Link sổ Kế toán (Liên kết nghiệp vụ) -->
+  <div class="card link-so-card shadow-sm mb-3">
+    <div class="card-body p-3">
+      <div class="d-flex align-items-center mb-2">
+        <i class="bx bx-link-alt text-primary mr-2" style="font-size:20px;"></i>
+        <h5 class="mb-0 font-weight-bold" style="font-size:15px; color:#1e293b;">
+          Sơ đồ liên kết sổ kế toán (Link sổ giữa Bảng tính khấu hao, F01-DNN, B02-DNN và 242)
+        </h5>
+      </div>
+      <p class="text-muted mb-3" style="font-size:12.5px;">
+        Số liệu khấu hao tài sản cố định của <strong>Đại Lộ Xanh</strong> được đồng bộ và liên kết chặt chẽ với các sổ sách tài chính theo chuẩn mực kế toán doanh nghiệp nhỏ và vừa (Thông tư 133/2016/TT-BTC):
+      </p>
+
+      <div class="row">
+        <div class="col-md-4 mb-2">
+          <div class="p-3 bg-white rounded border h-100">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-primary mr-2">F01-DNN</span>
+              <strong style="font-size:13px;">Bảng cân đối tài khoản</strong>
+            </div>
+            <ul class="mb-0 pl-3 text-muted" style="font-size:12px; line-height:1.7;">
+              <li><strong>TK 21113 (Nguyên giá):</strong> Số dư Nợ = <code>400.000.000 ₫</code> (khớp cột Nguyên giá TSCĐ).</li>
+              <li><strong>TK 2141 (Hao mòn TSCĐ):</strong> Phát sinh Có trong kỳ = <code>{{ depr_data.totals.year_depreciation_total|format_currency }}</code> (khớp Tổng cộng năm), Dư Có lũy kế = <code>{{ depr_data.totals.cumulative_depreciation|format_currency }}</code>.</li>
+              <li><strong>Giá trị còn lại:</strong> Dư Nợ 211 - Dư Có 214 = <code>{{ depr_data.totals.remaining_value|format_currency }}</code>.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="col-md-4 mb-2">
+          <div class="p-3 bg-white rounded border h-100">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-success mr-2">B02-DNN</span>
+              <strong style="font-size:13px;">Báo cáo kết quả HĐKD</strong>
+            </div>
+            <ul class="mb-0 pl-3 text-muted" style="font-size:12px; line-height:1.7;">
+              <li><strong>TK 6422 (Chi phí QLDN):</strong> Khấu hao phương tiện vận tải được tập hợp vào Chỉ tiêu <strong>[24] Chi phí quản lý kinh doanh</strong> trên Báo cáo kết quả HĐKD quý và cả năm.</li>
+              <li>Ảnh hưởng trực tiếp đến <strong>Lợi nhuận kế toán trước thuế [50]</strong> và nghĩa vụ thuế TNDN [51].</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="col-md-4 mb-2">
+          <div class="p-3 bg-white rounded border h-100">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-warning text-dark mr-2">Sổ 242</span>
+              <strong style="font-size:13px;">Phân bổ chi phí trả trước (242)</strong>
+            </div>
+            <ul class="mb-0 pl-3 text-muted" style="font-size:12px; line-height:1.7;">
+              <li><strong>Đối chiếu 211 vs 242:</strong> Các khoản chi phí như thuê kho, bảo hiểm xe, sửa chữa lớn dưới 30 triệu đồng được hạch toán sang <strong>TK 242</strong> và phân bổ dần hàng tháng trên bảng phân bổ 242 riêng.</li>
+              <li>Tài sản đủ điều kiện ghi nhận (trên 30 triệu, có biển số, quyền sở hữu) được quản lý độc lập trên Bảng tính khấu hao TSCĐ này.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+  {% elif active_tab == 'register' %}
+  <!-- Sổ tài sản cố định -->
+  <div class="depr-table-card mb-4">
+    <div class="p-2 border-bottom bg-light d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <span class="btn btn-primary btn-sm invisible" aria-hidden="true" style="user-select:none; pointer-events:none;"><i class="bx bx-plus mr-1"></i>Thêm tài sản</span>
+      <strong style="font-size:13px; color:#334155; flex:1; text-align:center;">
+        <i class="bx bx-book mr-1"></i>Sổ tài sản cố định
+      </strong>
+      <button type="button" class="btn btn-primary btn-sm font-weight-bold shadow-sm" onclick="openDeprAdd()">
+        <i class="bx bx-plus mr-1"></i>Thêm tài sản
+      </button>
+    </div>
+    <div class="table-responsive" style="max-height: 580px;">
+      <table class="table table-sm mb-0 depr-table">
+        <thead>
+          <tr>
+            <th>STT</th>
+            <th>Mã TSCĐ</th>
+            <th>Tên TSCĐ</th>
+            <th>Loại</th>
+            <th>Đơn vị SD</th>
+            <th>Ngày ghi tăng</th>
+            <th>Nguyên giá</th>
+            <th>TG SD (tháng)</th>
+            <th>KH tháng</th>
+            <th>Hao mòn lũy kế</th>
+            <th>Giá trị còn lại</th>
+            <th>Trạng thái</th>
+            <th class="depr-actions">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in depr_data.rows %}
+          <tr>
+            <td class="text-center text-muted">{{ loop.index }}</td>
+            <td class="font-weight-bold text-primary">{{ r.asset_code }}</td>
+            <td class="font-weight-bold depr-cell-name">{{ r.asset_name }}</td>
+            <td class="text-muted depr-cell-type">{{ r.asset_type }}</td>
+            <td class="depr-cell-dept">{{ r.department }}</td>
+            <td class="text-center">{{ r.increase_date.strftime('%d/%m/%Y') if r.increase_date else '-' }}</td>
+            <td class="depr-money font-weight-bold">{{ r.original_price|format_number }}</td>
+            <td class="text-center">{{ r.usage_months_total }}</td>
+            <td class="depr-money text-info">{{ r.monthly_depreciation|format_number }}</td>
+            <td class="depr-money text-warning font-weight-bold">{{ r.cumulative_depreciation|format_number }}</td>
+            <td class="depr-money text-success font-weight-bold">{{ r.remaining_value|format_number }}</td>
+            <td class="text-center">
+              {% if r.status == 'Đã ghi giảm' %}
+              <span class="badge badge-secondary px-2 py-1">Đã ghi giảm</span>
+              {% else %}
+              <span class="badge badge-success px-2 py-1">Đang sử dụng</span>
+              {% endif %}
+            </td>
+            <td class="depr-actions">
+              <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-row='{{ r.edit|tojson }}' onclick="openDeprEdit(this)"><i class="bx bx-edit-alt"></i></button>
+              <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" data-row='{{ r.edit|tojson }}' onclick="deleteDeprAsset(this)"><i class="bx bx-trash"></i></button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="13" class="text-center text-muted py-3">Chưa có tài sản cố định. Nhấn "Thêm tài sản" để tạo.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" class="font-weight-bold">Số dòng = {{ depr_data.row_count }}</td>
+            <td class="depr-money">{{ depr_data.totals.original_price|format_number }}</td>
+            <td></td>
+            <td class="depr-money text-info">{{ depr_data.totals.monthly_depreciation|format_number }}</td>
+            <td class="depr-money text-warning">{{ depr_data.totals.cumulative_depreciation|format_number }}</td>
+            <td class="depr-money text-success">{{ depr_data.totals.remaining_value|format_number }}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  {% elif active_tab == 'increase' %}
+  <!-- Ghi tăng TSCĐ -->
+  <div class="depr-table-card mb-4">
+    <div class="p-2 border-bottom bg-light d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <span class="btn btn-primary btn-sm invisible" aria-hidden="true" style="user-select:none; pointer-events:none;"><i class="bx bx-plus mr-1"></i>Thêm</span>
+      <strong style="font-size:13px; color:#334155; flex:1; text-align:center;">
+        <i class="bx bx-plus-circle mr-1 text-primary"></i>Chứng từ ghi tăng tài sản cố định
+      </strong>
+      <button type="button" class="btn btn-primary btn-sm font-weight-bold shadow-sm" onclick="openDeprAdd()">
+        <i class="bx bx-plus mr-1"></i>Thêm
+      </button>
+    </div>
+    <div class="table-responsive" style="max-height: 580px;">
+      <table class="table table-sm mb-0 depr-table">
+        <thead>
+          <tr>
+            <th>Ngày ghi tăng</th>
+            <th>Số chứng từ</th>
+            <th>Mã TSCĐ</th>
+            <th>Tên TSCĐ</th>
+            <th>Lý do ghi tăng</th>
+            <th>Đơn vị SD</th>
+            <th>Nguyên giá</th>
+            <th>Số tháng KH</th>
+            <th>KH hàng tháng</th>
+            <th>TK nguyên giá</th>
+            <th class="depr-actions">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in tab_data.increase_rows %}
+          <tr>
+            <td class="text-center">{{ r.increase_date.strftime('%d/%m/%Y') if r.increase_date else '-' }}</td>
+            <td class="font-weight-bold text-primary">{{ r.voucher_no }}</td>
+            <td class="font-weight-bold">{{ r.asset_code }}</td>
+            <td class="font-weight-bold depr-cell-name">{{ r.asset_name }}</td>
+            <td class="depr-cell-reason">{{ r.increase_reason }}</td>
+            <td class="depr-cell-dept">{{ r.department }}</td>
+            <td class="depr-money font-weight-bold">{{ r.edit.original_price|format_number }}</td>
+            <td class="text-center">{{ r.edit.usage_months }}</td>
+            <td class="depr-money text-info">{{ r.monthly_depreciation|format_number }}</td>
+            <td class="text-center"><span class="depr-badge depr-badge-cost">{{ r.account_cost }}</span></td>
+            <td class="depr-actions">
+              <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-row='{{ r.edit|tojson }}' onclick="openDeprEdit(this)"><i class="bx bx-edit-alt"></i></button>
+              <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" data-row='{{ r.edit|tojson }}' onclick="deleteDeprAsset(this)"><i class="bx bx-trash"></i></button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center text-muted py-3">Chưa có chứng từ ghi tăng. Nhấn "Thêm" để tạo.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" class="font-weight-bold">Số dòng = {{ tab_data.increase_rows|length }}</td>
+            <td class="depr-money font-weight-bold">{{ tab_data.increase_rows|sum(attribute='edit.original_price')|format_number }}</td>
+            <td colspan="4"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  {% elif active_tab in ('revalue', 'transfer', 'decrease', 'inventory') %}
+    {% with voucher_book="tscd", voucher_kind=active_tab, voucher_kind_label=voucher_kind_labels[active_tab], voucher_rows=tab_data.voucher_rows[active_tab], voucher_items=depr_data.all_items, voucher_api_base=voucher_api_base, item_word="tài sản" %}
+      {% include "pages/transport/_asset_voucher_section.html" %}
+    {% endwith %}
+
+  {% elif active_tab == 'report' %}
+  <!-- Báo cáo phân tích TSCĐ -->
+  <div class="row">
+    <div class="col-lg-6 mb-4">
+      <div class="depr-table-card">
+        <div class="p-2 border-bottom bg-light text-center">
+          <strong style="font-size:13px; color:#334155; display:block; text-align:center;">
+            <i class="bx bx-pie-chart-alt mr-1 text-primary"></i>Phân tích theo loại TSCĐ
+          </strong>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 depr-table">
+            <thead>
+              <tr>
+                <th>Loại TSCĐ</th>
+                <th>Số lượng</th>
+                <th>Nguyên giá</th>
+                <th>KH trong năm</th>
+                <th>Hao mòn lũy kế</th>
+                <th>Giá trị còn lại</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in tab_data.report.by_type %}
+              <tr>
+                <td class="font-weight-bold depr-cell-type">{{ item.label }}</td>
+                <td class="text-center font-weight-bold">{{ item.count }}</td>
+                <td class="depr-money">{{ item.cost|format_number }}</td>
+                <td class="depr-money">{{ item.depreciation_year|format_number }}</td>
+                <td class="depr-money text-warning">{{ item.accum|format_number }}</td>
+                <td class="depr-money text-success font-weight-bold">{{ item.remaining|format_number }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-center text-muted py-2">Không có dữ liệu</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td class="font-weight-bold">{{ tab_data.report.by_type_total.label }}</td>
+                <td class="text-center font-weight-bold">{{ tab_data.report.by_type_total.count }}</td>
+                <td class="depr-money">{{ tab_data.report.by_type_total.cost|format_number }}</td>
+                <td class="depr-money">{{ tab_data.report.by_type_total.depreciation_year|format_number }}</td>
+                <td class="depr-money text-warning">{{ tab_data.report.by_type_total.accum|format_number }}</td>
+                <td class="depr-money text-success font-weight-bold">{{ tab_data.report.by_type_total.remaining|format_number }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6 mb-4">
+      <div class="depr-table-card">
+        <div class="p-2 border-bottom bg-light text-center">
+          <strong style="font-size:13px; color:#334155; display:block; text-align:center;">
+            <i class="bx bx-buildings mr-1 text-info"></i>Phân tích theo đơn vị sử dụng
+          </strong>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 depr-table">
+            <thead>
+              <tr>
+                <th>Đơn vị sử dụng</th>
+                <th>Số lượng</th>
+                <th>Nguyên giá</th>
+                <th>KH trong năm</th>
+                <th>Hao mòn lũy kế</th>
+                <th>Giá trị còn lại</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in tab_data.report.by_department %}
+              <tr>
+                <td class="font-weight-bold depr-cell-dept">{{ item.label }}</td>
+                <td class="text-center font-weight-bold">{{ item.count }}</td>
+                <td class="depr-money">{{ item.cost|format_number }}</td>
+                <td class="depr-money">{{ item.depreciation_year|format_number }}</td>
+                <td class="depr-money text-warning">{{ item.accum|format_number }}</td>
+                <td class="depr-money text-success font-weight-bold">{{ item.remaining|format_number }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-center text-muted py-2">Không có dữ liệu</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td class="font-weight-bold">{{ tab_data.report.by_dept_total.label }}</td>
+                <td class="text-center font-weight-bold">{{ tab_data.report.by_dept_total.count }}</td>
+                <td class="depr-money">{{ tab_data.report.by_dept_total.cost|format_number }}</td>
+                <td class="depr-money">{{ tab_data.report.by_dept_total.depreciation_year|format_number }}</td>
+                <td class="depr-money text-warning">{{ tab_data.report.by_dept_total.accum|format_number }}</td>
+                <td class="depr-money text-success font-weight-bold">{{ tab_data.report.by_dept_total.remaining|format_number }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bảng Biến động trong năm -->
+  <div class="depr-table-card mb-4">
+    <div class="p-2 border-bottom bg-light text-center">
+      <strong style="font-size:13px; color:#334155; display:block; text-align:center;">
+        <i class="bx bx-transfer-alt mr-1 text-success"></i>Tổng hợp biến động tài sản cố định năm {{ selected_year }}
+      </strong>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 depr-table">
+        <thead>
+          <tr>
+            <th>STT</th>
+            <th>Nghiệp vụ biến động</th>
+            <th>Số lượng / Chứng từ</th>
+            <th>Giá trị / Chi tiết</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-center">1</td>
+            <td class="font-weight-bold text-primary"><i class="bx bx-plus-circle mr-1"></i>Ghi tăng trong năm</td>
+            <td class="text-center font-weight-bold">{{ tab_data.report.movements.increase.count }}</td>
+            <td class="depr-money font-weight-bold">{{ tab_data.report.movements.increase.value|format_currency }}</td>
+          </tr>
+          <tr>
+            <td class="text-center">2</td>
+            <td class="font-weight-bold text-danger"><i class="bx bx-minus-circle mr-1"></i>Ghi giảm trong năm</td>
+            <td class="text-center font-weight-bold">{{ tab_data.report.movements.decrease.count }}</td>
+            <td class="text-muted">Đã ngừng tính khấu hao từ ngày chứng từ</td>
+          </tr>
+          <tr>
+            <td class="text-center">3</td>
+            <td class="font-weight-bold text-warning"><i class="bx bx-line-chart mr-1"></i>Đánh giá lại / Điều chỉnh</td>
+            <td class="text-center font-weight-bold">{{ tab_data.report.movements.revalue.count }}</td>
+            <td class="depr-money font-weight-bold {% if tab_data.report.movements.revalue.diff > 0 %}text-success{% elif tab_data.report.movements.revalue.diff < 0 %}text-danger{% endif %}">
+              Chênh lệch: {{ tab_data.report.movements.revalue.diff|format_currency }}
+            </td>
+          </tr>
+          <tr>
+            <td class="text-center">4</td>
+            <td class="font-weight-bold text-info"><i class="bx bx-transfer mr-1"></i>Điều chuyển bộ phận</td>
+            <td class="text-center font-weight-bold">{{ tab_data.report.movements.transfer.count }}</td>
+            <td class="text-muted">Cập nhật đơn vị quản lý và hạch toán</td>
+          </tr>
+          <tr>
+            <td class="text-center">5</td>
+            <td class="font-weight-bold text-secondary"><i class="bx bx-check-square mr-1"></i>Kiểm kê tài sản</td>
+            <td class="text-center font-weight-bold">{{ tab_data.report.movements.inventory.count }}</td>
+            <td class="text-muted">
+              {% if tab_data.report.movements.inventory.diff_count > 0 %}
+              <span class="text-danger font-weight-bold">{{ tab_data.report.movements.inventory.diff_count }} dòng có chênh lệch SL</span>
+              {% else %}
+              Khớp 100% giữa sổ sách và thực tế
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif active_tab == 'process' %}
+  <!-- Sơ đồ quy trình quản lý TSCĐ -->
+  <div class="card shadow-sm border-0 mb-4" style="background:#f8fafc; border-radius:10px;">
+    <div class="card-body p-4">
+      <h5 class="font-weight-bold text-dark mb-3" style="font-size:16px;">
+        <i class="bx bx-git-merge mr-2 text-primary"></i>Quy trình Quản lý Tài sản Cố định (Chuẩn Thông tư 133 / MISA)
+      </h5>
+      <p class="text-muted font-size-13 mb-4">
+        Nhấn vào từng bước bên dưới để chuyển trực tiếp đến phân hệ nghiệp vụ tương ứng:
+      </p>
+
+      <div class="d-flex align-items-stretch flex-wrap" style="gap:14px;">
+        <!-- Bước 1 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=increase" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-primary mr-2" style="font-size:12px;">Bước 1</span>
+              <strong style="color:#1e3a8a; font-size:14px;">Ghi tăng TSCĐ</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Nợ 211 / Có 111, 112, 331</div>
+            <div class="font-size-12" style="color:#475569;">
+              Tiếp nhận tài sản, xe mua mới, ghi nhận nguyên giá và xác định thời gian khấu hao.
+            </div>
+          </a>
+        </div>
+
+        <div class="d-none d-lg-flex align-items-center text-muted font-size-24">
+          <i class="bx bx-right-arrow-alt"></i>
+        </div>
+
+        <!-- Bước 2 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=depreciation" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-info mr-2" style="font-size:12px;">Bước 2</span>
+              <strong style="color:#0369a1; font-size:14px;">Tính khấu hao</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Nợ 6422, 154 / Có 214</div>
+            <div class="font-size-12" style="color:#475569;">
+              Trích khấu hao hằng tháng theo phương pháp đường thẳng, kết chuyển chi phí hoạt động.
+            </div>
+          </a>
+        </div>
+
+        <div class="d-none d-lg-flex align-items-center text-muted font-size-24">
+          <i class="bx bx-right-arrow-alt"></i>
+        </div>
+
+        <!-- Bước 3 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=revalue" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-warning text-dark mr-2" style="font-size:12px;">Bước 3</span>
+              <strong style="color:#b45309; font-size:14px;">Đánh giá lại</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Điều chỉnh nguyên giá</div>
+            <div class="font-size-12" style="color:#475569;">
+              Điều chỉnh nguyên giá và thời gian sử dụng sau khi nâng cấp, sửa chữa lớn hoặc kiểm định lại.
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-stretch flex-wrap mt-3" style="gap:14px;">
+        <!-- Bước 4 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=transfer" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-info mr-2" style="font-size:12px;">Bước 4</span>
+              <strong style="color:#0284c7; font-size:14px;">Điều chuyển</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Đổi đơn vị sử dụng</div>
+            <div class="font-size-12" style="color:#475569;">
+              Bàn giao xe hoặc tài sản giữa các phòng ban, đội xe để theo dõi trách nhiệm quản lý.
+            </div>
+          </a>
+        </div>
+
+        <div class="d-none d-lg-flex align-items-center text-muted font-size-24">
+          <i class="bx bx-right-arrow-alt"></i>
+        </div>
+
+        <!-- Bước 5 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=inventory" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-secondary mr-2" style="font-size:12px;">Bước 5</span>
+              <strong style="color:#334155; font-size:14px;">Kiểm kê</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Đối chiếu thực tế</div>
+            <div class="font-size-12" style="color:#475569;">
+              Kiểm kê định kỳ cuối quý / cuối năm, phát hiện thừa thiếu, hư hỏng để xử lý kịp thời.
+            </div>
+          </a>
+        </div>
+
+        <div class="d-none d-lg-flex align-items-center text-muted font-size-24">
+          <i class="bx bx-right-arrow-alt"></i>
+        </div>
+
+        <!-- Bước 6 -->
+        <div style="flex:1; min-width:220px;">
+          <a href="/admin/transport/depreciation?year={{ selected_year }}&period={{ active_period }}&tab=decrease" class="process-card">
+            <div class="d-flex align-items-center mb-2">
+              <span class="badge badge-danger mr-2" style="font-size:12px;">Bước 6</span>
+              <strong style="color:#b91c1c; font-size:14px;">Ghi giảm TSCĐ</strong>
+            </div>
+            <div class="text-muted font-size-12 mb-2">Nợ 214, 811 / Có 211</div>
+            <div class="font-size-12" style="color:#475569;">
+              Thanh lý, nhượng bán hoặc hủy xe/tài sản. Dừng khấu hao từ tháng sau ngày chứng từ.
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+<!-- MODAL THÊM / SỬA TÀI SẢN CỐ ĐỊNH -->
+<div class="modal fade" id="deprAssetModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white" id="deprAssetModalTitle">
+          <i class="bx bx-plus-circle mr-1"></i>Thêm tài sản cố định
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="deprAssetForm" onsubmit="submitDeprAsset(event)">
+        <input type="hidden" name="source" id="deprSource" value="">
+        <input type="hidden" name="source_id" id="deprSourceId" value="">
+
+        <div class="modal-body p-3">
+          {% if depr_data.hidden_vehicles %}
+          <div id="deprRestoreBox" class="alert alert-warning py-2 px-3 mb-3 d-none">
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+              <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+                <span class="font-size-12 font-weight-bold text-dark">Xe đã xoá khỏi bảng:</span>
+                <select id="deprRestoreSelect" class="form-control form-control-sm" style="width:160px;">
+                  {% for hv in depr_data.hidden_vehicles %}
+                  <option value="{{ hv.id }}">{{ hv.plate_number }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-warning text-dark font-weight-bold" onclick="restoreDeprVehicle()">
+                <i class="bx bx-undo mr-1"></i>Thêm lại vào bảng
+              </button>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="alert alert-info py-2 px-3 mb-3 font-size-12 d-none" id="deprVehicleNote">
+            <i class="bx bx-info-circle mr-1"></i>Nguyên giá, ngày bắt đầu KH và thời gian SD cũng được cập nhật vào hồ sơ xe.
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+              <input type="text" name="voucher_no" id="deprVoucherNo" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Lý do ghi tăng</label>
+              <input type="text" name="increase_reason" id="deprIncreaseReason" list="deprIncreaseReasons" placeholder="Mua mới" class="form-control form-control-sm">
+              <datalist id="deprIncreaseReasons">
+                <option value="Mua mới">Mua mới</option>
+                <option value="Nhận góp vốn">Nhận góp vốn</option>
+                <option value="Được cấp/biếu tặng">Được cấp/biếu tặng</option>
+                <option value="Xây dựng hoàn thành">Xây dựng hoàn thành</option>
+                <option value="Khác">Khác</option>
+              </datalist>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Mã TSCĐ</label>
+              <input type="text" name="asset_code" id="deprAssetCode" placeholder="VD: 29C-123.45 hoặc TS-01" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Tên TSCĐ <span class="text-danger">*</span></label>
+              <input type="text" name="asset_name" id="deprAssetName" placeholder="VD: Xe tải ISUZU 5 tấn, Máy phát điện..." class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Loại TSCĐ</label>
+              <input type="text" name="asset_type" id="deprAssetType" list="deprAssetTypes" placeholder="Chọn hoặc nhập loại TSCĐ" class="form-control form-control-sm">
+              <datalist id="deprAssetTypes">
+                {% for opt in asset_type_options %}
+                <option value="{{ opt }}">{{ opt }}</option>
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Đơn vị sử dụng</label>
+              <input type="text" name="department" id="deprDepartment" placeholder="VD: BAN GIÁM ĐỐC, ĐỘI XE..." class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ngày ghi tăng</label>
+              <input type="date" name="increase_date" id="deprIncreaseDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ngày bắt đầu KH <span class="text-danger">*</span></label>
+              <input type="date" name="start_date" id="deprStartDate" class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Nguyên giá (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="original_price" id="deprOriginalPrice" inputmode="numeric" placeholder="VD: 500.000.000" class="form-control form-control-sm font-weight-bold text-primary" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thời gian SD (tháng) <span class="text-danger">*</span></label>
+              <input type="number" name="usage_months" id="deprUsageMonths" min="1" max="600" value="60" class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">TK nguyên giá</label>
+              <input type="text" name="account_cost" id="deprAccountCost" value="21113" placeholder="21113" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">TK khấu hao</label>
+              <input type="text" name="account_depreciation" id="deprAccountDepreciation" value="2141" placeholder="2141" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">TK chi phí</label>
+              <input type="text" name="account_expense" id="deprAccountExpense" value="6422" placeholder="6422" class="form-control form-control-sm">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="col-md-12 form-group mb-1">
+              <label class="font-size-12 font-weight-bold text-dark">Khoản mục CP</label>
+              <input type="text" name="expense_item" id="deprExpenseItem" placeholder="VD: Chi phí vận tải, Chi phí QLDN..." class="form-control form-control-sm">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSaveDeprAsset">
+            <i class="bx bx-save mr-1"></i>Lưu
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL HÓA ĐƠN TK 211 CHƯA THÊM TSCĐ -->
+<div class="modal fade" id="pendingTscdModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-receipt mr-1"></i>Hóa đơn TK 211 chưa thêm TSCĐ / chưa phân bổ khấu hao
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
+          <table class="table table-sm table-bordered table-hover mb-0 font-size-12">
+            <thead class="thead-light text-center">
+              <tr>
+                <th style="width: 95px;">Ngày</th>
+                <th style="width: 90px;">Số HĐ</th>
+                <th style="width: 85px;">Ký hiệu</th>
+                <th style="min-width: 180px;">Người bán</th>
+                <th style="min-width: 220px;">Nội dung</th>
+                <th style="width: 120px;" class="text-right">Tiền hàng</th>
+                <th style="width: 180px;" class="text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if pending_invoices %}
+                {% for inv in pending_invoices %}
+                <tr>
+                  <td class="text-center align-middle">{{ inv.date_display }}</td>
+                  <td class="text-center align-middle font-monospace font-weight-bold text-primary">{{ inv.invoice_number }}</td>
+                  <td class="text-center align-middle font-monospace">{{ inv.serial }}</td>
+                  <td class="align-middle">{{ inv.seller_name }}</td>
+                  <td class="align-middle">{{ inv.description }}</td>
+                  <td class="text-right align-middle font-weight-bold">{{ inv.subtotal|format_number }}</td>
+                  <td class="text-center align-middle text-nowrap">
+                    <a target="_blank" rel="noopener" href="/admin/transport/input-invoices/{{ inv.id }}/edit?month={{ inv.month }}" class="btn btn-sm btn-outline-secondary mr-1">Mở hóa đơn</a>
+                    <button type="button" class="btn btn-sm btn-primary" data-inv="{{ inv|tojson|forceescape }}" onclick="openDeprFromInvoice(this)">Thêm TSCĐ</button>
+                  </td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">Không có hóa đơn nào.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+            <tfoot>
+              <tr class="bg-light font-weight-bold">
+                <td colspan="5" class="text-right align-middle">Tổng cộng:</td>
+                <td class="text-right align-middle text-danger">{{ pending_total|format_number }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/admin-assets/js/admin-inputs.js?v=20261104-1"></script>
+<script>
+function openDeprAdd() {
+  const form = document.getElementById('deprAssetForm');
+  if (form) form.reset();
+  document.getElementById('deprSource').value = '';
+  document.getElementById('deprSourceId').value = '';
+  document.getElementById('deprAssetModalTitle').innerHTML = '<i class="bx bx-plus-circle mr-1"></i>Thêm tài sản cố định';
+  document.getElementById('deprDepartment').value = 'BAN GIÁM ĐỐC';
+  document.getElementById('deprAssetType').value = 'Phương tiện vận tải, truyền dẫn';
+  document.getElementById('deprUsageMonths').value = '60';
+  document.getElementById('deprVoucherNo').value = '';
+  document.getElementById('deprIncreaseReason').value = 'Mua mới';
+  document.getElementById('deprAccountCost').value = '21113';
+  document.getElementById('deprAccountDepreciation').value = '2141';
+  document.getElementById('deprAccountExpense').value = '6422';
+  const todayStr = _todayIso();
+  document.getElementById('deprStartDate').value = todayStr;
+  document.getElementById('deprIncreaseDate').value = todayStr;
+
+  const restoreBox = document.getElementById('deprRestoreBox');
+  if (restoreBox) restoreBox.classList.remove('d-none');
+  const vehicleNote = document.getElementById('deprVehicleNote');
+  if (vehicleNote) vehicleNote.classList.add('d-none');
+
+  const btn = document.getElementById('btnSaveDeprAsset');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+
+  $('#deprAssetModal').modal('show');
+}
+
+function openDeprFromInvoice(btn) {
+  const inv = JSON.parse(btn.dataset.inv);
+  $('#pendingTscdModal').one('hidden.bs.modal', function () {
+    openDeprAdd();
+    document.getElementById('deprVoucherNo').value = inv.invoice_number || '';
+    document.getElementById('deprAssetName').value = inv.name || '';
+    document.getElementById('deprStartDate').value = inv.date_iso || '';
+    document.getElementById('deprIncreaseDate').value = inv.date_iso || '';
+    document.getElementById('deprOriginalPrice').value = Number(inv.subtotal || 0).toLocaleString('vi-VN');
+    document.getElementById('deprAccountCost').value = inv.account_cost || '21113';
+  }).modal('hide');
+}
+
+function openDeprEdit(btn) {
+  const row = JSON.parse(btn.dataset.row);
+  document.getElementById('deprSource').value = row.source || '';
+  document.getElementById('deprSourceId').value = row.source_id || '';
+  const titleCode = row.asset_code || row.asset_name || '';
+  const titleEl = document.getElementById('deprAssetModalTitle');
+  titleEl.innerHTML = '<i class="bx bx-edit-alt mr-1"></i>';
+  titleEl.appendChild(document.createTextNode('Sửa tài sản: ' + titleCode));
+
+  document.getElementById('deprVoucherNo').value = row.voucher_no || '';
+  document.getElementById('deprIncreaseReason').value = row.increase_reason || 'Mua mới';
+  document.getElementById('deprAssetCode').value = row.asset_code || '';
+  document.getElementById('deprAssetName').value = row.asset_name || '';
+  document.getElementById('deprAssetType').value = row.asset_type || '';
+  document.getElementById('deprDepartment').value = row.department || '';
+  document.getElementById('deprIncreaseDate').value = row.increase_date ? row.increase_date.substring(0, 10) : '';
+  document.getElementById('deprStartDate').value = row.start_date ? row.start_date.substring(0, 10) : '';
+  const priceVal = Number(row.original_price || 0);
+  document.getElementById('deprOriginalPrice').value = priceVal ? priceVal.toLocaleString('vi-VN') : '0';
+  document.getElementById('deprUsageMonths').value = row.usage_months || 60;
+  document.getElementById('deprAccountCost').value = row.account_cost || '21113';
+  document.getElementById('deprAccountDepreciation').value = row.account_depreciation || '2141';
+  document.getElementById('deprAccountExpense').value = row.account_expense || '6422';
+  document.getElementById('deprExpenseItem').value = row.expense_item || '';
+
+  const restoreBox = document.getElementById('deprRestoreBox');
+  if (restoreBox) restoreBox.classList.add('d-none');
+  const vehicleNote = document.getElementById('deprVehicleNote');
+  if (vehicleNote) {
+    if (row.source === 'vehicle') {
+      vehicleNote.classList.remove('d-none');
+    } else {
+      vehicleNote.classList.add('d-none');
+    }
+  }
+
+  const saveBtn = document.getElementById('btnSaveDeprAsset');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+
+  $('#deprAssetModal').modal('show');
+}
+
+async function submitDeprAsset(e) {
+  e.preventDefault();
+  const form = document.getElementById('deprAssetForm');
+  const formData = new FormData(form);
+  const source = document.getElementById('deprSource').value;
+  const sourceId = document.getElementById('deprSourceId').value;
+  const btn = document.getElementById('btnSaveDeprAsset');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
+
+  const url = source
+    ? `/admin/transport/depreciation/api/${source}/${sourceId}/update`
+    : '/admin/transport/depreciation/api/add';
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể lưu tài sản'));
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+}
+
+async function deleteDeprAsset(btn) {
+  const row = JSON.parse(btn.dataset.row);
+  const source = row.source;
+  const sourceId = row.source_id;
+  const promptMsg = (source === 'vehicle')
+    ? `Xoá xe "${row.asset_code || row.asset_name}" khỏi bảng khấu hao? Xe vẫn còn trong danh sách xe.`
+    : `Xoá hẳn tài sản "${row.asset_name}"?`;
+
+  if (!confirm(promptMsg)) return;
+
+  try {
+    const res = await fetch(`/admin/transport/depreciation/api/${source}/${sourceId}/delete`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể xoá tài sản'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+  }
+}
+
+async function restoreDeprVehicle() {
+  const sel = document.getElementById('deprRestoreSelect');
+  if (!sel || !sel.value) return;
+  const id = sel.value;
+
+  try {
+    const res = await fetch(`/admin/transport/depreciation/api/vehicle/${id}/restore`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể phục hồi xe'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+  }
+}
+
+{% if open_pending %}
+document.addEventListener('DOMContentLoaded', function () {
+  $('#pendingTscdModal').modal('show');
+});
+{% endif %}
+</script>
+
+<script src="/static/admin-assets/js/admin-fit-table.js?v=6" defer></script>
+{% endblock %}

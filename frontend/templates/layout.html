@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block body %}
+
+<div id="layout-wrapper">
+
+
+  {% include "partials/sidebar.html" %}
+
+
+  {% include "partials/header.html" %}
+
+
+  <div class="main-content">
+    <div class="page-content">
+      <div class="container-fluid">
+
+
+        {% set _pt %}{% block page_title %}{% endblock %}{% endset %}
+        {% if _pt|trim %}
+        <div class="row {% block page_title_row_class %}{% endblock %}">
+          <div class="col-12">
+            <div class="page-title-box d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+              <div class="d-flex align-items-center flex-wrap" style="gap:8px;min-width:0;">
+                {% block page_back_button %}{% endblock %}
+                <h4 class="mb-0 font-size-18">{{ _pt|safe }}</h4>
+              </div>
+              {% block page_actions %}{% endblock %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-sm-6">
+            {{ now_year if now_year else '' }} &copy; Parking Camera AI
+          </div>
+          <div class="col-sm-6">
+            <div class="text-sm-right d-none d-sm-block">Hệ thống quản trị giám sát thông minh</div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
+
+
+<div class="menu-overlay"></div>
+
+
+<script>
+  (function() {
+    const ws_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws_url = `${ws_protocol}//${window.location.host}/ws/notifications`;
+    let reconnects = 0;
+    const maxReconnects = 3;
+
+    function notificationFrom(raw) {
+      if (typeof raw !== 'string') {
+        console.error('Invalid notification frame type');
+        return Promise.resolve(null);
+      }
+      return Promise.resolve().then(() => JSON.parse(raw)).then(
+        (message) => {
+          if (!message) return null;
+          const data = message.data || {};
+          if (message.type === 'CHAT_MESSAGE') {
+            return {
+              type: 'CHAT_MESSAGE',
+              sessionId: data.session_id,
+              customerName: data.customer_name || 'Khách hàng',
+              serviceName: data.service_name || 'Dịch vụ',
+              message: data.message || '',
+            };
+          }
+          if (message.type === 'NEW_INQUIRY') {
+            if (typeof data.full_name !== 'string' || typeof data.phone !== 'string') {
+              console.error('Invalid inquiry notification shape');
+              return null;
+            }
+            return { type: 'NEW_INQUIRY', fullName: data.full_name, phone: data.phone };
+          }
+          return null;
+        },
+        () => {
+          console.error('Invalid notification JSON frame');
+          return null;
+        },
+      );
+    }
+
+    function connect() {
+      const ws = new WebSocket(ws_url);
+      ws.onmessage = (event) => {
+        notificationFrom(event.data).then((notification) => {
+          if (notification && window.toastr) {
+            toastr.options.escapeHtml = true;
+            if (notification.type === 'CHAT_MESSAGE') {
+              if (window.location.pathname.indexOf('/admin/account-sales/live-chat') === 0) return;
+              toastr.info(
+                notification.message,
+                `💬 Khách chat: ${notification.customerName} (${notification.serviceName})`,
+                { onclick: () => window.location.href = `/admin/account-sales/live-chat/${notification.sessionId}`, timeOut: 10000 }
+              );
+            } else if (notification.type === 'NEW_INQUIRY') {
+              toastr.info(notification.phone, `📩 Tin tư vấn mới: ${notification.fullName}`,
+                { onclick: () => window.location.href = '/admin/inquiries', timeOut: 8000 });
+            }
+          }
+        });
+      };
+      ws.onclose = () => {
+        if (reconnects >= maxReconnects) {
+          console.error('Notification WebSocket disconnected after three reconnects');
+          if (window.toastr) toastr.warning('Mất kết nối thông báo. Hãy tải lại trang.');
+          return;
+        }
+        reconnects += 1;
+        setTimeout(connect, 5000);
+      };
+    }
+    connect();
+  })();
+</script>
+{% if claude_code_allowed is defined and claude_code_allowed(request) %}
+{% include "partials/claude_code_chat.html" %}
+{% endif %}
+{% endblock %}

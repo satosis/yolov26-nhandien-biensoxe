@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+
+{% block title %}Tin dự án{% endblock %}
+{% block page_title %}Tin dự án{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Thẻ lọc trạng thái -->
+  <div class="card mb-3">
+    <div class="card-body" style="padding:12px 16px;">
+      <form method="get" action="/admin/advertising/project-news" class="form-inline flex-wrap" style="gap:8px;">
+        <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+          <option value="" {% if not status %}selected{% endif %}>
+            Tất cả ({{ status_counts.values()|sum }})
+          </option>
+          <option value="new" {% if status == 'new' %}selected{% endif %}>
+            Mới ({{ status_counts.get('new', 0) }})
+          </option>
+          <option value="saved" {% if status == 'saved' %}selected{% endif %}>
+            Đã lưu ({{ status_counts.get('saved', 0) }})
+          </option>
+          <option value="skipped" {% if status == 'skipped' %}selected{% endif %}>
+            Đã bỏ ({{ status_counts.get('skipped', 0) }})
+          </option>
+        </select>
+        {% if status %}
+        <a href="/admin/advertising/project-news" class="btn btn-sm btn-light border">Đặt lại</a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- Thẻ danh sách tin dự án -->
+  <div class="card mb-3">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="font-weight-bold">
+          Tin dự án ({{ pagination.total }})
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <form method="post" action="/admin/advertising/project-news/refresh?status={{ status|urlencode }}&page={{ pagination.page }}" class="m-0">
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold">
+              <i class="bx bx-refresh mr-1"></i>Cập nhật tin
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Tin</th>
+            <th style="width:160px;">Ngày đăng</th>
+            <th style="width:120px;">Trạng thái</th>
+            <th style="width:160px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in news %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index }}
+            </td>
+            <td class="align-middle">
+              <a href="{{ item.link }}" target="_blank" rel="noopener" class="font-weight-bold text-dark d-block">
+                {{ item.title }}
+              </a>
+              {% if item.source %}
+                <div class="small text-muted">{{ item.source }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle text-muted">
+              {{ item.published_at.strftime('%d/%m/%Y %H:%M') if item.published_at and item.published_at.strftime is defined else (item.published_at or '--') }}
+            </td>
+            <td class="align-middle">
+              {% if item.status == 'new' %}
+                <span class="badge badge-info">Mới</span>
+              {% elif item.status == 'saved' %}
+                <span class="badge badge-success">Đã lưu</span>
+              {% elif item.status == 'skipped' %}
+                <span class="badge badge-secondary">Đã bỏ</span>
+              {% else %}
+                <span class="badge badge-light border">{{ item.status }}</span>
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              {% if item.status != 'saved' %}
+              <form method="post" action="/admin/advertising/project-news/{{ item.id }}/save?status={{ status|urlencode }}&page={{ pagination.page }}" class="d-inline mr-1">
+                <button type="submit" class="btn btn-sm btn-light border">Lưu khách</button>
+              </form>
+              {% endif %}
+              {% if item.status == 'new' %}
+              <form method="post" action="/admin/advertising/project-news/{{ item.id }}/skip?status={{ status|urlencode }}&page={{ pagination.page }}" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Bỏ qua tin này?', {confirmText: 'Bỏ'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Bỏ</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="5" class="text-center py-4 text-muted">Chưa có tin dự án.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+  <!-- Thẻ riêng "Truy vấn" -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <span class="font-weight-bold">Truy vấn</span>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <form method="post" action="/admin/advertising/project-news/queries?status={{ status|urlencode }}&page={{ pagination.page }}">
+        <div class="form-group mb-3">
+          <label class="font-weight-medium">Truy vấn</label>
+          <textarea name="queries" class="form-control" rows="6">{{ queries_text }}</textarea>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+{% if msg %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  if (window.showNotify) {
+    window.showNotify({{ msg|tojson }}, 'success');
+  }
+});
+</script>
+{% endif %}
+{% if error %}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  if (window.showNotify) {
+    window.showNotify({{ error|tojson }}, 'error');
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

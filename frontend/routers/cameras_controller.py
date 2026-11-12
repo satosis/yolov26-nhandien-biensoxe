@@ -1,0 +1,323 @@
+import logging
+from fastapi import Request, Depends
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
+from pydantic import BaseModel, Field, StringConstraints
+from typing import Optional
+from typing import Annotated
+from frontend.deps import get_menu_context, require_menu, templates
+from frontend.pagination import paginate_counts
+from backend.camera import camera_service as cam_svc
+from backend.services.settings_service import get_app_setting
+import frontend.routers.cameras_queries as queries
+
+logger = logging.getLogger(__name__)
+
+
+class AutoAddCameraInput(BaseModel):
+    id: str | None = ""
+    ip: str | None = ""
+    type: str | None = "onvif"
+    model: str | None = ""
+    manufacturer: str | None = ""
+    name: str | None = ""
+    onvif_port: int | None = Field(default=554, ge=1, le=65535)
+    camera_id: int | None = Field(default=None, gt=0)
+    rtsp_url_onvif: str | None = ""
+
+
+class ProbeOnvifInput(BaseModel):
+    ip: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    onvif_port: int = Field(default=80, ge=1, le=65535)
+    username: str | None = ""
+    password: str | None = ""
+
+
+def _site_ids_from_form(values: list[str] | None) -> list[int] | None:
+    parts = [part.strip() for value in (values or []) for part in value.split(",") if part.strip()]
+    if any(not part.isascii() or not part.isdecimal() or len(part) > 10 for part in parts):
+        return None
+    ids = list(dict.fromkeys(int(part) for part in parts))
+    return ids if all(0 < site_id <= 2147483647 for site_id in ids) else None
+
+
+def _persist_derived_rtsp(camera_id: int, rtsp_url: str | None) -> bool:
+    if not rtsp_url:
+        return True
+    saved = queries.persist_derived_rtsp_update_cameras(rtsp_url, camera_id)
+    if not saved:
+        logger.error("Derived RTSP URL update affected no rows for camera_id=%s", camera_id)
+    return bool(saved)
+
+
+async def cameras_page(request: Request, page: int, user: dict):
+    ctx = get_menu_context(request, user)
+    ctx["current_menu"] = "cameras"
+    
+    active_site_id = ctx["active_site_id"]
+    total_cameras = cam_svc.count_cameras(site_id=active_site_id or None)
+    page_data = paginate_counts(
+        total_cameras, page=page, per_page=20, base_url="/admin/cameras",
+    )
+    cameras = cam_svc.get_all_cameras(
+        site_id=active_site_id or None,
+        limit=page_data["per_page"],
+        offset=(page_data["page"] - 1) * page_data["per_page"],
+    ) or []
+    for cam in cameras:
+        if not cam.get("rtsp_url"):
+            cam["rtsp_url"] = cam_svc.get_camera_rtsp_url(cam["id"])
+
+    ctx["cameras"] = cameras
+    ctx["pagination"] = page_data
+    ctx["total_cameras"] = total_cameras
+    ctx["providers"] = cam_svc.get_all_providers()
+    ctx["provider_templates"] = {p['provider_key']: p.get('rtsp_template', '') for p in ctx["providers"]}
+    ctx["global_mk"] = get_app_setting("IMOU_MK", "")
+    ctx["camera_status"] = cam_svc.get_cameras_latest_status()
+    return templates.TemplateResponse("pages/cameras.html", {"request": request, **ctx})
+
+
+async def create_camera(
+    request: Request,
+    user: dict,
+    camera_name: str,
+    camera_type: str,
+    imou_device_id: str,
+    imou_channel_id: str,
+    camera_ip: str,
+    camera_port: int,
+    rtsp_url: str,
+    imou_mk: str,
+    site_ids: Optional[list[str]],
+):
+    parsed_site_ids = _site_ids_from_form(site_ids)
+    wants_json = "application/json" in request.headers.get("accept", "").lower()
+    if parsed_site_ids is None:
+        message = "Danh sách địa điểm không hợp lệ."
+        if wants_json:
+            return JSONResponse({"ok": False, "message": message}, status_code=422)
+        return HTMLResponse(message, status_code=422)
+
+    provider_keys = {"mk": imou_mk} if imou_mk else None
+    new_camera_id = cam_svc.add_camera(
+        name=camera_name,
+        cam_type=camera_type,
+        imou_device_id=imou_device_id,
+        rtsp_url=rtsp_url if rtsp_url and rtsp_url.strip() else None,
+        imou_channel_id=imou_channel_id,
+        site_ids=parsed_site_ids or None,
+        camera_ip=camera_ip if camera_ip else None,
+        camera_port=camera_port,
+        provider_keys=provider_keys,
+    )
+    if new_camera_id is None:
+        return JSONResponse({"ok": False, "message": "Không thể thêm camera."}, status_code=500)
+    if wants_json:
+        return {"ok": True, "camera_id": new_camera_id}
+    return RedirectResponse(url="/admin/cameras", status_code=303)
+
+
+async def delete_camera(
+    camera_id: int,
+    user: dict = Depends(require_menu("cameras")),
+):
+    if not cam_svc.delete_camera(camera_id):
+        return JSONResponse({"ok": False, "message": "Không tìm thấy camera."}, status_code=404)
+    return {"ok": True}
+
+
+async def toggle_camera(camera_id: int, user: dict):
+    cam = cam_svc.get_camera(camera_id)
+    if not cam:
+        return HTMLResponse("Không tìm thấy camera.", status_code=404)
+    cam_svc.update_camera(
+        camera_id=camera_id,
+        name=cam["camera_name"],
+        cam_type=cam["camera_type"],
+        imou_device_id=cam.get("imou_device_id", ""),
+        rtsp_url=cam.get("rtsp_url", ""),
+        is_active=not cam["is_active"],
+        imou_channel_id=cam.get("imou_channel_id", "0"),
+        site_ids=cam.get("site_ids"),
+        provider_keys=cam.get("provider_keys"),
+        camera_ip=cam.get("camera_ip"),
+        camera_port=cam.get("camera_port"),
+    )
+    return RedirectResponse(url="/admin/cameras", status_code=303)
+
+
+async def edit_camera(
+    camera_id: int,
+    user: dict,
+    camera_name: str,
+    camera_type: str,
+    imou_device_id: str,
+    imou_channel_id: str,
+    camera_ip: str,
+    camera_port: Optional[int],
+    rtsp_url: str,
+    imou_mk: str,
+    site_ids: Optional[list[str]],
+):
+    parsed_site_ids = _site_ids_from_form(site_ids)
+    if parsed_site_ids is None:
+        return HTMLResponse("Danh sách địa điểm không hợp lệ.", status_code=422)
+
+    cam = cam_svc.get_camera(camera_id)
+    if not cam:
+        return HTMLResponse("Không tìm thấy camera.", status_code=404)
+
+    final_rtsp_url = rtsp_url.strip() if rtsp_url and rtsp_url.strip() else None
+
+    cam_svc.update_camera(
+        camera_id=camera_id,
+        name=camera_name,
+        cam_type=camera_type,
+        imou_device_id=imou_device_id,
+        rtsp_url=final_rtsp_url,
+        is_active=cam["is_active"],
+        imou_channel_id=imou_channel_id,
+        site_ids=parsed_site_ids or None,
+        provider_keys={"mk": imou_mk} if imou_mk else cam.get("provider_keys"),
+        camera_ip=camera_ip if camera_ip else None,
+        camera_port=camera_port,
+    )
+    return RedirectResponse(url="/admin/cameras", status_code=303)
+
+
+async def start_stream(camera_id: int, user: dict):
+    if not cam_svc.set_camera_streaming(camera_id, True):
+        return JSONResponse({"ok": False, "error": "Không tìm thấy camera."}, status_code=404)
+    return {"ok": True}
+
+
+async def stop_stream(camera_id: int, user: dict):
+    if not cam_svc.set_camera_streaming(camera_id, False):
+        return JSONResponse({"ok": False, "error": "Không tìm thấy camera."}, status_code=404)
+    return {"ok": True}
+
+
+async def get_stream_status(camera_id: int, user: dict):
+    cam = cam_svc.get_camera(camera_id)
+    if not cam:
+        return JSONResponse({"ok": False, "message": "Không tìm thấy camera.", "streaming": False}, status_code=404)
+    return {"ok": True, "streaming": cam.get("is_streaming", False)}
+
+
+async def discover_cameras(user: dict):
+    import asyncio
+    from backend.util.network import scan_lan_cameras
+    try:
+        return {"ok": True, **await asyncio.to_thread(scan_lan_cameras)}
+    except OSError as exc:  # mạng LAN/multicast không dùng được: báo lỗi thay vì 500
+        logger.warning("Camera discovery network error: %s", exc)
+        return JSONResponse({"ok": False, "message": f"Không quét được mạng nội bộ: {exc}"})
+
+
+async def auto_add_camera(data: AutoAddCameraInput, user: dict):
+    device_id = (data.id or "").strip()
+    ip = (data.ip or "").strip()
+    cam_type = data.type or "onvif"
+    model = data.model or ""
+    manufacturer = data.manufacturer or ""
+    name = data.name or f"{manufacturer} {model}".strip() or f"Camera @ {ip}"
+    onvif_port = data.onvif_port or 554
+    camera_id = data.camera_id
+    rtsp_url_onvif = data.rtsp_url_onvif or ""
+
+    mk = get_app_setting("IMOU_MK", "")
+
+    if camera_id:
+        cam = cam_svc.get_camera(camera_id)
+        if not cam:
+            return JSONResponse({"ok": False, "name": name, "message": "Không tìm thấy camera."}, status_code=404)
+        cam_svc.update_camera(
+            camera_id=camera_id,
+            name=name,
+            cam_type=cam_type,
+            imou_device_id=device_id.upper() if device_id else cam.get("imou_device_id"),
+            rtsp_url=rtsp_url_onvif if rtsp_url_onvif else None,
+            is_active=cam["is_active"],
+            imou_channel_id=cam.get("imou_channel_id", "0"),
+            site_ids=cam.get("site_ids"),
+            provider_keys={"mk": mk} if mk else cam.get("provider_keys"),
+            camera_ip=ip if ip else cam.get("camera_ip"),
+            camera_port=onvif_port or cam.get("camera_port", 554),
+        )
+        if rtsp_url_onvif:
+            cam_svc.store_onvif_detected_rtsp(camera_id, rtsp_url_onvif)
+        else:
+            _persist_derived_rtsp(camera_id, cam_svc.get_camera_rtsp_url(camera_id))
+        return {"ok": True, "name": name, "updated": True}
+    else:
+        if not ip and cam_type == 'imou' and device_id and mk:
+            from backend.util.network import discover_from_arp, get_onvif_full_info
+            import asyncio
+            arp_candidates = await asyncio.to_thread(discover_from_arp)
+            for candidate in arp_candidates:
+                full = await asyncio.to_thread(
+                    get_onvif_full_info, candidate['ip'], 80, 'admin', mk, 4
+                )
+                if full and full.get('serial', '').upper() == device_id.upper():
+                    ip = candidate['ip']
+                    if full.get('rtsp_main') and not rtsp_url_onvif:
+                        rtsp_url_onvif = full['rtsp_main']
+                    logger.info(f"auto-add: Resolved {device_id} → {ip} via ONVIF probe")
+                    break
+
+        if ip and mk and not rtsp_url_onvif and cam_type == 'imou':
+            from urllib.parse import quote
+            mk_encoded = quote(mk, safe='')
+            rtsp_url_onvif = f"rtsp://admin:{mk_encoded}@{ip}:554/cam/realmonitor?channel=1&subtype=1"
+
+        new_cam_id = cam_svc.add_camera(
+            name=name,
+            cam_type=cam_type,
+            imou_device_id=device_id.upper() if device_id else None,
+            rtsp_url=rtsp_url_onvif if rtsp_url_onvif else None,
+            imou_channel_id="0",
+            site_ids=None,
+            camera_ip=ip if ip else None,
+            camera_port=onvif_port or 554,
+            provider_keys={"mk": mk} if mk else None,
+        )
+        if new_cam_id is None:
+            return JSONResponse({"ok": False, "name": name, "message": "Không thể thêm camera."}, status_code=500)
+        if ip:
+            if rtsp_url_onvif:
+                cam_svc.store_onvif_detected_rtsp(new_cam_id, rtsp_url_onvif)
+            else:
+                _persist_derived_rtsp(new_cam_id, cam_svc.get_camera_rtsp_url(new_cam_id))
+        return {"ok": True, "name": name}
+
+
+async def probe_onvif(data: ProbeOnvifInput, user: dict):
+    from backend.util.network import get_onvif_full_info
+
+    ip = data.ip
+    port = data.onvif_port
+    username = data.username or get_app_setting("ONVIF_USERNAME", "") or "admin"
+    password = data.password or get_app_setting("ONVIF_PASSWORD", "") or get_app_setting("IMOU_MK", "")
+
+    result = get_onvif_full_info(ip, port, username, password, timeout=6)
+    if not result:
+        return JSONResponse({"ok": False, "message": "Không thể kết nối ONVIF với camera."}, status_code=404)
+
+    return {
+        "ok": True,
+        "ip": ip,
+        "onvif_port": port,
+        "manufacturer": result.get("manufacturer", ""),
+        "model": result.get("model", ""),
+        "serial": result.get("serial", ""),
+        "firmware": result.get("firmware", ""),
+        "rtsp_main": result.get("rtsp_main", ""),
+        "rtsp_sub": result.get("rtsp_sub", ""),
+        "onvif_profiles": result.get("onvif_profiles", []),
+        "has_ptz": result.get("has_ptz", False),
+    }
+
+
+async def camera_health(user: dict, hours: int):
+    events = cam_svc.get_camera_health(hours=hours)
+    return {"events": events, "count": len(events)}

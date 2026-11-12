@@ -1,0 +1,161 @@
+"""Quarterly tax declaration and cross-check router."""
+
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+import logging
+from urllib.parse import quote
+
+from fastapi import Request
+from fastapi.responses import Response
+
+from frontend.deps import get_current_company_id, get_menu_context, templates
+from frontend.modules.invoices.companies import get_company, list_companies
+from frontend.modules.transport.tax_report import (
+    compute_tax_summary, export_quarterly_tax_excel,
+    get_input_tax_invoices, get_output_tax_invoices, get_previous_quarter_deductible,
+    quarter_bounds,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _current_quarter(target_date: date) -> int:
+    return (target_date.month - 1) // 3 + 1
+
+
+def _parse_deductible(val: str | None) -> Decimal | None:
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    try:
+        if "." in s and s.count(".") == 1 and "," not in s:
+            left, right = s.split(".")
+            if len(right) <= 2:
+                return Decimal(left)
+        cleaned = s.replace(".", "").replace(",", "")
+        return Decimal(cleaned)
+    except Exception:
+        return None
+
+
+async def tax_report_page(request: Request, year: int, quarter: int, deductible_in: str | None, user: dict):
+    ctx = get_menu_context(request, user)
+    today = date.today()
+    selected_year = int(year) if year and str(year).isdigit() and 2000 <= int(year) <= 2100 else today.year
+    selected_quarter = int(quarter) if quarter is not None and str(quarter).isdigit() and int(quarter) in (1, 2, 3, 4, 0) else _current_quarter(today)
+
+    companies = ctx.get("user_companies") or list_companies() or []
+    current_company = ctx.get("active_company") or get_company(get_current_company_id())
+
+    start_date, end_date, period_label = quarter_bounds(selected_year, selected_quarter if selected_quarter != 0 else None)
+
+    # Calculate or retrieve [22] Thuế GTGT còn được khấu trừ kỳ trước chuyển sang
+    prev_deductible = _parse_deductible(deductible_in)
+    if prev_deductible is None:
+        prev_deductible = get_previous_quarter_deductible(
+            selected_year, selected_quarter if selected_quarter != 0 else None
+        )
+
+    output_invoices = get_output_tax_invoices(start_date, end_date)
+    input_invoices = get_input_tax_invoices(start_date, end_date)
+    summary = compute_tax_summary(output_invoices, input_invoices, previous_deductible=prev_deductible)
+
+    available_years = [selected_year, selected_year - 1, selected_year - 2, 2026, 2025, 2024]
+    available_years = sorted(list(set(available_years)), reverse=True)
+
+    def _fmt_money(val: Decimal | float | int | None) -> str:
+        if val is None:
+            return "0 ₫"
+        n = round(float(val))
+        return f"{n:,.0f} ₫".replace(",", ".")
+
+    def _fmt_date(val: date | str | None) -> str:
+        if not val:
+            return "—"
+        if isinstance(val, date):
+            return val.strftime("%d/%m/%Y")
+        return str(val)
+
+    # Enhance view items with preformatted strings
+    for inv in output_invoices:
+        inv["subtotal_fmt"] = _fmt_money(inv["subtotal"])
+        inv["vat_amount_fmt"] = _fmt_money(inv["vat_amount"])
+        inv["gross_fmt"] = _fmt_money(inv["gross"])
+        inv["date_fmt"] = _fmt_date(inv["invoice_date"])
+
+    for inv in input_invoices:
+        inv["subtotal_fmt"] = _fmt_money(inv["subtotal"])
+        inv["vat_amount_fmt"] = _fmt_money(inv["vat_amount"])
+        inv["total_fmt"] = _fmt_money(inv["total"])
+        inv["date_fmt"] = _fmt_date(inv["invoice_date"])
+
+    ctx.update(
+        current_menu="vehicles",
+        transport_section="tax_report",
+        year=selected_year,
+        quarter=selected_quarter,
+        period_label=period_label,
+        available_years=available_years,
+        company_id=get_current_company_id(),
+        current_company=current_company,
+        companies=companies,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        output_invoices=output_invoices,
+        input_invoices=input_invoices,
+        summary=summary,
+        total_out_subtotal_fmt=_fmt_money(summary["total_out_subtotal"]),
+        taxable_out_subtotal_fmt=_fmt_money(summary["taxable_out_subtotal"]),
+        total_out_vat_fmt=_fmt_money(summary["total_out_vat"]),
+        total_out_gross_fmt=_fmt_money(summary["total_out_gross"]),
+        total_in_subtotal_fmt=_fmt_money(summary["total_in_subtotal"]),
+        total_in_kkknt_subtotal_fmt=_fmt_money(summary["in_by_rate"]["kkknt"]["subtotal"]),
+        total_in_vat_fmt=_fmt_money(summary["total_in_vat"]),
+        total_in_total_fmt=_fmt_money(summary["total_in_total"]),
+        vat_carry_in_fmt=_fmt_money(summary["vat_carry_in"]),
+        deductible_in_val=int(summary["vat_carry_in"]),
+        net_vat_fmt=_fmt_money(summary["net_vat"]),
+        vat_payable_fmt=_fmt_money(summary["vat_payable"]),
+        vat_deductible_fmt=_fmt_money(summary["vat_deductible"]),
+    )
+
+    return templates.TemplateResponse("pages/tax_report/index.html", {"request": request, **ctx})
+
+
+async def export_tax_report(request: Request, year: int, quarter: int, deductible_in: str | None, user: dict):
+    today = date.today()
+    selected_year = int(year) if year and str(year).isdigit() and 2000 <= int(year) <= 2100 else today.year
+    selected_quarter = int(quarter) if quarter is not None and str(quarter).isdigit() and int(quarter) in (1, 2, 3, 4, 0) else _current_quarter(today)
+
+    cid = get_current_company_id()
+    company = get_company(cid) if cid else None
+
+    start_date, end_date, period_label = quarter_bounds(selected_year, selected_quarter if selected_quarter != 0 else None)
+
+    prev_deductible = _parse_deductible(deductible_in)
+    if prev_deductible is None:
+        prev_deductible = get_previous_quarter_deductible(
+            selected_year, selected_quarter if selected_quarter != 0 else None
+        )
+
+    output_invoices = get_output_tax_invoices(start_date, end_date)
+    input_invoices = get_input_tax_invoices(start_date, end_date)
+    summary = compute_tax_summary(output_invoices, input_invoices, previous_deductible=prev_deductible)
+
+    excel_bytes = export_quarterly_tax_excel(period_label, company, output_invoices, input_invoices, summary)
+
+    filename = f"Bang_ke_thue_{selected_year}_Q{selected_quarter}.xlsx" if selected_quarter else f"Bang_ke_thue_{selected_year}_CaNam.xlsx"
+    quoted_filename = quote(filename)
+
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quoted_filename}",
+            "Cache-Control": "no-cache",
+        },
+    )

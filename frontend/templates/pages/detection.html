@@ -1,0 +1,2562 @@
+{% extends "layout.html" %}
+{% block title %}Camera AI — Parking Vision{% endblock %}
+{% block page_title %}{% endblock %}
+
+{% block content %}
+<div class="cam-app-root" x-data="{
+  tab: localStorage.getItem('detection_tab') || 'rtsp',
+  camMenuOpen: false,
+  selectedCamId: '{{ cameras[0].id if cameras else '' }}',
+  selectedCamName: '{{ cameras[0].camera_name if cameras else 'Chưa có camera' }}',
+  selectedCamStatus: '{{ cameras[0].status if cameras else 'unknown' }}',
+  camStatuses: {
+    {% for cam in cameras %}
+    '{{ cam.id }}': '{{ cam.status }}',
+    {% endfor %}
+  }
+}"
+x-init="
+  const saved = localStorage.getItem('selected_rtsp_camera');
+  if (saved) {
+    const el = document.querySelector('#rtsp-camera option[value=\'' + saved + '\']');
+    if (el) {
+      selectedCamId = saved;
+      selectedCamName = el.textContent;
+      selectedCamStatus = camStatuses[saved] || 'unknown';
+    }
+  }
+"
+x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabChanged) window.onDetectionTabChanged(tab); if(tab !== 'webcam' && window.stopWebcam) window.stopWebcam(); if(tab !== 'video' && window.stopVideo) window.stopVideo();">
+
+
+  <div class="cam-app-bar">
+    <div class="d-flex align-items-center flex-wrap" style="gap:12px;">
+
+      <div class="cam-seg-control">
+        <button type="button" class="cam-seg-btn" :class="tab==='rtsp' ? 'active' : ''" @click="tab='rtsp'" title="Camera IP">
+          <i class="bx bx-cctv"></i>
+          <span>Camera</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='webcam' ? 'active' : ''" @click="tab='webcam'" title="Live Webcam">
+          <i class="bx bx-camera"></i>
+          <span>Webcam</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='upload' ? 'active' : ''" @click="tab='upload'" title="Tải ảnh">
+          <i class="bx bx-image-add"></i>
+          <span>Ảnh</span>
+        </button>
+        <button type="button" class="cam-seg-btn" :class="tab==='video' ? 'active' : ''" @click="tab='video'" title="Nhận diện Video">
+          <i class="bx bx-video"></i>
+          <span>Video</span>
+        </button>
+      </div>
+
+
+      <div x-show="tab==='rtsp'" class="position-relative">
+        <button type="button" @click="camMenuOpen = !camMenuOpen" class="cam-select-capsule" title="Chọn camera">
+          <span class="cam-live-dot" :class="selectedCamStatus === 'stream_up' ? '' : (selectedCamStatus === 'stream_down' ? 'offline' : 'unknown')"></span>
+          <span class="cam-select-text" x-text="selectedCamName"></span>
+          <i class="bx bx-chevron-down cam-select-arrow" :style="camMenuOpen ? 'transform:rotate(180deg)' : ''"></i>
+        </button>
+
+
+        <div x-show="camMenuOpen"
+             @click.away="camMenuOpen = false"
+             x-cloak
+             class="cam-custom-menu">
+          {% for cam in cameras %}
+          <div class="cam-menu-item"
+               :class="selectedCamId == '{{ cam.id }}' ? 'active' : ''"
+               @click="
+                 selectedCamId = '{{ cam.id }}';
+                 selectedCamName = '{{ cam.camera_name }}';
+                 selectedCamStatus = camStatuses['{{ cam.id }}'] || 'unknown';
+                 camMenuOpen = false;
+                 const sel = document.getElementById('rtsp-camera');
+                 if (sel) {
+                   sel.value = '{{ cam.id }}';
+                   sel.dispatchEvent(new Event('change'));
+                 }
+               ">
+            <span class="cam-item-dot {{ 'offline' if cam.status == 'stream_down' else ('unknown' if cam.status != 'stream_up' else '') }}"></span>
+            <span class="cam-item-name">{{ cam.camera_name }}</span>
+            <span class="badge ml-auto mr-2" style="font-size:10px; {{ 'background:#ecfdf5;color:#059669;' if cam.status == 'stream_up' else ('background:#fef2f2;color:#dc2626;' if cam.status == 'stream_down' else 'background:#f1f5f9;color:#64748b;') }}">
+              {{ 'Online' if cam.status == 'stream_up' else ('Tắt' if cam.status == 'stream_down' else 'Chưa rõ') }}
+            </span>
+            <i class="bx bx-check text-primary" x-show="selectedCamId == '{{ cam.id }}'"></i>
+          </div>
+          {% endfor %}
+        </div>
+
+
+        <select id="rtsp-camera" class="d-none">
+          {% for cam in cameras %}
+          <option value="{{ cam.id }}" {% if loop.first %}selected{% endif %}>{{ cam.camera_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="rtsp-error-banner" class="cam-alert-box" style="display:none;">
+    <div class="d-flex align-items-center">
+      <i class="bx bx-error-circle mr-2" style="font-size:18px;"></i>
+      <span id="rtsp-error-text">Không thể kết nối camera</span>
+    </div>
+    <button type="button" class="cam-alert-close" onclick="document.getElementById('rtsp-error-banner').style.display='none'">
+      <i class="bx bx-x"></i>
+    </button>
+  </div>
+
+
+  <div class="row no-gutters cam-main-grid">
+
+
+    <div class="col-12 col-xl-8 pr-xl-2 mb-3 mb-xl-0 d-flex flex-column h-100">
+      <div id="cam-monitor-viewport" class="cam-monitor-card">
+
+
+        <div class="cam-screen-surface" id="cam-screen-surface">
+
+
+          <div x-show="tab==='rtsp'" class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <video id="rtsp-feed" autoplay playsinline muted class="cam-media-element d-none"></video>
+            <img id="rtsp-feed-img" class="cam-media-element d-none" alt="Camera Feed">
+            <canvas id="rtsp-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+
+            <div id="rtsp-placeholder" class="cam-hero-placeholder" onclick="window.toggleRtsp()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-play" style="font-size:36px; margin-left:3px;"></i>
+              </div>
+              <div class="cam-hero-label">Mở camera</div>
+            </div>
+          </div>
+
+
+          <div x-show="tab==='webcam'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <video id="webcam-video" autoplay playsinline muted class="cam-media-element d-none"></video>
+            <canvas id="webcam-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+
+            <div id="webcam-placeholder" class="cam-hero-placeholder" onclick="window.toggleWebcam()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-camera" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Mở webcam</div>
+            </div>
+          </div>
+
+
+          <div x-show="tab==='upload'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <input type="file" id="upload-input" accept="image/*" class="d-none">
+            <canvas id="upload-canvas" class="cam-media-element d-none"></canvas>
+
+            <div id="upload-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('upload-input').click()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-cloud-upload" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Chọn ảnh</div>
+            </div>
+          </div>
+
+
+          <div x-show="tab==='video'" x-cloak class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
+            <input type="file" id="video-upload-input" accept="video/mp4,video/webm,video/ogg,video/quicktime,video/*" class="d-none">
+            <video id="video-player" playsinline controls class="cam-media-element d-none" style="object-fit:contain;"></video>
+            <canvas id="video-overlay" class="cam-overlay-canvas d-none"></canvas>
+
+            <div id="video-analysis-status" class="video-analysis-status d-none">
+              <div class="video-status-heading">
+                <strong id="video-file-name"></strong>
+                <button type="button" id="video-cancel-btn" class="video-cancel-btn d-none" title="Dừng phân tích" aria-label="Dừng phân tích" disabled>
+                  <i class="bx bx-stop-circle" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div id="video-job-message" role="status" aria-live="polite"></div>
+              <progress id="video-job-progress" value="0" max="100" aria-label="Tiến độ phân tích video"></progress>
+              <div id="video-preview-warning" class="video-preview-warning d-none" role="status"></div>
+            </div>
+
+            <div id="video-placeholder" class="cam-hero-placeholder" onclick="document.getElementById('video-upload-input').click()">
+              <div class="cam-hero-btn">
+                <i class="bx bx-video-plus" style="font-size:32px;"></i>
+              </div>
+              <div class="cam-hero-label">Chọn video</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="cam-floating-dock">
+          <button type="button" class="dock-btn primary" id="dock-btn-power" title="Bật / Dừng" onclick="handleActiveStreamToggle()">
+            <i class="bx bx-power-off"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="dock-btn-snap" title="Chụp ảnh" onclick="captureSnapshot()">
+            <i class="bx bx-camera"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="btn-select-device" x-show="tab==='webcam'" title="Chọn camera">
+            <i class="bx bx-devices"></i>
+          </button>
+
+          <button type="button" class="dock-btn" x-show="tab==='upload'" onclick="document.getElementById('upload-input').click()" title="Chọn tệp ảnh">
+            <i class="bx bx-folder-open"></i>
+          </button>
+
+          <button type="button" class="dock-btn" x-show="tab==='video'" onclick="document.getElementById('video-upload-input').click()" title="Chọn tệp video">
+            <i class="bx bx-movie-play"></i>
+          </button>
+
+          <button type="button" class="dock-btn" id="dock-btn-fullscreen" title="Toàn màn hình" onclick="toggleFullscreen()">
+            <i class="bx bx-fullscreen"></i>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-4 pl-xl-2 d-flex flex-column h-100">
+      <div class="cam-sidebar-card">
+
+        <div class="cam-sidebar-header">
+          <div class="d-flex align-items-center" style="gap:8px;">
+            <span class="cam-sidebar-title">Phát hiện</span>
+            <div id="cam-status-indicator" class="cam-live-badge" style="display:none;">
+              <span class="pulse-point"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <div class="cam-counter-pills">
+              <span class="counter-item" title="Người">
+                <i class="bx bx-user"></i>
+                <b id="stat-person-count">0</b>
+              </span>
+              <span class="counter-item" title="Biển số">
+                <i class="bx bx-car"></i>
+                <b id="stat-plate-count">0</b>
+              </span>
+              <span class="counter-item danger" title="Cảnh báo">
+                <i class="bx bx-error"></i>
+                <b id="stat-alert-count">0</b>
+              </span>
+            </div>
+            <button id="btn-clear-results" class="cam-btn-icon" title="Xoá danh sách">
+              <i class="bx bx-trash"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="cam-feed-container" id="detection-results">
+          <div class="cam-empty-feed">
+            <div class="cam-empty-icon"><i class="bx bx-camera-off"></i></div>
+            <div class="cam-empty-title">Chưa có sự kiện</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+:root {
+  --cam-bg: #ffffff;
+  --cam-hud-glass: rgba(15, 23, 42, 0.88);
+}
+
+.footer { display: none !important; }
+.main-content { overflow-y: auto !important; }
+.page-content { padding: 6px 12px 6px !important; }
+
+.cam-app-root {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.video-analysis-status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 5;
+  width: min(380px, calc(100% - 24px));
+  padding: 8px 10px;
+  background: rgba(9, 13, 22, .82);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 10px;
+  color: #cbd5e1;
+  font-size: 11px;
+  pointer-events: none;
+}
+.video-status-heading { display: flex; align-items: center; gap: 8px; }
+.video-status-heading strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f8fafc; }
+.video-cancel-btn { padding: 0; border: 0; background: transparent; color: #cbd5e1; line-height: 1; font-size: 20px; cursor: pointer; pointer-events: auto; }
+.video-cancel-btn:hover { color: #fff; }
+.video-cancel-btn:disabled { opacity: .5; cursor: default; }
+#video-job-message.has-error { color: #fca5a5; }
+.video-preview-warning { margin-top: 4px; color: #fcd34d; }
+#video-job-progress { display: block; width: 100%; height: 3px; margin-top: 5px; accent-color: #3b82f6; }
+.video-event-card { align-items: flex-start; }
+.video-event-crop { width: 112px; height: 76px; flex-shrink: 0; object-fit: contain; background: #f1f5f9; border-radius: 6px; cursor: zoom-in; }
+.video-crop-dialog { width: min(1200px, 96vw); max-height: 92vh; overflow: auto; border: 0; border-radius: 12px; padding: 20px; color: #334155; }
+.video-crop-dialog::backdrop { background: rgba(15, 23, 42, .65); }
+.video-crop-comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 16px; }
+.video-crop-comparison figure { min-width: 0; margin: 0; overflow: auto; }
+.video-crop-comparison img { display: block; width: 100%; height: min(56vh, 480px); object-fit: contain; background: #f1f5f9; border-radius: 6px; cursor: zoom-in; }
+.video-crop-comparison img.is-zoomed { width: auto; max-width: none; height: auto; max-height: none; cursor: zoom-out; }
+.video-event-card .cam-event-title { overflow-wrap: anywhere; white-space: normal; }
+.video-event-status { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 600; color: #059669; }
+.video-event-status.uncertain { color: #b45309; }
+.video-event-status.unreadable { color: #64748b; }
+.video-event-seek { padding: 0; border: 0; background: transparent; color: #2563eb; font-size: 11px; text-align: left; cursor: pointer; }
+.video-event-seek:disabled { color: #94a3b8; cursor: default; }
+
+
+.cam-app-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+
+.cam-seg-control {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+.cam-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none !important;
+}
+.cam-seg-btn:hover {
+  color: #1e293b;
+}
+.cam-seg-btn.active {
+  background: #ffffff;
+  color: #1e293b;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.cam-seg-btn i {
+  font-size: 15px;
+}
+
+
+.cam-select-capsule {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 5px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none !important;
+}
+.cam-select-capsule:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+.cam-select-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.cam-select-arrow {
+  font-size: 14px;
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+.cam-live-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  flex-shrink: 0;
+}
+.cam-live-dot.offline {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+.cam-live-dot.unknown {
+  background: #94a3b8;
+  box-shadow: none;
+}
+.cam-custom-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 210px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
+  padding: 6px;
+  z-index: 1000;
+}
+.cam-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cam-menu-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.cam-menu-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+.cam-item-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  flex-shrink: 0;
+}
+.cam-item-dot.offline {
+  background: #ef4444;
+}
+.cam-item-dot.unknown {
+  background: #94a3b8;
+}
+
+
+.cam-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.pulse-point {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 5px #10b981;
+  animation: pulse-live 1.4s ease-in-out infinite;
+}
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+
+.cam-alert-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cam-alert-close {
+  background: none;
+  border: none;
+  color: #b91c1c;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+
+.cam-main-grid {
+  height: calc(100vh - 215px);
+  min-height: 380px;
+  max-height: calc(100vh - 195px);
+}
+
+@media (max-width: 1200px) {
+  .cam-main-grid {
+    height: auto;
+    min-height: auto;
+    max-height: none;
+  }
+}
+
+
+.cam-monitor-card {
+  position: relative;
+  background: var(--cam-bg);
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+
+.cam-osd-hud-top {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.cam-hud-item {
+  background: var(--cam-hud-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+}
+.cam-hud-clock {
+  color: #cbd5e1;
+  font-size: 11px;
+}
+
+
+.cam-screen-surface {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--cam-bg);
+}
+.cam-media-element {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  position: relative;
+  z-index: 5;
+}
+.cam-overlay-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 15;
+  pointer-events: none;
+}
+
+
+.cam-hero-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+.cam-hero-placeholder:hover {
+  background: #f8fafc;
+}
+.cam-hero-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  margin-bottom: 8px;
+}
+.cam-hero-placeholder:hover .cam-hero-btn {
+  transform: scale(1.12);
+}
+.cam-hero-label {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: color 0.2s ease;
+}
+.cam-hero-placeholder:hover .cam-hero-label {
+  color: #0f172a;
+}
+
+
+.cam-floating-dock {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 28px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.dock-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  color: #e2e8f0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  outline: none !important;
+}
+.dock-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  transform: scale(1.08);
+}
+.dock-btn i {
+  font-size: 18px;
+}
+.dock-btn.primary {
+  background: #3b82f6;
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.4);
+}
+.dock-btn.primary:hover {
+  background: #2563eb;
+  transform: scale(1.08);
+}
+.dock-btn.primary.active-stream {
+  background: #ef4444;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.5);
+}
+
+
+.cam-sidebar-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.cam-sidebar-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fafbfc;
+}
+.cam-sidebar-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+}
+.cam-counter-pills {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+.counter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #475569;
+}
+.counter-item i { font-size: 12px; }
+.counter-item b { font-weight: 700; color: #1e293b; }
+.counter-item.danger { background: #fff1f2; }
+.counter-item.danger i { color: #ef4444; }
+.counter-item.danger b { color: #dc2626; }
+.cam-btn-icon {
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #94a3b8;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cam-btn-icon:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+
+.cam-feed-container {
+  padding: 10px;
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+
+.cam-empty-feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 16px;
+  margin: auto;
+}
+.cam-empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+.cam-empty-title {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.cam-empty-hint {
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+
+
+.cam-event-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  transition: transform 0.12s ease;
+}
+.cam-event-card.animate-in {
+  animation: slide-in-down 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cam-event-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.cam-event-avatar.known { background: rgba(6, 182, 212, 0.12); color: #0891b2; }
+.cam-event-avatar.stranger { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
+.cam-event-avatar.whitelist { background: rgba(16, 185, 129, 0.12); color: #059669; }
+.cam-event-avatar.unknown { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.cam-event-avatar.person { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
+
+.cam-event-body {
+  flex-grow: 1;
+  min-width: 0;
+}
+.cam-event-title {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cam-event-meta {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.cam-event-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+.cam-event-badge.known { background: #ecfeff; color: #0891b2; }
+.cam-event-badge.stranger { background: #fef2f2; color: #dc2626; }
+.cam-event-badge.whitelist { background: #ecfdf5; color: #059669; }
+.cam-event-badge.unknown { background: #fffbeb; color: #d97706; }
+.cam-event-badge.person { background: #f5f3ff; color: #7c3aed; }
+
+@keyframes radar-ping {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 0; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+@keyframes slide-in-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin-kf { to { transform: rotate(360deg); } }
+.spin-anim { animation: spin-kf 1s linear infinite; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const video = document.getElementById('webcam-video');
+    const overlay = document.getElementById('webcam-overlay');
+    const placeholder = document.getElementById('webcam-placeholder');
+    const btnDevice = document.getElementById('btn-select-device');
+    const btnClear = document.getElementById('btn-clear-results');
+    const uploadInput = document.getElementById('upload-input');
+    const uploadCanvas = document.getElementById('upload-canvas');
+    const uploadPlaceholder = document.getElementById('upload-placeholder');
+    const videoUploadInput = document.getElementById('video-upload-input');
+    const videoPlayer = document.getElementById('video-player');
+    const videoOverlay = document.getElementById('video-overlay');
+    const videoPlaceholder = document.getElementById('video-placeholder');
+    const videoAnalysisStatus = document.getElementById('video-analysis-status');
+    const videoCancelBtn = document.getElementById('video-cancel-btn');
+    const videoJobMessage = document.getElementById('video-job-message');
+    const videoJobProgress = document.getElementById('video-job-progress');
+    const videoFileName = document.getElementById('video-file-name');
+    const videoPreviewWarning = document.getElementById('video-preview-warning');
+    let selectedVideoFile = null;
+    let videoObjectUrl = null;
+    let videoJobId = null;
+    let videoJobEpoch = 0;
+    let videoJobBusy = false;
+    let videoCancellationRequested = false;
+    let videoPollTimer = null;
+    let videoEvents = [];
+    let videoRenderedKey = null;
+    let videoEventNodes = new Map();
+    let videoResumePending = false;
+    let videoDetectionFrames = [];
+    let videoSyncActive = false;
+    let videoSyncBusy = false;
+    let videoSyncPending = false;
+    let videoSyncEpoch = 0;
+    let videoSyncLastTime = -Infinity;
+    let videoSyncViewEpoch = 0;
+    let videoSyncTimer = null;
+    let videoSyncStreamId = '';
+    let videoEventRevision = 0;
+    const videoFrameCanvas = document.createElement('canvas');
+    let detectionActiveTab = localStorage.getItem('detection_tab') || 'rtsp';
+    const resultsDiv = document.getElementById('detection-results');
+
+    const rtspCamera = document.getElementById('rtsp-camera');
+    const rtspPlaceholder = document.getElementById('rtsp-placeholder');
+    const rtspFeed = document.getElementById('rtsp-feed');
+    const rtspFeedImg = document.getElementById('rtsp-feed-img');
+    const rtspOverlay = document.getElementById('rtsp-overlay');
+    const hudCamName = document.getElementById('hud-cam-name');
+    const statusIndicator = document.getElementById('cam-status-indicator');
+    const dockBtnPower = document.getElementById('dock-btn-power');
+
+    const statPersonCount = document.getElementById('stat-person-count');
+    const statPlateCount = document.getElementById('stat-plate-count');
+    // Ô đếm khuôn mặt đã bỏ khỏi giao diện; giữ biến (null) để các chỗ `if (statFaceCount)` không ném ReferenceError.
+    const statFaceCount = document.getElementById('stat-face-count');
+    const statAlertCount = document.getElementById('stat-alert-count');
+
+    let stream = null;
+    let currentDeviceId = null;
+    let webcamInterval = null;
+    const captureCanvas = document.createElement('canvas');
+    const liveClientId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let webcamStreamId = '';
+    let webcamFrameSize = [640, 360];
+
+    let rtspActive = false;
+    let rtspProcessing = false;
+    let rtspDetectionLoop = null;
+    let rtspLastResults = [];
+    const rtspSmoothBoxes = new Map();
+    let rtspStreamId = '';
+    let rtspFrameSize = [640, 360];
+
+    function captureLiveFrame(source, canvas) {
+      const width = source.naturalWidth || source.videoWidth || source.width;
+      const height = source.naturalHeight || source.videoHeight || source.height;
+      if (!width || !height) return null;
+      const scale = Math.min(1, 1280 / Math.max(width, height));
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      canvas.getContext('2d', { alpha: false }).drawImage(source, 0, 0, canvas.width, canvas.height);
+      return [canvas.width, canvas.height];
+    }
+
+    function updateHudCamName() {
+      if (rtspCamera && hudCamName) {
+        const selected = rtspCamera.options[rtspCamera.selectedIndex];
+        if (selected) hudCamName.textContent = selected.text || 'Camera';
+      }
+    }
+    if (rtspCamera) {
+      updateHudCamName();
+      rtspCamera.addEventListener('change', () => {
+        updateHudCamName();
+        localStorage.setItem('selected_rtsp_camera', rtspCamera.value);
+        if (rtspActive) {
+          window.toggleRtsp().then(() => window.toggleRtsp());
+        }
+      });
+      const savedCam = localStorage.getItem('selected_rtsp_camera');
+      if (savedCam && Array.from(rtspCamera.options).some(o => o.value === savedCam)) {
+        rtspCamera.value = savedCam;
+        updateHudCamName();
+      }
+    }
+
+    function setStreamActiveState(state) {
+      if (state === true || state === 'live') {
+        if (statusIndicator) {
+          statusIndicator.style.display = 'inline-flex';
+          statusIndicator.style.background = '';
+          statusIndicator.style.color = '';
+          statusIndicator.innerHTML = '<span class="pulse-point"></span><span>LIVE</span>';
+        }
+        dockBtnPower.classList.add('active-stream');
+        dockBtnPower.title = 'Tắt camera';
+      } else if (state === 'connecting') {
+        if (statusIndicator) {
+          statusIndicator.style.display = 'inline-flex';
+          statusIndicator.style.background = 'rgba(245, 158, 11, 0.15)';
+          statusIndicator.style.color = '#f59e0b';
+          statusIndicator.innerHTML = '<i class="bx bx-loader-alt spin-anim" style="font-size:12px;"></i><span>ĐANG KẾT NỐI...</span>';
+        }
+        dockBtnPower.classList.remove('active-stream');
+        dockBtnPower.title = 'Đang kết nối (nhấn để hủy)...';
+      } else {
+        if (statusIndicator) statusIndicator.style.display = 'none';
+        dockBtnPower.classList.remove('active-stream');
+        dockBtnPower.title = 'Bật / Dừng';
+      }
+    }
+
+    window.handleActiveStreamToggle = function () {
+      const currentTab = localStorage.getItem('detection_tab') || 'rtsp';
+      if (currentTab === 'rtsp') {
+        window.toggleRtsp();
+      } else if (currentTab === 'webcam') {
+        window.toggleWebcam();
+      } else if (currentTab === 'upload') {
+        uploadInput.click();
+      } else if (currentTab === 'video') {
+        if (!videoPlayer || videoPlayer.classList.contains('d-none') || !videoPlayer.src) {
+          videoUploadInput.click();
+        } else {
+          if (videoPlayer.paused) videoPlayer.play();
+          else videoPlayer.pause();
+        }
+      }
+    };
+
+    window.toggleFullscreen = function () {
+      const elem = document.getElementById('cam-monitor-viewport');
+      if (!document.fullscreenElement) {
+        if (elem.requestFullscreen) elem.requestFullscreen();
+        else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+      }
+    };
+
+    window.captureSnapshot = function () {
+      let activeSource = null;
+      const currentTab = localStorage.getItem('detection_tab') || 'rtsp';
+      if (currentTab === 'rtsp' && rtspActive) {
+        activeSource = (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) ? rtspFeedImg : rtspFeed;
+      } else if (currentTab === 'webcam' && stream) {
+        activeSource = video;
+      } else if (currentTab === 'upload' && !uploadCanvas.classList.contains('d-none')) {
+        activeSource = uploadCanvas;
+      } else if (currentTab === 'video' && videoPlayer && !videoPlayer.classList.contains('d-none')) {
+        activeSource = videoPlayer;
+      }
+
+      if (!activeSource) return;
+
+      const snapCanvas = document.createElement('canvas');
+      const w = activeSource.naturalWidth || activeSource.videoWidth || activeSource.width;
+      const h = activeSource.naturalHeight || activeSource.videoHeight || activeSource.height;
+      if (!w || !h) return;
+
+      snapCanvas.width = w;
+      snapCanvas.height = h;
+      snapCanvas.getContext('2d').drawImage(activeSource, 0, 0, w, h);
+
+      const link = document.createElement('a');
+      const timeStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      link.download = `snapshot_${timeStr}.jpg`;
+      link.href = snapCanvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    };
+
+    function smoothBoxes(store, results) {
+      const seen = new Set();
+      const out = results.map((r, i) => {
+        if (!Array.isArray(r.bbox) || r.bbox.length !== 4) return r;
+        const key = r.track_id ? `${r.type}:${r.track_id}` : `${r.type}#${i}`;
+        seen.add(key);
+        const prev = store.get(key);
+        const box = prev ? prev.map((v, j) => v + (r.bbox[j] - v) * 0.35) : r.bbox.slice();
+        store.set(key, box);
+        return Object.assign({}, r, { bbox: box });
+      });
+      for (const key of Array.from(store.keys())) if (!seen.has(key)) store.delete(key);
+      return out;
+    }
+
+    function drawBoxes(canvas, img, results, srcW, srcH) {
+      const ctx = canvas.getContext('2d');
+      const naturalW = (img instanceof HTMLImageElement) ? img.naturalWidth : (img.videoWidth || img.width);
+      const naturalH = (img instanceof HTMLImageElement) ? img.naturalHeight : (img.videoHeight || img.height);
+      if (!naturalW || !naturalH) return;
+
+      canvas.width = naturalW;
+      canvas.height = naturalH;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (canvas === uploadCanvas) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+
+      if (!Array.isArray(results)) results = [];
+      results = results.filter(item => item.type === 'person' || item.type === 'plate');
+
+      const detW = srcW || 640;
+      const detH = srcH || 360;
+      const scaleX = canvas.width / detW;
+      const scaleY = canvas.height / detH;
+
+      for (const r of results) {
+
+        const x1 = r.bbox[0] * scaleX;
+        const y1 = r.bbox[1] * scaleY;
+        const x2 = r.bbox[2] * scaleX;
+        const y2 = r.bbox[3] * scaleY;
+        const w = x2 - x1;
+        const h = y2 - y1;
+        if (w <= 0 || h <= 0) continue;
+
+        let color = '#3b82f6';
+        let labelIcon = '🎯';
+        let labelText = r.text || '';
+
+        if (r.type === 'plate') {
+          if (r.status === 'whitelist') {
+            color = '#10b981';
+            labelIcon = '🚗';
+            labelText = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
+          } else {
+            color = (r.text && r.text !== '(BIỂN SỐ ?)') ? '#10b981' : '#f59e0b';
+            labelIcon = '🚗';
+            if (!r.text || r.text === '(BIỂN SỐ ?)' || r.status === 'no_plate') {
+              labelText = 'Biển số';
+            } else {
+              labelText = r.text;
+            }
+          }
+        } else if (r.type === 'person') {
+          color = '#8b5cf6';
+          labelIcon = '🚶';
+          labelText = 'Người';
+        }
+
+        ctx.fillStyle = color + '15';
+        ctx.fillRect(x1, y1, w, h);
+
+        const uiScale = Math.max(1, canvas.width / 960);
+        ctx.strokeStyle = color + '66';
+        ctx.lineWidth = Math.max(1, 1 * uiScale);
+        ctx.strokeRect(x1, y1, w, h);
+
+        const cLen = Math.min(24 * uiScale, w * 0.28, h * 0.28);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5 * uiScale;
+        ctx.lineCap = 'round';
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1 + cLen); ctx.lineTo(x1, y1); ctx.lineTo(x1 + cLen, y1);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x2 - cLen, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + cLen);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y2 - cLen); ctx.lineTo(x1, y2); ctx.lineTo(x1 + cLen, y2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x2 - cLen, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cLen);
+        ctx.stroke();
+
+        const confText = (r.confidence && r.confidence > 0) ? ` ${Math.round(r.confidence)}%` : '';
+        const pillText = `${labelIcon} ${labelText}${confText}`;
+        const fontSize = Math.max(12, Math.round(13 * uiScale));
+        ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+        const textMetrics = ctx.measureText(pillText);
+        const pillW = textMetrics.width + 14 * uiScale;
+        const pillH = 22 * uiScale;
+        const pillX = Math.max(0, x1);
+        const pillY = Math.max(pillH + 4 * uiScale, y1 - 4 * uiScale);
+
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.90)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(pillX, pillY - pillH, pillW, pillH, 5 * uiScale);
+        else ctx.rect(pillX, pillY - pillH, pillW, pillH);
+        ctx.fill();
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.2 * uiScale;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pillText, pillX + 7 * uiScale, pillY - pillH / 2);
+      }
+    }
+
+    // Bộ nhớ tích lũy các biển số và sự kiện đã phát hiện (không xóa biển cũ)
+    const detectedHistory = [];
+    const MAX_HISTORY_EVENTS = 50;
+
+    function createCardElement(r) {
+      const card = document.createElement('div');
+      card.id = `card-${r.key}`;
+      if (r.trackId) card.dataset.trackId = r.trackId;
+      card.className = 'cam-event-card animate-in';
+
+      let avatarClass = 'known';
+      let avatarIcon = '🚗';
+      let title = r.text || '';
+      let badgeClass = 'known';
+      let badgeText = `${Math.round(r.confidence)}%`;
+
+      if (r.type === 'face') {
+        avatarIcon = '👤';
+        if (r.status === 'known') {
+          avatarClass = 'known';
+          badgeClass = 'known';
+          title = r.text;
+          badgeText = `${Math.round(r.confidence)}%`;
+        } else {
+          avatarClass = 'stranger';
+          badgeClass = 'stranger';
+          title = 'Người lạ';
+          badgeText = 'Cảnh báo';
+        }
+      } else if (r.type === 'plate') {
+        avatarIcon = '🚗';
+        if (r.status === 'whitelist') {
+          avatarClass = 'whitelist';
+          badgeClass = 'whitelist';
+          title = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
+          badgeText = 'Whitelist';
+        } else {
+          avatarClass = r.is_recognized ? 'known' : 'unknown';
+          badgeClass = r.is_recognized ? 'known' : 'unknown';
+          title = (!r.is_recognized || r.text === '(BIỂN SỐ ?)') ? 'Chưa rõ biển' : r.text;
+          badgeText = r.is_recognized ? 'Xe lạ' : 'Đang quét';
+        }
+      }
+
+      card.innerHTML = `
+        <div class="cam-event-avatar ${avatarClass}">
+          ${avatarIcon}
+        </div>
+        <div class="cam-event-body">
+          <div class="cam-event-title" style="font-weight:700;letter-spacing:0.3px;">${title}</div>
+          <div class="cam-event-meta">${r.timeStr}</div>
+        </div>
+        <span class="cam-event-badge ${badgeClass}">${badgeText}</span>
+      `;
+      return card;
+    }
+
+    function renderResults(data) {
+      if (data.error) {
+        console.warn("Detection response warning:", data.error);
+        return;
+      }
+
+      if (!Array.isArray(data.results) || data.results.length === 0) return;
+
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+      let hasNewEvent = false;
+
+      data.results.forEach(r => {
+        const isPlate = r.type === 'plate';
+        const rawText = (r.text || '').trim();
+        const isRecognizedPlate = isPlate && rawText && rawText !== '(BIỂN SỐ ?)' && rawText.length >= 3;
+
+        if (isRecognizedPlate) {
+          const cleanKey = 'plate_' + rawText.replace(/[^A-Z0-9]/g, '');
+          let existingCard = null;
+          if (r.track_id) {
+            existingCard = resultsDiv.querySelector(`.cam-event-card[data-track-id="${r.track_id}"]`);
+          }
+          if (!existingCard) {
+            existingCard = document.getElementById('card-' + cleanKey);
+          }
+
+          if (existingCard) {
+            // Gắn track_id nếu trước đó chưa có
+            if (r.track_id) existingCard.dataset.trackId = r.track_id;
+            // Nếu biển số được tinh chỉnh chính xác hơn ở các frame tiếp theo:
+            const titleEl = existingCard.querySelector('.cam-event-title');
+            const expectedTitle = (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown'))
+              ? `${rawText} • ${r.owner_name}`
+              : rawText;
+            if (titleEl && titleEl.textContent !== expectedTitle) {
+              titleEl.textContent = expectedTitle;
+              existingCard.id = 'card-' + cleanKey;
+              const hItem = detectedHistory.find(item => (r.track_id && item.trackId === r.track_id) || item.key === cleanKey);
+              if (hItem) {
+                hItem.text = rawText;
+                hItem.key = cleanKey;
+                hItem.owner_name = r.owner_name;
+                hItem.status = r.status;
+              }
+            }
+            // Cập nhật trạng thái whitelist nếu có
+            if (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown')) {
+              const badge = existingCard.querySelector('.cam-event-badge');
+              if (badge && !badge.classList.contains('whitelist')) {
+                badge.className = 'cam-event-badge whitelist';
+                badge.textContent = 'Whitelist';
+                const avatar = existingCard.querySelector('.cam-event-avatar');
+                if (avatar) avatar.className = 'cam-event-avatar whitelist';
+                hasNewEvent = true;
+              }
+            }
+          } else {
+            // Biển MỚI: Thêm vào đầu feed, giữ nguyên toàn bộ biển cũ
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const unresEl = document.getElementById('card-plate_unresolved');
+            if (unresEl) {
+              unresEl.remove();
+              const unresIdx = detectedHistory.findIndex(item => item.key === 'plate_unresolved');
+              if (unresIdx !== -1) detectedHistory.splice(unresIdx, 1);
+            }
+
+            const newCard = createCardElement({
+              key: cleanKey,
+              trackId: r.track_id,
+              type: 'plate',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'unknown',
+              owner_name: r.owner_name,
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            if (r.track_id) newCard.dataset.trackId = r.track_id;
+
+            resultsDiv.prepend(newCard);
+            detectedHistory.unshift({
+              key: cleanKey,
+              trackId: r.track_id || null,
+              type: 'plate',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'unknown',
+              owner_name: r.owner_name,
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            hasNewEvent = true;
+          }
+        } else if (r.type === 'face') {
+          const faceKey = 'face_' + rawText.replace(/[^A-Za-z0-9]/g, '');
+          const existingCard = document.getElementById('card-' + faceKey);
+
+          if (!existingCard) {
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const newCard = createCardElement({
+              key: faceKey,
+              type: 'face',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'stranger',
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+
+            resultsDiv.prepend(newCard);
+            detectedHistory.unshift({
+              key: faceKey,
+              type: 'face',
+              text: rawText,
+              confidence: r.confidence || 0,
+              status: r.status || 'stranger',
+              timeStr: timeStr,
+              is_recognized: true,
+            });
+            hasNewEvent = true;
+          }
+        } else if (isPlate && !isRecognizedPlate) {
+          // Chưa đọc được chữ trên biển: Chỉ hiển thị thẻ tạm thời nếu chưa có bất kỳ thẻ nào
+          if (detectedHistory.length === 0 && !document.getElementById('card-plate_unresolved')) {
+            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
+            if (emptyEl) emptyEl.remove();
+
+            const newCard = createCardElement({
+              key: 'plate_unresolved',
+              type: 'plate',
+              text: '(BIỂN SỐ ?)',
+              confidence: r.confidence || 0,
+              status: 'unknown',
+              timeStr: timeStr,
+              is_recognized: false,
+            });
+            resultsDiv.prepend(newCard);
+          }
+        }
+      });
+
+      // Giới hạn số lượng thẻ hiển thị
+      while (resultsDiv.children.length > MAX_HISTORY_EVENTS) {
+        resultsDiv.removeChild(resultsDiv.lastElementChild);
+      }
+      if (detectedHistory.length > MAX_HISTORY_EVENTS) {
+        detectedHistory.length = MAX_HISTORY_EVENTS;
+      }
+
+      // Cập nhật số liệu thống kê khi có sự kiện mới
+      if (hasNewEvent) {
+        let countFaces = 0, countPlates = 0, countAlerts = 0;
+        detectedHistory.forEach(item => {
+          if (item.type === 'plate' && item.is_recognized) {
+            countPlates++;
+            if (item.status === 'unknown') countAlerts++;
+          } else if (item.type === 'face') {
+            countFaces++;
+            if (item.status === 'stranger') countAlerts++;
+          }
+        });
+
+        if (statFaceCount) statFaceCount.textContent = countFaces;
+        if (statPlateCount) statPlateCount.textContent = countPlates;
+        if (statAlertCount) statAlertCount.textContent = countAlerts;
+      }
+    }
+
+    async function sendFrame(blob, source = 'webcam', fields = {}) {
+      const sourceFrameOnly = source === 'rtsp' && Number(fields.camera_id) > 0;
+      if ((!blob || blob.size === 0) && !sourceFrameOnly) {
+        console.error('Detection frame encoding returned an empty image');
+        return { error: "Ảnh không hợp lệ", results: [] };
+      }
+      const fd = new FormData();
+      if (blob && blob.size > 0) fd.append('file', blob, 'frame.jpg');
+      fd.append('source', source);
+      Object.entries(fields).forEach(([name, value]) => fd.append(name, String(value)));
+      const result = await apiRequest('/admin/detection/api/detect', { method: 'POST', body: fd });
+      if (result.ok && !Array.isArray(result.results)) {
+        console.error('Detection response missing results array');
+        return { error: 'Phản hồi nhận diện không hợp lệ', results: [] };
+      }
+      return result.ok ? result : { error: result.message, results: [] };
+    }
+
+    window.stopWebcam = function () {
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        if (typeof webcamInterval === 'number') clearInterval(webcamInterval);
+        webcamInterval = false;
+        video.classList.add('d-none');
+        overlay.classList.add('d-none');
+        placeholder.classList.remove('d-none');
+        setStreamActiveState(false);
+      }
+    };
+
+    window.toggleWebcam = async () => {
+      if (stream) {
+        window.stopWebcam();
+        return;
+      }
+
+      const constraints = {
+        video: currentDeviceId
+          ? { deviceId: { exact: currentDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      };
+
+      const camera = await cameraRequest(constraints);
+      if (!camera.ok) {
+        stream = null;
+        placeholder.classList.remove('d-none');
+        video.classList.add('d-none');
+        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:camera.message,type:'error'}}));
+        return;
+      }
+      stream = camera.stream;
+
+      video.srcObject = stream;
+      video.classList.remove('d-none');
+      placeholder.classList.add('d-none');
+      setStreamActiveState(true);
+      webcamInterval = true;
+      webcamStreamId = `${liveClientId}:webcam:${Date.now()}`;
+      let isProcessing = false;
+      let lastResults = [];
+      const webcamSmoothBoxes = new Map();
+
+      const runDetection = async () => {
+        if (!stream || !webcamInterval || isProcessing) return;
+        if (!video.videoWidth || video.readyState < 2) return;
+
+        isProcessing = true;
+        webcamFrameSize = captureLiveFrame(video, captureCanvas) || webcamFrameSize;
+
+        captureCanvas.toBlob(async (blob) => {
+          if (!webcamInterval) { isProcessing = false; return; }
+          const data = await sendFrame(blob, 'webcam', { stream_id: webcamStreamId });
+          isProcessing = false;
+          if (!webcamInterval) return;
+          if (data.error) {
+            renderResults(data);
+            window.stopWebcam();
+            return;
+          }
+          lastResults = data.results;
+          renderResults(data);
+        }, 'image/jpeg', 0.88);
+      };
+
+      const drawOverlay = () => {
+        if (!stream || !webcamInterval) return;
+        if (video.videoWidth && lastResults.length > 0) {
+          overlay.classList.remove('d-none');
+          overlay.width = video.clientWidth;
+          overlay.height = video.clientHeight;
+          drawBoxes(overlay, video, smoothBoxes(webcamSmoothBoxes, lastResults), webcamFrameSize[0], webcamFrameSize[1]);
+        } else {
+          overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+          webcamSmoothBoxes.clear();
+        }
+        requestAnimationFrame(drawOverlay);
+      };
+
+      const detectionLoop = setInterval(runDetection, 250);
+      requestAnimationFrame(drawOverlay);
+
+      const origStop = window.stopWebcam;
+      window.stopWebcam = function () {
+        clearInterval(detectionLoop);
+        lastResults = [];
+        webcamSmoothBoxes.clear();
+        origStop();
+      };
+    };
+
+    const getActiveRtspEl = () => {
+      if (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) return rtspFeedImg;
+      return rtspFeed;
+    };
+
+    const runRtspDetection = async () => {
+      if (!rtspActive || rtspProcessing) return;
+      const el = getActiveRtspEl();
+      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0 && el.complete) : (el.videoWidth > 0 && el.readyState >= 2);
+      if (!hasContent) return;
+
+      if (!rtspHasLiveFeed) {
+        rtspHasLiveFeed = true;
+        setStreamActiveState('live');
+        if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+      }
+
+      rtspProcessing = true;
+      try {
+        const data = await sendFrame(null, 'rtsp', {
+          stream_id: rtspStreamId, camera_id: Number(rtspCamera?.value || 0),
+        });
+        if (!rtspActive) return;
+        if (data.error) {
+          renderResults(data);
+          return;
+        }
+        if (Array.isArray(data.frame_size)) rtspFrameSize = data.frame_size;
+        rtspLastResults = data.results;
+        renderResults(data);
+      } finally {
+        rtspProcessing = false;
+      }
+    };
+
+    const drawRtspOverlay = () => {
+      if (!rtspActive) return;
+      const el = getActiveRtspEl();
+      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0) : (el.videoWidth > 0);
+      if (hasContent && rtspLastResults.length > 0) {
+        rtspOverlay.classList.remove('d-none');
+        rtspOverlay.width = el.clientWidth;
+        rtspOverlay.height = el.clientHeight;
+        drawBoxes(rtspOverlay, el, smoothBoxes(rtspSmoothBoxes, rtspLastResults), rtspFrameSize[0], rtspFrameSize[1]);
+      } else {
+        rtspOverlay.getContext('2d').clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+        rtspSmoothBoxes.clear();
+      }
+      requestAnimationFrame(drawRtspOverlay);
+    };
+
+    let rtspReconnectTimer = null;
+    let rtspStatusCheckTimer = null;
+    let rtspWatchdogTimer = null;
+    let rtspReconnectAttempts = 0;
+    let rtspHasLiveFeed = false;
+
+    function showCameraOffline(msg = 'Camera đang tắt hoặc không thể kết nối.') {
+      if (msg) {
+        const errBanner = document.getElementById('rtsp-error-banner');
+        const errText = document.getElementById('rtsp-error-text');
+        if (errText) errText.textContent = msg;
+        if (errBanner) errBanner.style.display = 'flex';
+      }
+
+      rtspActive = false;
+      rtspHasLiveFeed = false;
+      if (rtspDetectionLoop) { clearInterval(rtspDetectionLoop); rtspDetectionLoop = null; }
+      if (rtspReconnectTimer) { clearTimeout(rtspReconnectTimer); rtspReconnectTimer = null; }
+      if (rtspStatusCheckTimer) { clearInterval(rtspStatusCheckTimer); rtspStatusCheckTimer = null; }
+      if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+      rtspLastResults = [];
+      rtspSmoothBoxes.clear();
+      if (rtspFeedImg) {
+        rtspFeedImg.onerror = null;
+        rtspFeedImg.src = '';
+        rtspFeedImg.classList.add('d-none');
+      }
+      rtspFeed.classList.add('d-none');
+      rtspOverlay.classList.add('d-none');
+      const ctx = rtspOverlay.getContext('2d');
+      ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+      rtspPlaceholder.classList.remove('d-none');
+      setStreamActiveState(false);
+
+      const camId = rtspCamera ? rtspCamera.value : null;
+      if (camId) {
+        fetch(`/admin/cameras/${camId}/stream/stop`, { method: 'POST', keepalive: true });
+      }
+    }
+
+    function connectMJPEG(camId) {
+      rtspFeed.classList.add('d-none');
+      rtspHasLiveFeed = false;
+
+      if (rtspWatchdogTimer) clearTimeout(rtspWatchdogTimer);
+      rtspWatchdogTimer = setTimeout(() => {
+        if (rtspActive && !rtspHasLiveFeed) {
+          console.warn('Watchdog: Camera took >20s to respond, camera is off.');
+          showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+        }
+      }, 20000);
+
+      if (rtspFeedImg) {
+        if (rtspReconnectTimer) clearTimeout(rtspReconnectTimer);
+        rtspFeedImg.onload = function() {
+          if (!rtspActive) return;
+          rtspReconnectAttempts = 0;
+          rtspHasLiveFeed = true;
+          setStreamActiveState('live');
+          if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+        };
+        rtspFeedImg.onerror = function() {
+          if (!rtspActive) return;
+          rtspReconnectAttempts++;
+          if (rtspReconnectAttempts > 3) {
+            console.warn('RTSP stream failed. Camera offline.');
+            showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+            return;
+          }
+          console.warn(`RTSP stream retry #${rtspReconnectAttempts}...`);
+          rtspReconnectTimer = setTimeout(() => {
+            if (rtspActive && rtspCamera && rtspCamera.value == camId) {
+              rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
+            }
+          }, 2000);
+        };
+        rtspFeedImg.src = `/admin/detection/stream/${camId}?t=${Date.now()}`;
+        rtspFeedImg.classList.remove('d-none');
+      }
+
+      if (rtspStatusCheckTimer) clearInterval(rtspStatusCheckTimer);
+      const streamStartedAt = Date.now();
+      let offlineStreak = 0;
+      rtspStatusCheckTimer = setInterval(async () => {
+        if (!rtspActive || !rtspCamera || rtspCamera.value != camId) {
+          clearInterval(rtspStatusCheckTimer);
+          return;
+        }
+        // Give backend at least 10 seconds grace period to spawn grabber and open RTSP
+        if (Date.now() - streamStartedAt < 10000) {
+          return;
+        }
+        try {
+          const res = await fetch(`/admin/cameras/${camId}/stream/status`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.streaming === false) {
+              offlineStreak++;
+              if (offlineStreak >= 3) {
+                console.warn('Backend stream status: camera stopped.');
+                showCameraOffline('Camera đang tắt hoặc mất kết nối.');
+              }
+            } else {
+              offlineStreak = 0;
+            }
+          }
+        } catch (e) {
+          // ignore network glitch
+        }
+      }, 2500);
+    }
+
+    window.toggleRtsp = async () => {
+      const camId = rtspCamera.value;
+      if (!camId) return;
+
+      const isCurrentlyOpen = rtspActive || (rtspFeedImg && !rtspFeedImg.classList.contains('d-none'));
+
+      if (isCurrentlyOpen) {
+        showCameraOffline('');
+        const errBanner = document.getElementById('rtsp-error-banner');
+        if (errBanner) errBanner.style.display = 'none';
+      } else {
+        const errBanner = document.getElementById('rtsp-error-banner');
+        if (errBanner) errBanner.style.display = 'none';
+
+        rtspReconnectAttempts = 0;
+        rtspHasLiveFeed = false;
+        if (rtspStatusCheckTimer) { clearInterval(rtspStatusCheckTimer); rtspStatusCheckTimer = null; }
+        if (rtspWatchdogTimer) { clearTimeout(rtspWatchdogTimer); rtspWatchdogTimer = null; }
+
+        fetch(`/admin/cameras/${camId}/stream/start`, { method: 'POST' });
+
+        rtspActive = true;
+        rtspStreamId = `${liveClientId}:rtsp:${camId}:${Date.now()}`;
+        rtspPlaceholder.classList.add('d-none');
+        setStreamActiveState('connecting');
+        connectMJPEG(camId);
+
+        rtspDetectionLoop = setInterval(runRtspDetection, 120);
+        requestAnimationFrame(drawRtspOverlay);
+      }
+    };
+
+    function stopActiveRtspStream() {
+      if (rtspStatusCheckTimer) {
+        clearInterval(rtspStatusCheckTimer);
+        rtspStatusCheckTimer = null;
+      }
+      if (rtspWatchdogTimer) {
+        clearTimeout(rtspWatchdogTimer);
+        rtspWatchdogTimer = null;
+      }
+      if (rtspActive && rtspCamera && rtspCamera.value) {
+        const cid = rtspCamera.value;
+        fetch(`/admin/cameras/${cid}/stream/stop`, { method: 'POST', keepalive: true });
+      }
+    }
+
+    window.addEventListener('beforeunload', stopActiveRtspStream);
+    window.addEventListener('pagehide', stopActiveRtspStream);
+
+    window.clearResults = function (options) {
+      detectedHistory.length = 0;
+      fetch('/admin/detection/api/reset-tracker', { method: 'POST' }).catch(() => {});
+      if (statFaceCount) statFaceCount.textContent = '0';
+      if (statPersonCount) statPersonCount.textContent = '0';
+      if (statPlateCount) statPlateCount.textContent = '0';
+      if (statAlertCount) statAlertCount.textContent = '0';
+      resultsDiv.innerHTML = `
+        <div class="cam-empty-feed">
+          <div class="cam-empty-radar-icon"><i class="bx bx-radar"></i></div>
+          <div class="cam-empty-title">Chưa có sự kiện</div>
+        </div>`;
+      if (overlay) {
+        const ctx = overlay.getContext('2d');
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+      }
+      if (rtspOverlay) {
+        const rCtx = rtspOverlay.getContext('2d');
+        rCtx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
+      }
+      if (uploadCanvas) {
+        const uCtx = uploadCanvas.getContext('2d');
+        uCtx.clearRect(0, 0, uploadCanvas.width, uploadCanvas.height);
+        uploadCanvas.classList.add('d-none');
+      }
+      if (uploadPlaceholder) {
+        uploadPlaceholder.classList.remove('d-none');
+      }
+      if (videoOverlay) {
+        const vCtx = videoOverlay.getContext('2d');
+        vCtx.clearRect(0, 0, videoOverlay.width, videoOverlay.height);
+        videoOverlay.classList.add('d-none');
+      }
+      if (videoPlayer && !(options && options.preserveVideo === true)) {
+        resetVideoSelection();
+      }
+    };
+    if (btnClear) btnClear.addEventListener('click', window.clearResults);
+
+    window.onDetectionTabChanged = function (tab) {
+      detectionActiveTab = tab;
+      window.clearResults({ preserveVideo: true });
+      if (tab === 'video') {
+        videoRenderedKey = null;
+        renderVideoEvents();
+        scheduleVideoFrame(true);
+      }
+    };
+
+    if (btnDevice) {
+      btnDevice.addEventListener('click', async () => {
+        const result = await cameraDevicesRequest();
+        if (!result.ok) {
+          window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:result.message,type:'error'}}));
+          return;
+        }
+        const vd = result.devices;
+        if (!vd.length) {
+          window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Không tìm thấy camera.',type:'warning'}}));
+          return;
+        }
+        const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Camera ' + (i + 1)}`).join('\n');
+        const choice = prompt('Chọn camera:\n' + names, '1');
+        if (choice) {
+          const idx = parseInt(choice) - 1;
+          if (vd[idx]) {
+            currentDeviceId = vd[idx].deviceId;
+            if (stream) { window.toggleWebcam(); setTimeout(() => window.toggleWebcam(), 300); }
+          }
+        }
+      });
+    }
+
+    if (uploadInput) {
+      uploadInput.addEventListener('click', () => {
+        uploadInput.value = '';
+      });
+      uploadInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        uploadPlaceholder.classList.add('d-none');
+        uploadCanvas.classList.remove('d-none');
+
+        const img = new Image();
+        img.onload = async () => {
+          uploadCanvas.width = img.naturalWidth;
+          uploadCanvas.height = img.naturalHeight;
+          uploadCanvas.getContext('2d').drawImage(img, 0, 0);
+
+          resultsDiv.innerHTML = `
+            <div class="cam-event-card text-primary">
+              <i class="bx bx-loader-alt spin-anim mr-2" style="font-size:20px;"></i>
+              <span style="font-size:12.5px;">Đang phân tích...</span>
+            </div>`;
+
+          const MAX_UPLOAD = 3840;
+          let sendW = img.naturalWidth;
+          let sendH = img.naturalHeight;
+          if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
+            const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
+            sendW = Math.round(sendW * ratio);
+            sendH = Math.round(sendH * ratio);
+          }
+
+          const detectCanvas = document.createElement('canvas');
+          detectCanvas.width = sendW;
+          detectCanvas.height = sendH;
+          detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
+
+          detectCanvas.toBlob(async (blob) => {
+            const data = await sendFrame(blob, 'upload');
+            if (data.error) {
+              renderResults(data);
+              drawBoxes(uploadCanvas, img, [], sendW, sendH);
+            } else {
+              renderResults(data);
+              drawBoxes(uploadCanvas, img, data.results || [], sendW, sendH);
+            }
+            URL.revokeObjectURL(img.src);
+          }, 'image/jpeg', 0.90);
+        };
+        img.onerror = () => {
+          console.error('Detection upload image failed to load');
+          renderResults({ error: 'Không thể đọc ảnh đã chọn.', results: [] });
+          URL.revokeObjectURL(img.src);
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    function formatVideoTime(value) {
+      const number = Number(value);
+      const seconds = Number.isFinite(number) ? Math.max(0, number) : 0;
+      const minutes = Math.floor(seconds / 60);
+      return `${String(minutes).padStart(2, '0')}:${(seconds % 60).toFixed(1).padStart(4, '0')}`;
+    }
+
+    function stopVideoSync() {
+      videoSyncActive = false;
+      videoSyncPending = false;
+      videoSyncEpoch++;
+      videoSyncViewEpoch++;
+      if (videoSyncTimer) {
+        clearInterval(videoSyncTimer);
+        videoSyncTimer = null;
+      }
+    }
+
+    function startVideoSync() {
+      stopVideoSync();
+      videoSyncActive = true;
+      videoSyncLastTime = -Infinity;
+      videoSyncStreamId = `${liveClientId}:video:${Date.now()}`;
+      videoJobProgress.classList.add('d-none');
+      setVideoMessage('');
+      updateVideoControls();
+      renderVideoEvents();
+      scheduleVideoFrame(true);
+      videoSyncTimer = setInterval(() => scheduleVideoFrame(), 120);
+    }
+
+    function cropVideoFrame(box) {
+      if (!Array.isArray(box) || box.length !== 4) return '';
+      const [x1, y1, x2, y2] = box.map(Number);
+      if (![x1, y1, x2, y2].every(Number.isFinite)) return '';
+      const padX = Math.max(2, (x2 - x1) * .1);
+      const padY = Math.max(2, (y2 - y1) * .12);
+      const left = Math.max(0, Math.floor(x1 - padX));
+      const top = Math.max(0, Math.floor(y1 - padY));
+      const width = Math.min(videoFrameCanvas.width - left, Math.ceil(x2 + padX) - left);
+      const height = Math.min(videoFrameCanvas.height - top, Math.ceil(y2 + padY) - top);
+      if (width < 1 || height < 1) return '';
+      const crop = document.createElement('canvas');
+      crop.width = width;
+      crop.height = height;
+      crop.getContext('2d').drawImage(videoFrameCanvas, left, top, width, height, 0, 0, width, height);
+      return crop.toDataURL('image/jpeg', .9);
+    }
+
+    function plateBoxSimilarity(first, second) {
+      if (!Array.isArray(first) || !Array.isArray(second) || first.length !== 4 || second.length !== 4) return 0;
+      const [ax1, ay1, ax2, ay2] = first.map(Number);
+      const [bx1, by1, bx2, by2] = second.map(Number);
+      if (![ax1, ay1, ax2, ay2, bx1, by1, bx2, by2].every(Number.isFinite)) return 0;
+      const aw = ax2 - ax1, ah = ay2 - ay1, bw = bx2 - bx1, bh = by2 - by1;
+      if (aw <= 0 || ah <= 0 || bw <= 0 || bh <= 0) return 0;
+      const intersection = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1))
+        * Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
+      const overlap = intersection / (aw * ah + bw * bh - intersection);
+      const areaRatio = Math.max(aw * ah, bw * bh) / Math.max(1, Math.min(aw * ah, bw * bh));
+      const centerDistance = Math.hypot((ax1 + ax2 - bx1 - bx2) / 2, (ay1 + ay2 - by1 - by2) / 2);
+      const plateDiagonal = Math.max(1, Math.hypot(aw, ah), Math.hypot(bw, bh));
+      if (overlap >= .25) return overlap;
+      return areaRatio <= 2 && centerDistance <= plateDiagonal * .4
+        ? .25 - centerDistance / (plateDiagonal * 10) : 0;
+    }
+
+    function updateVideoPlateEvent(result, timestamp, index) {
+      const candidateText = result.valid_format === true
+        ? (typeof result.ocr_text === 'string' ? result.ocr_text.trim()
+          : typeof result.text === 'string' ? result.text.trim() : '') : '';
+      const trackKey = result.track_id != null
+        ? `${result.stream_id || videoSyncStreamId}:${result.track_id}` : '';
+      let event = trackKey
+        ? videoEvents.find(item => item.type === 'plate' && item.track_key === trackKey)
+        : videoEvents
+          .filter(item => item.type === 'plate' && timestamp >= Number(item.end_time)
+            && timestamp - Number(item.end_time) <= 8)
+          .map(item => ({ item, score: plateBoxSimilarity(item.bbox, result.bbox) }))
+          .filter(match => match.score > 0)
+          .sort((a, b) => b.score - a.score)[0]?.item;
+      if (!event) {
+        event = { id: trackKey || `sync-${timestamp.toFixed(1)}-${index}`, track_key: trackKey,
+          type: 'plate', text: '', status: 'unreadable',
+          ocr_confidence: 0, bbox: result.bbox, start_time: timestamp, end_time: timestamp,
+          crop_time: timestamp, crop_data: '', original_crop_data: '', best_sharpness: -1,
+          observations: 0 };
+        videoEvents.push(event);
+      }
+      event.revision = ++videoEventRevision;
+      event.bbox = result.bbox;
+      const sourceStart = Number(result.start_time);
+      const sourceEnd = Number(result.end_time);
+      if (Number.isFinite(sourceStart)) event.start_time = Math.min(Number(event.start_time), sourceStart);
+      if (Number.isFinite(sourceEnd)) event.end_time = Math.max(Number(event.end_time), sourceEnd);
+      event.observations = Math.max(Number(event.observations) || 0, Number(result.observations) || 0);
+
+      // The server owns temporal voting. Count observations there once per
+      // source frame; never vote again on repeated active-track snapshots here.
+      event.text = candidateText;
+      event.ocr_confidence = Number(result.ocr_confidence) || 0;
+      event.status = result.recognition_status || (candidateText ? 'uncertain' : 'unreadable');
+
+      if (result.crop_preview || result.crop_original) {
+        event.crop_time = Number.isFinite(Number(result.best_crop_time)) ? Number(result.best_crop_time) : timestamp;
+        event.crop_data = result.crop_preview || result.crop_original;
+        event.original_crop_data = result.crop_original || result.crop_preview;
+        event.best_sharpness = Number(result.quality?.sharpness) || 0;
+      }
+    }
+
+    async function analyzeVideoFrame(timestamp, epoch, viewEpoch) {
+      try {
+        const streamId = videoSyncStreamId;
+        videoFrameCanvas.width = videoPlayer.videoWidth;
+        videoFrameCanvas.height = videoPlayer.videoHeight;
+        videoFrameCanvas.getContext('2d', { alpha: false }).drawImage(videoPlayer, 0, 0);
+        const blob = await new Promise(resolve => videoFrameCanvas.toBlob(resolve, 'image/jpeg', .95));
+        if (!videoSyncActive || epoch !== videoSyncEpoch || viewEpoch !== videoSyncViewEpoch) return;
+        // Search the full frame every time so vehicles near either edge are
+        // not missed by a center-only pass.
+        const previewView = 'full';
+        // Use bounded reads during playback and flush the full track pipeline
+        // when paused.
+        const previewOcr = videoPlayer.paused ? 'full' : 'quick';
+        const data = await sendFrame(blob, 'video_preview', {
+          preview_view: previewView, preview_ocr: previewOcr,
+          stream_id: streamId, video_time: timestamp,
+          finish_tracks: videoPlayer.paused,
+        });
+        if (!videoSyncActive || epoch !== videoSyncEpoch) return;
+        // A seek supersedes the frame being processed, without starting a
+        // second server OCR request alongside the first one.
+        if (viewEpoch !== videoSyncViewEpoch) return;
+        if (data.error) {
+          setVideoMessage(data.error, true);
+          return;
+        }
+        const results = Array.isArray(data.results) ? data.results : [];
+        videoDetectionFrames.push({ time: timestamp, boxes: results, width: videoFrameCanvas.width, height: videoFrameCanvas.height });
+        if (videoDetectionFrames.length > 120) videoDetectionFrames.shift();
+        drawVideoDetections();
+        results.forEach((result, index) => {
+          if (result.type !== 'plate' && result.type !== 'person') return;
+          if (result.type === 'plate') {
+            updateVideoPlateEvent(result, timestamp, index);
+            return;
+          }
+          const validText = result.valid_format === true;
+          const status = result.type === 'person' ? 'recognized' :
+            validText ? result.recognition_status : 'unreadable';
+          const id = `sync-${timestamp.toFixed(1)}-${index}`;
+          videoEvents = videoEvents.filter(event => event.id !== id);
+          videoEvents.push({ id, revision: ++videoEventRevision, type: result.type, text: validText ? result.text : '',
+            status, ocr_confidence: result.ocr_confidence, bbox: result.bbox,
+            start_time: timestamp, end_time: timestamp,
+            crop_data: result.crop_preview || cropVideoFrame(result.bbox),
+            original_crop_data: cropVideoFrame(result.bbox) });
+        });
+        if (videoEvents.length > 150) videoEvents.splice(0, videoEvents.length - 150);
+        videoRenderedKey = null;
+        renderVideoEvents();
+        setVideoMessage(`Đã đọc khung ${formatVideoTime(timestamp)} · ${results.length} phát hiện.`);
+      } catch (error) {
+        if (videoSyncActive && epoch === videoSyncEpoch && viewEpoch === videoSyncViewEpoch) setVideoMessage('Không thể phân tích khung hình đang xem.', true);
+      } finally {
+        // Keep a single server request even if a different file was selected
+        // while this one was running. Browser cancellation cannot stop OCR.
+        videoSyncBusy = false;
+        if (videoSyncActive) {
+          if (videoSyncPending || epoch !== videoSyncEpoch) {
+            videoSyncPending = false;
+            scheduleVideoFrame(true);
+          }
+        }
+      }
+    }
+
+    function scheduleVideoFrame(force = false) {
+      if (!videoSyncActive || detectionActiveTab !== 'video' || videoPlayer.seeking || !videoPlayer.videoWidth || videoPlayer.readyState < 2) return;
+      const timestamp = videoPlayer.currentTime;
+      if (!Number.isFinite(timestamp) || (!force && Math.abs(timestamp - videoSyncLastTime) < .15)) return;
+      if (videoSyncBusy) {
+        videoSyncPending = true;
+        return;
+      }
+      videoSyncBusy = true;
+      videoSyncLastTime = timestamp;
+      setVideoMessage(`Đang đọc khung ${formatVideoTime(timestamp)}…`);
+      analyzeVideoFrame(timestamp, videoSyncEpoch, videoSyncViewEpoch);
+    }
+
+    function uploadVideoFile(form, epoch) {
+      // XHR exposes real upload byte progress; keep the response for safe late cancellation.
+      return new Promise(resolve => {
+        const upload = new XMLHttpRequest();
+        upload.open('POST', '/admin/detection/api/videos');
+        upload.responseType = 'json';
+        upload.upload.onprogress = event => {
+          if (epoch !== videoJobEpoch || !videoJobBusy || !event.lengthComputable) return;
+          const ratio = Math.min(1, event.loaded / Math.max(1, event.total));
+          videoJobProgress.value = ratio * 100;
+          setVideoMessage(ratio >= 1 ? 'Đang chuẩn bị nhận diện…' : `Đang tải video · ${Math.floor(ratio * 100)}%`);
+        };
+        upload.onload = () => {
+          const body = upload.response;
+          let loginRequired = false;
+          try { loginRequired = new URL(upload.responseURL).pathname === '/login'; } catch (_) {}
+          if (loginRequired) {
+            resolve({ ok: false, status: 401, message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
+            return;
+          }
+          if (!body || typeof body !== 'object' || Array.isArray(body)) {
+            resolve({ ok: false, status: upload.status, message: 'Máy chủ không trả về kết quả tải video hợp lệ.' });
+            return;
+          }
+          const apiStatus = typeof body.status === 'string' ? body.status : undefined;
+          const hasError = body.error !== undefined && body.error !== null && body.error !== false && body.error !== '';
+          const message = [body.message, body.msg, body.detail, body.error].find(value => typeof value === 'string' && value.trim()) || '';
+          const ok = upload.status >= 200 && upload.status < 300 && (body.ok === undefined || body.ok === true) && !hasError && apiStatus !== 'error';
+          resolve({ ...body, ok, api_status: apiStatus, status: upload.status, message: message || (ok ? '' : 'Không thể tải video. Hãy thử lại.') });
+        };
+        upload.onerror = () => resolve({ ok: false, status: 0, message: 'Mất kết nối khi tải video. Hãy kiểm tra mạng rồi thử lại.' });
+        upload.onabort = () => resolve({ ok: false, status: 0, message: 'Yêu cầu tải video đã dừng.' });
+        upload.send(form);
+      });
+    }
+
+    function setVideoMessage(message, isError = false) {
+      videoJobMessage.textContent = message;
+      videoJobMessage.classList.toggle('has-error', isError);
+    }
+
+    function updateVideoControls() {
+      videoCancelBtn.disabled = !(videoJobBusy || videoSyncActive) || videoCancellationRequested;
+      videoCancelBtn.classList.toggle('d-none', !(videoJobBusy || videoSyncActive));
+    }
+
+    function clearVideoPoll() {
+      if (videoPollTimer !== null) clearTimeout(videoPollTimer);
+      videoPollTimer = null;
+    }
+
+    function cancelVideoJobRequest(jobId) {
+      return apiRequest(`/admin/detection/api/videos/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+    }
+
+    function resetVideoSelection() {
+      stopVideoSync();
+      const oldJobId = videoJobId;
+      const wasBusy = videoJobBusy;
+      videoJobEpoch++;
+      clearVideoPoll();
+      videoJobId = null;
+      videoJobBusy = false;
+      videoCancellationRequested = false;
+      videoEvents = [];
+      videoDetectionFrames = [];
+      videoRenderedKey = null;
+      videoEventNodes.clear();
+      selectedVideoFile = null;
+      // A response to an older upload also cancels its job once its ID arrives.
+      if (oldJobId && wasBusy) cancelVideoJobRequest(oldJobId);
+      if (videoPlayer) {
+        videoPlayer.pause();
+        videoPlayer.removeAttribute('src');
+        videoPlayer.load();
+        videoPlayer.classList.add('d-none');
+      }
+      if (videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+      videoObjectUrl = null;
+      if (videoPlaceholder) videoPlaceholder.classList.remove('d-none');
+      if (videoUploadInput) videoUploadInput.value = '';
+      videoPreviewWarning.classList.add('d-none');
+      videoFileName.textContent = '';
+      videoJobProgress.value = 0;
+      videoAnalysisStatus.classList.add('d-none');
+      setVideoMessage('');
+      updateVideoControls();
+    }
+
+    function videoAssetUrl(value) {
+      if (typeof value !== 'string' || !value) return '';
+      try {
+        const url = new URL(value, window.location.href);
+        return url.origin === window.location.origin ? url.href : '';
+      } catch (_) { return ''; }
+    }
+
+    function renderVideoEvents() {
+      if (detectionActiveTab !== 'video') return;
+      if (statPersonCount) statPersonCount.textContent = String(videoEvents.filter(event => event.type === 'person').length);
+      if (statPlateCount) statPlateCount.textContent = String(videoEvents.filter(event => event.type !== 'person').length);
+      if (statAlertCount) statAlertCount.textContent = String(videoEvents.filter(event => event.type !== 'person' && event.status !== 'recognized').length);
+      const signature = event => JSON.stringify([event.id, event.track_id, event.text, event.status, event.ocr_confidence,
+        event.start_time, event.end_time, event.crop_url, event.snapshot_url, event.revision]);
+      const renderKey = `${videoEvents.length ? '' : videoJobBusy}:` + videoEvents.map(signature).join('|');
+      if (renderKey === videoRenderedKey) return;
+      videoRenderedKey = renderKey;
+      const fragment = document.createDocumentFragment();
+      const activeKeys = new Set();
+      if (!videoEvents.length) {
+        const empty = document.createElement('div');
+        empty.className = 'cam-empty-feed';
+        const title = document.createElement('div');
+        title.className = 'cam-empty-title';
+        title.textContent = videoJobBusy || videoSyncActive ? 'Đang tìm người và biển số…' : 'Chưa có sự kiện';
+        const hint = document.createElement('div');
+        hint.className = 'cam-empty-hint';
+        hint.textContent = '';
+        empty.append(title, hint);
+        fragment.append(empty);
+      }
+      videoEvents.forEach((event, index) => {
+        const key = String(event.id || `track-${event.track_id ?? index}`);
+        const eventSignature = signature(event);
+        activeKeys.add(key);
+        const cached = videoEventNodes.get(key);
+        if (cached && cached.signature === eventSignature) {
+          fragment.append(cached.node);
+          return;
+        }
+        const card = document.createElement('div');
+        card.className = 'cam-event-card video-event-card';
+        const cropUrl = typeof event.crop_data === 'string' && event.crop_data.startsWith('data:image/jpeg;base64,')
+          ? event.crop_data : videoAssetUrl(event.crop_url || event.snapshot_url);
+        if (cropUrl) {
+          const crop = document.createElement('img');
+          crop.className = 'video-event-crop';
+          crop.src = cropUrl;
+          crop.alt = event.type === 'person' ? 'Ảnh người được phát hiện' : 'Ảnh biển số rõ nhất của sự kiện';
+          crop.loading = 'lazy';
+          if (event.type === 'plate') {
+            crop.title = 'Xem ảnh gốc và ảnh đã xử lý';
+            crop.tabIndex = 0;
+            crop.setAttribute('role', 'button');
+            crop.addEventListener('click', () => showVideoCropPreview(event));
+            crop.addEventListener('keydown', key => {
+              if (key.key === 'Enter' || key.key === ' ') {
+                key.preventDefault();
+                showVideoCropPreview(event);
+              }
+            });
+          }
+          card.append(crop);
+        }
+        const body = document.createElement('div');
+        body.className = 'cam-event-body';
+        const title = document.createElement('div');
+        title.className = 'cam-event-title';
+        title.textContent = event.type === 'person' ? 'Người' : event.text || 'Phát hiện biển số';
+        const status = document.createElement('span');
+        const eventStatus = ['recognized', 'uncertain', 'unreadable'].includes(event.status) ? event.status : 'unreadable';
+        status.className = `video-event-status ${event.type === 'person' ? 'recognized' : eventStatus}`;
+        status.textContent = event.type === 'person' ? 'Đã phát hiện' : { recognized: 'Đã đọc', uncertain: 'Chưa chắc chắn', unreadable: 'Không đọc được' }[eventStatus];
+        const confidence = Number(event.ocr_confidence);
+        if (event.type !== 'person' && event.ocr_confidence !== null && event.ocr_confidence !== undefined && Number.isFinite(confidence) && eventStatus !== 'unreadable') {
+          status.textContent += ` · OCR ${Math.round(confidence)}%`;
+        }
+        const meta = document.createElement('div');
+        meta.className = 'cam-event-meta';
+        const seek = document.createElement('button');
+        seek.type = 'button';
+        seek.className = 'video-event-seek';
+        const seekTime = Number(event.crop_time ?? event.start_time) || 0;
+        seek.textContent = `Xem ${formatVideoTime(event.start_time)} – ${formatVideoTime(event.end_time ?? event.start_time)}`;
+        seek.addEventListener('click', () => {
+          if (!videoPlayer || !videoPlayer.videoWidth || videoPlayer.error) {
+            videoPreviewWarning.textContent = 'Trình duyệt chưa thể xem video này.';
+            videoPreviewWarning.classList.remove('d-none');
+            return;
+          }
+          videoPlayer.currentTime = Math.max(0, seekTime);
+          videoPlayer.pause();
+        });
+        meta.append(seek);
+        body.append(title, status, meta);
+        card.append(body);
+        videoEventNodes.set(key, { signature: eventSignature, node: card });
+        fragment.append(card);
+      });
+      for (const key of videoEventNodes.keys()) if (!activeKeys.has(key)) videoEventNodes.delete(key);
+      resultsDiv.replaceChildren(fragment);
+    }
+
+    function showVideoCropPreview(event) {
+      const dialog = document.createElement('dialog');
+      dialog.className = 'video-crop-dialog';
+      const title = document.createElement('strong');
+      title.textContent = `Ảnh biển số tại ${formatVideoTime(event.start_time)}`;
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'btn btn-sm btn-outline-secondary float-end';
+      close.textContent = 'Đóng';
+      close.addEventListener('click', () => dialog.close());
+      const comparison = document.createElement('div');
+      comparison.className = 'video-crop-comparison';
+      const processedCrop = typeof event.crop_data === 'string' && event.crop_data.startsWith('data:image/jpeg;base64,')
+        ? event.crop_data : videoAssetUrl(event.crop_url);
+      [['Ảnh gốc', event.original_crop_data], ['Ảnh đã xử lý', processedCrop]].forEach(([label, source]) => {
+        const imageSource = typeof source === 'string' && source.startsWith('data:image/jpeg;base64,')
+          ? source : videoAssetUrl(source);
+        if (!imageSource) return;
+        const figure = document.createElement('figure');
+        const caption = document.createElement('figcaption');
+        caption.textContent = label;
+        const image = document.createElement('img');
+        image.src = imageSource;
+        image.alt = label;
+        image.title = 'Bấm để phóng to hoặc thu nhỏ';
+        image.addEventListener('click', () => image.classList.toggle('is-zoomed'));
+        figure.append(caption, image);
+        comparison.append(figure);
+      });
+      dialog.append(title, close, comparison);
+      document.body.append(dialog);
+      dialog.addEventListener('close', () => dialog.remove(), { once: true });
+      dialog.showModal();
+    }
+
+    function updateVideoJob(data) {
+      // apiRequest keeps the server's status in api_status and uses status for HTTP.
+      const status = data.api_status || (typeof data.status === 'string' ? data.status : 'running');
+      const terminal = ['completed', 'cancelled', 'failed'].includes(status);
+      const progress = data.progress || {};
+      const metadata = data.metadata || {};
+      const processed = Number(progress.processed_frames) || 0;
+      const total = Number(progress.total_frames) || 0;
+      const duration = Number(progress.duration || metadata.duration) || 0;
+      const current = Number(progress.current_time) || 0;
+      const detectionTime = Number(progress.detection_time);
+      if (Array.isArray(progress.detections) && Number.isFinite(detectionTime)) {
+        if (!videoDetectionFrames.length || videoDetectionFrames[videoDetectionFrames.length - 1].time !== detectionTime) {
+          videoDetectionFrames.push({ time: detectionTime, boxes: progress.detections, width: metadata.width, height: metadata.height });
+          if (videoDetectionFrames.length > 600) videoDetectionFrames.shift();
+        }
+        drawVideoDetections();
+      }
+      const ratio = total > 0 ? processed / total : duration > 0 ? current / duration : 0;
+      videoJobProgress.value = status === 'completed' ? 100 : Math.min(99, Math.max(0, ratio * 100));
+      if (Array.isArray(data.events)) {
+        if (data.events_complete === false) {
+          const merged = new Map(videoEvents.map(event => [event.id, event]));
+          data.events.forEach(event => merged.set(event.id, event));
+          videoEvents = Array.from(merged.values());
+        } else videoEvents = data.events;
+      }
+      if (terminal) {
+        videoJobBusy = false;
+        videoCancellationRequested = false;
+        clearVideoPoll();
+        const fallback = {
+          completed: `Hoàn tất · ${videoEvents.length} sự kiện.`,
+          cancelled: 'Đã hủy phân tích.',
+          failed: 'Không thể phân tích video.'
+        }[status];
+        setVideoMessage(data.error || data.message || fallback, status === 'failed');
+      } else {
+        const label = videoCancellationRequested ? 'Đang dừng sau bước xử lý hiện tại'
+          : status === 'queued' ? 'Đang chờ phân tích'
+          : processed === 0 ? (data.message || 'Đang chuẩn bị phân tích video')
+          : ratio >= 1 ? 'Đang tổng hợp kết quả' : 'Đang phân tích';
+        setVideoMessage(`${label} · ${Math.floor(videoJobProgress.value)}% · ${formatVideoTime(current)}${duration ? ` / ${formatVideoTime(duration)}` : ''}`);
+      }
+      updateVideoControls();
+      renderVideoEvents();
+      return terminal;
+    }
+
+    async function pollVideoJob(jobId, epoch, retries = 0) {
+      if (epoch !== videoJobEpoch || jobId !== videoJobId || !videoJobBusy) return;
+      const lastEventId = videoEvents.length ? videoEvents[videoEvents.length - 1].id : '';
+      const cursor = typeof lastEventId === 'string' && /^[0-9a-f]{32}$/.test(lastEventId) ? `?after=${encodeURIComponent(lastEventId)}` : '';
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      let data;
+      try {
+        data = await apiRequest(`/admin/detection/api/videos/${encodeURIComponent(jobId)}${cursor}`, { signal: controller.signal });
+      } finally { clearTimeout(timeout); }
+      if (epoch !== videoJobEpoch || jobId !== videoJobId || !videoJobBusy) return;
+      const serverStatus = data.api_status || data.status;
+      if (!data.ok && serverStatus !== 'failed') {
+        if ([400, 401, 403, 404].includes(data.status)) {
+          videoJobBusy = false;
+          updateVideoControls();
+          setVideoMessage(data.message || 'Không thể truy cập tác vụ video.', true);
+          return;
+        }
+        setVideoMessage(`${data.message || 'Không thể lấy tiến độ.'} Đang thử kết nối lại…`, true);
+        videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch, retries + 1), Math.min(10000, 1500 * (retries + 1)));
+        return;
+      }
+      if (!updateVideoJob(data)) videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), document.hidden ? 5000 : 350);
+    }
+
+    async function resumeCurrentVideoAnalysis() {
+      if (videoResumePending || videoJobId || selectedVideoFile) return;
+      videoResumePending = true;
+      const epoch = videoJobEpoch;
+      try {
+        const data = await apiRequest('/admin/detection/api/videos/latest');
+        if (epoch !== videoJobEpoch || videoJobId || selectedVideoFile || (!data.ok && data.api_status !== 'failed') || !data.job_id) return;
+        videoJobId = data.job_id;
+        videoJobBusy = !['completed', 'cancelled', 'failed'].includes(data.api_status || data.status);
+        videoCancellationRequested = false;
+        videoRenderedKey = null;
+        videoAnalysisStatus.classList.remove('d-none');
+        videoFileName.textContent = videoJobBusy ? 'Video đang phân tích từ lần trước' : 'Kết quả video gần nhất';
+        videoPreviewWarning.textContent = 'Đã khôi phục tác vụ.';
+        videoPreviewWarning.classList.remove('d-none');
+        if (!updateVideoJob(data)) pollVideoJob(videoJobId, epoch);
+      } finally { videoResumePending = false; }
+    }
+
+    async function startVideoAnalysis() {
+      if (!selectedVideoFile || videoJobBusy) return;
+      stopVideoSync();
+      videoJobProgress.classList.remove('d-none');
+      if (!selectedVideoFile.size || selectedVideoFile.size > 512 * 1024 * 1024) {
+        setVideoMessage('Chọn video có dữ liệu và dung lượng tối đa 512 MB.', true);
+        return;
+      }
+      const epoch = ++videoJobEpoch;
+      clearVideoPoll();
+      videoJobId = null;
+      videoEvents = [];
+      videoDetectionFrames = [];
+      videoRenderedKey = null;
+      videoEventNodes.clear();
+      videoJobBusy = true;
+      videoCancellationRequested = false;
+      updateVideoControls();
+      renderVideoEvents();
+      videoJobProgress.removeAttribute('value');
+      setVideoMessage('Đang tải video để tự động nhận diện…');
+      const form = new FormData();
+      form.append('file', selectedVideoFile, selectedVideoFile.name);
+      form.append('mode', 'fast');
+      const data = await uploadVideoFile(form, epoch);
+      if (epoch !== videoJobEpoch) {
+        if (data.job_id) cancelVideoJobRequest(data.job_id);
+        return;
+      }
+      if (!data.ok || !data.job_id) {
+        videoJobBusy = false;
+        videoJobProgress.value = 0;
+        updateVideoControls();
+        setVideoMessage(data.message || 'Máy chủ không trả về mã tác vụ video.', true);
+        renderVideoEvents();
+        return;
+      }
+      videoJobId = data.job_id;
+      videoJobProgress.value = 0;
+      setVideoMessage(data.message || 'Đã nhận video, đang chờ phân tích…');
+      pollVideoJob(videoJobId, epoch);
+    }
+
+    async function cancelCurrentVideoAnalysis() {
+      if (videoSyncActive) {
+        stopVideoSync();
+        setVideoMessage('Đã dừng phân tích theo video.');
+        updateVideoControls();
+        return;
+      }
+      if (!videoJobBusy || videoCancellationRequested) return;
+      const jobId = videoJobId;
+      const epoch = ++videoJobEpoch;
+      clearVideoPoll();
+      if (!videoJobProgress.hasAttribute('value')) videoJobProgress.value = 0;
+      if (!jobId) {
+        videoJobBusy = false;
+        videoCancellationRequested = false;
+        updateVideoControls();
+        setVideoMessage('Đã hủy yêu cầu.');
+        return;
+      }
+      videoCancellationRequested = true;
+      updateVideoControls();
+      setVideoMessage('Đang yêu cầu hủy…');
+      const data = await cancelVideoJobRequest(jobId);
+      if (epoch !== videoJobEpoch) return;
+      if (data.ok || data.api_status === 'failed') {
+        if (!updateVideoJob(data)) videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), 1200);
+      } else {
+        videoCancellationRequested = false;
+        updateVideoControls();
+        setVideoMessage(data.message || 'Không thể hủy tác vụ trên máy chủ. Bạn có thể thử hủy lại.', true);
+        videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), 2500);
+      }
+    }
+
+    window.stopVideo = function () {
+      if (videoPlayer) videoPlayer.pause();
+    };
+
+    function drawVideoDetections() {
+      if (!videoPlayer || !videoOverlay || !videoPlayer.videoWidth) return;
+      const current = videoPlayer.currentTime;
+      const frame = videoDetectionFrames.reduce((best, item) =>
+        Math.abs(item.time - current) < Math.abs((best?.time ?? Infinity) - current) ? item : best, null);
+      // A box belongs only to its source moment. Never carry old detections
+      // onto a later car or after seeking into an unanalyzed section.
+      if (!frame || Math.abs(frame.time - current) > .4) {
+        videoOverlay.classList.add('d-none');
+        return;
+      }
+      videoOverlay.classList.remove('d-none');
+      drawBoxes(videoOverlay, videoPlayer, frame.boxes, frame.width, frame.height);
+    }
+
+    if (videoCancelBtn) videoCancelBtn.addEventListener('click', cancelCurrentVideoAnalysis);
+    if (videoUploadInput && videoPlayer) {
+      videoPlayer.addEventListener('timeupdate', () => { drawVideoDetections(); scheduleVideoFrame(); });
+      videoPlayer.addEventListener('seeking', () => {
+        if (!videoSyncActive) return;
+        videoSyncViewEpoch++;
+        videoSyncStreamId = `${liveClientId}:video:${Date.now()}:${videoSyncViewEpoch}`;
+        videoSyncPending = true;
+        videoOverlay.classList.add('d-none');
+      });
+      videoPlayer.addEventListener('play', () => {
+        scheduleVideoFrame();
+      });
+      videoPlayer.addEventListener('pause', () => {
+        scheduleVideoFrame(true);
+      });
+      ['seeked', 'loadeddata'].forEach(name => videoPlayer.addEventListener(name, () => {
+        drawVideoDetections();
+        scheduleVideoFrame(true);
+      }));
+      videoUploadInput.addEventListener('click', () => { videoUploadInput.value = ''; });
+      videoUploadInput.addEventListener('change', event => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        window.stopVideo();
+        if (window.clearResults) window.clearResults();
+        if (videoPlayer.src && videoPlayer.src.startsWith('blob:')) {
+          URL.revokeObjectURL(videoPlayer.src);
+        }
+        selectedVideoFile = file;
+        if (videoFileName) videoFileName.textContent = file.name;
+        videoObjectUrl = URL.createObjectURL(file);
+        videoPlayer.src = videoObjectUrl;
+        videoPlayer.classList.remove('d-none');
+        if (videoPlaceholder) videoPlaceholder.classList.add('d-none');
+        videoAnalysisStatus.classList.remove('d-none');
+        // Analyze native video frames at the time being viewed.
+        startVideoSync();
+        videoPlayer.play().catch(() => {});
+      });
+      videoPlayer.addEventListener('error', () => {
+        if (!selectedVideoFile) return;
+        videoPreviewWarning.textContent = 'Trình duyệt không xem được video này.';
+        videoPreviewWarning.classList.remove('d-none');
+      });
+    }
+
+    window.addEventListener('pagehide', event => {
+      clearVideoPoll();
+      if (!event.persisted && videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
+    });
+    window.addEventListener('pageshow', event => {
+      if (event.persisted && videoSyncActive) scheduleVideoFrame(true);
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && stream) {
+        window.stopWebcam();
+      }
+    });
+
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,55 @@
+# ==============================================================================
+# BỘ TỪ KHÓA ĐÓN XE CẨU CHIỀU VỀ & KẾT HỢP CHUYẾN XA
+# Cài đặt: Chỉ kích hoạt chiến dịch tại khu vực tỉnh đó khi xe có lịch chạy
+# ==============================================================================
+
+# --- TỈNH LAI CHÂU ---
+"thuê xe cẩu lai châu"
+[thuê xe cẩu lai châu]
+"cho thuê xe cẩu lai châu"
+"xe cẩu lai châu về phú thọ"
+"xe cẩu lai châu về hà nội"
+"thuê xe cẩu tự hành lai châu"
+"cẩu chở hàng lai châu giá rẻ"
+"xe cẩu kết hợp lai châu"
+"xe cẩu tiện chuyến lai châu"
+
+# --- TỈNH SƠN LA ---
+"thuê xe cẩu sơn la"
+[thuê xe cẩu sơn la]
+"cho thuê xe cẩu sơn la"
+"xe cẩu sơn la về phú thọ"
+"xe cẩu sơn la về hà nội"
+"thuê cẩu mộc châu sơn la"
+"xe cẩu tiện chuyến sơn la"
+
+# --- TỈNH ĐIỆN BIÊN ---
+"thuê xe cẩu điện biên"
+[thuê xe cẩu điện biên]
+"cho thuê xe cẩu điện biên"
+"xe cẩu điện biên về phú thọ"
+"xe cẩu tiện chuyến điện biên"
+
+# --- TỈNH LÀO CAI ---
+"thuê xe cẩu lào cai"
+[thuê xe cẩu lào cai]
+"cho thuê xe cẩu lào cai"
+"xe cẩu lào cai về phú thọ"
+"xe cẩu tiện chuyến lào cai"
+"thuê xe cẩu sa pa"
+
+# --- TỈNH YÊN BÁI ---
+"thuê xe cẩu yên bái"
+[thuê xe cẩu yên bái]
+"cho thuê xe cẩu yên bái"
+"xe cẩu yên bái về phú thọ"
+"thuê cẩu lục yên yên bái"
+
+# --- HẢI PHÒNG & QUẢNG NINH ---
+"thuê xe cẩu hải phòng"
+"xe cẩu hải phòng về phú thọ"
+"xe cẩu hải phòng về vĩnh phúc"
+"xe cẩu cẩu hàng cảng hải phòng về phú thọ"
+"thuê xe cẩu quảng ninh"
+"xe cẩu quảng ninh về phú thọ"
+"xe cẩu tiện chuyến hải phòng"

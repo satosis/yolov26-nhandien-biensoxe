@@ -1,0 +1,647 @@
+{% extends "layout.html" %}
+
+{% block title %}Sổ mua/bán hàng — {{ partner.name if partner else (company.name if company else 'Doanh nghiệp') }}{% endblock %}
+{% block page_title %}Sổ mua/bán hàng{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex align-items-center" style="gap:6px;">
+  <button type="button" class="btn btn-sm btn-light border" onclick="openAddPartnerModal()">
+    <i class="fas fa-plus mr-1"></i>Đối tác
+  </button>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include "partials/sheet_tabs_style.html" %}
+<style>
+  #partnerTradePage .card { box-shadow: none; border: 1px solid #e2e8f0; border-radius: 6px; }
+  #partnerTradePage .card-header { background: #fff; border-bottom: 1px solid #edf0f4; }
+  #partnerTradePage .nav-tabs .nav-link { color: #59636e; font-size: 16px; font-weight: 600; padding: 8px 16px; border: 1px solid transparent; }
+  #partnerTradePage .nav-tabs .nav-link.active { color: #1e293b; background: #fff; border-color: #cbd5e1 #cbd5e1 #fff; font-weight: 700; }
+  #partnerTradePage thead th {
+    background: #ffff00 !important;
+    color: #000 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    border: 1px solid #999 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    vertical-align: middle !important;
+    padding: 4px 6px !important;
+  }
+  #partnerTradePage tbody td {
+    font-size: 16.5px !important;
+    color: #334155;
+    padding: 2px 6px !important;
+    line-height: 1.35 !important;
+    border: 1px solid #ccc !important;
+    vertical-align: middle !important;
+  }
+  #partnerTradePage tbody tr:hover { background: #f8faff !important; }
+  #partnerTradePage tbody td.text-danger { color: #dc3545 !important; }
+  /* Cố định tới hàng tiêu đề: bảng cuộn bên trong khung, hàng tiêu đề luôn hiện */
+  #partnerTradePage .ledger-scroll { overflow: auto; }
+  #partnerTradePage .ledger-scroll thead th { position: sticky; top: 0; z-index: 3; box-shadow: inset 0 -1px 0 #999; }
+  #partnerTradePage tbody td .btn { padding: 0 7px !important; font-size: 13.5px !important; line-height: 1.6 !important; min-height: 0 !important; height: auto !important; }
+  #partnerTradePage tbody td .small { line-height: 1.1; }
+  #entryModal .side-check, #partnerModal .default-check { width: 18px; height: 18px; cursor: pointer; }
+  #partnerTradePage .partner-pick { width: 18px; height: 18px; cursor: pointer; }
+  #partnerTradePage .partner-pick-label { cursor: pointer; font-size: 15px; font-weight: 600; color: #475569; white-space: nowrap; }
+  #partnerTradePage .partner-pick-label.is-current { color: #5b21b6; }
+  #entryModal .side-check-label, #partnerModal .side-check-label { cursor: pointer; font-weight: 600; }
+  #partnerTradePage .trade-total { color: #0f172a !important; font-size: 16px !important; font-weight: 700 !important; white-space: nowrap !important; }
+  #partnerModal .modal-body, #entryModal .modal-body,
+  #partnerModal label, #entryModal label,
+  #partnerModal .form-control, #entryModal .form-control {
+    font-size: 15px !important;
+  }
+</style>
+
+<div class="container-fluid px-0" id="partnerTradePage">
+
+  <div class="card mb-0">
+    <!-- Header: Tabs and Partner/Search Bar -->
+    <div class="px-3 pt-2 bg-light border-bottom d-flex align-items-end flex-wrap" style="gap:8px;">
+      <ul class="nav nav-tabs border-bottom-0" role="tablist">
+        <li class="nav-item mr-1">
+          <a class="nav-link sheet-tab sheet-tab-blue font-weight-bold" href="/admin/enterprise/sales?tab=invoices">
+            <i class="fas fa-file-invoice mr-1"></i>Sổ bán hàng
+          </a>
+        </li>
+        <li class="nav-item mr-1">
+          <a class="nav-link sheet-tab sheet-tab-amber font-weight-bold" href="/admin/enterprise/debts?tab=personal-debts">
+            <i class="fas fa-book mr-1"></i>Sổ công nợ KH
+          </a>
+        </li>
+        <li class="nav-item mr-1">
+          <a class="nav-link sheet-tab sheet-tab-green font-weight-bold" href="/admin/enterprise/sales?tab=items">
+            <i class="fas fa-table mr-1"></i>Sổ chi tiết BH
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link sheet-tab sheet-tab-purple active font-weight-bold" href="/admin/enterprise/partner-trades">
+            <i class="fas fa-exchange-alt mr-1"></i>Phương-Cam-Vinh
+          </a>
+        </li>
+      </ul>
+
+      <div class="ml-auto mb-2 d-flex align-items-center justify-content-end" style="flex:0 1 220px; min-width:0;">
+        <form method="get" action="/admin/enterprise/partner-trades" class="d-flex align-items-center" style="gap:6px 10px;">
+          <input type="hidden" name="partner" value="{{ partner.id if partner else '' }}">
+          <div class="input-group input-group-sm" style="width: 210px;">
+            <div class="input-group-prepend">
+              <span class="input-group-text bg-white border-right-0"><i class="fas fa-search text-muted"></i></span>
+            </div>
+            <input type="search" name="q" class="form-control border-left-0 pl-0" placeholder="Tìm kiếm" value="{{ q or '' }}">
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Summary Row -->
+    <div class="px-3 py-2 border-bottom bg-white">
+      <div class="d-flex align-items-center justify-content-between flex-wrap text-muted" style="gap:8px 16px; font-size: 15px;">
+        {% if partner %}
+        <div style="flex:1 1 260px; min-width:0;">
+          <span class="text-nowrap">Thành tiền: <span class="text-dark font-weight-medium">{{ totals.take|format_number }}</span></span>
+          <span class="text-nowrap">&nbsp;·&nbsp; {{ owe_label }}: <span class="text-dark font-weight-medium">{{ totals.owe|format_number }}</span></span>
+          <span class="text-nowrap">&nbsp;·&nbsp; Tổng nợ: <strong class="{% if totals.balance < 0 %}text-danger{% else %}text-dark{% endif %} font-weight-bold">{{ totals.balance|format_number }}</strong></span>
+        </div>
+        {% endif %}
+        <div class="ml-auto d-flex align-items-center justify-content-end" style="gap:6px; flex:0 0 auto;">
+        <div class="d-flex align-items-center flex-wrap mr-1" style="gap:6px 12px;">
+          {% for p in partners %}
+          <label class="mb-0 d-flex align-items-center partner-pick-label{% if partner and partner.id == p.id %} is-current{% endif %}">
+            <input type="checkbox" class="partner-pick mr-2" data-href="/admin/enterprise/partner-trades?partner={{ p.id }}"{% if partner and partner.id == p.id %} checked{% endif %}>{{ p.name }}
+          </label>
+          {% endfor %}
+        </div>
+        {% if partner %}
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddEntryModal()">
+          <i class="fas fa-plus mr-1"></i>Thêm dòng
+        </button>
+        <button type="button" class="btn btn-sm btn-light border" id="btnShareLedger" data-id="{{ partner.id }}">
+          Link xem sổ
+        </button>
+        <button type="button" class="btn btn-sm btn-light border btn-edit-partner"
+                data-id="{{ partner.id }}"
+                data-name="{{ partner.name|escape }}"
+                data-title="{{ (partner.title or '')|escape }}"
+                data-owe-label="{{ (partner.owe_label or '')|escape }}"
+                data-default="{{ 1 if partner.is_default else 0 }}"
+                data-opening="{{ partner.opening_balance|format_number('') if partner.opening_balance else '' }}"
+                title="Sửa đối tác">
+          Sửa
+        </button>
+        <form method="post" action="/admin/enterprise/partner-trades/partners/{{ partner.id }}/delete" class="d-inline"
+              onsubmit="return appConfirmForm(event, {{ ('Xóa đối tác ' ~ partner.name ~ ' và toàn bộ sổ của đối tác này?')|tojson|forceescape }})">
+          <button type="submit" class="btn btn-sm btn-light border text-danger" title="Xóa đối tác">Xóa</button>
+        </form>
+        {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if ledger_title %}
+    <div class="text-center font-weight-bold py-2 bg-white" style="font-size: 18px;">
+      {{ ledger_title }}
+    </div>
+    {% endif %}
+
+    <!-- Table -->
+    <div class="table-responsive ledger-scroll" id="ledgerScroll" style="min-height: 250px;">
+      <table class="table table-sm table-bordered table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:96px;">Ngày</th>
+            <th style="min-width:190px;">Tên hàng</th>
+            <th style="width:40px;"></th>
+            <th style="width:80px;">Số lượng</th>
+            <th style="width:86px;">Đơn giá</th>
+            <th style="width:112px;">Thành tiền</th>
+            <th style="width:120px;">{{ owe_label }}</th>
+            <th style="width:118px;">Tổng nợ</th>
+            <th style="width:170px;">Ghi chú</th>
+            <th style="width:160px;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if partner and partner.opening_balance and pagination.page == 1 and not q %}
+          <tr class="bg-light font-weight-bold">
+            <td></td>
+            <td>Nợ đầu kỳ</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="text-right {% if partner.opening_balance < 0 %}text-danger{% else %}text-dark{% endif %}">
+              {{ partner.opening_balance|format_number }}
+            </td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.entry_date.strftime('%d/%m/%Y') if r.entry_date else '' }}</td>
+            <td class="text-nowrap {% if r.side == 'owe' %}text-danger{% endif %}">
+              {%- if r.has_details -%}
+                <a href="/admin/enterprise/partner-trades/entries/{{ r.id }}/detail" style="text-decoration: underline; color: {% if r.side == 'owe' %}#dc3545{% else %}#1d4ed8{% endif %};">{{ r.item_name or '' }}</a>
+              {%- else -%}
+                {{ r.item_name or '' }}
+              {%- endif -%}
+            </td>
+            <td class="text-center {% if r.side == 'owe' %}text-danger{% endif %}">{{ r.buyer or '' }}</td>
+            <td class="text-right {% if r.side == 'owe' %}text-danger{% endif %}">{{ r.quantity|format_number('') if r.quantity is not none else '' }}{% if r.qty_formula %}<div class="small text-muted text-nowrap">fx: {{ r.qty_formula }}</div>{% endif %}</td>
+            <td class="text-right {% if r.side == 'owe' %}text-danger{% endif %}" {% if r.quantity is not none and (not r.unit_price or r.unit_price == 0) and (not r.amount or r.amount == 0) %}style="background: #ffff00 !important;"{% endif %}>{{ r.unit_price|format_number('') if (r.unit_price is not none and r.unit_price != 0) else '' }}</td>
+            <td class="text-right">{% if r.side == 'take' and r.amount and r.amount != 0 %}{{ r.amount|format_number('') }}{% endif %}</td>
+            <td class="text-right {% if r.side == 'owe' and r.amount and r.amount != 0 %}text-danger{% endif %}">{% if r.side == 'owe' and r.amount and r.amount != 0 %}{{ r.amount|format_number('') }}{% endif %}</td>
+            <td class="text-right">{{ r.balance|format_number('0') if r.balance is not none else '0' }}</td>
+            <td>{{ r.note or '' }}</td>
+            <td class="text-right text-nowrap">
+              <a href="/admin/enterprise/partner-trades/entries/{{ r.id }}/detail" class="btn btn-sm btn-light border">Chi tiết</a>
+              <button type="button" class="btn btn-sm btn-light border btn-edit-entry"
+                      data-id="{{ r.id }}"
+                      data-has-details="{{ 1 if r.has_details else 0 }}"
+                      data-entry-date="{{ r.entry_date.isoformat() if r.entry_date else '' }}"
+                      data-side="{{ r.side }}"
+                      data-item-name="{{ (r.item_name or '')|escape }}"
+                      data-buyer="{{ (r.buyer or '')|escape }}"
+                      data-quantity="{{ r.qty_formula or (r.quantity|format_number('') if r.quantity is not none else '') }}"
+                      data-unit-price="{{ r.unit_price|format_number('') if r.unit_price is not none else '' }}"
+                      data-note="{{ (r.note or '')|escape }}"
+                      data-amount="{{ r.amount|format_number('') if (r.amount is not none and r.amount != 0) else '' }}">
+                Sửa
+              </button>
+              <form method="post" action="/admin/enterprise/partner-trades/entries/{{ r.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa dòng này?')">
+                <input type="hidden" name="partner_id" value="{{ partner.id if partner else '' }}">
+                <input type="hidden" name="page" value="{{ pagination.page }}">
+                <input type="hidden" name="q" value="{{ q or '' }}">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          {% if not (partner and partner.opening_balance and pagination.page == 1 and not q) %}
+          <tr>
+            <td colspan="10" class="text-center py-4 text-muted">Chưa có dữ liệu</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div id="ledgerPagination">{% include "partials/pagination.html" %}</div>
+  </div>
+</div>
+
+<!-- Modal Thêm / Sửa Đối tác -->
+<div class="modal fade" id="partnerModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="partnerModalTitle">Thêm đối tác</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="partnerForm" method="post" action="/admin/enterprise/partner-trades/partners/save">
+        <input type="hidden" name="partner_id" id="partner-id" value="">
+        <div class="modal-body">
+          <div class="form-group mb-3">
+            <label class="font-weight-bold">Tên đối tác <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="partner-name" class="form-control" required>
+          </div>
+          <div class="form-group mb-3">
+            <label class="font-weight-bold">Tiêu đề sổ</label>
+            <input type="text" name="title" id="partner-title" class="form-control">
+          </div>
+          <div class="form-group mb-3">
+            <label class="font-weight-bold">Tên cột nợ</label>
+            <input type="text" name="owe_label" id="partner-owe-label" class="form-control">
+          </div>
+          <div class="form-group mb-0">
+            <label class="font-weight-bold">Nợ đầu kỳ</label>
+            <input type="text" name="opening_balance" id="partner-opening-balance" class="form-control" inputmode="decimal" oninput="formatNumberInput(this)">
+          </div>
+          <label class="mb-0 mt-3 d-flex align-items-center side-check-label">
+            <input type="checkbox" name="is_default" value="1" id="partner-is-default" class="default-check mr-2">Sổ mặc định
+          </label>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu đối tác</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Thêm / Sửa Dòng Sổ -->
+<div class="modal fade" id="entryModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="entryModalTitle">Thêm dòng sổ</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="entryForm" method="post" action="/admin/enterprise/partner-trades/entries/save">
+        <input type="hidden" name="entry_id" id="entry-id" value="">
+        <input type="hidden" name="partner_id" id="entry-partner-id" value="{{ partner.id if partner else '' }}">
+        <input type="hidden" name="page" id="entry-page" value="{{ pagination.page }}">
+        <input type="hidden" name="q" id="entry-q" value="{{ q or '' }}">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-6 mb-3">
+              <label class="font-weight-bold">Ngày <span class="text-danger">*</span></label>
+              <input type="date" name="entry_date" id="entry-date" class="form-control" value="{{ today_str }}" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="font-weight-bold d-block">Cột ghi</label>
+              <input type="hidden" name="side" id="entry-side" value="take">
+              <div class="d-flex align-items-center flex-wrap" style="gap:6px 24px; min-height:31px;">
+                <label class="mb-0 d-flex align-items-center side-check-label">
+                  <input type="checkbox" class="side-check mr-2" data-side="take" data-label="Thành tiền" checked>Thành tiền
+                </label>
+                <label class="mb-0 d-flex align-items-center side-check-label">
+                  <input type="checkbox" class="side-check mr-2" data-side="owe" data-label="{{ owe_label }}">{{ owe_label }}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="form-group mb-3">
+            <label class="font-weight-bold">Tên hàng</label>
+            <input type="text" name="item_name" id="entry-item-name" class="form-control">
+          </div>
+          <div class="form-group mb-3">
+            <label class="font-weight-bold">Ký hiệu</label>
+            <input type="text" name="buyer" id="entry-buyer" class="form-control" list="buyersList">
+            <datalist id="buyersList">
+              {% for b in buyers %}
+              <option value="{{ b }}">
+              {% endfor %}
+            </datalist>
+          </div>
+          <div class="form-row">
+            <div class="col-md-4 mb-3">
+              <label class="font-weight-bold">Số lượng</label>
+              <input type="text" name="quantity" id="entry-quantity" class="form-control">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="font-weight-bold">Đơn giá</label>
+              <input type="text" name="unit_price" id="entry-unit-price" class="form-control" inputmode="decimal" oninput="formatNumberInput(this)">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="font-weight-bold" id="entry-amount-label">Thành tiền</label>
+              <input type="text" name="amount" id="entry-amount" class="form-control" inputmode="decimal" oninput="formatNumberInput(this)">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="font-weight-bold">Ghi chú</label>
+            <input type="text" name="note" id="entry-note" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu dòng</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Link xem sổ -->
+<div class="modal fade" id="shareModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Link xem sổ</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group mb-0">
+          <input type="text" id="share-url" class="form-control" readonly>
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-light border" id="btn-renew-share">Tạo link mới</button>
+        <a href="#" class="btn btn-sm btn-light border" target="_blank" id="share-open">Mở</a>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btn-copy-share">Sao chép</button>
+        <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddPartnerModal() {
+  $('#partnerModalTitle').text('Thêm đối tác');
+  $('#partner-id').val('');
+  $('#partner-name').val('');
+  $('#partner-title').val('');
+  $('#partner-owe-label').val('');
+  $('#partner-opening-balance').val('');
+  $('#partner-is-default').prop('checked', false);
+  $('#partnerModal').modal('show');
+}
+
+function openEditPartnerModal(id, name, title, oweLabel, opening, isDefault) {
+  $('#partnerModalTitle').text('Chỉnh sửa đối tác');
+  $('#partner-id').val(id);
+  $('#partner-name').val(name);
+  $('#partner-title').val(title || '');
+  $('#partner-owe-label').val(oweLabel || '');
+  $('#partner-opening-balance').val(opening || '');
+  $('#partner-is-default').prop('checked', !!isDefault);
+  $('#partnerModal').modal('show');
+}
+
+function openAddEntryModal() {
+  $('#entryModalTitle').text('Thêm dòng sổ');
+  $('#entry-id').val('');
+  $('#entry-date').val('{{ today_str }}');
+  setSide('take');
+  $('#entry-item-name').val('');
+  $('#entry-buyer').val('');
+  $('#entry-quantity').val('');
+  $('#entry-unit-price').val('');
+  $('#entry-amount').val('').prop('readonly', false);
+  $('#entry-note').val('');
+  markAuto = true;
+  autoMark();
+  $('#entryModal').modal('show');
+}
+
+// Chọn sổ bằng ô tích: tích sổ khác thì mở sổ đó; bỏ tích sổ đang mở thì giữ nguyên
+$('.partner-pick').on('change', function() {
+  if (!this.checked) {
+    this.checked = true;
+    return;
+  }
+  window.location.href = $(this).data('href');
+});
+
+// Khung bảng cao vừa tới đáy màn hình, nên phần trên (tab, thống kê, tiêu đề sổ, hàng tiêu đề) đứng yên khi cuộn
+function fitLedgerHeight() {
+  var box = document.getElementById('ledgerScroll');
+  if (!box) return;
+  var pager = document.getElementById('ledgerPagination');
+  var footer = document.querySelector('footer, .footer');
+  var below = (pager ? pager.offsetHeight : 0) + (footer ? footer.offsetHeight : 40) + 24;
+  var top = box.getBoundingClientRect().top + window.scrollY;
+  box.style.maxHeight = Math.max(260, window.innerHeight - top - below) + 'px';
+}
+fitLedgerHeight();
+// Mở sổ là thấy ngay dòng cuối cùng (dòng mới nhất)
+function scrollLedgerToEnd() {
+  var box = document.getElementById('ledgerScroll');
+  if (box) box.scrollTop = box.scrollHeight;
+}
+scrollLedgerToEnd();
+window.addEventListener('resize', fitLedgerHeight);
+window.addEventListener('load', function() { fitLedgerHeight(); scrollLedgerToEnd(); });
+
+$(document).on('click', '.btn-edit-partner', function() {
+  var $btn = $(this);
+  openEditPartnerModal($btn.data('id'), $btn.data('name'), $btn.data('title'), $btn.data('owe-label'), $btn.data('opening'), $btn.data('default') === 1);
+});
+
+$(document).on('click', '.btn-edit-entry', function() {
+  var $b = $(this);
+  $('#entryModalTitle').text('Chỉnh sửa dòng');
+  $('#entry-id').val($b.data('id'));
+  $('#entry-date').val($b.data('entry-date') || '');
+  setSide($b.data('side') || 'take');
+  $('#entry-item-name').val($b.data('item-name') || '');
+  $('#entry-buyer').val($b.data('buyer') || '');
+  $('#entry-quantity').val($b.data('quantity') || '');
+  $('#entry-unit-price').val($b.data('unit-price') || '');
+  var hasDetails = $b.data('has-details') == 1;
+  $('#entry-amount').val($b.data('amount') || '').prop('readonly', hasDetails);
+  $('#entry-note').val($b.data('note') || '');
+  markAuto = ['', AUTO_MARKS.take, AUTO_MARKS.owe].indexOf(String($b.data('buyer') || '').trim().toLowerCase()) >= 0;
+  $('#entryModal').modal('show');
+});
+
+// Auto calculate Thành tiền = làm tròn(SL * ĐG)
+function plainQtyToken(t) {
+  if (t.indexOf('.') >= 0 && t.indexOf(',') >= 0) {
+    return t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) return t.replace(/\./g, '');
+  return t.replace(',', '.');
+}
+
+// Số lượng gõ thẳng hoặc phép tính: "2.764-15" -> 2749
+function parseQtyJs(str) {
+  var raw = String(str || '').replace(/\s+/g, '').replace(/^=/, '').replace(/[xX×]/g, '*');
+  if (!raw || !/^[0-9.,+\-*\/()]+$/.test(raw)) return null;
+  var expr = raw.replace(/\d[\d.,]*/g, plainQtyToken);
+  try {
+    var val = Function('"use strict"; return (' + expr + ');')();
+    return (typeof val === 'number' && isFinite(val)) ? val : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Đặt dấu chấm hàng nghìn cho từng số trong ô Số lượng, giữ nguyên dấu phép tính và phần thập phân sau dấu phẩy
+function formatQtyInput(el) {
+  el.value = el.value.replace(/[xX×]/g, '*').replace(/\d[\d.]*(,\d*)?/g, function (num) {
+    var parts = num.split(',');
+    var digits = parts[0].replace(/\./g, '');
+    var grouped = digits ? new Intl.NumberFormat('vi-VN').format(parseInt(digits, 10)) : '';
+    return parts.length > 1 ? grouped + ',' + parts[1] : grouped;
+  });
+}
+
+function parsePriceJs(str) {
+  if (!str) return null;
+  var clean = String(str).trim().replace(/[^\d-]/g, '');
+  if (!clean || clean === '-') return null;
+  var val = parseInt(clean, 10);
+  return isNaN(val) ? null : val;
+}
+
+function autoCalcAmount() {
+  var qty = parseQtyJs($('#entry-quantity').val());
+  var price = parsePriceJs($('#entry-unit-price').val());
+  if (qty !== null && price !== null) {
+    var total = Math.round(qty * price);
+    $('#entry-amount').val(new Intl.NumberFormat('vi-VN').format(total));
+  }
+}
+
+// Ô số tiền mang tên đúng cột đang chọn (Thành tiền hoặc cột nợ)
+// Cột ghi: 2 ô tích Thành tiền / cột nợ, luôn tích đúng 1 ô; ô số tiền mang tên cột đang tích
+function setSide(side) {
+  side = side === 'owe' ? 'owe' : 'take';
+  $('#entry-side').val(side);
+  $('.side-check').each(function() { this.checked = $(this).data('side') === side; });
+  $('#entry-amount-label').text($('.side-check[data-side=' + side + ']').data('label'));
+  autoMark();
+}
+$('.side-check').on('change', function() {
+  var side = $(this).data('side');
+  setSide(this.checked ? side : (side === 'owe' ? 'take' : 'owe'));
+});
+
+// Ký hiệu đi theo cột ghi (ký hiệu riêng của từng sổ, mặc định v / m). Dòng chỉ có số tiền thì khi lưu bỏ ký hiệu này.
+// Người dùng tự sửa/xóa Ký hiệu thì thôi tự điền cho dòng đó.
+var AUTO_MARKS = {{ marks|tojson }};
+var markAuto = true;
+function autoMark() {
+  if (!markAuto) return;
+  $('#entry-buyer').val(AUTO_MARKS[$('#entry-side').val()] || '');
+}
+
+// Gõ ký hiệu của cột (sổ C Vinh: v / m) vào Ký hiệu thì Cột ghi đổi theo
+$('#entry-buyer').on('input', function() {
+  markAuto = false;
+  var mark = (this.value || '').trim().toLowerCase();
+  var side = mark === AUTO_MARKS.take ? 'take' : (mark === AUTO_MARKS.owe ? 'owe' : '');
+  if (side && $('#entry-side').val() !== side) {
+    setSide(side);
+  }
+});
+
+$('#entry-quantity').on('input', function() {
+  formatQtyInput(this);
+});
+
+$('#entry-quantity, #entry-unit-price').on('input', function() {
+  autoCalcAmount();
+  autoMark();
+});
+
+var sharePartnerId = null;
+
+async function requestShareLink(id, renew) {
+  var url = '/admin/enterprise/partner-trades/partners/' + id + '/share-link';
+  var opts = { method: 'POST' };
+  if (renew) {
+    var fd = new FormData();
+    fd.append('renew', '1');
+    opts.body = fd;
+  }
+  try {
+    var res = await fetch(url, opts);
+    var data = await res.json();
+    if (!data || !data.ok) {
+      window.showNotify((data && data.message) || 'Không thể lấy link xem sổ.', 'error');
+      return null;
+    }
+    $('#share-url').val(data.url);
+    $('#share-open').attr('href', data.url);
+    return data.url;
+  } catch (err) {
+    window.showNotify('Lỗi kết nối máy chủ.', 'error');
+    return null;
+  }
+}
+
+$(document).on('click', '#btnShareLedger', async function() {
+  sharePartnerId = $(this).data('id');
+  var url = await requestShareLink(sharePartnerId, false);
+  if (url) {
+    $('#shareModal').modal('show');
+  }
+});
+
+$(document).on('click', '#btn-copy-share', function() {
+  var input = document.getElementById('share-url');
+  var url = (input && input.value) || '';
+  if (!url) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function() {
+      window.showNotify('Đã sao chép.', 'success');
+    }).catch(function() {
+      copyFallback(input);
+    });
+  } else {
+    copyFallback(input);
+  }
+});
+
+function copyFallback(input) {
+  try {
+    input.select();
+    input.setSelectionRange(0, 99999);
+    var ok = document.execCommand('copy');
+    if (ok) {
+      window.showNotify('Đã sao chép.', 'success');
+    } else {
+      window.showNotify('Không thể sao chép.', 'error');
+    }
+  } catch (e) {
+    window.showNotify('Không thể sao chép.', 'error');
+  }
+}
+
+$(document).on('click', '#btn-renew-share', async function() {
+  if (!sharePartnerId) return;
+  var confirmed = await appConfirmAsync('Link cũ sẽ không mở được nữa. Tạo link mới?', {
+    confirmText: 'Tạo link mới',
+    confirmClass: 'btn-primary'
+  });
+  if (!confirmed) return;
+  await requestShareLink(sharePartnerId, true);
+});
+
+</script>
+{% endblock %}

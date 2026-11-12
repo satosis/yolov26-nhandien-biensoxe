@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/agents/agy_exec.py:*)"
+    ]
+  },
+  "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"
+}

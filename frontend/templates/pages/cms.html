@@ -1,0 +1,241 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý Nội dung (CMS){% endblock %}
+{% block page_title %}Quản lý Nội dung{% endblock %}
+{% block content %}
+<div>
+
+  <div class="card mb-4">
+    <div class="card-body p-0">
+      <ul class="nav nav-tabs" style="border-bottom:0;">
+        <li class="nav-item">
+          <a class="nav-link {% if section == 'projects' %}active{% endif %}"
+             href="/admin/cms?section=projects">
+            <i class="bx bx-buildings mr-1"></i> Dự án Nhà xưởng
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if section == 'news' %}active{% endif %}"
+             href="/admin/cms?section=news">
+            <i class="bx bx-news mr-1"></i> Tin tức &amp; Báo cáo
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  {% if section == 'projects' %}
+  <div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0 font-weight-bold">Danh sách Dự án</h5>
+      <button @click="$dispatch('open-modal', 'add-project-modal')"
+              class="btn btn-primary btn-sm">
+        <i class="fas fa-plus mr-1"></i> Thêm dự án
+      </button>
+    </div>
+
+    <div class="row">
+      {% for p in projects %}
+      <div class="col-12 col-md-6 col-lg-4 mb-4" id="project-{{ p.id }}">
+        <div class="card h-100">
+          <div style="height:160px;overflow:hidden;">
+            <img src="{{ p.image }}" class="card-img-top w-100 h-100" style="object-fit:cover;">
+          </div>
+          <div class="card-body d-flex flex-column">
+            <div class="d-flex justify-content-between align-items-start mb-2" style="gap:8px;">
+              <h6 class="card-title font-weight-bold mb-0" title="{{ p.name }}">{{ p.name }}</h6>
+              <div class="d-flex" style="gap:4px;">
+                <button @click="$dispatch('open-modal', {id: 'edit-project-modal', payload: {{ p | tojson | forceescape }} })"
+                        class="btn btn-sm btn-light" title="Sửa">
+                  <i class="fas fa-pencil-alt text-primary"></i>
+                </button>
+                <button hx-delete="/admin/cms/projects/{{ p.id }}"
+                        hx-target="#project-{{ p.id }}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Xác nhận xoá dự án này?"
+                        class="btn btn-sm btn-light" title="Xóa">
+                  <i class="fas fa-trash text-danger"></i>
+                </button>
+              </div>
+            </div>
+            <p class="text-muted small mb-2" title="{{ p.location }}">
+              <i class="fas fa-map-marker-alt text-warning mr-1"></i>{{ p.location }}
+            </p>
+            <div class="row no-gutters mt-auto">
+              <div class="col-6 pr-1">
+                <div class="bg-light rounded px-2 py-1 small text-muted text-truncate" title="{{ p.area }}">DT: {{ p.area }}</div>
+              </div>
+              <div class="col-6 pl-1">
+                <div class="bg-light rounded px-2 py-1 small text-muted text-truncate" title="{{ p.load_capacity }}">Tải: {{ p.load_capacity }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="col-12 text-center text-muted py-4">Chưa có dự án nào.</div>
+      {% endfor %}
+    </div>
+
+    {% include "partials/pagination.html" %}
+  </div>
+
+  {% elif section == 'news' %}
+  <div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0 font-weight-bold">Tin tức mới nhất</h5>
+      <a href="/admin/cms/news/new" class="btn btn-primary btn-sm">
+        <i class="fas fa-plus mr-1"></i> Thêm tin tức
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="cx-overflow-x-auto">
+          <table class="table-cinema">
+            <thead>
+              <tr>
+                <th style="width:50px;" class="text-center">STT</th>
+                <th style="width:130px;">Ngày</th>
+                <th>Tiêu đề</th>
+                <th class="text-right" style="width:120px;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in news %}
+              <tr id="news-{{ item.id }}">
+                <td class="text-center text-muted font-weight-medium align-middle">
+                  {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+                </td>
+                <td class="text-muted small">{{ item.publish_date }}</td>
+                <td class="font-weight-medium">{{ item.title }}</td>
+                <td class="text-right">
+                  <a href="/admin/cms/news/{{ item.id }}/edit"
+                     class="btn btn-sm btn-light mr-1" title="Sửa">
+                    <i class="fas fa-pencil-alt text-primary"></i>
+                  </a>
+                  <button hx-delete="/admin/cms/news/{{ item.id }}"
+                          hx-target="#news-{{ item.id }}"
+                          hx-swap="outerHTML"
+                          hx-confirm="Xoá tin tức này?"
+                          class="btn btn-sm btn-light" title="Xóa">
+                    <i class="fas fa-trash text-danger"></i>
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-4">Chưa có tin tức nào.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% include "partials/pagination.html" %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+
+<div x-data="{ show: false, modalId: '', editData: {} }"
+     @open-modal.window="show = true; if (typeof $event.detail === 'string') { modalId = $event.detail; editData = {}; } else { modalId = $event.detail.id; editData = $event.detail.payload; }"
+     x-show="show"
+     style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:none;align-items:center;justify-content:center;padding:16px;"
+     :style="show ? 'display:flex;' : 'display:none;'">
+  <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.45);" @click="show = false"></div>
+
+
+  <div x-show="modalId === 'add-project-modal'" class="card rounded w-100 shadow-lg" style="max-width:540px;position:relative;z-index:1;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 font-weight-bold">Thêm dự án mới</h5>
+      <button @click="show = false" class="btn btn-sm btn-light"><i class="fas fa-times"></i></button>
+    </div>
+    <form action="/admin/cms/projects" method="POST">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Tên dự án</label>
+            <input type="text" name="name" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Vị trí</label>
+            <input type="text" name="location" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Diện tích</label>
+            <input type="text" name="area" placeholder="15,000 m²" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Chiều cao</label>
+            <input type="text" name="height" placeholder="12.5 m" class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Số Bays</label>
+            <input type="text" name="bays" placeholder="24 Bays" class="form-control">
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Tải trọng sàn</label>
+            <input type="text" name="load_capacity" placeholder="5 Tons/m²" class="form-control">
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Đường dẫn ảnh</label>
+            <input type="text" name="image" value="/static/brain/wh_real1.jpg" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="card-footer text-right">
+        <button type="button" @click="show = false" class="btn btn-light mr-2">Hủy</button>
+        <button type="submit" class="btn btn-primary">Lưu dự án</button>
+      </div>
+    </form>
+  </div>
+
+
+  <div x-show="modalId === 'edit-project-modal'" class="card rounded w-100 shadow-lg" style="max-width:540px;position:relative;z-index:1;">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 font-weight-bold">Sửa dự án</h5>
+      <button @click="show = false" class="btn btn-sm btn-light"><i class="fas fa-times"></i></button>
+    </div>
+    <form :action="'/admin/cms/projects/update/' + editData.id" method="POST">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Tên dự án</label>
+            <input type="text" name="name" x-model="editData.name" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Vị trí</label>
+            <input type="text" name="location" x-model="editData.location" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Diện tích</label>
+            <input type="text" name="area" x-model="editData.area" placeholder="15,000 m²" required class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Chiều cao</label>
+            <input type="text" name="height" x-model="editData.height" placeholder="12.5 m" class="form-control">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Số Bays</label>
+            <input type="text" name="bays" x-model="editData.bays" placeholder="24 Bays" class="form-control">
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Tải trọng sàn</label>
+            <input type="text" name="load_capacity" x-model="editData.load_capacity" placeholder="5 Tons/m²" class="form-control">
+          </div>
+          <div class="col-12 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Đường dẫn ảnh</label>
+            <input type="text" name="image" x-model="editData.image" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="card-footer text-right">
+        <button type="button" @click="show = false" class="btn btn-light mr-2">Hủy</button>
+        <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+      </div>
+    </form>
+  </div>
+
+</div>
+
+{% endblock %}

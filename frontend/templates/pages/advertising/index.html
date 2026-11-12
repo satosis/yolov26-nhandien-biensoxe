@@ -1,0 +1,606 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}Quản Lý Quảng Cáo Google — Chuyến Xe Đi Xa{% endblock %}
+
+{% block head %}
+<style>
+  .badge-active { background-color: #10B981; color: white; }
+  .badge-scheduled { background-color: #3B82F6; color: white; }
+  .badge-paused { background-color: #6B7280; color: white; }
+  .badge-completed { background-color: #9CA3AF; color: white; }
+  .kpi-card { border-radius: 10px; border: none; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.2s ease; }
+  .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  .kpi-icon { width: 44px; height: 44px; background: rgba(255,255,255,0.25); }
+  .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; margin: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .3s; border-radius: 24px; }
+  .toggle-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+  input:checked + .toggle-slider { background-color: #10B981; }
+  input:checked + .toggle-slider:before { transform: translateX(20px); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Bảng sẵn sàng chạy marketing -->
+  {% include "partials/marketing_readiness.html" %}
+
+  <!-- Chỉ số tổng hợp -->
+  <div class="row">
+    <div class="col-md col-sm-6 mb-3">
+      <div class="card kpi-card bg-primary text-white p-3 mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-white-50 text-uppercase font-weight-bold">Chiến Dịch Đang Chạy</div>
+            <div class="h3 mb-0 font-weight-bold mt-1">{{ kpis.active_count }}</div>
+          </div>
+          <div class="kpi-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bx bx-broadcast font-size-20"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md col-sm-6 mb-3">
+      <div class="card kpi-card bg-info text-white p-3 mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-white-50 text-uppercase font-weight-bold">Chi Phí Đã Tiêu</div>
+            <div class="h3 mb-0 font-weight-bold mt-1">{{ kpis.total_spent_fmt }}</div>
+          </div>
+          <div class="kpi-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bx bx-wallet font-size-20"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md col-sm-6 mb-3">
+      <div class="card kpi-card bg-success text-white p-3 mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-white-50 text-uppercase font-weight-bold">Cuộc Gọi Nhận Được</div>
+            <div class="h3 mb-0 font-weight-bold mt-1">{{ kpis.total_calls }}</div>
+          </div>
+          <div class="kpi-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bx bx-phone-call font-size-20"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md col-sm-6 mb-3">
+      <div class="card kpi-card bg-warning text-dark p-3 mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-muted text-uppercase font-weight-bold">Chi Phí / Cuộc Gọi</div>
+            <div class="h3 mb-0 font-weight-bold mt-1">{{ kpis.cost_per_call_fmt }}</div>
+          </div>
+          <div class="kpi-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bx bx-calculator font-size-20"></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md col-sm-6 mb-3">
+      <div class="card kpi-card bg-secondary text-white p-3 mb-0">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="small text-white-50 text-uppercase font-weight-bold">Lượt Tiếp Cận (Xem Ads)</div>
+            <div class="h3 mb-0 font-weight-bold mt-1">{{ kpis.total_impressions }}</div>
+          </div>
+          <div class="kpi-icon rounded-circle d-flex align-items-center justify-content-center"><i class="bx bx-show font-size-20"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kết nối Google Ads -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold"><i class="bx bxl-google text-danger mr-1"></i>Kết Nối Google Ads</span>
+        <div class="d-flex align-items-center flex-wrap" style="gap:6px;">
+          {% if google_is_live %}
+            <span class="badge badge-success px-2 py-1">Tự động</span>
+            <button type="button" class="btn btn-sm btn-light border" onclick="toggleGoogleLive(false)">Chuyển sang Chạy thử</button>
+          {% else %}
+            <span class="badge badge-warning px-2 py-1">Chạy thử</span>
+            <button type="button" class="btn btn-sm btn-light border" onclick="toggleGoogleLive(true)">Bật chế độ Tự động</button>
+          {% endif %}
+          <button type="button" class="btn btn-sm btn-light border" onclick="testGoogleConnection()">Kiểm tra kết nối</button>
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="syncGoogleAdsNow()"><i class="bx bx-sync mr-1"></i>Đồng bộ ngay</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center" style="gap:8px;">
+        {% for label, key in [('Customer ID', 'customer_id'), ('Client ID', 'client_id'), ('Client Secret', 'client_secret'), ('Refresh Token', 'refresh_token')] %}
+        <span class="badge badge-{{ 'success' if google_config_summary[key] else 'danger' }} px-2 py-1">{{ label }}: {{ 'Đã nhập' if google_config_summary[key] else 'Chưa nhập' }}</span>
+        {% endfor %}
+        {% if google_config_summary.login_customer_id %}<span class="badge badge-info px-2 py-1">MCC: Đã nhập</span>{% endif %}
+        <span class="badge badge-light border text-muted px-2 py-1">API {{ google_api_version }}</span>
+      </div>
+      {% if sync_logs %}
+      <div class="table-responsive border rounded mt-3" style="max-height: 230px; overflow-y: auto;">
+        <table class="table table-sm table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Thời gian</th>
+              <th>Hành động</th>
+              <th>Chi tiết</th>
+              <th>Chế độ</th>
+              <th class="text-center">Kết quả</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for l in sync_logs %}
+            <tr>
+              <td class="text-nowrap">{{ l.created_at.strftime('%H:%M %d/%m') if l.created_at else '' }}</td>
+              <td><span class="badge badge-light border text-dark">{{ l.action }}</span></td>
+              <td class="text-truncate" style="max-width: 320px;" title="{{ l.detail }}">{{ l.detail }}</td>
+              <td>{% if l.dry_run %}<span class="badge badge-warning">Chạy thử</span>{% else %}<span class="badge badge-success">Thật</span>{% endif %}</td>
+              <td class="text-center">{% if l.ok %}<i class="bx bx-check text-success"></i>{% else %}<i class="bx bx-x text-danger"></i>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Bộ lọc & tìm kiếm -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <form method="get" action="/admin/advertising">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+          <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Tất cả ({{ kpis.total_campaigns }})</option>
+          <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Đang chạy ({{ kpis.active_count }})</option>
+          <option value="scheduled" {% if status_filter == 'scheduled' %}selected{% endif %}>Chờ kích hoạt ({{ kpis.scheduled_count }})</option>
+        </select>
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." aria-label="Tìm kiếm chiến dịch">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm"><i class="bx bx-search mr-1"></i>Tìm kiếm</button>
+              {% if q %}<a href="/admin/advertising?status={{ status_filter }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm"><i class="bx bx-x"></i></a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Danh sách chiến dịch -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">Danh sách chiến dịch quảng cáo ({{ pagination.total }})</span>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <a href="/admin/advertising/keywords" class="btn btn-sm btn-light border font-weight-bold"><i class="bx bx-key mr-1"></i>Kho từ khóa & Ad Copy</a>
+          <button type="button" class="btn btn-sm btn-light border font-weight-bold" onclick="openApiSettingsModal()"><i class="bx bx-cog mr-1"></i>Cấu hình Google Ads API</button>
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openNewCampaignModal()"><i class="bx bx-plus mr-1"></i>Thêm chiến dịch</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Tên chiến dịch / Điểm đến</th>
+            <th>Dịch vụ</th>
+            <th>Thời gian chạy</th>
+            <th>Ngân sách / ngày</th>
+            <th>Hiệu quả</th>
+            <th class="text-center">Bật / Tắt</th>
+            <th style="width:150px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in campaigns %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ c.title }}</div>
+              <div class="small text-muted"><i class="bx bx-map-pin text-danger"></i> <strong>{{ c.target_province }}</strong> (Bán kính {{ c.radius_km }}km)</div>
+              <div class="mt-1 d-flex align-items-center" style="gap:4px;">
+                <span class="text-muted small">Google ID:</span>
+                <input type="text" class="form-control form-control-sm py-0 px-1" style="width: 120px; font-size: 12px;" id="google_id_{{ c.id }}" value="{{ c.google_campaign_id or '' }}" placeholder="Chưa gán">
+                <button type="button" class="btn btn-sm btn-light border py-0 px-2" style="font-size: 12px;" onclick="saveGoogleId({{ c.id }})">Lưu</button>
+              </div>
+            </td>
+            <td class="align-middle">
+              {% set st = service_type_badges.get(c.service_type, ('Quả cân kiểm định', 'warning')) %}
+              <span class="badge badge-{{ st[1] }}">{{ st[0] }}</span>
+            </td>
+            <td class="align-middle">
+              <div class="small">{{ c.start_date.strftime('%d/%m/%Y') }} ➔ {{ c.end_date.strftime('%d/%m/%Y') }}</div>
+              {% if c.is_running_now %}
+                <span class="badge badge-active mt-1">Đang đến lịch chạy</span>
+              {% elif c.status == 'scheduled' %}
+                <span class="badge badge-scheduled mt-1">Lên lịch trước</span>
+              {% elif c.status == 'paused' %}
+                <span class="badge badge-paused mt-1">Đang tạm dừng</span>
+              {% else %}
+                <span class="badge badge-completed mt-1">Đã hoàn thành</span>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-success">{{ c.daily_budget_fmt }}</div>
+              <div class="small text-muted">Đã tiêu: {{ c.spent_amount_fmt }}</div>
+            </td>
+            <td class="align-middle">
+              <div class="small">Xem: <strong>{{ c.impressions }}</strong> · Nhấp: <strong>{{ c.clicks }}</strong> (CTR: {{ c.ctr_fmt }})</div>
+              <div class="small">Gọi: <strong class="text-success">{{ c.calls }}</strong> · Giá/gọi: <strong>{{ c.cost_per_call_fmt }}</strong></div>
+              <div class="small text-muted">CPC: {{ c.cpc_fmt }}</div>
+            </td>
+            <td class="text-center align-middle">
+              <label class="toggle-switch">
+                <input type="checkbox" onchange="toggleCampaign({{ c.id }}, this)" {{ 'checked' if c.status == 'active' else '' }}>
+                <span class="toggle-slider"></span>
+              </label>
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1" title="Cập nhật số liệu"
+                      data-id="{{ c.id }}" data-title="{{ c.title }}" data-impressions="{{ c.impressions or 0 }}"
+                      data-clicks="{{ c.clicks or 0 }}" data-calls="{{ c.calls or 0 }}"
+                      data-spent="{{ (c.spent_amount or 0)|int }}" onclick="openMetricsModal(this)">Sửa</button>
+              <form method="post" action="/admin/advertising/api/campaigns/{{ c.id }}/delete" class="d-inline" onsubmit="return appConfirmForm(event, 'Xóa chiến dịch này?', {title: 'Xóa chiến dịch', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-4 text-muted">{% if status_filter != 'all' or q %}Không có chiến dịch nào ở mục này.{% else %}Chưa có chiến dịch nào.{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm chiến dịch -->
+<div class="modal fade" id="newCampaignModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Thêm chiến dịch quảng cáo chuyến đi</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form method="post" action="/admin/advertising/api/campaigns">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tỉnh / Thành phố điểm đến <span class="text-danger">*</span></label>
+              <select name="target_province" id="target_province" required class="form-control form-control-sm" onchange="updateSuggestedTitle(this.value)">
+                <option value="">-- Chọn tỉnh đến trả hàng --</option>
+                {% for p in provinces %}
+                  <option value="{{ p.name }}" data-region="{{ p.region }}">{{ p.name }} ({{ p.region }}){% if p.merged_into_name %} (nay thuộc {{ p.merged_into_name }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tên chiến dịch</label>
+              <input type="text" name="title" id="campaign_title" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Ngày bắt đầu chạy Ads <span class="text-danger">*</span></label>
+              <input type="date" name="start_date" value="{{ default_start_date }}" required class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Ngày tự động kết thúc (tắt Ads) <span class="text-danger">*</span></label>
+              <input type="date" name="end_date" value="{{ default_end_date }}" required class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Dịch vụ cần tìm khách</label>
+              <select name="service_type" class="form-control form-control-sm">
+                {% for value, label, _badge, _color in service_types %}
+                <option value="{{ value }}"{% if loop.first %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Bán kính quét</label>
+              <select name="radius_km" class="form-control form-control-sm">
+                <option value="15">15 km</option>
+                <option value="25" selected>25 km</option>
+                <option value="40">40 km</option>
+                <option value="60">60 km</option>
+              </select>
+            </div>
+            <div class="col-md-3 mb-2">
+              <label class="small font-weight-bold">Ngân sách / ngày</label>
+              <select name="daily_budget" class="form-control form-control-sm">
+                <option value="50000">50.000 đ</option>
+                <option value="100000" selected>100.000 đ</option>
+                <option value="150000">150.000 đ</option>
+                <option value="200000">200.000 đ</option>
+              </select>
+            </div>
+            <div class="col-12 mb-0">
+              <label class="small font-weight-bold">Ghi chú chuyến đi / biển số xe</label>
+              <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu chiến dịch</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cập nhật số liệu -->
+<div class="modal fade" id="metricsModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Cập nhật số liệu chiến dịch</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form id="metricsForm" onsubmit="submitMetrics(event)">
+        <div class="modal-body">
+          <div class="mb-2">
+            <div class="font-weight-bold text-dark" id="metricsCampaignTitle"></div>
+            <input type="hidden" id="metricsCampaignId" name="campaign_id">
+          </div>
+          <div class="form-row">
+            <div class="col-6 mb-2">
+              <label class="small font-weight-bold">Lượt xem (Impressions)</label>
+              <input type="number" min="0" id="metricsImpressions" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6 mb-2">
+              <label class="small font-weight-bold">Lượt nhấp (Clicks)</label>
+              <input type="number" min="0" id="metricsClicks" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6 mb-0">
+              <label class="small font-weight-bold">Cuộc gọi (Calls)</label>
+              <input type="number" min="0" id="metricsCalls" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6 mb-0">
+              <label class="small font-weight-bold">Chi tiêu (VNĐ)</label>
+              <input type="text" id="metricsSpent" class="form-control form-control-sm" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu số liệu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cấu hình Google Ads API -->
+<div class="modal fade" id="apiSettingsModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Cấu hình kết nối Google Ads API</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form method="post" action="/admin/advertising/api/settings">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Customer ID (ID tài khoản Google Ads)</label>
+            <input type="text" name="customer_id" value="{{ settings.customer_id }}" class="form-control form-control-sm">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Developer Token</label>
+            <input type="password" name="developer_token" value="" class="form-control form-control-sm"
+                   placeholder="{% if settings['developer_token'].configured %}Đã lưu ({{ settings['developer_token'].hint }}){% else %}Chưa nhập{% endif %}">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Manager Account ID (MCC)</label>
+            <input type="text" name="login_customer_id" value="{{ settings.login_customer_id }}" class="form-control form-control-sm">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Client ID</label>
+            <input type="text" name="client_id" value="{{ settings.client_id }}" class="form-control form-control-sm">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Client Secret</label>
+            <input type="password" name="client_secret" value="" class="form-control form-control-sm"
+                   placeholder="{% if settings['client_secret'].configured %}Đã lưu ({{ settings['client_secret'].hint }}){% else %}Chưa nhập{% endif %}">
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Refresh Token</label>
+            <input type="password" name="refresh_token" value="" class="form-control form-control-sm"
+                   placeholder="{% if settings['refresh_token'].configured %}Đã lưu ({{ settings['refresh_token'].hint }}){% else %}Chưa nhập{% endif %}">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu cấu hình</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Bật chế độ Tự động -->
+<div class="modal fade" id="googleLiveModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Bật chế độ Tự động</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form id="googleLiveForm" onsubmit="submitGoogleLive(event)">
+        <div class="modal-body">
+          <label class="small font-weight-bold" for="googleLiveConfirm">Nhập BAT để xác nhận</label>
+          <input type="text" id="googleLiveConfirm" class="form-control form-control-sm" autocomplete="off">
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Bật</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function adsNotify(message, ok) {
+  window.showNotify(message, ok === false ? 'error' : 'success');
+}
+
+function openNewCampaignModal() { $('#newCampaignModal').modal('show'); }
+function openApiSettingsModal() { $('#apiSettingsModal').modal('show'); }
+
+function updateSuggestedTitle(prov) {
+  if (!prov) return;
+  const titleInput = document.getElementById('campaign_title');
+  if (!titleInput.value || titleInput.value.startsWith('Chuyến')) {
+    titleInput.value = 'Chuyến cẩu ' + prov + ' (Chiều về Phú Thọ)';
+  }
+}
+
+async function toggleCampaign(campaignId, checkbox) {
+  try {
+    const res = await fetch(`/admin/advertising/api/campaigns/${campaignId}/toggle`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      adsNotify(data.message || 'Lỗi khi chuyển trạng thái chiến dịch', false);
+      checkbox.checked = !checkbox.checked;
+    }
+  } catch (err) {
+    adsNotify('Không thể kết nối máy chủ', false);
+    checkbox.checked = !checkbox.checked;
+  }
+}
+
+function openMetricsModal(button) {
+  const data = button.dataset;
+  document.getElementById('metricsCampaignId').value = data.id;
+  document.getElementById('metricsCampaignTitle').textContent = data.title;
+  document.getElementById('metricsImpressions').value = data.impressions;
+  document.getElementById('metricsClicks').value = data.clicks;
+  document.getElementById('metricsCalls').value = data.calls;
+  document.getElementById('metricsSpent').value = data.spent;
+  $('#metricsModal').modal('show');
+}
+
+async function submitMetrics(e) {
+  e.preventDefault();
+  const campId = document.getElementById('metricsCampaignId').value;
+  const formData = new FormData();
+  formData.append('impressions', document.getElementById('metricsImpressions').value);
+  formData.append('clicks', document.getElementById('metricsClicks').value);
+  formData.append('calls', document.getElementById('metricsCalls').value);
+  formData.append('spent_amount', document.getElementById('metricsSpent').value);
+
+  try {
+    const res = await fetch(`/admin/advertising/api/campaigns/${campId}/metrics`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      adsNotify(data.message || 'Lỗi cập nhật', false);
+    }
+  } catch (err) {
+    adsNotify('Lỗi kết nối máy chủ', false);
+  }
+}
+
+async function saveGoogleId(campId) {
+  const inputEl = document.getElementById('google_id_' + campId);
+  const val = inputEl ? inputEl.value.trim() : '';
+  if (val && !/^\d+$/.test(val)) {
+    adsNotify('Google Campaign ID phải chỉ gồm chữ số.', false);
+    return;
+  }
+  const fd = new FormData();
+  fd.append('google_campaign_id', val);
+  try {
+    const res = await fetch(`/admin/advertising/api/campaigns/${campId}/google-id`, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    adsNotify(data.message || (data.ok ? 'Đã lưu' : 'Lỗi'), data.ok);
+    if (data.ok) setTimeout(() => location.reload(), 800);
+  } catch (err) {
+    adsNotify('Không thể kết nối máy chủ', false);
+  }
+}
+
+async function testGoogleConnection() {
+  try {
+    const res = await fetch('/admin/advertising/api/google/test', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    adsNotify(data.message || (data.ok ? 'Kết nối thành công!' : 'Lỗi kết nối'), data.ok);
+  } catch (err) {
+    adsNotify('Lỗi kết nối máy chủ', false);
+  }
+}
+
+async function syncGoogleAdsNow() {
+  try {
+    const res = await fetch('/admin/advertising/api/google/sync', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      adsNotify(`Đồng bộ thành công! Đã liên kết: ${data.linked}, Cập nhật số liệu: ${data.metrics_updated}, Thay đổi trạng thái: ${(data.changes || []).length}`);
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      adsNotify(data.message || 'Đồng bộ thất bại', false);
+    }
+  } catch (err) {
+    adsNotify('Lỗi kết nối máy chủ', false);
+  }
+}
+
+async function setGoogleLive(enabled, confirmValue) {
+  const fd = new FormData();
+  fd.append('enabled', enabled ? '1' : '0');
+  if (enabled) fd.append('confirm', confirmValue);
+  try {
+    const res = await fetch('/admin/advertising/api/google/live', {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    adsNotify(data.message || (data.ok ? 'Đã cập nhật' : 'Lỗi'), data.ok);
+    if (data.ok) setTimeout(() => location.reload(), 800);
+  } catch (err) {
+    adsNotify('Lỗi kết nối máy chủ', false);
+  }
+}
+
+function toggleGoogleLive(enable) {
+  if (enable) {
+    document.getElementById('googleLiveConfirm').value = '';
+    $('#googleLiveModal').modal('show');
+    setTimeout(() => document.getElementById('googleLiveConfirm').focus(), 300);
+    return;
+  }
+  appConfirm('Chuyển về chế độ Chạy thử?', {title: 'Chế độ Tự động', confirmText: 'Chuyển', confirmClass: 'btn-primary'}, () => setGoogleLive(false));
+}
+
+function submitGoogleLive(e) {
+  e.preventDefault();
+  const value = document.getElementById('googleLiveConfirm').value.trim();
+  if (value !== 'BAT') {
+    adsNotify('Xác nhận không đúng.', false);
+    return;
+  }
+  $('#googleLiveModal').modal('hide');
+  setGoogleLive(true, value);
+}
+</script>
+{% endblock %}

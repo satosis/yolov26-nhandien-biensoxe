@@ -1,0 +1,441 @@
+{% extends "landing_base_legacy.html" %}
+{% from "partials/consult_button.html" import consult_text_btn %}
+
+{% block title %}Cho thuê nhà xưởng KCN Cổ Tiết, Phú Thọ từ 50.000đ/m² | THÉP SƠN LÂM{% endblock %}
+
+{% block seo %}
+<meta name="description" content="Cho thuê nhà xưởng KCN Cổ Tiết (Tam Nông, Phú Thọ) diện tích linh hoạt 1.000 – 10.000 m². Đơn giá niêm yết từ 50.000đ – 65.000đ/m²/tháng, sàn 5 tấn/m², trạm điện 5000 KVA, PCCC & XLNT đạt chuẩn.">
+<meta name="keywords" content="cho thuê nhà xưởng KCN Cổ Tiết, thuê xưởng Phú Thọ, nhà xưởng Tam Nông, giá thuê nhà xưởng Cổ Tiết, THÉP SƠN LÂM">
+<meta name="author" content="THÉP SƠN LÂM Industrial Core">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.url.replace(query='') }}">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:title" content="Cho thuê nhà xưởng KCN Cổ Tiết, Phú Thọ từ 50.000đ/m² | THÉP SƠN LÂM">
+<meta property="og:description" content="Nhà xưởng xây sẵn KCN Cổ Tiết, Phú Thọ 1.000 – 10.000 m², giá từ 50.000đ/m²/tháng, trạm 5000 KVA, PCCC & XLNT hoàn chỉnh.">
+<meta property="og:image" content="{{ request.base_url }}static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg">
+<meta property="og:url" content="{{ request.url.replace(query='') }}">
+<meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block head %}
+<style>
+  .co-tiet-page .btn {
+    border-radius: 9999px;
+    font-weight: 700;
+  }
+  .co-tiet-price-banner {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+    padding: 0.55rem 1rem;
+    margin-bottom: 1.4rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .co-tiet-price-banner strong {
+    color: #fde68a;
+    font-weight: 800;
+  }
+  .co-tiet-warning-box {
+    margin-top: 1.5rem;
+    padding: 1.15rem 1.25rem;
+    border-radius: 14px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+  }
+  .co-tiet-warning-box .contact-info-item {
+    margin-bottom: 0;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .co-tiet-warning-box .contact-icon {
+    width: 46px;
+    height: 46px;
+    background: #ffedd5;
+    color: #c2410c;
+  }
+  .co-tiet-warning-box .contact-details h3 {
+    color: #9a3412;
+    font-size: 1rem;
+  }
+  .co-tiet-warning-box .contact-details p {
+    color: #7c2d12;
+    font-size: 0.92rem;
+  }
+  .co-tiet-news-card {
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .co-tiet-news-card .news-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+  }
+  .co-tiet-news-card .news-title {
+    margin-bottom: 0.5rem;
+  }
+  .co-tiet-price-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    padding: 0.35rem 0.8rem;
+    margin-bottom: 0.85rem;
+    border-radius: 9999px;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+    font-size: 0.88rem;
+    font-weight: 800;
+  }
+  .co-tiet-card-specs {
+    margin: 0 0 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.86rem;
+    color: #334155;
+  }
+  .co-tiet-card-specs li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .co-tiet-card-specs .material-symbols-outlined {
+    font-size: 18px;
+    color: var(--c-primary);
+  }
+  .co-tiet-news-card .btn-row {
+    margin-top: auto;
+  }
+  .co-tiet-doc-card {
+    background: #ffffff;
+    border: 1px solid #dbe4f0;
+    border-radius: 18px;
+    padding: 2rem;
+    box-shadow: var(--shadow-md);
+  }
+  .co-tiet-doc-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    margin-bottom: 1.25rem;
+    border-radius: 9999px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+  .co-tiet-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  @media (min-width: 992px) {
+    .co-tiet-gallery-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  .co-tiet-gallery-item {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    background: #0f172a;
+    border: 1px solid #e2e8f0;
+    box-shadow: var(--shadow-sm);
+  }
+  .co-tiet-gallery-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.35s ease;
+  }
+  .co-tiet-gallery-item:hover img {
+    transform: scale(1.05);
+  }
+  .co-tiet-gallery-caption {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    padding: 0.6rem 0.75rem;
+    background: linear-gradient(180deg, transparent 0%, rgba(15, 23, 42, 0.85) 100%);
+    color: #ffffff;
+    font-size: 0.78rem;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  @media (max-width: 640px) {
+    .co-tiet-page .hero-buttons .btn {
+      font-size: 0.78rem !important;
+      padding: 0.62rem 0.75rem !important;
+    }
+    .co-tiet-page .hero-buttons .material-symbols-outlined {
+      font-size: 17px;
+    }
+    .co-tiet-page .stat-value {
+      font-size: 1.45rem !important;
+    }
+    .co-tiet-doc-card {
+      padding: 1.35rem;
+    }
+    .co-tiet-price-banner {
+      border-radius: 14px;
+      font-size: 0.82rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="co-tiet-page">
+  <section class="hero">
+    <div class="hero-bg" style="background-image:url('/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg');"></div>
+    <div class="hero-overlay"></div>
+    <div class="container hero-content">
+      <div class="hero-text-content">
+        <p class="subtitle text-accent">Khu Đồng Dâu · Xã Vạn Xuân · KCN Cổ Tiết · Phú Thọ</p>
+        <h1 class="hero-title">Cho thuê <span class="highlight">nhà xưởng KCN Cổ Tiết</span></h1>
+        <p class="hero-subtitle">Nhà xưởng xây sẵn quy mô 1.000 – 10.000 m² tại KCN Cổ Tiết, Phú Thọ. Phù hợp may mặc, điện tử, cơ khí, đóng gói và ngành sản xuất sạch.</p>
+        <div class="co-tiet-price-banner">
+          <strong>Từ 50.000đ/m²/tháng</strong>
+          <span>· Kho &amp; Xưởng SX 1.000 – 10.000 m²</span>
+        </div>
+        <div class="hero-buttons">
+          <a href="/lien-he" class="btn btn-primary btn-lg">
+            <span class="material-symbols-outlined" aria-hidden="true">event_available</span> Hẹn xem xưởng
+          </a>
+          {{ consult_text_btn("Nhà xưởng KCN Cổ Tiết (từ 50.000đ/m²)", "btn-lg") }}
+          <a href="tel:0986565666" class="btn btn-outline btn-lg">
+            <span class="material-symbols-outlined" aria-hidden="true">call</span> 0986 565 666
+          </a>
+          <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" target="_blank" rel="noopener" class="btn btn-outline btn-lg">
+            <span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span> Bản vẽ PDF
+          </a>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-card glass-panel"><span class="stat-value">50-65k</span><span class="stat-unit">đ/m²/tháng</span><span class="stat-label">Đơn giá niêm yết</span></div>
+        <div class="stat-card glass-panel"><span class="stat-value">1k-10k</span><span class="stat-unit">m² linh hoạt</span><span class="stat-label">Quy mô phân khu</span></div>
+        <div class="stat-card glass-panel"><span class="stat-value">5</span><span class="stat-unit">tấn/m²</span><span class="stat-label">Tải trọng sàn</span></div>
+        <div class="stat-card glass-panel"><span class="stat-value">5000</span><span class="stat-unit">KVA</span><span class="stat-label">Trạm điện 110KV</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="about-grid">
+        <div class="about-content">
+          <h4 class="subtitle text-primary">Thông tin cho thuê</h4>
+          <h2 class="section-title">Nhà xưởng tại KCN Cổ Tiết</h2>
+          <p class="about-desc">Dự án nằm tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ. Nhà xưởng xây sẵn cùng hạ tầng phụ trợ phục vụ sản xuất sạch, bàn giao ngay.</p>
+          <ul class="feature-list">
+            <li>Trạm biến áp 5000 KVA và kết nối TBA 110KV Tam Nông.</li>
+            <li>PCCC &amp; CHCN gồm nhà bơm và bể nước chuyên dụng.</li>
+            <li>Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT đạt chuẩn.</li>
+            <li>02 nhà để xe tập trung, 02 nhà bảo vệ 24/7, hệ thống WC riêng biệt.</li>
+          </ul>
+          <div class="co-tiet-warning-box">
+            <div class="contact-info-item">
+              <div class="contact-icon"><span class="material-symbols-outlined">warning</span></div>
+              <div class="contact-details">
+                <h3>Không tiếp nhận ngành ô nhiễm</h3>
+                <p>Không cho thuê đối với hóa chất độc hại, nhuộm, thuộc da và các ngành nghề gây ô nhiễm môi trường.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="about-image">
+          <div class="img-wrapper shadow-lg"><img src="/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg" alt="Nhà xưởng KCN Cổ Tiết" class="lightbox-trigger" decoding="async"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="dien-tich-bang-gia" class="section bg-light">
+    <div class="container">
+      <div class="section-header text-center">
+        <h4 class="subtitle text-primary">Diện tích &amp; Giá thuê niêm yết</h4>
+        <h2 class="section-title">Các Phân Khu Nhà Xưởng KCN Cổ Tiết</h2>
+        <p class="section-desc">Đơn giá thuê công khai theo từng quy mô diện tích — hạ tầng điện nước, PCCC, trạm xử lý nước thải đồng bộ.</p>
+      </div>
+      <div class="news-grid">
+        <article class="news-card co-tiet-news-card">
+          <div class="news-image">
+            <img src="/static/brain/tsl/z7785901896602_7160ecbbe0b509e4b09bf8e685a6c390.jpg" alt="Kho xưởng vừa 1.000 - 2.500 m² KCN Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          </div>
+          <div class="news-content">
+            <span class="news-date">Phân khu vừa · 1.000 – 2.500 m²</span>
+            <h3 class="news-title">Kho chứa &amp; Xưởng gia công</h3>
+            <div class="co-tiet-price-pill">
+              <span class="material-symbols-outlined" style="font-size:16px;" aria-hidden="true">sell</span>
+              <span>Từ 50.000đ / m² / tháng</span>
+            </div>
+            <p class="news-excerpt">Phù hợp kho logistics trung chuyển, đóng gói hàng hóa, cơ khí nhẹ hoặc dây chuyền gia công vừa.</p>
+            <ul class="co-tiet-card-specs">
+              <li><span class="material-symbols-outlined">check_circle</span> Cửa nhập xuất xe container tận cửa</li>
+              <li><span class="material-symbols-outlined">check_circle</span> Sàn bê tông chịu tải 5 tấn/m²</li>
+            </ul>
+            <div class="btn-row">
+              <a href="/lien-he" class="btn btn-primary">Hỏi thuê · 50k/m²</a>
+              {{ consult_text_btn("Kho/Xưởng 1.000–2.500m² KCN Cổ Tiết (từ 50.000đ/m²)") }}
+            </div>
+          </div>
+        </article>
+
+        <article class="news-card co-tiet-news-card">
+          <div class="news-image">
+            <img src="/static/brain/tsl/hero_factory.png" alt="Xưởng sản xuất tiêu chuẩn 2.700 - 5.000 m² KCN Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          </div>
+          <div class="news-content">
+            <span class="news-date">Phân khu tiêu chuẩn · 2.700 – 5.000 m²</span>
+            <h3 class="news-title">Xưởng sản xuất sạch</h3>
+            <div class="co-tiet-price-pill">
+              <span class="material-symbols-outlined" style="font-size:16px;" aria-hidden="true">sell</span>
+              <span>55.000 – 65.000đ / m² / tháng</span>
+            </div>
+            <p class="news-excerpt">Thiết kế tối ưu cho may mặc, lắp ráp điện tử, linh kiện, chế biến thực phẩm sạch với chiều cao biên 8,75m.</p>
+            <ul class="co-tiet-card-specs">
+              <li><span class="material-symbols-outlined">check_circle</span> PCCC &amp; Trạm XLNT đấu nối sẵn</li>
+              <li><span class="material-symbols-outlined">check_circle</span> Nguồn điện 3 pha từ trạm 5000 KVA</li>
+            </ul>
+            <div class="btn-row">
+              <a href="/lien-he" class="btn btn-primary">Hẹn xem xưởng</a>
+              {{ consult_text_btn("Xưởng sản xuất 2.700–5.000m² KCN Cổ Tiết (55k–65k/m²)") }}
+            </div>
+          </div>
+        </article>
+
+        <article class="news-card co-tiet-news-card">
+          <div class="news-image">
+            <img src="/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg" alt="Cụm nhà xưởng lớn 5.000 - 10.000 m² KCN Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          </div>
+          <div class="news-content">
+            <span class="news-date">Phân khu lớn · 5.000 – 10.000 m²</span>
+            <h3 class="news-title">Cụm xưởng độc lập</h3>
+            <div class="co-tiet-price-pill">
+              <span class="material-symbols-outlined" style="font-size:16px;" aria-hidden="true">verified</span>
+              <span>Ưu đãi HĐ 3–10 năm · VAT</span>
+            </div>
+            <p class="news-excerpt">Bàn giao nguyên cụm gồm nhà xưởng lớn, 2 nhà bảo vệ, bãi xe tập trung và văn phòng điều hành riêng biệt.</p>
+            <ul class="co-tiet-card-specs">
+              <li><span class="material-symbols-outlined">check_circle</span> Pháp lý hoàn chỉnh > 45 năm đất KCN</li>
+              <li><span class="material-symbols-outlined">check_circle</span> Hỗ trợ thủ tục đăng ký DN &amp; PCCC</li>
+            </ul>
+            <div class="btn-row">
+              <a href="/lien-he" class="btn btn-primary">Hỏi cụm xưởng</a>
+              {{ consult_text_btn("Cụm xưởng 5.000–10.000m² KCN Cổ Tiết") }}
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header text-center">
+        <h4 class="subtitle text-primary">Thông số &amp; Hình ảnh thực tế</h4>
+        <h2 class="section-title">Hạ tầng nhà xưởng Cổ Tiết</h2>
+      </div>
+      <div class="project-highlights">
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">warehouse</span><strong>Quy mô linh hoạt 1.000 – 10.000 m²</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">height</span><strong>Chiều cao cột biên: 8,75 m</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">foundation</span><strong>Sàn bê tông cốt thép 5 tấn/m²</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">bolt</span><strong>Trạm biến áp 5000 KVA</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">fire_extinguisher</span><strong>PCCC &amp; CHCN: bể và nhà bơm chuyên dụng</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">water</span><strong>Trạm XLNT đạt chuẩn</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">directions_car</span><strong>02 khu để xe tập trung</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">security</span><strong>02 nhà bảo vệ 24/7</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">wc</span><strong>Hệ thống WC riêng biệt</strong></div>
+        <div class="highlight-item"><span class="material-symbols-outlined icon-check">conversion_path</span><strong>Đường giao thông nội bộ</strong></div>
+      </div>
+
+      <div class="co-tiet-gallery-grid">
+        <div class="co-tiet-gallery-item">
+          <img src="/static/brain/tsl/z7785901904159_b3eaa8c1fc4112d0cbdd14efe704529d.jpg" alt="Toàn cảnh khu nhà xưởng KCN Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          <div class="co-tiet-gallery-caption">Toàn cảnh KCN Cổ Tiết · Đường container rộng</div>
+        </div>
+        <div class="co-tiet-gallery-item">
+          <img src="/static/brain/tsl/z7785901913433_5861751b5076d731ec691d57c3774813.jpg" alt="Mặt tiền nhà xưởng xây sẵn Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          <div class="co-tiet-gallery-caption">Mặt tiền &amp; sân bãi bốc xếp hàng hóa</div>
+        </div>
+        <div class="co-tiet-gallery-item">
+          <img src="/static/brain/tsl/z7785901893692_ce870fb0a67e3705c5ea4971473e8f4d.jpg" alt="Kết cấu khung thép nhà xưởng Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          <div class="co-tiet-gallery-caption">Kết cấu khung thép cao thoáng 8,75m</div>
+        </div>
+        <div class="co-tiet-gallery-item">
+          <img src="/static/brain/tsl/z7785901896783_8ba7b3d8cff2e2b8f248b5a9278222f4.jpg" alt="Không gian bên trong nhà xưởng Cổ Tiết" class="lightbox-trigger" loading="lazy" decoding="async">
+          <div class="co-tiet-gallery-caption">Không gian bên trong · Sàn 5 tấn/m²</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section bg-light">
+    <div class="container">
+      <div class="about-grid">
+        <div class="about-content">
+          <h4 class="subtitle text-primary">Vị trí</h4>
+          <h2 class="section-title">Khu Đồng Dâu, xã Vạn Xuân, Phú Thọ</h2>
+          <p class="about-desc">KCN Cổ Tiết có kết nối thuận tiện qua QL2, QL32C và cao tốc Nội Bài - Lào Cai. Khu vực Tam Nông có nguồn lao động dồi dào và chi phí vận hành cạnh tranh.</p>
+          <div class="location-distances">
+            <div class="distance-item"><div class="distance-icon">20</div><div class="distance-info"><span class="distance-label">km đến TP. Việt Trì</span><span class="distance-value">Trung tâm hành chính tỉnh Phú Thọ.</span></div></div>
+            <div class="distance-item"><div class="distance-icon">65</div><div class="distance-info"><span class="distance-label">km đến sân bay Nội Bài</span><span class="distance-value">Thuận lợi cho xuất nhập khẩu hàng không.</span></div></div>
+            <div class="distance-item"><div class="distance-icon">85</div><div class="distance-info"><span class="distance-label">km đến trung tâm Hà Nội</span><span class="distance-value">Kết nối qua cầu Trung Hà và Đại lộ Thăng Long.</span></div></div>
+          </div>
+          <p class="about-desc" style="margin-top: 1.25rem; margin-bottom: 0;">Cao độ nền thiết kế 17.50 m, an toàn và không ngập lụt.</p>
+        </div>
+        <div class="co-tiet-doc-card">
+          <h4 class="subtitle text-primary">Tài liệu dự án</h4>
+          <h2 class="section-title" style="font-size: clamp(1.5rem, 3vw, 2.15rem);">Bản vẽ mặt bằng Cổ Tiết</h2>
+          <div class="co-tiet-doc-meta">
+            <span class="material-symbols-outlined" style="font-size: 18px; color: var(--c-accent);" aria-hidden="true">description</span>
+            <span>File PDF chính thức · 802 KB · Quy hoạch phân lô &amp; hạ tầng</span>
+          </div>
+          <p class="about-desc">Tải bản vẽ quy hoạch sử dụng đất để xem chi tiết vị trí từng nhà xưởng, khu phụ trợ, trạm điện 5000 KVA, trạm XLNT và đường giao thông nội bộ.</p>
+          <div class="btn-row">
+            <a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" target="_blank" rel="noopener" class="btn btn-primary">
+              <span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span> Xem / Tải bản vẽ PDF
+            </a>
+            {{ consult_text_btn("Nhận mặt bằng chi tiết & báo giá KCN Cổ Tiết") }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-header text-center">
+        <h4 class="subtitle text-primary">Hỏi đáp</h4>
+        <h2 class="section-title">Câu hỏi thường gặp về Cổ Tiết</h2>
+      </div>
+      <div class="contact-info-list">
+        <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">payments</span></div><div class="contact-details"><h3>Đơn giá thuê nhà xưởng KCN Cổ Tiết là bao nhiêu?</h3><p>Kho / xưởng vừa (1.000–2.500 m²) có giá từ 50.000đ/m²/tháng; xưởng sản xuất tiêu chuẩn (2.700–5.000 m²) từ 55.000–65.000đ/m²/tháng. Hợp đồng dài hạn 3–10 năm cho cụm lớn được áp dụng chính sách ưu đãi riêng kèm hóa đơn VAT.</p></div></div>
+        <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">help</span></div><div class="contact-details"><h3>Nhà xưởng ưu tiên ngành nghề nào?</h3><p>Ưu tiên may mặc, lắp ráp điện tử, cơ khí chính xác, đóng gói, chế biến thực phẩm và các ngành sản xuất sạch.</p></div></div>
+        <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">bolt</span></div><div class="contact-details"><h3>Điện và PCCC đã sẵn sàng chưa?</h3><p>Có. Dự án có trạm điện 5000 KVA, kết nối TBA 110KV Tam Nông và hệ thống PCCC &amp; CHCN chuyên dụng.</p></div></div>
+        <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">water</span></div><div class="contact-details"><h3>Có hệ thống xử lý nước thải không?</h3><p>Có. Hệ thống XLNT gồm nhà trạm XLNT và bể XLNT, phục vụ yêu cầu vận hành sản xuất sạch.</p></div></div>
+        <div class="contact-info-item"><div class="contact-icon"><span class="material-symbols-outlined">call</span></div><div class="contact-details"><h3>Liên hệ xem xưởng như thế nào?</h3><p>Liên hệ Mr Lâm: 0986 565 666 hoặc gửi yêu cầu hẹn lịch trực tiếp để khảo sát nhà xưởng tại KCN Cổ Tiết, Phú Thọ.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section"><div class="container"><div class="cta-card glass-card"><div class="cta-content"><h2 class="cta-title">Quan tâm nhà xưởng KCN Cổ Tiết?</h2><p class="cta-desc">Liên hệ ngay để nhận bảng báo giá chi tiết và hẹn lịch khảo sát thực tế KCN Cổ Tiết (từ 50.000đ/m²/tháng).</p></div><div class="cta-action"><a href="/lien-he" class="btn btn-primary btn-lg btn-glow"><span class="material-symbols-outlined" aria-hidden="true">send</span> Gửi yêu cầu tư vấn</a>{{ consult_text_btn("Nhà xưởng KCN Cổ Tiết (từ 50.000đ/m²)", "btn-lg") }}<a href="/static/docs/ban-ve-mat-bang-co-tiet.pdf" target="_blank" rel="noopener" class="btn btn-outline btn-lg"><span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span> Bản vẽ PDF</a></div></div></div></section>
+</div>
+{% endblock %}

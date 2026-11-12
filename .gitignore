@@ -1,0 +1,12 @@
+.env
+__pycache__/
+frontend/.runtime/
+frontend/node_modules/
+scripts/zalo_bridge/node_modules/
+*.onnx
+*.pt
+datasets/
+go2rtc
+data/
+tests/
+.ai/

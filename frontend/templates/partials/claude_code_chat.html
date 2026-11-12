@@ -1,0 +1,29 @@
+{# Nút chat Claude sửa code; layout.html chỉ chèn cho chủ dự án (frontend/modules/claude_code/service.py). #}
+<link rel="stylesheet" href="/static/admin/css/claude-code-chat.css?v=20261110-4">
+<div id="cc-chat" class="cc-chat" data-api="/admin/claude-code/api">
+  <button type="button" class="cc-fab" title="Claude sửa code" aria-label="Claude sửa code" aria-expanded="false" aria-controls="cc-panel">
+    <i class="bx bx-bot"></i>
+    <span class="cc-fab-dot" hidden></span>
+  </button>
+  <section id="cc-panel" class="cc-panel" role="dialog" aria-label="Claude sửa code" hidden>
+    <header class="cc-head">
+      <div class="cc-title"><i class="bx bx-bot"></i><span>Claude</span><small>sửa code</small></div>
+      <button type="button" class="cc-icon-btn cc-new" title="Cuộc trò chuyện mới" aria-label="Cuộc trò chuyện mới"><i class="bx bx-plus"></i></button>
+      <button type="button" class="cc-icon-btn cc-close" title="Đóng" aria-label="Đóng"><i class="bx bx-x"></i></button>
+    </header>
+    <div class="cc-log" aria-live="polite">
+      <div class="cc-empty">Chưa có tin nhắn</div>
+    </div>
+    <div class="cc-notice" hidden></div>
+    <div class="cc-files" hidden></div>
+    <form class="cc-form" autocomplete="off">
+      <button type="button" class="cc-icon-btn cc-attach" title="Đính kèm ảnh, file" aria-label="Đính kèm ảnh, file"><i class="bx bx-paperclip"></i></button>
+      <button type="button" class="cc-icon-btn cc-shot" title="Chụp ảnh trang này" aria-label="Chụp ảnh trang này"><i class="bx bx-camera"></i></button>
+      <input type="file" class="cc-file" multiple hidden>
+      <textarea class="cc-input" rows="2" maxlength="8000" placeholder="Nhờ Claude sửa gì? Enter để gửi, Shift+Enter xuống dòng" aria-label="Tin nhắn cho Claude"></textarea>
+      <button type="submit" class="cc-send" title="Gửi" aria-label="Gửi"><i class="bx bx-send"></i></button>
+      <button type="button" class="cc-stop" title="Dừng Claude" aria-label="Dừng Claude" hidden><i class="bx bx-stop"></i></button>
+    </form>
+  </section>
+</div>
+<script src="/static/admin/js/claude-code-chat.js?v=20261110-4" defer></script>

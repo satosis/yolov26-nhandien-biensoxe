@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/static/favicon.ico?v=clean">
+  <title>ACCSHOP – Siêu Thị Tài Khoản AI & Bản Quyền Số</title>
+  <meta name="description" content="Shop tài khoản ChatGPT, AI, bản quyền số chính hãng, giao dịch tự động 24/7, bảo hành 1 đổi 1.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/user/css/storefront.css?v=3.0">
+</head>
+<body>
+
+<!-- ══ TOPBAR ══ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">ACC<span>SHOP</span></div>
+      <div class="brand-badge">Premium Accounts</div>
+    </div>
+  </div>
+
+  <form class="nav-search" method="get" action="/tai-khoan">
+    {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
+    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+    <span class="nav-search-icon">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    </span>
+    <input type="text" name="q" value="{{ q }}" placeholder="Tìm tài khoản ChatGPT, AI..." autocomplete="off" aria-label="Tìm kiếm tài khoản">
+    <button class="nav-search-btn" type="submit" aria-label="Tìm kiếm" title="Tìm kiếm">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+    </button>
+  </form>
+
+  <div class="nav-actions">
+    <button type="button" class="cart-btn" id="cartBtn" aria-label="Giỏ hàng" title="Giỏ hàng">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+      <span class="cart-count" id="cartCount" hidden>0</span>
+    </button>
+
+    {% if user %}
+      <div class="account-menu" id="accountMenuWrap">
+        <button type="button" class="user-chip" id="accountChipBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountDropdown" title="Tài khoản">
+          <span class="user-avatar-wrap" id="userChipAvatarWrap">
+            {% if user.avatar %}
+              <img src="{{ user.avatar }}" alt="Ảnh đại diện của {{ user.full_name or user.username or 'Người dùng' }}" class="user-avatar" id="userChipAvatarImg">
+            {% else %}
+              <span class="user-avatar-placeholder" id="userChipAvatarPlaceholder">
+                {{ ((user.full_name or user.username)[0] | upper) if (user.full_name or user.username) else 'U' }}
+              </span>
+            {% endif %}
+          </span>
+          <span class="user-name" id="userChipName">{{ user.full_name or user.username }}</span>
+          <svg class="user-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+
+        <div class="account-dropdown" id="accountDropdown" role="menu" hidden>
+          <div class="acct-head">
+            <div class="acct-head-name" id="menuDisplayName">{{ user.full_name or user.username }}</div>
+            <div class="acct-head-sub">@{{ user.username }}{% if user.role == 'Admin' %} · Admin{% endif %}</div>
+          </div>
+
+          <button type="button" class="acct-item" id="btnEditProfile" role="menuitem">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span>Chỉnh sửa hồ sơ</span>
+          </button>
+
+          {% if user.role == 'Admin' %}
+          <a href="/admin/detection" class="acct-item" role="menuitem">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            <span>Trang quản trị</span>
+          </a>
+          {% endif %}
+
+          <div class="acct-divider" role="separator"></div>
+
+          <a href="/logout" class="acct-item acct-item-danger" role="menuitem">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Đăng xuất</span>
+          </a>
+        </div>
+      </div>
+    {% else %}
+      <a href="/login" class="login-nav-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>
+        Đăng nhập
+      </a>
+    {% endif %}
+  </div>
+</header>
+
+<!-- ══ HERO BANNER ══ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left">
+      <div class="hero-tag">🔥 Tự động giao dịch qua mã QR</div>
+      <h1>Tài Khoản AI Bản Quyền<br><span>Bảo Hành 1 Đổi 1 Suốt Thời Gian</span></h1>
+      <p>Cung cấp tài khoản ChatGPT Plus, Team, Business chính hãng · Kích hoạt ngay sau 30 giây · Hỗ trợ kỹ thuật 24/7.</p>
+    </div>
+
+    <div class="hero-badges">
+      <div class="hero-badge-item">
+        <div class="h-icon emerald">⚡</div>
+        <div>
+          <div class="h-meta-title">Giao dịch tức thì</div>
+          <div class="h-meta-desc">Quét QR nhận acc ngay</div>
+        </div>
+      </div>
+      <div class="hero-badge-item">
+        <div class="h-icon amber">🛡️</div>
+        <div>
+          <div class="h-meta-title">Bảo hành 1 đổi 1</div>
+          <div class="h-meta-desc">Lỗi đổi mới trong 5 phút</div>
+        </div>
+      </div>
+      <div class="hero-badge-item">
+        <div class="h-icon indigo">💬</div>
+        <div>
+          <div class="h-meta-title">Hỗ trợ Zalo 24/7</div>
+          <div class="h-meta-desc">Hotline: 0949.561.668</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ MAIN STOREFRONT ══ -->
+<main class="main">
+
+  {% macro shop_url(g='', c='', s='') -%}
+  /tai-khoan{% set parts = [] %}{% if g %}{% set _ = parts.append('group=' ~ (g|urlencode)) %}{% endif %}{% if c %}{% set _ = parts.append('category=' ~ (c|urlencode)) %}{% endif %}{% if s %}{% set _ = parts.append('q=' ~ (s|urlencode)) %}{% endif %}{% if parts %}?{{ parts|join('&') }}{% endif %}
+  {%- endmacro %}
+
+  <div class="shop-layout">
+
+    <!-- Danh mục Sidebar: nhóm lớn > danh mục -->
+    <aside class="sidebar">
+      <div class="sb-title">Danh mục sản phẩm</div>
+      <input class="sb-search" id="sbSearch" type="text" placeholder="Tìm danh mục hoặc thương hiệu" autocomplete="off">
+      <nav id="sbList">
+        <a class="sb-item {% if not group and not category %}on{% endif %}" href="{{ shop_url(s=q) }}">
+          <span class="sb-name">Tất cả sản phẩm</span><span class="sb-count">{{ total_all }}</span>
+        </a>
+        {% for g in tree %}
+        <div class="sb-group" data-name="{{ g.name|lower }}{% for b in g.brands %} {{ b.name|lower }}{% endfor %}">
+          <a class="sb-item {% if group == g.name and not category %}on{% endif %}" href="{{ shop_url(g=g.name, s=q) }}">
+            <span class="sb-dot">{{ g.name[:1] }}</span><span class="sb-name">{{ g.name }}</span><span class="sb-count">{{ g.count }}</span>
+          </a>
+          {% if group == g.name and g.brands %}
+          <div class="sb-sub">
+            {% for b in g.brands %}
+            <a class="sb-item {% if category == b.name %}on{% endif %}" href="{{ shop_url(g=g.name, c=b.name, s=q) }}">
+              <span class="sb-dot">{{ b.name[:1] }}</span><span class="sb-name">{{ b.name }}</span><span class="sb-count">{{ b.count }}</span>
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <section class="shop-main">
+
+      {% if group or category or q %}
+      <div class="fchips">
+        {% if group %}<a class="fchip" href="{{ shop_url(s=q) }}">{{ group }} ×</a>{% endif %}
+        {% if category %}<a class="fchip" href="{{ shop_url(g=group, s=q) }}">{{ category }} ×</a>{% endif %}
+        {% if q %}<a class="fchip" href="{{ shop_url(g=group, c=category) }}">"{{ q }}" ×</a>{% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Section Header -->
+      <div class="section-header">
+        <div class="section-title">
+          {% if q %}
+            🔍 Kết quả tìm kiếm: "{{ q }}"
+          {% elif category %}
+            📁 Danh mục: {{ category }}
+          {% elif group %}
+            📁 Nhóm: {{ group }}
+          {% else %}
+            🔥 Danh Sách Gói Tài Khoản
+          {% endif %}
+        </div>
+        <div class="section-count">{{ products|length }} sản phẩm</div>
+      </div>
+
+      <!-- Products Grid -->
+      {% if products %}
+      <div class="grid">
+        {% for p in products %}
+        <div class="pcard {% if p.stock <= 0 %}out-of-stock{% endif %}">
+          
+          <!-- Media Thumbnail -->
+          <div class="pmedia">
+            {% if p.image %}
+              <img src="/upload/accounts/{{ p.image }}" alt="{{ p.name }}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              <div class="pmedia-fallback" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"></path><path d="M12 6v6l4 2"></path></svg>
+                <span class="pmedia-fallback-text">{{ p.category or 'AI' }}</span>
+              </div>
+            {% else %}
+              <div class="pmedia-fallback">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12A10 10 0 0 1 12 2z"></path><path d="M12 6v6l4 2"></path></svg>
+                <span class="pmedia-fallback-text">{{ p.category or 'AI' }}</span>
+              </div>
+            {% endif %}
+
+            <div class="pbadge-top">
+              <span>⚡ Chính hãng</span>
+            </div>
+
+            {% if p.stock <= 0 %}
+              <div class="pbadge-stock-out">Hết hàng</div>
+            {% endif %}
+          </div>
+
+          <!-- Card Body -->
+          <div class="pbody">
+            <div class="pcategory">{{ p.category or 'Tài khoản' }}</div>
+            <div class="pname" title="{{ p.name }}">{{ p.name }}</div>
+
+            <div class="pfeatures">
+              <span class="pfeature-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Bảo hành 1:1
+              </span>
+              <span class="pfeature-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Giao ngay
+              </span>
+            </div>
+
+            <div class="pprice-row">
+              <div class="pprice">
+                {{ "{:,.0f}".format(p.price).replace(",", ".") }}đ
+                <span>/ gói</span>
+              </div>
+
+              <div class="pstock-pill {% if p.stock > 0 %}in-stock{% else %}out-stock{% endif %}">
+                <span class="pstock-dot"></span>
+                {% if p.stock > 0 %}Còn hàng{% else %}Tạm hết{% endif %}
+              </div>
+            </div>
+
+            <div class="pfoot-btn-group">
+              <button class="pbuy {% if p.stock > 0 %}active{% else %}disabled{% endif %}"
+                      type="button"
+                      data-id="{{ p.id }}"
+                      data-name="{{ p.name }}"
+                      data-price="{{ '{:,.0f}'.format(p.price).replace(',', '.') }}đ"
+                      data-stock="{{ p.stock }}"
+                      {% if p.stock <= 0 %}disabled{% endif %}>
+                {% if p.stock > 0 %}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                  Đặt Mua Ngay
+                {% else %}
+                  Tạm hết hàng
+                {% endif %}
+              </button>
+              <button class="pbuy-chat" type="button" onclick="openChatWithProduct('{{ p.name }}')" aria-label="Tư vấn gói {{ p.name }}" title="Nhắn tin với Quản trị viên về gói này">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">
+        <div class="empty-icon">📦</div>
+        <h3>Không tìm thấy gói tài khoản phù hợp</h3>
+        <p>Thử chọn danh mục khác hoặc <a href="/tai-khoan">xem tất cả sản phẩm</a>.</p>
+      </div>
+      {% endif %}
+
+    </section>
+  </div>
+</main>
+
+<!-- ══ FOOTER ══ -->
+<footer class="footer" role="contentinfo">
+  <p><strong>ACCSHOP</strong> · Hệ thống bán tài khoản AI, ChatGPT, phần mềm bản quyền chính hãng.</p>
+  <p>Giao dịch tự động 24/7 qua mã VietQR · Hotline / Zalo hỗ trợ: <strong>0949.561.668</strong></p>
+</footer>
+
+<!-- ══ HỆ THỐNG LIÊN HỆ ĐA KÊNH & LIVE CHAT (ZALO · FB · CHATBOT) ══ -->
+{% include "partials/live_chat_widget.html" %}
+
+<!-- ══ ORDER DIALOG ══ -->
+<dialog id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+  <!-- Form state -->
+  <div id="dlgForm">
+    <div class="mdl-head">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--accent-light);text-transform:uppercase;margin-bottom:3px;">Đặt Mua Tài Khoản</div>
+        <div class="mdl-head-title" id="dlgTitle">ChatGPT Plus</div>
+      </div>
+      <button type="button" class="mdl-close-btn" id="dlgClose" aria-label="Đóng cửa sổ đặt mua" title="Đóng">✕</button>
+    </div>
+
+    <form class="mdl-body" id="orderForm" method="post" action="/tai-khoan/dat-hang">
+      <input type="hidden" name="product_id" id="dlgPid">
+      <input type="hidden" name="chat_token" id="dlgChatToken">
+
+      <div class="form-field">
+        <label class="form-label">Số lượng</label>
+        <div class="qty-stepper">
+          <button type="button" class="qty-btn" id="dlgQtyMinus" aria-label="Giảm số lượng">−</button>
+          <input class="form-input" type="number" name="quantity" id="dlgQty" min="1" value="1" required>
+          <button type="button" class="qty-btn" id="dlgQtyPlus" aria-label="Tăng số lượng">+</button>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Họ và tên của bạn</label>
+        <input class="form-input" type="text" name="buyer_name" value="{{ user.full_name or user.username if user else '' }}" placeholder="Ví dụ: Nguyễn Văn A" required>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label">Số điện thoại / Zalo nhận tài khoản</label>
+        <input class="form-input" type="text" name="buyer_contact" value="{{ (user.phone or user.email or '') if user else '' }}" placeholder="Ví dụ: 0912345678" required>
+      </div>
+
+      <div class="consent-box">
+        <input type="checkbox" name="consent" value="1" id="dlgConsent" required checked>
+        <label for="dlgConsent">Tôi đồng ý thông tin trên để shop bàn giao tài khoản và hỗ trợ bảo hành.</label>
+      </div>
+    </form>
+
+    <div class="mdl-footer">
+      <button class="btn-secondary" id="dlgCancel">Hủy</button>
+      <button class="btn-primary" type="submit" form="orderForm" id="dlgSubmit">
+        Tiến Hành Thanh Toán
+      </button>
+    </div>
+  </div>
+
+  <!-- Payment QR State -->
+  <div class="pay-view" id="dlgDone" hidden>
+    <div class="mdl-head">
+      <div>
+        <div class="pay-eyebrow">Thanh toán tự động VietQR</div>
+        <div class="mdl-head-title" id="payTitle">Quét Mã VietQR Để Nhận Tài Khoản</div>
+        <div class="pay-order-meta" id="payOrderMeta" hidden></div>
+      </div>
+      <button type="button" class="mdl-close-btn" id="payClose" aria-label="Đóng cửa sổ thanh toán" title="Đóng">✕</button>
+    </div>
+
+    <div class="pay-grid">
+      <div class="pay-qr-col">
+        <div class="pay-qr-panel">
+          <div class="qr-frame" id="payQrFrame">
+            <img id="payQr" alt="Mã QR VietQR">
+          </div>
+          <div class="pay-qr-hint">Quét bằng app Ngân hàng bất kỳ</div>
+          <button type="button" class="pay-qr-dl" id="payQrDl">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>Tải ảnh QR</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pay-info-col">
+        <div class="pay-amount-card">
+          <div>
+            <div class="pay-amount-label">Số tiền cần chuyển</div>
+            <div class="pay-amount-value" id="payAmount">0đ</div>
+          </div>
+          <button type="button" class="copy-pill copy-pill-lg" id="copyAmountBtn" data-copy-raw="">Sao chép</button>
+        </div>
+
+        <div class="pay-table">
+          <div class="pay-row">
+            <span>Ngân hàng</span>
+            <strong id="payBank">MB Bank</strong>
+          </div>
+          <div class="pay-row">
+            <span>Số tài khoản</span>
+            <strong>
+              <span class="pay-mono" id="payAccount"></span>
+              <button type="button" class="copy-pill" data-copy-el="payAccount">Sao chép</button>
+            </strong>
+          </div>
+          <div class="pay-row">
+            <span>Chủ tài khoản</span>
+            <strong id="payName"></strong>
+          </div>
+          <div class="pay-row pay-row-code">
+            <span>Nội dung CK</span>
+            <strong>
+              <span class="pay-code-val" id="payCode"></span>
+              <button type="button" class="copy-pill copy-pill-amber" data-copy-el="payCode">Sao chép</button>
+            </strong>
+          </div>
+        </div>
+
+        <p class="pay-tip">Nhập đúng <strong>nội dung chuyển khoản</strong> để hệ thống tự động kích hoạt đơn hàng trong vài giây.</p>
+
+        <div class="pay-status-pill" id="payState">
+          <span class="pay-status-dot" aria-hidden="true"></span>
+          <span id="payStateText">Đang chờ hệ thống quét chuyển khoản…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mdl-footer pay-footer">
+      <button type="button" class="btn-secondary" id="dlgOk">Thanh toán sau</button>
+      <button type="button" class="btn-primary" id="payCheckBtn">Tôi đã chuyển khoản</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ══ CART DIALOG ══ -->
+<dialog id="cartDlg" class="is-cart" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+  <div class="mdl-head">
+    <div class="cart-head-left">
+      <div class="cart-head-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+      </div>
+      <div class="cart-head-copy">
+        <div class="cart-head-title-row">
+          <div class="mdl-head-title" id="cartTitle">Giỏ hàng của bạn</div>
+          <span class="cart-head-badge" id="cartHeadBadge" hidden>0 đơn</span>
+        </div>
+        <div class="cart-head-sub" id="cartHeadSub" hidden>Chọn đơn để mở lại mã VietQR thanh toán</div>
+      </div>
+    </div>
+    <button type="button" class="mdl-close-btn" id="cartClose" aria-label="Đóng giỏ hàng" title="Đóng">✕</button>
+  </div>
+
+  <div class="cart-list" id="cartList"></div>
+
+  <div class="cart-footer" id="cartFooter" hidden>
+    <div class="cart-total-wrap">
+      <span class="cart-total-label">Tổng thanh toán</span>
+      <strong class="cart-total-val" id="cartTotal">0đ</strong>
+    </div>
+    <button type="button" class="btn-secondary cart-shop-btn" id="cartShopBtn">Tiếp tục mua</button>
+  </div>
+</dialog>
+
+{% if user %}
+<!-- ══ EDIT PROFILE DIALOG ══ -->
+<dialog id="profileDlg" role="dialog" aria-modal="true" aria-labelledby="profileDlgTitle">
+  <div class="mdl-head">
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--accent-light);text-transform:uppercase;margin-bottom:2px;">@{{ user.username }}{% if user.role %} · {{ user.role }}{% endif %}</div>
+      <div class="mdl-head-title" id="profileDlgTitle">Chỉnh Sửa Hồ Sơ</div>
+    </div>
+    <button type="button" class="mdl-close-btn" id="pfClose" aria-label="Đóng cửa sổ hồ sơ" title="Đóng">✕</button>
+  </div>
+
+  <div class="pf-tabs" role="tablist" aria-label="Mục hồ sơ">
+    <button type="button" class="pf-tab-btn active" data-pf-tab="info" role="tab" aria-selected="true">Thông tin cá nhân</button>
+    <button type="button" class="pf-tab-btn" data-pf-tab="password" role="tab" aria-selected="false">Đổi mật khẩu</button>
+  </div>
+
+  <div id="pfPanelInfo">
+    <form class="mdl-body" id="pfInfoForm" action="/tai-khoan/profile" method="post" enctype="multipart/form-data">
+      <div class="pf-avatar-row">
+        <div class="pf-avatar-box" id="pfAvatarPreviewWrap">
+          {% if user.avatar %}
+            <img src="{{ user.avatar }}" alt="Ảnh đại diện" class="pf-avatar-img" id="pfAvatarImg">
+          {% else %}
+            <span class="pf-avatar-placeholder" id="pfAvatarPlaceholder">{{ ((user.full_name or user.username)[0] | upper) if (user.full_name or user.username) else 'U' }}</span>
+          {% endif %}
+        </div>
+        <div class="pf-avatar-meta">
+          <div class="pf-display-name" id="pfDisplayName">{{ user.full_name or user.username }}</div>
+          <label class="pf-upload-btn" for="pfAvatarInput">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <span>Đổi ảnh đại diện</span>
+            <input type="file" name="avatar" id="pfAvatarInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label class="form-label" for="pfFullName">Họ và tên</label>
+        <input class="form-input" type="text" id="pfFullName" name="full_name" value="{{ user.full_name or '' }}" placeholder="Ví dụ: Nguyễn Minh Hùng" maxlength="100" required>
+      </div>
+
+      <div class="pf-grid-2">
+        <div class="form-field">
+          <label class="form-label" for="pfPhone">Số điện thoại / Zalo</label>
+          <input class="form-input" type="tel" id="pfPhone" name="phone" value="{{ user.phone or '' }}" placeholder="0912345678" maxlength="20">
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="pfEmail">Email</label>
+          <input class="form-input" type="email" id="pfEmail" name="email" value="{{ user.email or '' }}" placeholder="ten@email.com" maxlength="120">
+        </div>
+      </div>
+
+      <div class="pf-alert" id="pfInfoAlert" role="alert" hidden></div>
+
+      {% if user.role == 'Admin' %}
+      <a href="/profile" class="pf-admin-link">Mở trang hồ sơ quản trị (/profile) ↗</a>
+      {% endif %}
+    </form>
+
+    <div class="mdl-footer">
+      <button type="button" class="btn-secondary" id="pfCancelInfo">Hủy</button>
+      <button type="submit" class="btn-primary" form="pfInfoForm" id="pfInfoSubmit">Lưu thay đổi</button>
+    </div>
+  </div>
+
+  <div id="pfPanelPwd" hidden>
+    <form class="mdl-body" id="pfPwdForm" action="/tai-khoan/profile/password" method="post">
+      <div class="form-field">
+        <label class="form-label" for="pfCurPwd">Mật khẩu hiện tại</label>
+        <input class="form-input" type="password" id="pfCurPwd" name="current_password" autocomplete="current-password" required>
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="pfNewPwd">Mật khẩu mới</label>
+        <input class="form-input" type="password" id="pfNewPwd" name="new_password" autocomplete="new-password" minlength="6" placeholder="Ít nhất 6 ký tự" required>
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="pfConfirmPwd">Nhập lại mật khẩu mới</label>
+        <input class="form-input" type="password" id="pfConfirmPwd" name="confirm_password" autocomplete="new-password" minlength="6" required>
+      </div>
+      <div class="pf-alert" id="pfPwdAlert" role="alert" hidden></div>
+    </form>
+
+    <div class="mdl-footer">
+      <button type="button" class="btn-secondary" id="pfCancelPwd">Hủy</button>
+      <button type="submit" class="btn-primary" form="pfPwdForm" id="pfPwdSubmit">Cập nhật mật khẩu</button>
+    </div>
+  </div>
+</dialog>
+{% endif %}
+
+<!-- Toast notification -->
+<div class="toast-msg" id="toastMsg">Đã sao chép vào bộ nhớ tạm!</div>
+
+<script defer src="/static/user/js/storefront.js?v=2.9"></script>
+</body>
+</html>

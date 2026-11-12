@@ -1,0 +1,319 @@
+{% extends "layout.html" %}
+
+{% block title %}Khách tiềm năng{% endblock %}
+{% block page_title %}Khách tiềm năng{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Thẻ lọc -->
+  <div class="card mb-3">
+    <div class="card-body" style="padding:12px 16px;">
+      <form method="get" action="/admin/advertising/prospects" class="form-inline flex-wrap" style="gap:8px;">
+        <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+          <option value="" {% if not status %}selected{% endif %}>
+            Tất cả ({{ status_counts.values()|sum }})
+          </option>
+          {% for sk, sv in STATUSES.items() %}
+          <option value="{{ sk }}" {% if status == sk %}selected{% endif %}>
+            {{ sv }} ({{ status_counts.get(sk, 0) }})
+          </option>
+          {% endfor %}
+        </select>
+
+        <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." style="width:220px;">
+
+        <button type="submit" class="btn btn-sm btn-primary">Tìm kiếm</button>
+        {% if status or q %}
+        <a href="/admin/advertising/prospects" class="btn btn-sm btn-light border">Đặt lại</a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- Thẻ danh sách -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="font-weight-bold">
+          Danh sách khách tiềm năng ({{ pagination.total }})
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-light border font-weight-bold" onclick="openImportModal()">
+            <i class="bx bx-import mr-1"></i>Nhập danh sách
+          </button>
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm khách
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Khách</th>
+            <th>Liên hệ</th>
+            <th>Nhóm</th>
+            <th>Tỉnh</th>
+            <th style="width:130px;">Trạng thái</th>
+            <th style="width:130px;">Liên hệ lần tới</th>
+            <th style="width:120px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in prospects %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index }}
+            </td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ p.name }}</div>
+              {% if p.company %}
+                <div class="small text-muted">{{ p.company }}</div>
+              {% endif %}
+              {% if p.note %}
+                <div class="small text-muted text-truncate" style="max-width:280px;">{{ p.note }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {% if p.phone %}
+                <div><a href="tel:{{ p.phone }}" class="font-weight-medium text-primary">{{ p.phone }}</a></div>
+              {% else %}
+                <span class="text-muted small">--</span>
+              {% endif %}
+              {% if p.zalo %}
+                <div class="small text-muted">Zalo: {{ p.zalo }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {{ SEGMENTS.get(p.segment, p.segment) }}
+            </td>
+            <td class="align-middle">
+              {{ p.province or '--' }}
+            </td>
+            <td class="align-middle">
+              <form method="post" action="/admin/advertising/prospects/{{ p.id }}/status?filter_status={{ status|urlencode }}&filter_q={{ q|urlencode }}" class="m-0">
+                <input type="hidden" name="next_contact" value="{{ p.next_contact.isoformat() if p.next_contact and p.next_contact.isoformat is defined else (p.next_contact or '') }}">
+                <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+                  {% for sk, sv in STATUSES.items() %}
+                  <option value="{{ sk }}" {% if p.status == sk %}selected{% endif %}>{{ sv }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </td>
+            <td class="align-middle">
+              {% if p.next_contact %}
+                <span class="{% if today and p.next_contact < today %}text-danger font-weight-bold{% else %}text-muted{% endif %}">
+                  {{ p.next_contact.strftime('%d/%m/%Y') if p.next_contact.strftime is defined else p.next_contact }}
+                </span>
+              {% else %}
+                <span class="text-muted small">--</span>
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1"
+                      data-id="{{ p.id }}"
+                      data-name="{{ p.name }}"
+                      data-company="{{ p.company }}"
+                      data-phone="{{ p.phone }}"
+                      data-zalo="{{ p.zalo }}"
+                      data-segment="{{ p.segment }}"
+                      data-province="{{ p.province }}"
+                      data-source="{{ p.source }}"
+                      data-status="{{ p.status }}"
+                      data-next-contact="{{ p.next_contact.isoformat() if p.next_contact and p.next_contact.isoformat is defined else (p.next_contact or '') }}"
+                      data-note="{{ p.note }}"
+                      onclick="openEditModal(this)">
+                Sửa
+              </button>
+              <form method="post" action="/admin/advertising/prospects/{{ p.id }}/delete?filter_status={{ status|urlencode }}&filter_q={{ q|urlencode }}" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa khách tiềm năng này?', {confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8" class="text-center py-4 text-muted">Chưa có khách tiềm năng nào.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm / Sửa Khách tiềm năng -->
+<div class="modal fade" id="prospectModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="prospectModalTitle">Thêm khách tiềm năng</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="prospectForm" method="post" action="/admin/advertising/prospects">
+        <input type="hidden" name="source" id="field-source" value="manual">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-7 mb-2">
+              <label class="small font-weight-bold">Tên khách hàng <span class="text-danger">*</span></label>
+              <input type="text" name="name" id="field-name" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Số điện thoại</label>
+              <input type="text" name="phone" id="field-phone" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-7 mb-2">
+              <label class="small font-weight-bold">Công ty</label>
+              <input type="text" name="company" id="field-company" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Zalo</label>
+              <input type="text" name="zalo" id="field-zalo" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Nhóm</label>
+              <select name="segment" id="field-segment" class="form-control form-control-sm">
+                {% for sk, sv in SEGMENTS.items() %}
+                <option value="{{ sk }}">{{ sv }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tỉnh / Thành</label>
+              <input type="text" name="province" id="field-province" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Trạng thái</label>
+              <select name="status" id="field-status" class="form-control form-control-sm">
+                {% for sk, sv in STATUSES.items() %}
+                <option value="{{ sk }}">{{ sv }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Liên hệ lần tới</label>
+              <input type="date" name="next_contact" id="field-next-contact" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" id="field-note" class="form-control form-control-sm" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu thông tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nhập danh sách -->
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Nhập danh sách khách</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form method="post" action="/admin/advertising/prospects/import?filter_status={{ status|urlencode }}&filter_q={{ q|urlencode }}">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Nhóm</label>
+              <select name="segment" class="form-control form-control-sm">
+                {% for sk, sv in SEGMENTS.items() %}
+                <option value="{{ sk }}">{{ sv }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tỉnh / Thành</label>
+              <input type="text" name="province" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Tên; Công ty; Số điện thoại; Ghi chú</label>
+            <textarea name="text" class="form-control form-control-sm font-monospace" rows="8" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Nhập danh sách</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAddModal() {
+  document.getElementById('prospectModalTitle').textContent = 'Thêm khách tiềm năng';
+  document.getElementById('prospectForm').action = '/admin/advertising/prospects?filter_status={{ status|urlencode }}&filter_q={{ q|urlencode }}';
+  document.getElementById('field-name').value = '';
+  document.getElementById('field-company').value = '';
+  document.getElementById('field-phone').value = '';
+  document.getElementById('field-zalo').value = '';
+  document.getElementById('field-segment').value = 'other';
+  document.getElementById('field-province').value = '';
+  document.getElementById('field-source').value = 'manual';
+  document.getElementById('field-status').value = 'new';
+  document.getElementById('field-next-contact').value = '';
+  document.getElementById('field-note').value = '';
+  $('#prospectModal').modal('show');
+}
+
+function openEditModal(btn) {
+  var d = btn.dataset;
+  document.getElementById('prospectModalTitle').textContent = 'Sửa khách tiềm năng';
+  document.getElementById('prospectForm').action = '/admin/advertising/prospects/' + d.id + '?filter_status={{ status|urlencode }}&filter_q={{ q|urlencode }}';
+  document.getElementById('field-name').value = d.name || '';
+  document.getElementById('field-company').value = d.company || '';
+  document.getElementById('field-phone').value = d.phone || '';
+  document.getElementById('field-zalo').value = d.zalo || '';
+  document.getElementById('field-segment').value = d.segment || 'other';
+  document.getElementById('field-province').value = d.province || '';
+  document.getElementById('field-source').value = d.source || 'manual';
+  document.getElementById('field-status').value = d.status || 'new';
+  document.getElementById('field-next-contact').value = d.nextContact || '';
+  document.getElementById('field-note').value = d.note || '';
+  $('#prospectModal').modal('show');
+}
+
+function openImportModal() {
+  $('#importModal').modal('show');
+}
+
+{% if msg %}
+document.addEventListener("DOMContentLoaded", function() {
+  if (window.showNotify) {
+    window.showNotify({{ msg|tojson }}, 'success');
+  }
+});
+{% endif %}
+{% if error %}
+document.addEventListener("DOMContentLoaded", function() {
+  if (window.showNotify) {
+    window.showNotify({{ error|tojson }}, 'error');
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

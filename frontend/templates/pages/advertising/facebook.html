@@ -1,0 +1,837 @@
+{% extends "layout.html" %}
+
+{% block title %}Facebook Page{% endblock %}
+{% block page_title %}Facebook Page{% endblock %}
+
+{% block head %}
+<style>
+  .fb-tabs .nav-link { font-weight: 600; color: #4b5563; }
+  .fb-tabs .nav-link.active { color: #2563eb; border-bottom: 2px solid #2563eb; }
+  .fb-message { white-space: pre-wrap; }
+  .fb-thumb { width: 72px; height: 72px; object-fit: contain; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
+  .fb-post-img { width: 96px; height: 96px; object-fit: contain; background: #f8fafc; border-radius: 6px; }
+  .fb-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; max-width: 560px; }
+  .fb-row-thumb { width: 40px; height: 40px; object-fit: contain; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0; }
+  /* Khung giữ cỡ cũ, ảnh hiện trọn trong khung (contain), không cắt. Đặt cỡ bằng class, đừng đặt "height" trong style của <img>: admin-custom.css giới hạn .card img[style*="height"] còn 150px và cắt ảnh. */
+  .fb-photo-full { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+  .fb-pool-img { width: 92px; height: 72px; object-fit: contain; background: #f8fafc; border-radius: 4px; display: block; }
+  .fb-pool-item { position: relative; }
+  .fb-pool-item:hover { box-shadow: 0 0 0 2px #4f86f7; }
+  .fb-pool-item.selected { box-shadow: 0 0 0 3px #28a745; background: #f0fff4; }
+  .fb-pool-item.selected::after {
+    content: "✓";
+    position: absolute;
+    top: 3px; right: 5px;
+    font-weight: bold; color: #28a745; font-size: 14px;
+  }
+</style>
+<script>
+  // Chọn / bỏ chọn ảnh trong kho: mỗi ảnh chọn là một ô ẩn pool_photo_ids của form chứa nó.
+  function fbTogglePoolPhoto(el) {
+    el.classList.toggle('selected');
+    var photoId = el.getAttribute('data-id');
+    var container = el.closest('form').querySelector('[data-pool-hidden]');
+    var existing = container.querySelector('input[value="' + photoId + '"]');
+    if (existing) {
+      existing.remove();
+    } else {
+      var inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'pool_photo_ids';
+      inp.value = photoId;
+      container.appendChild(inp);
+    }
+  }
+</script>
+{% endblock %}
+
+{% block content %}
+{% set status_class = {'pending': 'warning', 'sending': 'info', 'scheduled': 'info', 'published': 'success', 'rejected': 'secondary', 'failed': 'danger'} %}
+{% macro fb_pool_picker(photos, max_height='') %}
+  {% if photos %}
+  <div class="mb-3">
+    <label class="font-weight-bold d-block mb-2">
+      <i class="bx bx-image-alt mr-1 text-primary"></i>Chọn từ kho ảnh
+    </label>
+    <div class="d-flex flex-wrap" style="gap:10px;{% if max_height %} max-height:{{ max_height }}; overflow-y:auto;{% endif %}">
+      {% for p in photos %}
+      <div class="fb-pool-item border rounded text-center" data-id="{{ p.id }}"
+           onclick="fbTogglePoolPhoto(this)"
+           style="cursor:pointer; width:100px; overflow:hidden; transition:box-shadow 0.15s; padding:4px;">
+        <img src="/upload/fb_posts/{{ p.filename }}" alt="" class="fb-pool-img">
+        {% if p.caption %}
+        <div style="font-size:10px; color:#555; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ p.caption }}">{{ p.caption }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div data-pool-hidden></div>
+  </div>
+  {% endif %}
+{% endmacro %}
+<div class="container-fluid px-0">
+
+  {% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  {% if graph_error %}<div class="alert alert-danger">Facebook: {{ graph_error }}</div>{% endif %}
+
+  <ul class="nav nav-tabs fb-tabs mb-3">
+    {% for key, label in [('drafts', 'Chờ duyệt'), ('compose', 'Soạn bài'), ('posts', 'Bài trên Page'), ('photos', 'Kho ảnh'), ('radar', 'Tìm khách'), ('auto', 'Tự động đăng')] %}
+    <li class="nav-item">
+      <a class="nav-link {% if tab == key %}active{% endif %}" href="?tab={{ key }}">{{ label }}
+        {% if key == 'drafts' %}{% set waiting = drafts|selectattr('status', 'equalto', 'pending')|list|length %}{% if waiting %}<span class="badge badge-warning ml-1">{{ waiting }}</span>{% endif %}{% endif %}
+        {% if key == 'photos' %}{% if photos %}<span class="badge badge-info ml-1">{{ photos|length }}</span>{% endif %}{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if tab == 'drafts' %}
+  <!-- Bộ lọc & tìm kiếm -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <form method="get" action="/admin/advertising/facebook">
+      <input type="hidden" name="tab" value="drafts">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+          {% for key, label, n in draft_filters %}
+          <option value="{{ key }}" {% if key == draft_view %}selected{% endif %}>{{ label }} ({{ n }})</option>
+          {% endfor %}
+        </select>
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." aria-label="Tìm kiếm bài đăng">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm"><i class="bx bx-search mr-1"></i>Tìm kiếm</button>
+              {% if q %}<a href="?tab=drafts&status={{ draft_view }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm"><i class="bx bx-x"></i></a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Danh sách bài -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">Danh sách bài đăng Facebook ({{ pagination.total }})</span>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-light border font-weight-bold" onclick="fbOpenAi()"><i class="bx bx-bot mr-1"></i>AI viết bài</button>
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="fbOpenCreate()"><i class="bx bx-plus mr-1"></i>Thêm bài</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Nội dung</th>
+            <th style="width:80px;">Ảnh</th>
+            <th style="width:170px;">Giờ đăng</th>
+            <th style="width:90px;">Nguồn</th>
+            <th style="width:140px;">Trạng thái</th>
+            <th style="width:260px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in visible_drafts %}
+          {% set approve_text = 'hẹn giờ' if d.publish_at and d.publish_at > now else 'đăng ngay' %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">
+              <div class="fb-excerpt">{{ d.message or '(không có chữ)' }}</div>
+              {% if d.link %}<div class="small text-muted mt-1"><i class="bx bx-link"></i> {{ d.link|truncate(50) }}</div>{% endif %}
+            </td>
+            <td class="align-middle">
+              {% if d.photos %}<img src="/upload/fb_posts/{{ d.photos[0] }}" class="fb-row-thumb" alt="" loading="lazy">{% if d.photos|length > 1 %}<span class="badge badge-light border ml-1">+{{ d.photos|length - 1 }}</span>{% endif %}{% else %}<span class="text-muted small">--</span>{% endif %}
+            </td>
+            <td class="align-middle">
+              {% if d.publish_at %}<div>{{ d.publish_at.astimezone().strftime('%d/%m/%Y %H:%M') }}</div>
+                {% if d.status == 'pending' and d.publish_at < now %}<div class="small text-danger">đã quá giờ</div>{% endif %}
+              {% else %}<span class="text-muted small">Đăng ngay khi duyệt</span>{% endif %}
+              {% if d.approved_by %}<div class="small text-muted">duyệt bởi {{ d.approved_by }}</div>{% endif %}
+            </td>
+            <td class="align-middle">{{ 'AI viết' if d.source == 'ai' else 'Soạn tay' }}</td>
+            <td class="align-middle">
+              <span class="badge badge-{{ status_class.get(d.status, 'secondary') }}">{{ statuses.get(d.status, d.status) }}</span>
+              {% if d.error %}<div class="small text-danger mt-1" title="{{ d.error }}">{{ d.error|truncate(70) }}</div>{% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              {% if d.can_edit %}
+              <form method="post" action="/admin/advertising/facebook/drafts/{{ d.id }}/approve" class="d-inline" data-confirm="{{ 'Duyệt bài và %s lên Facebook?\n\n%s'|format(approve_text, (d.message or '')[:150]) }}" onsubmit="return appConfirmForm(event, this.dataset.confirm, {title: 'Duyệt bài', confirmText: 'Duyệt', confirmClass: 'btn-success'})">
+                <button type="submit" class="btn btn-sm btn-success font-weight-bold mr-1" title="Duyệt và {{ approve_text }}">Duyệt</button>
+              </form>
+              {% endif %}
+              <button type="button" class="btn btn-sm btn-light border mr-1" onclick="fbOpenEdit({{ d.id }})">{{ 'Sửa' if d.can_edit else 'Xem' }}</button>
+              {% if d.can_edit %}
+              <form method="post" action="/admin/advertising/facebook/drafts/{{ d.id }}/reject" class="d-inline" data-confirm="Bỏ bài này?" onsubmit="return appConfirmForm(event, this.dataset.confirm, {title: 'Bỏ bài', confirmText: 'Bỏ bài'})">
+                <button type="submit" class="btn btn-sm btn-light border mr-1">Bỏ bài</button>
+              </form>
+              {% endif %}
+              {% if d.can_delete %}
+              <form method="post" action="/admin/advertising/facebook/drafts/{{ d.id }}/delete" class="d-inline" data-confirm="Xóa bài này?" onsubmit="return appConfirmForm(event, this.dataset.confirm, {title: 'Xóa bài', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">{% if drafts %}Không có bài nào ở mục này.{% else %}Chưa có bài nào.{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+  <!-- Modal Thêm bài -->
+  <div class="modal fade" id="fbCreateModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-light py-2">
+          <h5 class="modal-title font-weight-bold">Thêm bài đăng</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <form method="post" action="/admin/advertising/facebook/drafts" enctype="multipart/form-data">
+          <input type="hidden" name="back" value="drafts">
+          <div class="modal-body">
+            <div class="form-group mb-2">
+              <label class="small font-weight-bold">Nội dung</label>
+              <textarea name="message" rows="8" class="form-control form-control-sm"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="col-md-5 mb-2"><label class="small font-weight-bold">Link đính kèm</label><input name="link" class="form-control form-control-sm" placeholder="https://..."></div>
+              <div class="col-md-3 mb-2"><label class="small font-weight-bold">Hẹn giờ đăng</label><input type="datetime-local" name="publish_at" class="form-control form-control-sm"></div>
+              <div class="col-md-4 mb-2"><label class="small font-weight-bold">Ảnh</label><input type="file" name="photos" accept="image/*" multiple class="form-control-file"></div>
+            </div>
+          </div>
+          <div class="modal-footer py-2 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+            <button type="submit" name="action" value="save" class="btn btn-sm btn-light border font-weight-bold">Lưu vào chờ duyệt</button>
+            <button type="submit" name="action" value="publish" class="btn btn-sm btn-primary font-weight-bold" onclick="return appConfirmClick(this, 'Gửi bài này lên Facebook Page?', {title: 'Đăng bài', confirmText: 'Đăng', confirmClass: 'btn-primary'})">Đăng / hẹn giờ</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal AI viết bài -->
+  <div class="modal fade" id="fbAiModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-light py-2">
+          <h5 class="modal-title font-weight-bold">Nhờ AI viết bài</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <form method="post" action="/admin/advertising/facebook/drafts/generate" enctype="multipart/form-data" onsubmit="fbBusy(this, 'AI đang viết...')">
+          <div class="modal-body">
+            <div class="form-group mb-2">
+              <label class="small font-weight-bold">Chủ đề</label>
+              <input name="topic" class="form-control form-control-sm">
+            </div>
+            <div class="form-group mb-0">
+              <label class="small font-weight-bold">Giờ đăng dự kiến</label>
+              <input type="datetime-local" name="publish_at" class="form-control form-control-sm">
+            </div>
+            <div class="form-group mt-2 mb-2">
+              <label class="small font-weight-bold">Upload ảnh mới</label>
+              <input type="file" name="photos" accept="image/*" multiple class="form-control-file">
+            </div>
+            {{ fb_pool_picker(photos, '240px') }}
+          </div>
+          <div class="modal-footer py-2 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold">AI viết bài</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Sửa / Xem bài (dùng chung, điền bằng JavaScript) -->
+  <div class="modal fade" id="fbEditModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-light py-2">
+          <h5 class="modal-title font-weight-bold" id="fbEditTitle"></h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <form method="post" id="fbEditForm" enctype="multipart/form-data">
+          <div class="modal-body">
+            <div class="alert alert-danger small py-2 d-none" id="fbEditError"></div>
+            <div class="form-group mb-2">
+              <label class="small font-weight-bold">Nội dung</label>
+              <textarea name="message" rows="9" class="form-control form-control-sm"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="col-md-5 mb-2"><label class="small font-weight-bold">Link đính kèm</label><input name="link" class="form-control form-control-sm" placeholder="https://..."></div>
+              <div class="col-md-3 mb-2"><label class="small font-weight-bold">Giờ đăng</label><input type="datetime-local" name="publish_at" class="form-control form-control-sm"></div>
+              <div class="col-md-4 mb-2" id="fbEditAdd"><label class="small font-weight-bold">Thêm ảnh</label><input type="file" name="photos" accept="image/*" multiple class="form-control-file"></div>
+            </div>
+            <div class="d-flex flex-wrap" id="fbEditPhotos"></div>
+          </div>
+          <div class="modal-footer py-2 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="fbEditSave">Lưu sửa đổi</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="fb-draft-data">{{ draft_json|tojson }}</script>
+  <script>
+    const fbDrafts = Object.fromEntries(JSON.parse(document.getElementById('fb-draft-data').textContent).map(d => [d.id, d]));
+
+    function fbOpenCreate() { $('#fbCreateModal').modal('show'); }
+    function fbOpenAi() { $('#fbAiModal').modal('show'); }
+
+    function fbOpenEdit(id) {
+      const d = fbDrafts[id];
+      if (!d) return;
+      const form = document.getElementById('fbEditForm');
+      form.action = '/admin/advertising/facebook/drafts/' + id;
+      document.getElementById('fbEditTitle').textContent = (d.can_edit ? 'Sửa bài #' : 'Xem bài #') + id + ' · ' + d.status;
+      const error = document.getElementById('fbEditError');
+      error.textContent = d.error;
+      error.classList.toggle('d-none', !d.error);
+      form.elements.message.value = d.message;
+      form.elements.link.value = d.link;
+      form.elements.publish_at.value = d.publish_at;
+      form.elements.photos.value = '';
+      for (const name of ['message', 'link', 'publish_at']) form.elements[name].readOnly = !d.can_edit;
+      document.getElementById('fbEditAdd').classList.toggle('d-none', !d.can_edit);
+      document.getElementById('fbEditSave').classList.toggle('d-none', !d.can_edit);
+      const photos = document.getElementById('fbEditPhotos');
+      photos.replaceChildren();
+      for (const name of d.photos) {
+        const label = document.createElement('label');
+        label.className = 'mr-2 mb-0 text-center small';
+        const img = document.createElement('img');
+        img.src = '/upload/fb_posts/' + encodeURIComponent(name);
+        img.className = 'fb-thumb d-block mb-1';
+        img.alt = '';
+        label.appendChild(img);
+        if (d.can_edit) {
+          const box = document.createElement('input');
+          box.type = 'checkbox';
+          box.name = 'remove_photos';
+          box.value = name;
+          label.append(box, ' bỏ');
+        }
+        photos.appendChild(label);
+      }
+      $('#fbEditModal').modal('show');
+    }
+
+    function fbBusy(form, text) {
+      const button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      button.textContent = text;
+    }
+  </script>
+
+  {% elif tab == 'compose' %}
+  <div class="card shadow-sm">
+    <form method="post" action="/admin/advertising/facebook/drafts" enctype="multipart/form-data" class="card-body" id="fb-compose">
+      <div class="form-row align-items-end">
+        <div class="form-group col">
+          <label class="font-weight-bold">Chủ đề cho AI</label>
+          <input id="fb-suggest-topic" class="form-control">
+        </div>
+        <div class="form-group col-auto">
+          <button type="button" id="fb-suggest-btn" class="btn btn-outline-primary" onclick="fbSuggest(this)"><i class="bx bx-bulb mr-1"></i>AI viết giúp</button>
+        </div>
+      </div>
+      <div class="form-group"><label class="font-weight-bold">Nội dung</label><textarea name="message" rows="8" class="form-control"></textarea></div>
+      <div class="form-row">
+        <div class="form-group col-md-5"><label>Link đính kèm</label><input name="link" class="form-control" placeholder="https://..."></div>
+        <div class="form-group col-md-3">
+          <label>Hẹn giờ đăng</label>
+          <input type="datetime-local" name="publish_at" id="fb-publish-at" class="form-control" oninput="fbUpdatePublishBtn()">
+        </div>
+        <div class="form-group col-md-4"><label>Upload ảnh mới</label><input type="file" name="photos" accept="image/*" multiple class="form-control-file"></div>
+      </div>
+
+      {{ fb_pool_picker(photos) }}
+
+      <button name="action" value="publish" id="fb-publish-btn" class="btn btn-primary" onclick="return appConfirmClick(this, fbPublishQuestion(), {title: 'Đăng bài', confirmText: 'Đăng', confirmClass: 'btn-primary'})">
+        <i class="bx bx-send mr-1" id="fb-publish-icon"></i><span id="fb-publish-label">Đăng ngay</span>
+      </button>
+      <button name="action" value="save" class="btn btn-light ml-2"><i class="bx bx-save mr-1"></i>Lưu vào chờ duyệt</button>
+    </form>
+  </div>
+  <script>
+    // Cập nhật label nút Đăng theo trạng thái hẹn giờ
+    function fbUpdatePublishBtn() {
+      var input = document.getElementById('fb-publish-at');
+      var label = document.getElementById('fb-publish-label');
+      var icon  = document.getElementById('fb-publish-icon');
+      if (input && input.value) {
+        label.textContent = 'Hẹn giờ đăng';
+        icon.className = 'bx bx-time-five mr-1';
+      } else {
+        label.textContent = 'Đăng ngay';
+        icon.className = 'bx bx-send mr-1';
+      }
+    }
+    function fbPublishQuestion() {
+      var input = document.getElementById('fb-publish-at');
+      if (input && input.value) {
+        // Có hẹn giờ — hiển thị giờ trong câu hỏi
+        var d = new Date(input.value);
+        var fmt = d.toLocaleString('vi-VN', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+        return 'Hẹn đăng bài lên Facebook lúc ' + fmt + '?';
+      }
+      // Không hẹn giờ — đăng ngay, hỏi đơn giản
+      return 'Đăng bài này lên Facebook Page ngay bây giờ?';
+    }
+    // Điền chủ đề và nội dung bằng bài AI viết; không đụng ô hẹn giờ. Không đăng, không lưu.
+    async function fbSuggest(btn) {
+      const form = document.getElementById('fb-compose');
+      const message = form.elements.message;
+      if (message.value.trim() && !(await appConfirmAsync('Thay nội dung đang có bằng bài AI viết?', {title: 'Thay nội dung', confirmText: 'Thay', confirmClass: 'btn-primary'}))) return;
+      const label = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = 'AI đang viết...';
+      try {
+        const body = new FormData();
+        body.append('topic', document.getElementById('fb-suggest-topic').value);
+        form.querySelectorAll('input[name="pool_photo_ids"]').forEach(input => body.append('pool_photo_ids', input.value));
+        if (form.elements.photos.files[0]) body.append('photos', form.elements.photos.files[0]);
+        const res = await fetch('/admin/advertising/facebook/compose/suggest', {method: 'POST', body});
+        const data = await res.json().catch(() => ({message: 'Máy chủ trả lỗi ' + res.status}));
+        if (!res.ok || !data.ok) throw new Error(data.message || 'AI chưa viết được bài.');
+        message.value = data.message;
+        document.getElementById('fb-suggest-topic').value = data.topic;
+        message.focus();
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = label;
+      }
+    }
+  </script>
+
+  {% elif tab == 'posts' %}
+  <!-- Bộ lọc & tìm kiếm -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <form method="get" action="/admin/advertising/facebook">
+      <input type="hidden" name="tab" value="posts">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <select name="status" class="form-control form-control-sm" style="width:auto;" aria-label="Trạng thái" onchange="this.form.requestSubmit()">
+          {% for key, label, n in post_filters %}
+          <option value="{{ key }}" {% if key == post_view %}selected{% endif %}>{{ label }} ({{ n }})</option>
+          {% endfor %}
+        </select>
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." aria-label="Tìm kiếm bài trên Page">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm"><i class="bx bx-search mr-1"></i>Tìm kiếm</button>
+              {% if q %}<a href="?tab=posts&status={{ post_view }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm"><i class="bx bx-x"></i></a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Danh sách bài trên Page -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">Danh sách bài trên Page ({{ pagination.total }})</span>
+        <a href="?tab=compose" class="btn btn-sm btn-primary font-weight-bold"><i class="bx bx-plus mr-1"></i>Thêm bài</a>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:80px;">Ảnh</th>
+            <th>Nội dung</th>
+            <th style="width:150px;">Thời gian</th>
+            <th style="width:120px;">Trạng thái</th>
+            <th style="width:200px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in post_items %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">{% if p.picture %}<img src="{{ p.picture }}" class="fb-row-thumb" alt="" loading="lazy">{% else %}<span class="text-muted small">--</span>{% endif %}</td>
+            <td class="align-middle"><div class="fb-excerpt">{{ p.message or '(không có chữ)' }}</div></td>
+            <td class="align-middle">{{ p.time_label }}</td>
+            <td class="align-middle"><span class="badge badge-{{ 'success' if p.kind == 'published' else 'info' }}">{{ 'Đã đăng' if p.kind == 'published' else 'Đã hẹn giờ' }}</span></td>
+            <td class="text-right text-nowrap align-middle">
+              {% if p.kind == 'published' %}
+              <button type="button" class="btn btn-sm btn-light border mr-1" data-id="{{ p.id }}" onclick="fbOpenPost(this.dataset.id)">Sửa</button>
+              {% if p.url %}<a href="{{ p.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-light border mr-1">Xem</a>{% endif %}
+              <form method="post" action="/admin/advertising/facebook/posts/{{ p.id }}/delete" class="d-inline" onsubmit="return appConfirmForm(event, 'Xóa bài này khỏi Page? Không hoàn tác được.', {title: 'Xóa bài khỏi Page', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+              {% else %}
+              <form method="post" action="/admin/advertising/facebook/posts/{{ p.id }}/delete" class="d-inline" onsubmit="return appConfirmForm(event, 'Hủy bài hẹn giờ này?', {title: 'Hủy bài hẹn giờ', confirmText: 'Hủy bài'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">{% if posts or scheduled %}Không có bài nào ở mục này.{% elif not graph_error %}Page chưa có bài nào.{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+  <!-- Modal Sửa bài trên Page -->
+  <div class="modal fade" id="fbPostModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-light py-2">
+          <h5 class="modal-title font-weight-bold">Sửa bài trên Page</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <form method="post" id="fbPostForm" onsubmit="return appConfirmForm(event, 'Cập nhật nội dung bài trên Facebook?', {title: 'Cập nhật bài', confirmText: 'Cập nhật', confirmClass: 'btn-primary'})">
+          <div class="modal-body">
+            <div class="form-group mb-0">
+              <label class="small font-weight-bold">Nội dung</label>
+              <textarea name="message" rows="9" class="form-control form-control-sm"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer py-2 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu nội dung</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="fb-post-data">{{ post_json|tojson }}</script>
+  <script>
+    const fbPosts = JSON.parse(document.getElementById('fb-post-data').textContent);
+
+    function fbOpenPost(id) {
+      if (!(id in fbPosts)) return;
+      const form = document.getElementById('fbPostForm');
+      form.action = '/admin/advertising/facebook/posts/' + encodeURIComponent(id) + '/edit';
+      form.elements.message.value = fbPosts[id];
+      $('#fbPostModal').modal('show');
+    }
+  </script>
+
+  {% elif tab == 'photos' %}
+  <!-- Bộ lọc & tìm kiếm -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <form method="get" action="/admin/advertising/facebook">
+      <input type="hidden" name="tab" value="photos">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <select name="grp" class="form-control form-control-sm" style="width:auto;" aria-label="Mảng kinh doanh" onchange="this.form.requestSubmit()">
+          <option value="" {% if not photo_group_view %}selected{% endif %}>Tất cả mảng</option>
+          {% for g_key, g_name in photo_groups.items() %}
+          <option value="{{ g_key }}" {% if photo_group_view == g_key %}selected{% endif %}>{{ g_name }}</option>
+          {% endfor %}
+          <option value="none" {% if photo_group_view == 'none' %}selected{% endif %}>Chung</option>
+        </select>
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." aria-label="Tìm kiếm ảnh">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm"><i class="bx bx-search mr-1"></i>Tìm kiếm</button>
+              {% if q %}<a href="?tab=photos&grp={{ photo_group_view }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm"><i class="bx bx-x"></i></a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Danh sách ảnh -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">Kho ảnh ({{ pagination.total }})</span>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="$('#fbPhotoModal').modal('show')"><i class="bx bx-plus mr-1"></i>Thêm ảnh</button>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:96px;">Ảnh</th>
+            <th style="width:160px;">Mảng kinh doanh</th>
+            <th>Ghi chú</th>
+            <th style="width:150px;">Ngày thêm</th>
+            <th style="width:130px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in photo_items %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle"><img src="/upload/fb_posts/{{ p.filename }}" class="fb-thumb" alt="" loading="lazy"></td>
+            <td class="align-middle">{% if p.grp and photo_groups.get(p.grp) %}<span class="badge badge-primary">{{ photo_groups.get(p.grp) }}</span>{% else %}<span class="badge badge-light border text-muted">Chung</span>{% endif %}</td>
+            <td class="align-middle">{{ p.caption or '--' }}</td>
+            <td class="align-middle">{{ p.created_at.astimezone().strftime('%d/%m/%Y %H:%M') if p.created_at else '' }}</td>
+            <td class="text-right text-nowrap align-middle">
+              <a href="/upload/fb_posts/{{ p.filename }}" target="_blank" rel="noopener" class="btn btn-sm btn-light border mr-1">Xem</a>
+              <form method="post" action="/admin/advertising/facebook/photos/{{ p.id }}/delete" class="d-inline" onsubmit="return appConfirmForm(event, 'Xóa ảnh này khỏi kho ảnh?', {title: 'Xóa ảnh', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">{% if photos %}Không có ảnh nào ở mục này.{% else %}Chưa có ảnh nào.{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+  <!-- Modal Thêm ảnh -->
+  <div class="modal fade" id="fbPhotoModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-light py-2">
+          <h5 class="modal-title font-weight-bold">Thêm ảnh vào kho</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        </div>
+        <form method="post" action="/admin/advertising/facebook/photos" enctype="multipart/form-data">
+          <div class="modal-body">
+            <div class="form-group mb-2">
+              <label class="small font-weight-bold">Chọn ảnh thực tế</label>
+              <input type="file" name="photos" accept="image/*" multiple class="form-control-file" required>
+            </div>
+            <div class="form-group mb-2">
+              <label class="small font-weight-bold">Mảng kinh doanh</label>
+              <select name="grp" class="form-control form-control-sm">
+                <option value="">-- Chọn mảng --</option>
+                {% for g_key, g_name in photo_groups.items() %}
+                <option value="{{ g_key }}">{{ g_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group mb-0">
+              <label class="small font-weight-bold">Ghi chú ảnh</label>
+              <input name="caption" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="modal-footer py-2 bg-light">
+            <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+            <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Thêm vào kho</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% elif tab == 'radar' %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-header font-weight-bold" style="padding:10px 16px;">Tìm kiếm trên Facebook</div>
+    <div class="card-body">
+      {% for group in radar_groups %}
+      <div class="d-flex align-items-center flex-wrap {% if not loop.last %}mb-2{% endif %}" style="gap:6px;">
+        <span class="font-weight-bold mr-2">{{ group.label }}</span>
+        {% for link in group.links %}
+        <a href="{{ link.url }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">{{ link.text }}</a>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-3">
+    <div class="card-header font-weight-bold" style="padding:10px 16px;">Trả lời khách</div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="font-weight-bold">Bài của khách</label>
+        <textarea id="radar-post" rows="4" class="form-control"></textarea>
+      </div>
+      <button type="button" id="radar-draft-btn" class="btn btn-primary btn-sm mb-3" onclick="radarDraft(this)"><i class="bx bx-bot mr-1"></i>AI soạn</button>
+      <div class="form-group">
+        <label class="font-weight-bold">Bình luận</label>
+        <div class="input-group">
+          <textarea id="radar-comment" rows="2" class="form-control"></textarea>
+          <div class="input-group-append"><button type="button" class="btn btn-outline-secondary" onclick="radarCopy('radar-comment')">Sao chép</button></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="font-weight-bold">Tin nhắn</label>
+        <div class="input-group">
+          <textarea id="radar-message" rows="3" class="form-control"></textarea>
+          <div class="input-group-append"><button type="button" class="btn btn-outline-secondary" onclick="radarCopy('radar-message')">Sao chép</button></div>
+        </div>
+      </div>
+      <div class="form-row align-items-end">
+        <div class="form-group col-md-4"><label class="font-weight-bold">Tên Facebook của khách</label><input id="radar-name" class="form-control"></div>
+        <div class="form-group col-md-3"><label class="font-weight-bold">Số điện thoại</label><input id="radar-phone" class="form-control"></div>
+        <div class="form-group col-md-2"><button type="button" class="btn btn-success btn-block" onclick="radarSaveLead(this)"><i class="bx bx-save mr-1"></i>Lưu khách</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header font-weight-bold" style="padding:10px 16px;">Từ khóa và tỉnh</div>
+    <form method="post" action="/admin/advertising/facebook/radar/settings" class="card-body">
+      <div class="form-row">
+        <div class="form-group col-md-8"><label class="font-weight-bold">Từ khóa</label><textarea name="keywords" rows="6" class="form-control">{{ radar_keywords }}</textarea></div>
+        <div class="form-group col-md-4"><label class="font-weight-bold">Tỉnh</label><textarea name="provinces" rows="6" class="form-control">{{ radar_provinces }}</textarea></div>
+      </div>
+      <button class="btn btn-primary"><i class="bx bx-save mr-1"></i>Lưu</button>
+    </form>
+  </div>
+  <script>
+    function radarToast(msg, type) {
+      window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: msg, type: type || 'error'}}));
+    }
+    async function radarPost(url, fields) {
+      const body = new FormData();
+      Object.keys(fields).forEach(function (key) { body.append(key, fields[key]); });
+      const res = await fetch(url, {method: 'POST', body: body});
+      const data = await res.json().catch(function () { return {message: 'Máy chủ trả lỗi ' + res.status}; });
+      if (!res.ok || !data.ok) throw new Error(data.message || 'Không thực hiện được.');
+      return data;
+    }
+    async function radarDraft(btn) {
+      const post = document.getElementById('radar-post').value;
+      const label = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = 'AI đang viết...';
+      try {
+        const data = await radarPost('/admin/advertising/facebook/radar/draft', {post: post});
+        document.getElementById('radar-comment').value = data.comment;
+        document.getElementById('radar-message').value = data.message;
+      } catch (error) {
+        radarToast(error.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = label;
+      }
+    }
+    async function radarSaveLead(btn) {
+      btn.disabled = true;
+      try {
+        const data = await radarPost('/admin/advertising/facebook/radar/lead', {
+          post: document.getElementById('radar-post').value,
+          name: document.getElementById('radar-name').value,
+          phone: document.getElementById('radar-phone').value,
+        });
+        radarToast(data.message, 'success');
+      } catch (error) {
+        radarToast(error.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function radarCopy(id) {
+      const field = document.getElementById(id);
+      field.select();
+      try {
+        await navigator.clipboard.writeText(field.value);
+      } catch (error) {
+        document.execCommand('copy');
+      }
+      radarToast('Đã sao chép.', 'success');
+    }
+  </script>
+
+  {% elif tab == 'auto' %}
+  <div class="card shadow-sm">
+    <form method="post" action="/admin/advertising/facebook/settings" class="card-body fb-auto">
+      {% if health and health.expires_in_days is not none %}
+      <div class="alert alert-{% if health.expires_in_days <= 14 %}warning{% else %}info{% endif %} small mb-3">
+        <i class="bx bx-time mr-1"></i>Token/quyền dữ liệu còn <strong>{{ health.expires_in_days }}</strong> ngày.
+      </div>
+      {% endif %}
+      <div class="custom-control custom-switch mb-3">
+        <input type="checkbox" class="custom-control-input" id="fb-auto-enabled" name="enabled" value="1" {% if settings.enabled %}checked{% endif %}>
+        <label class="custom-control-label font-weight-bold" for="fb-auto-enabled">Bật AI tự viết bài theo lịch</label>
+      </div>
+      <div class="custom-control custom-switch mb-3">
+        <input type="checkbox" class="custom-control-input" id="fb-reply-enabled" name="reply_enabled" value="1" {% if reply_enabled %}checked{% endif %}>
+        <label class="custom-control-label font-weight-bold" for="fb-reply-enabled">Tự trả lời bình luận và tin nhắn</label>
+      </div>
+      <div class="form-group mb-3">
+        <label class="font-weight-bold d-block">Chế độ đăng bài</label>
+        <div class="custom-control custom-radio mb-2">
+          <input type="radio" id="mode-approve" name="mode" value="approve" class="custom-control-input" {% if settings.mode != 'auto' %}checked{% endif %}>
+          <label class="custom-control-label" for="mode-approve">
+            <strong>Chờ duyệt</strong>
+          </label>
+        </div>
+        <div class="custom-control custom-radio">
+          <input type="radio" id="mode-auto" name="mode" value="auto" class="custom-control-input" {% if settings.mode == 'auto' %}checked{% endif %}>
+          <label class="custom-control-label" for="mode-auto">
+            <strong>Tự đăng luôn</strong>
+          </label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group col-md-5"><label>Giờ đăng</label>
+          <input name="times" id="fb-times" value="{{ settings.times|join(', ') }}" class="form-control" placeholder="11:30, 20:00" required>
+          <div class="mt-2">
+            {% for time_text, time_label in peak_times %}
+            <button type="button" class="btn btn-sm btn-outline-secondary mr-1 fb-time-chip" data-time="{{ time_text }}" onclick="fbToggleTime(this)">{{ time_label }} {{ time_text }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="form-group col-md-7"><label>Ngày đăng</label><div>
+          {% for name in weekdays %}
+          <div class="custom-control custom-checkbox custom-control-inline">
+            <input type="checkbox" class="custom-control-input" id="fb-day-{{ loop.index0 }}" name="days" value="{{ loop.index0 }}" {% if loop.index0 in settings.days %}checked{% endif %}>
+            <label class="custom-control-label" for="fb-day-{{ loop.index0 }}">{{ name }}</label>
+          </div>
+          {% endfor %}
+        </div></div>
+      </div>
+      <div class="form-group"><label>Chủ đề</label>
+        <textarea name="topics" rows="6" class="form-control" placeholder="Dịch vụ cho thuê xe cẩu tại Phú Thọ&#10;Vận chuyển hàng hóa Bắc – Nam&#10;Kinh nghiệm chọn xe tải phù hợp&#10;Hình ảnh đội xe và tài xế">{{ settings.topics|join('\n') }}</textarea></div>
+      <div class="form-group"><label>Thông tin doanh nghiệp & văn phong</label>
+        <textarea name="notes" rows="5" class="form-control" placeholder="Tên công ty, hotline, khu vực phục vụ, điểm mạnh, giọng văn (thân thiện / chuyên nghiệp), điều không được nói...">{{ settings.notes }}</textarea></div>
+      <button class="btn btn-primary"><i class="bx bx-save mr-1"></i>Lưu cài đặt</button>
+    </form>
+  </div>
+  <script>
+    (function () {
+      var input = document.getElementById('fb-times');
+      var chips = document.querySelectorAll('.fb-time-chip');
+      function current() { return input.value.split(/[ ,;]+/).filter(Boolean); }
+      function refresh() {
+        var picked = current();
+        chips.forEach(function (chip) {
+          var on = picked.indexOf(chip.dataset.time) >= 0;
+          chip.classList.toggle('btn-primary', on);
+          chip.classList.toggle('btn-outline-secondary', !on);
+        });
+      }
+      window.fbToggleTime = function (chip) {
+        var picked = current();
+        var at = picked.indexOf(chip.dataset.time);
+        if (at >= 0) picked.splice(at, 1); else picked.push(chip.dataset.time);
+        input.value = picked.sort().join(', ');
+        refresh();
+      };
+      input.addEventListener('input', refresh);
+      refresh();
+    })();
+  </script>
+  {% endif %}
+</div>
+{% endblock %}

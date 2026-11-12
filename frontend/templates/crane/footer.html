@@ -1,0 +1,164 @@
+{% set current = service_pages | selectattr('key', 'equalto', active_page) | list | first | default({}) %}
+<footer class="bg-slate-950 text-slate-400 border-t border-slate-800/80 pt-16 pb-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 pb-12 border-b border-slate-800">
+      
+      <!-- Cột 1: Thông tin thương hiệu & Pháp nhân -->
+      <div class="space-y-4">
+        <div class="flex items-center gap-3">
+          <img src="/static/services/crane/img/logo-crane.png?v=5" 
+               alt="{{ company.brand_name }}" 
+               class="w-10 h-10 object-contain drop-shadow-md" />
+          <span class="text-lg font-black text-white uppercase tracking-tight">{{ company.brand_name }}</span>
+        </div>
+        <p class="text-xs text-slate-300 font-semibold leading-relaxed">
+          {{ company.company_name }}
+        </p>
+        <p class="text-xs text-slate-400">
+          Mã số thuế: <strong class="text-red-400 font-bold text-sm">{{ company.tax_id }}</strong>
+        </p>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Website này cũng là trang chủ của ứng dụng quản lý vận hành nội bộ {{ company.company_name }}: lập hóa đơn và công nợ vận tải, nhập hóa đơn điện tử từ hộp thư Gmail của công ty, quản lý quảng cáo Google và trang Facebook của công ty.
+          Cách ứng dụng thu thập và sử dụng dữ liệu, kể cả dữ liệu từ Google API, được nêu tại <a href="/privacy" class="text-slate-200 underline hover:text-red-400">Chính sách quyền riêng tư</a>.
+        </p>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          This site is the home page of the internal operations application of {{ company.company_name }} (transport invoicing, e-invoice import from the company Gmail mailbox, advertising management). See our <a href="/privacy" class="text-slate-200 underline hover:text-red-400">Privacy Policy</a>.
+        </p>
+        {% if current.get('crane_footer', True) %}
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Đơn vị trực tiếp sở hữu đội xe cẩu tự hành tải trọng 8 – 10 Tấn gắn cẩu UNIC và Dongyang SS1936. Chuyên lắp dựng dầm cầu trục nhà xưởng, cẩu kiểm định trạm cân xe tải, cẩu vận chuyển dầm thép và hạ máy móc phục vụ 24/7.
+        </p>
+        {% endif %}
+      </div>
+
+      {% if current.get('crane_footer', True) %}
+      <!-- Cột 2: Đội xe chuyên dụng -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-red-600 pl-2.5">
+          Đội Xe Cẩu Chuyên Dụng
+        </h4>
+        <ul class="space-y-2 text-xs">
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            <span>Xe cẩu tự hành UNIC (8 Tấn · Thùng dài 8.5m)</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            <span>Xe cẩu tự hành Dongyang SS1936 (10 Tấn · Cần 19.8m)</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            <span>Thùng xe dài 8.5m tải trọng chở hàng 14 tấn</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            <span>Cần vươn xa 19.8m · Sức nâng 8–10 tấn</span>
+          </li>
+          <li class="flex items-center gap-2 text-slate-300">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-600"></span>
+            <span>Chuyên lắp dầm cầu trục &amp; kiểm định trạm cân</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Cột 3: Cam kết dịch vụ -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-red-600 pl-2.5">
+          Cam Kết Chất Lượng
+        </h4>
+        <ul class="space-y-2.5 text-xs">
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-red-500 text-sm shrink-0">check_circle</span>
+            <span>Thợ lái có chứng chỉ nghề TCVN 4244</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-red-500 text-sm shrink-0">check_circle</span>
+            <span>Hợp đồng pháp nhân, xuất hóa đơn VAT đầy đủ</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-red-500 text-sm shrink-0">check_circle</span>
+            <span>Khảo sát hiện trường &amp; lên phương án miễn phí</span>
+          </li>
+          <li class="flex items-start gap-2 text-slate-300">
+            <span class="material-symbols-outlined text-red-500 text-sm shrink-0">check_circle</span>
+            <span>Trực chiến điều vận 24/7 kể cả ngày lễ</span>
+          </li>
+        </ul>
+      </div>
+
+      {% else %}
+      <div class="lg:col-span-2">
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-red-600 pl-2.5">
+          Dịch Vụ
+        </h4>
+        <ul class="space-y-2 text-xs">
+          {% if current %}
+          <li><a href="{{ current.path }}" class="text-slate-300 hover:text-red-400 transition-colors">{{ current.footer }}</a></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Cột 4: Thông tin liên hệ trực tiếp -->
+      <div>
+        <h4 class="text-sm font-extrabold text-white uppercase tracking-wider mb-4 border-l-2 border-red-600 pl-2.5">
+          Địa Chỉ &amp; Hotline
+        </h4>
+        <div class="space-y-3 text-xs">
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Trụ sở công ty:</span>
+            <span class="text-slate-200">{{ company.address }}</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Bãi tập kết xe:</span>
+            <span class="text-slate-200">{{ company.depot_address }}</span>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Hotline điều vận 24/7:</span>
+            <a href="tel:{{ settings.phone_raw }}" class="text-red-500 hover:text-red-400 font-extrabold text-base transition-colors">
+              {{ settings.phone }}
+            </a>
+          </div>
+          <div>
+            <span class="text-slate-400 block font-semibold mb-0.5">Email liên hệ:</span>
+            <a href="mailto:{{ company.email }}" class="text-slate-300 hover:text-white transition-colors">
+              {{ company.email }}
+            </a>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Khu vực phục vụ: chỉ các tỉnh của chính dịch vụ đang xem -->
+    {% set area_slug = service_slug or current.get('area_service') %}
+    {% if area_slug %}
+    <div class="py-6 border-b border-slate-800 text-xs">
+      <span class="font-extrabold text-white uppercase tracking-wider text-[11px] border-l-2 border-red-600 pl-2 block mb-4">
+        Khu vực phục vụ trọng điểm:
+      </span>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-300">
+        <span class="text-slate-400 font-medium text-[11px]">{{ current.get('area_label') or current.get('footer') or 'Khu Vực Phục Vụ' }}:</span>
+        {% for a in service_areas %}
+        <a href="/{{ area_slug }}/{{ a.slug }}" class="hover:text-red-400 transition-colors">{{ a.name }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Bottom Copyright -->
+    <div class="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+      <p>
+        &copy; <span id="footer-year">2026</span> {{ company.company_name }} (MST: {{ company.tax_id }}). Toàn quyền bảo lưu.
+      </p>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2.5 sm:gap-6 text-slate-300">
+        <a href="#bang-gia" class="hover:text-red-400 transition-colors">Báo giá</a>
+        <a href="#faq" class="hover:text-red-400 transition-colors">Hỏi đáp FAQ</a>
+        <a href="/privacy" class="hover:text-red-400 transition-colors font-medium">Chính sách quyền riêng tư</a>
+        <a href="#top" class="hover:text-red-400 transition-colors">Về đầu trang ↑</a>
+        <a href="tel:{{ settings.phone_raw }}" class="text-red-400 font-bold hover:underline">Gọi: {{ settings.phone }}</a>
+      </div>
+    </div>
+  </div>
+  <script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
+</footer>

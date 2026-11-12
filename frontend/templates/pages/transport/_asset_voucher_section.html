@@ -1,0 +1,437 @@
+<style>
+  .abk-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+  .abk-table {
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .abk-table thead th {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle !important;
+    background: #adc7e7;
+    color: #1e293b;
+    border: 1px solid #8faadc;
+    white-space: normal;
+    padding: 6px 8px;
+  }
+  .abk-table tbody td {
+    font-size: 11.5px;
+    vertical-align: middle;
+    padding: 4px 6px;
+    border: 1px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .abk-table tbody tr:hover {
+    background: #f8fafc;
+  }
+  .abk-table tfoot td {
+    font-size: 12px;
+    font-weight: 700;
+    background: #f1f5f9;
+    border-top: 2px solid #0f172a;
+    border-bottom: 3px double #0f172a;
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+  .abk-money {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+
+<div class="abk-card mb-4">
+  <div class="p-2 border-bottom bg-light d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+    <div class="d-flex align-items-center" style="gap:8px;">
+      <h5 class="mb-0 font-weight-bold" style="font-size:14px; color:#1e293b;">
+        <i class="bx bx-receipt mr-1 text-primary"></i>Danh sách chứng từ: {{ voucher_kind_label }}
+      </h5>
+      <span class="badge badge-light border text-muted" style="font-size:11px;">
+        {{ voucher_rows|length }} chứng từ
+      </span>
+    </div>
+    <div>
+      <button type="button" class="btn btn-primary btn-sm font-weight-bold shadow-sm" onclick="openVoucherAdd()">
+        <i class="bx bx-plus mr-1"></i>Thêm
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="max-height: 560px;">
+    <table class="table table-sm abk-table">
+      <thead>
+        <tr>
+          {% if voucher_kind == 'revalue' %}
+          <th style="width:90px;">Ngày CT</th>
+          <th style="width:110px;">Số CT</th>
+          <th style="width:110px;">Mã {{ item_word }}</th>
+          <th>Tên {{ item_word }}</th>
+          <th style="width:125px;">Giá trị trước</th>
+          <th style="width:125px;">Giá trị sau</th>
+          <th style="width:125px;">Chênh lệch</th>
+          <th style="width:90px;">Số tháng còn lại</th>
+          <th>Lý do</th>
+          <th style="width:80px;">Thao tác</th>
+
+          {% elif voucher_kind == 'transfer' %}
+          <th style="width:90px;">Ngày CT</th>
+          <th style="width:110px;">Số CT</th>
+          <th style="width:110px;">Mã {{ item_word }}</th>
+          <th>Tên {{ item_word }}</th>
+          <th>Từ đơn vị</th>
+          <th>Đến đơn vị</th>
+          <th>Lý do</th>
+          <th style="width:80px;">Thao tác</th>
+
+          {% elif voucher_kind == 'decrease' %}
+          <th style="width:90px;">Ngày CT</th>
+          <th style="width:110px;">Số CT</th>
+          <th style="width:110px;">Mã {{ item_word }}</th>
+          <th>Tên {{ item_word }}</th>
+          <th>Lý do ghi giảm</th>
+          <th style="width:125px;">Nguyên giá</th>
+          <th style="width:125px;">Hao mòn / Đã PB</th>
+          <th style="width:125px;">Giá trị còn lại</th>
+          <th style="width:80px;">Thao tác</th>
+
+          {% elif voucher_kind == 'inventory' %}
+          <th style="width:90px;">Ngày CT</th>
+          <th style="width:110px;">Số CT</th>
+          <th style="width:110px;">Mã {{ item_word }}</th>
+          <th>Tên {{ item_word }}</th>
+          <th style="width:95px;">SL sổ sách</th>
+          <th style="width:95px;">SL thực tế</th>
+          <th style="width:95px;">Chênh lệch</th>
+          <th>Tình trạng</th>
+          <th>Ghi chú</th>
+          <th style="width:80px;">Thao tác</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in voucher_rows %}
+        <tr>
+          {% if voucher_kind == 'revalue' %}
+          <td class="text-center">{{ v.voucher_date.strftime('%d/%m/%Y') if v.voucher_date else '-' }}</td>
+          <td class="font-weight-bold text-primary">{{ v.voucher_no }}</td>
+          <td class="font-weight-bold">{{ v.item_code }}</td>
+          <td>{{ v.item_name }}</td>
+          <td class="abk-money text-muted">{{ v.old_cost|format_number if v.old_cost is not none else '—' }}</td>
+          <td class="abk-money font-weight-bold">{{ v.new_cost|format_number if v.new_cost is not none else '—' }}</td>
+          <td class="abk-money {% if v.diff and v.diff > 0 %}text-success font-weight-bold{% elif v.diff and v.diff < 0 %}text-danger font-weight-bold{% endif %}">
+            {{ ('+' if v.diff > 0 else '') ~ (v.diff|format_number) if v.diff is not none else '—' }}
+          </td>
+          <td class="text-center">{{ v.new_months if v.new_months is not none else '—' }}</td>
+          <td>{{ v.reason or '-' }}</td>
+          <td class="text-center">
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-voucher='{{ v.edit|tojson }}' onclick="openVoucherEdit(this)"><i class="bx bx-edit-alt"></i></button>
+            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" onclick="deleteVoucher({{ v.id }})"><i class="bx bx-trash"></i></button>
+          </td>
+
+          {% elif voucher_kind == 'transfer' %}
+          <td class="text-center">{{ v.voucher_date.strftime('%d/%m/%Y') if v.voucher_date else '-' }}</td>
+          <td class="font-weight-bold text-primary">{{ v.voucher_no }}</td>
+          <td class="font-weight-bold">{{ v.item_code }}</td>
+          <td>{{ v.item_name }}</td>
+          <td class="text-muted">{{ v.from_dept or '-' }}</td>
+          <td class="font-weight-bold text-success">{{ v.to_dept }}</td>
+          <td>{{ v.reason or '-' }}</td>
+          <td class="text-center">
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-voucher='{{ v.edit|tojson }}' onclick="openVoucherEdit(this)"><i class="bx bx-edit-alt"></i></button>
+            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" onclick="deleteVoucher({{ v.id }})"><i class="bx bx-trash"></i></button>
+          </td>
+
+          {% elif voucher_kind == 'decrease' %}
+          <td class="text-center">{{ v.voucher_date.strftime('%d/%m/%Y') if v.voucher_date else '-' }}</td>
+          <td class="font-weight-bold text-primary">{{ v.voucher_no }}</td>
+          <td class="font-weight-bold">{{ v.item_code }}</td>
+          <td>{{ v.item_name }}</td>
+          <td>{{ v.reason or '-' }}</td>
+          <td class="abk-money">{{ v.cost|format_number if v.cost is not none else '—' }}</td>
+          <td class="abk-money text-warning">{{ v.accum|format_number if v.accum is not none else '—' }}</td>
+          <td class="abk-money font-weight-bold text-success">{{ v.remaining|format_number if v.remaining is not none else '—' }}</td>
+          <td class="text-center">
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-voucher='{{ v.edit|tojson }}' onclick="openVoucherEdit(this)"><i class="bx bx-edit-alt"></i></button>
+            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" onclick="deleteVoucher({{ v.id }})"><i class="bx bx-trash"></i></button>
+          </td>
+
+          {% elif voucher_kind == 'inventory' %}
+          <td class="text-center">{{ v.voucher_date.strftime('%d/%m/%Y') if v.voucher_date else '-' }}</td>
+          <td class="font-weight-bold text-primary">{{ v.voucher_no }}</td>
+          <td class="font-weight-bold">{{ v.item_code }}</td>
+          <td>{{ v.item_name }}</td>
+          <td class="text-center">{{ v.book_qty|format_number if v.book_qty is not none else '—' }}</td>
+          <td class="text-center font-weight-bold">{{ v.actual_qty|format_number if v.actual_qty is not none else '—' }}</td>
+          <td class="text-center font-weight-bold {% if v.qty_diff and v.qty_diff < 0 %}text-danger{% elif v.qty_diff and v.qty_diff > 0 %}text-success{% endif %}">
+            {{ ('+' if v.qty_diff > 0 else '') ~ (v.qty_diff|format_number) if v.qty_diff is not none else '0' }}
+          </td>
+          <td>{{ v.condition or '-' }}</td>
+          <td>{{ v.note or '-' }}</td>
+          <td class="text-center">
+            <button type="button" class="btn btn-xs btn-outline-primary py-0 px-1" title="Sửa" data-voucher='{{ v.edit|tojson }}' onclick="openVoucherEdit(this)"><i class="bx bx-edit-alt"></i></button>
+            <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1" title="Xoá" onclick="deleteVoucher({{ v.id }})"><i class="bx bx-trash"></i></button>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-3">Chưa có chứng từ. Nhấn "Thêm" để tạo.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="10" class="font-weight-bold">Số dòng = {{ voucher_rows|length }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- Modal Voucher -->
+<div class="modal fade" id="voucherModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <form id="voucherForm" onsubmit="submitVoucherForm(event)">
+        <input type="hidden" id="voucherId" name="voucher_id" value="">
+        <div class="modal-header bg-primary text-white py-2 px-3">
+          <h5 class="modal-title font-weight-bold" id="voucherModalTitle" style="font-size:15px;">Thêm chứng từ</h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body p-3">
+          <div class="form-row">
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Ngày chứng từ <span class="text-danger">*</span></label>
+              <input type="date" class="form-control form-control-sm" id="voucherDate" name="voucher_date" required>
+            </div>
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Số chứng từ</label>
+              <input type="text" class="form-control form-control-sm" id="voucherNo" name="voucher_no">
+            </div>
+          </div>
+
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold mb-1">Chọn {{ item_word }} <span class="text-danger">*</span></label>
+            <select class="form-control form-control-sm" id="voucherItem" name="item" required onchange="onVoucherItemChange()">
+              <option value="">-- Chọn {{ item_word }} --</option>
+              {% for it in voucher_items %}
+              <option value="{{ it.key }}"
+                      data-dept="{{ it.department or '' }}"
+                      data-cost="{{ it.cost or 0 }}"
+                      data-months="{{ it.months_left or 0 }}">
+                {{ it.label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {% if voucher_kind == 'revalue' %}
+          <div class="form-row">
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Giá trị sau điều chỉnh <span class="text-danger">*</span></label>
+              <input type="text" inputmode="numeric" class="form-control form-control-sm font-weight-bold" id="vNewCost" name="new_cost" required oninput="formatVoucherNumberInput(this)">
+            </div>
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Số tháng còn lại <span class="text-danger">*</span></label>
+              <input type="number" class="form-control form-control-sm" id="vNewMonths" name="new_months" min="1" max="600" required>
+            </div>
+          </div>
+
+          {% elif voucher_kind == 'transfer' %}
+          <div class="form-row">
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Từ đơn vị</label>
+              <input type="text" class="form-control form-control-sm" id="vFromDept" name="from_dept" placeholder="Đơn vị hiện tại">
+            </div>
+            <div class="form-group col-md-6 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Đến đơn vị <span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-sm font-weight-bold" id="vToDept" name="to_dept" required placeholder="Nhập đơn vị nhận">
+            </div>
+          </div>
+
+          {% elif voucher_kind == 'inventory' %}
+          <div class="form-row">
+            <div class="form-group col-md-4 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">SL sổ sách</label>
+              <input type="text" class="form-control form-control-sm text-center" id="vBookQty" name="book_qty" value="1">
+            </div>
+            <div class="form-group col-md-4 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">SL thực tế</label>
+              <input type="text" class="form-control form-control-sm text-center" id="vActualQty" name="actual_qty" value="1">
+            </div>
+            <div class="form-group col-md-4 mb-2">
+              <label class="font-size-12 font-weight-bold mb-1">Tình trạng</label>
+              <input type="text" class="form-control form-control-sm" id="vCondition" name="condition" placeholder="Còn tốt, hỏng...">
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold mb-1">Lý do</label>
+            <input type="text" class="form-control form-control-sm" id="voucherReason" name="reason" placeholder="Lý do phát sinh nghiệp vụ">
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="font-size-12 font-weight-bold mb-1">Ghi chú</label>
+            <input type="text" class="form-control form-control-sm" id="voucherNote" name="note" placeholder="Thông tin bổ sung">
+          </div>
+        </div>
+        <div class="modal-footer py-2 px-3 bg-light">
+          <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold" id="btnSaveVoucher">
+            <i class="bx bx-save mr-1"></i>Lưu
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const VOUCHER_KIND = {{ voucher_kind|tojson }};
+const VOUCHER_KIND_LABEL = {{ voucher_kind_label|tojson }};
+const VOUCHER_API_BASE = {{ voucher_api_base|tojson }};
+
+function formatVoucherNumberInput(input) {
+  let val = input.value.replace(/\D/g, '');
+  input.value = val ? Number(val).toLocaleString('vi-VN') : '';
+}
+
+function onVoucherItemChange() {
+  const vid = document.getElementById('voucherId').value;
+  if (vid) return; // Chỉ tự điền khi ở chế độ Thêm mới
+  const sel = document.getElementById('voucherItem');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) return;
+
+  if (VOUCHER_KIND === 'transfer') {
+    const fromEl = document.getElementById('vFromDept');
+    if (fromEl) fromEl.value = opt.dataset.dept || '';
+  } else if (VOUCHER_KIND === 'revalue') {
+    const costEl = document.getElementById('vNewCost');
+    const monthsEl = document.getElementById('vNewMonths');
+    const costVal = Number(opt.dataset.cost || 0);
+    if (costEl) costEl.value = costVal ? costVal.toLocaleString('vi-VN') : '';
+    if (monthsEl) monthsEl.value = opt.dataset.months || 60;
+  }
+}
+
+function openVoucherAdd() {
+  const form = document.getElementById('voucherForm');
+  form.reset();
+  document.getElementById('voucherId').value = '';
+  document.getElementById('voucherModalTitle').textContent = 'Thêm chứng từ ' + VOUCHER_KIND_LABEL.toLowerCase();
+
+  const now = new Date();
+  const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  document.getElementById('voucherDate').value = todayStr;
+
+  const saveBtn = document.getElementById('btnSaveVoucher');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+
+  $('#voucherModal').modal('show');
+}
+
+function openVoucherEdit(btn) {
+  const v = JSON.parse(btn.dataset.voucher);
+  document.getElementById('voucherId').value = v.id || '';
+  document.getElementById('voucherModalTitle').textContent = 'Sửa chứng từ ' + VOUCHER_KIND_LABEL.toLowerCase() + (v.voucher_no ? ': ' + v.voucher_no : '');
+
+  document.getElementById('voucherDate').value = v.voucher_date ? v.voucher_date.substring(0, 10) : '';
+  document.getElementById('voucherNo').value = v.voucher_no || '';
+  document.getElementById('voucherItem').value = v.item || '';
+  document.getElementById('voucherReason').value = v.reason || '';
+  document.getElementById('voucherNote').value = v.note || '';
+
+  if (VOUCHER_KIND === 'revalue') {
+    const costEl = document.getElementById('vNewCost');
+    const monthsEl = document.getElementById('vNewMonths');
+    const costVal = Number(v.new_cost || 0);
+    if (costEl) costEl.value = costVal ? costVal.toLocaleString('vi-VN') : '';
+    if (monthsEl) monthsEl.value = v.new_months || '';
+  } else if (VOUCHER_KIND === 'transfer') {
+    const fromEl = document.getElementById('vFromDept');
+    const toEl = document.getElementById('vToDept');
+    if (fromEl) fromEl.value = v.from_dept || '';
+    if (toEl) toEl.value = v.to_dept || '';
+  } else if (VOUCHER_KIND === 'inventory') {
+    const bEl = document.getElementById('vBookQty');
+    const aEl = document.getElementById('vActualQty');
+    const cEl = document.getElementById('vCondition');
+    if (bEl) bEl.value = (v.book_qty !== null && v.book_qty !== undefined) ? v.book_qty : 1;
+    if (aEl) aEl.value = (v.actual_qty !== null && v.actual_qty !== undefined) ? v.actual_qty : 1;
+    if (cEl) cEl.value = v.condition || '';
+  }
+
+  const saveBtn = document.getElementById('btnSaveVoucher');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+
+  $('#voucherModal').modal('show');
+}
+
+async function submitVoucherForm(e) {
+  e.preventDefault();
+  const form = document.getElementById('voucherForm');
+  const formData = new FormData(form);
+  const voucherId = document.getElementById('voucherId').value;
+  const saveBtn = document.getElementById('btnSaveVoucher');
+
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
+
+  const url = voucherId
+    ? `${VOUCHER_API_BASE}/${voucherId}/update`
+    : `${VOUCHER_API_BASE}/${VOUCHER_KIND}/add`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể lưu chứng từ'));
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  }
+}
+
+async function deleteVoucher(id) {
+  if (!confirm('Xoá chứng từ này?')) return;
+
+  try {
+    const res = await fetch(`${VOUCHER_API_BASE}/${id}/delete`, {
+      method: 'POST',
+    });
+    const data = await res.json();
+    if (data.ok) {
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể xoá chứng từ'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối: ' + err.message);
+  }
+}
+</script>

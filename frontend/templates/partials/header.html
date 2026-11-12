@@ -1,0 +1,82 @@
+
+<header id="page-topbar">
+  <div class="navbar-header d-flex justify-content-between align-items-center">
+
+    <div class="d-flex align-items-center h-100">
+
+      <div class="navbar-brand-box header-navbar-brand d-flex align-items-center justify-content-center">
+        <a href="/admin/parking_dashboard" class="text-decoration-none d-flex align-items-center gap-2">
+          <i class="bx bxs-car-garage text-primary" style="font-size:22px;"></i>
+          <span class="fw-bold header-brand-text" style="color:#1e293b;font-size:14px;">Parking Camera</span>
+        </a>
+      </div>
+
+      <button type="button" class="btn btn-sm px-3 font-size-16 header-item waves-effect border-0 text-dark"
+              id="vertical-menu-btn" style="background:transparent;">
+        <i class="fa fa-fw fa-bars"></i>
+      </button>
+    </div>
+
+    <div class="d-flex align-items-center">
+
+      {% if user_companies is defined and user_companies %}
+      {% set ns = namespace(active_name=(user_companies[0].name | company_display)) %}
+      {% for c in user_companies %}{% if active_company_id == c.id %}{% set ns.active_name = (c.name | company_display) %}{% endif %}{% endfor %}
+      <div class="dropdown d-inline-flex align-items-center mr-2 mr-sm-3 me-2 me-sm-3 header-company-dropdown">
+        <button type="button" id="header-active-company"
+                class="header-company-select text-left"
+                title="Nguồn công ty đang làm việc: {{ ns.active_name }}"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <span class="header-company-name">{{ ns.active_name }}</span>
+          <i class="mdi mdi-chevron-down header-company-caret"></i>
+        </button>
+        <div class="dropdown-menu header-company-menu" aria-labelledby="header-active-company">
+          {% for c in user_companies %}
+          {% set has_active = active_company_id is defined and active_company_id %}
+          {% set is_current = (has_active and active_company_id|string == c.id|string) or (not has_active and loop.first) %}
+          <button type="button" class="dropdown-item header-company-item{% if is_current %} is-current{% endif %}"
+                  title="{{ c.name | company_display }}"
+                  {% if is_current %}aria-current="true"{% endif %}
+                  hx-post="/set-company" hx-vals='{"company_id": "{{ c.id }}"}' hx-swap="none"
+                  hx-on::after-request="var w = this.closest('.header-company-dropdown'); var n = this.querySelector('.header-company-item-name').textContent.trim(); w.querySelectorAll('.header-company-item').forEach(function (b) { b.classList.remove('is-current'); b.removeAttribute('aria-current'); }); this.classList.add('is-current'); this.setAttribute('aria-current', 'true'); w.querySelector('.header-company-name').textContent = n; w.querySelector('#header-active-company').title = 'Nguồn công ty đang làm việc: ' + n; if (typeof window.onActiveCompanyChanged === 'function') { window.onActiveCompanyChanged(); } else { window.location.reload(); }">
+            <i class="mdi mdi-check header-company-check"></i><span class="header-company-item-name">{{ c.name | company_display }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% include "partials/reminder_bell.html" %}
+
+      <div class="dropdown d-inline-block">
+        <button type="button" class="btn header-item waves-effect d-flex align-items-center"
+                style="gap:8px;"
+                id="page-header-user-dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          {% if user and user.avatar %}
+            <img src="{{ user.avatar }}" alt="Ảnh đại diện người dùng" class="rounded-circle" style="width:28px;height:28px;object-fit:cover;border:1.5px solid #cbd5e1;">
+          {% else %}
+            <span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white"
+                  style="width:28px;height:28px;background:#6366f1;font-size:12px;font-weight:600;">
+              {{ ((user.full_name or user.username)[0] | upper) if user and (user.full_name or user.username) else 'U' }}
+            </span>
+          {% endif %}
+          <span class="d-none d-sm-inline-block" style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ (user.full_name or user.username) if user else '' }}</span>
+          <i class="mdi mdi-chevron-down d-none d-sm-inline-block text-muted" style="font-size:12px;"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-right shadow-sm border-0 py-1" style="min-width:180px;border-radius:8px;">
+          <a class="dropdown-item d-flex align-items-center py-2" href="/profile"
+             style="gap:8px;font-size:13px;font-weight:500;">
+            <i class="bx bx-user font-size-16"></i> Thông tin cá nhân
+          </a>
+          <form method="POST" action="/logout" id="admin-logout-form" class="m-0">
+            <a class="dropdown-item text-danger d-flex align-items-center py-2" href="#"
+               onclick="event.preventDefault(); document.getElementById('admin-logout-form').submit();"
+               style="gap:8px;font-size:13px;font-weight:500;">
+              <i class="bx bx-log-out font-size-16"></i> Đăng xuất
+            </a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>

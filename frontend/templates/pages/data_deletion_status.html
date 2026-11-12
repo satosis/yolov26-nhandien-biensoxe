@@ -1,0 +1,117 @@
+{% extends "landing_base_legacy.html" %}
+
+{% block title %}Trạng Thái Xóa Dữ Liệu | Parking Camera AI{% endblock %}
+
+{% block content %}
+<section class="page-header" style="background: linear-gradient(135deg, var(--c-primary-dark, #00332c) 0%, var(--c-primary, #004b41) 100%); color: #fff; padding: 3.5rem 1rem 2.5rem; text-align: center;">
+  <div class="container" style="max-width: 800px; margin: 0 auto;">
+    <h1 class="page-title" style="font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; color: #fff;">
+      Trạng Thái Xử Lý Xóa Dữ Liệu
+    </h1>
+    <p class="page-subtitle" style="font-size: 1rem; opacity: 0.9; margin: 0 auto;">
+      Tra cứu kết quả và tiến độ xử lý yêu cầu xóa dữ liệu cá nhân theo quy định Meta / Facebook.
+    </p>
+  </div>
+</section>
+
+<section class="section" style="padding: 3.5rem 1rem; background-color: #fbfcfd;">
+  <div class="container" style="max-width: 800px; margin: 0 auto;">
+
+    <div style="background: #ffffff; border-radius: 16px; padding: 2.5rem 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e5e7eb; text-align: center;">
+      
+      {% if status_info and status_info.found %}
+        <!-- Trạng thái tìm thấy -->
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: #ecfdf5; color: #059669; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem;">
+          <span class="material-symbols-outlined" style="font-size: 44px;">task_alt</span>
+        </div>
+
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: #111827; margin-bottom: 0.5rem;">
+          Yêu Cầu Xóa Dữ Liệu: 
+          {% if status_info.status == 'completed' %}
+            <span style="color: #059669;">ĐÃ HOÀN TẤT</span>
+          {% else %}
+            <span style="color: #d97706;">ĐANG XỬ LÝ</span>
+          {% endif %}
+        </h2>
+
+        <p style="color: #4b5563; font-size: 0.95rem; max-width: 560px; margin: 0 auto 1.5rem;">
+          Hệ thống <strong>Parking Camera AI</strong> đã tiếp nhận và xử lý yêu cầu hủy bỏ liên kết và xóa dữ liệu của bạn theo đúng quy chuẩn bảo mật.
+        </p>
+
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem; text-align: left; margin-bottom: 2rem; font-size: 0.925rem;">
+          <div style="display: grid; grid-template-columns: 1fr; gap: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;">
+              <span style="color: #6b7280; font-weight: 600;">Mã xác nhận (Confirmation Code):</span>
+              <strong style="color: #111827; font-family: monospace;">{{ status_info.confirmation_code }}</strong>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;">
+              <span style="color: #6b7280; font-weight: 600;">Thời gian tiếp nhận:</span>
+              <span style="color: #111827;">{{ status_info.created_at }}</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;">
+              <span style="color: #6b7280; font-weight: 600;">Trạng thái hệ thống:</span>
+              <span style="background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 0.85rem;">
+                {{ status_info.status_display|default("Dữ liệu đã được xóa vĩnh viễn") }}
+              </span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: #6b7280; font-weight: 600;">Các mục đã thanh lọc:</span>
+              <span style="color: #111827; text-align: right;">Token Facebook, Hồ sơ cá nhân, Quyền truy cập API</span>
+            </div>
+          </div>
+        </div>
+
+      {% else %}
+        <!-- Mặc định hoặc tra cứu không thấy -->
+        <div style="width: 72px; height: 72px; border-radius: 50%; background: #e0f2fe; color: #0284c7; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1.25rem;">
+          <span class="material-symbols-outlined" style="font-size: 44px;">info</span>
+        </div>
+
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: #111827; margin-bottom: 0.5rem;">
+          {% if code %}
+            Mã Xác Nhận: <span style="font-family: monospace; color: var(--c-primary, #004b41);">{{ code }}</span>
+          {% else %}
+            Trang Tra Cứu Xóa Dữ Liệu
+          {% endif %}
+        </h2>
+
+        <p style="color: #4b5563; font-size: 0.95rem; max-width: 560px; margin: 0 auto 1.5rem; line-height: 1.6;">
+          {% if code %}
+            Yêu cầu với mã <strong>{{ code }}</strong> đã được hệ thống ghi nhận. Quá trình làm sạch dữ liệu tự động hoặc thủ công được hoàn tất trong vòng 24 - 48 giờ. Mọi token phiên và quyền liên kết đã bị vô hiệu hóa ngay lập tức.
+          {% else %}
+            Vui lòng nhập mã xác nhận (Confirmation Code) được cung cấp khi bạn gỡ ứng dụng trên Facebook hoặc khi gửi biểu mẫu yêu cầu.
+          {% endif %}
+        </p>
+
+        <form method="GET" action="/data-deletion/status" style="display: inline-flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 460px; width: 100%; margin-bottom: 1.5rem;">
+          <input type="text" name="code" value="{{ code|default('') }}" required placeholder="Nhập mã xác nhận (ví dụ: del_...)"
+                 style="flex: 1 1 220px; padding: 0.65rem 0.85rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.95rem;">
+          <button type="submit" style="background: var(--c-primary, #004b41); color: #fff; border: none; padding: 0.65rem 1.25rem; border-radius: 8px; font-weight: 700; cursor: pointer;">
+            Kiểm Tra
+          </button>
+        </form>
+      {% endif %}
+
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 1.5rem; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px;">
+        <a href="/data-deletion" style="color: var(--c-primary, #004b41); font-weight: 600; text-decoration: none; font-size: 0.9rem;">
+          &larr; Xem lại hướng dẫn xóa dữ liệu
+        </a>
+        <span style="color: #d1d5db;">|</span>
+        <a href="/privacy" style="color: var(--c-primary, #004b41); font-weight: 600; text-decoration: none; font-size: 0.9rem;">
+          Chính sách quyền riêng tư
+        </a>
+        <span style="color: #d1d5db;">|</span>
+        <a href="/" style="color: var(--c-primary, #004b41); font-weight: 600; text-decoration: none; font-size: 0.9rem;">
+          Về trang chủ
+        </a>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+{% endblock %}
+

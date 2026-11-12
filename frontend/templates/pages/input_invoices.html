@@ -1,0 +1,1710 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Sửa hóa đơn đầu vào' if edit else 'Thêm hóa đơn đầu vào' if show_form else 'HĐ đầu vào' }}{% endblock %}
+{% block page_title %}{{ 'Sửa hóa đơn đầu vào' if edit else 'Thêm hóa đơn đầu vào' if show_form else 'Hóa đơn đầu vào' }}{% endblock %}
+{% block page_back_button %}<a href="{{ list_url if show_form else '/admin/vehicles' }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+{% block page_actions %}
+{% if not show_form %}
+<div class="d-flex align-items-center" style="gap:8px;">
+  <button type="button" class="btn btn-outline-success btn-sm font-weight-bold" id="btn-sync-saveinvoice" onclick="window.dispatchEvent(new CustomEvent('open-saveinvoice-sync'))">
+    <i class="bx bx-cloud-download mr-1"></i>Đồng bộ từ SaveInvoice
+  </button>
+  <button type="button" class="btn btn-outline-secondary btn-sm font-weight-bold" id="btn-repair-saveinvoice-items" onclick="repairSaveInvoiceItems(this)">
+    <i class="bx bx-list-check mr-1"></i>Cập nhật hàng hoá từ SaveInvoice
+  </button>
+  <button type="button" class="btn btn-outline-secondary btn-sm font-weight-bold" id="btn-book-electricity" onclick="bookElectricityInvoices(this)">
+    <i class="bx bx-bulb mr-1"></i>Hạch toán tiền điện
+  </button>
+  <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold" id="btn-sync-email" onclick="window.dispatchEvent(new CustomEvent('open-email-sync'))">
+    <i class="bx bx-sync mr-1"></i>Đồng bộ từ Email
+  </button>
+  <a href="/admin/transport/input-invoices/add?month={{ month }}" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-plus mr-1"></i>Thêm hóa đơn</a>
+</div>
+{% endif %}
+{% endblock %}
+{% block head %}
+<style>
+.input-invoice-filter{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.input-invoice-filter form{display:flex;align-items:center;gap:6px}
+.input-invoice-filter select{width:110px;height:32px}.input-invoice-filter input{width:76px;height:32px}
+.input-invoice-page .form-control{min-height:32px;height:32px;font-size:12.5px;border-radius:6px}
+.input-invoice-page .ts-control{min-height:32px;padding:4px 8px;font-size:12.5px;border-radius:6px}
+.input-invoice-page label{font-size:11px;font-weight:600;color:#64748b;margin-bottom:3px}
+.input-invoice-page .card-header{font-weight:600}
+.input-invoice-page .section-label{font-size:12px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;padding-bottom:6px;margin:8px 0 12px}
+.input-invoice-page .line-table th{font-size:11px;color:#64748b;background:#f8fafc;white-space:nowrap}
+.input-invoice-page .line-table td{vertical-align:middle;padding:5px}
+.input-invoice-page .line-table input{min-width:80px}
+.input-invoice-page .line-table .description{min-width:230px}
+.input-invoice-page .money{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.input-invoice-page .invoice-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;background:#f8fafc;padding:12px;border:1px solid #e2e8f0;border-radius:4px}
+.input-invoice-page .invoice-summary strong{display:block;font-size:14px;color:#334155}
+.input-invoice-page .invoice-summary .grand-total strong{color:#16a34a}
+.input-invoice-page .record-table{font-size:12px}
+.input-invoice-page .record-table th{white-space:nowrap;color:#64748b;background:#f8fafc}
+.input-invoice-page .record-table th,.input-invoice-page .record-table tbody td{padding:.35rem .4rem!important}
+.input-invoice-page .record-table select[name="vehicle_id"]{width:92px;padding:2px 4px}
+.input-invoice-page .record-table .btn-sm{padding:.2rem .45rem}
+.input-invoice-page .record-table tbody td:last-child{font-size:0;white-space:nowrap}
+.input-invoice-page .record-table tbody td:last-child .btn{font-size:12px;margin-left:3px}
+.input-invoice-page .acc-stack{display:inline-flex;flex-direction:column;align-items:center;gap:2px}
+.input-invoice-upload{border:1px dashed #b8c5d8;border-radius:5px;background:#f8fafc;padding:12px 14px;margin-bottom:16px}
+.input-invoice-upload input[type=file]{display:block;width:100%;max-width:420px}
+.input-invoice-page [hidden]{display:none!important}
+.table-success-light{background-color:rgba(16,185,129,0.06)!important}
+@media(max-width:767px){.input-invoice-page .invoice-summary{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="input-invoice-page" x-data="invoiceSyncState()" @open-saveinvoice-sync.window="openSaveInvoiceModal()" @open-email-sync.window="openSyncModal = true">
+  {% if not show_form %}
+  <div class="card mb-3"><div class="card-body py-2 input-invoice-filter">
+    <form method="get" action="/admin/transport/input-invoices" onsubmit="this.elements['month'].value = (this.elements['month_part'].value === 'all') ? (this.elements['year'].value + '-all') : (this.elements['year'].value + '-' + this.elements['month_part'].value)">
+      <input type="hidden" name="month" value="{{ month }}">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:4px;">
+          <select name="month_part" class="form-control form-control-sm" aria-label="Tháng" onchange="this.form.requestSubmit()">
+            <option value="all" {% if month == 'all' or month.endswith('-all') %}selected{% endif %}>Cả năm</option>
+            <option value="q1" {% if month[-3:]|lower == '-q1' %}selected{% endif %}>Quý 1</option>
+            <option value="q2" {% if month[-3:]|lower == '-q2' %}selected{% endif %}>Quý 2</option>
+            <option value="q3" {% if month[-3:]|lower == '-q3' %}selected{% endif %}>Quý 3</option>
+            <option value="q4" {% if month[-3:]|lower == '-q4' %}selected{% endif %}>Quý 4</option>
+            {% for m in range(1, 13) %}
+            <option value="{{ '%02d'|format(m) }}" {% if month != 'all' and not month.endswith('-all') and not '-q' in month|lower and m == month[5:7]|int %}selected{% endif %}>Tháng {{ m }}</option>
+            {% endfor %}
+          </select>
+          <input type="number" name="year" value="{{ month[:4] }}" min="1000" max="9999" required class="form-control form-control-sm" aria-label="Năm" onchange="this.form.requestSubmit()">
+        </div>
+
+        <!-- Ô & Nút tìm kiếm hóa đơn -->
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q or '' }}" class="form-control form-control-sm"
+                   placeholder="Tìm số HĐ, ký hiệu, đơn vị bán, MST..."
+                   aria-label="Tìm kiếm hóa đơn">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm">
+                <i class="bx bx-search mr-1"></i>Tìm kiếm
+              </button>
+              {% if q %}
+              <a href="/admin/transport/input-invoices?month={{ month }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm">
+                <i class="bx bx-x"></i>
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+    <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0" style="gap:12px; font-size:12px;">
+      <span class="text-muted"><i class="bx bx-receipt mr-1"></i><strong>{{ total|default(invoices|length)|format_number }}</strong> hóa đơn</span>
+      <span class="text-muted">Tiền hàng: <strong class="text-dark">{{ total_subtotal|format_currency }}</strong></span>
+      <span class="text-muted">VAT: <strong class="text-info">{{ total_vat|format_currency }}</strong></span>
+      <span class="text-muted">Tổng thanh toán: <strong class="text-success font-weight-bold" style="font-size:13px;">{{ total_amount|format_currency }}</strong></span>
+    </div>
+  </div></div>
+  {% endif %}
+  {% if show_form %}
+  <div class="card mb-3" id="invoice-form">
+    <div class="card-body">
+      <form method="post" action="/admin/transport/input-invoices" enctype="multipart/form-data" id="purchase-invoice-form" data-edit="{{ '1' if edit else '0' }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="invoice_id" value="{{ edit.id if edit else '' }}">
+        <div class="input-invoice-upload">
+          <label for="source-file">Tải hóa đơn gốc (PDF, JPG, PNG; tối đa 40 MB)</label>
+          <input id="source-file" type="file" name="source_file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" class="form-control-file">
+          <div id="invoice-extract-status" class="small text-muted mt-1" role="status" aria-live="polite">Chọn tệp để tự điền thông tin bên dưới; kiểm tra lại trước khi lưu.</div>
+          {% if edit and edit.source_filename %}<div class="small"><a href="/admin/transport/input-invoices/{{ edit.id }}/file">{{ edit.source_filename }}</a> · Tải tệp mới để thay thế</div>{% endif %}
+        </div>
+        <div class="section-label">Thông tin hóa đơn</div>
+        <input id="payment-method" type="hidden" name="payment_method" value="{{ values.get('payment_method', '') }}">
+        <div class="row">
+          <div class="col-md-3 mb-2"><label for="invoice-date">Ngày hóa đơn *</label><input id="invoice-date" type="date" name="invoice_date" value="{{ values.get('invoice_date', today)|string }}" required class="form-control form-control-sm"></div>
+          <div class="col-md-3 col-6 mb-2"><label for="invoice-serial">Ký hiệu</label><input id="invoice-serial" type="text" name="serial" maxlength="50" value="{{ values.get('serial', '') }}" placeholder="VD: 1C26TMH" class="form-control form-control-sm"></div>
+          <div class="col-md-3 col-6 mb-2"><label for="invoice-number">Số hóa đơn</label><input id="invoice-number" type="text" name="invoice_number" maxlength="80" value="{{ values.get('invoice_number', '') }}" placeholder="VD: 9030" class="form-control form-control-sm"></div>
+        </div>
+        <div class="section-label">Bên bán</div>
+        <div class="row">
+          <div class="col-sm-8 col-12 mb-2"><label for="seller-company">Đơn vị bán *</label>
+            <select id="seller-company" name="seller_company_id" required class="form-control form-control-sm">
+              <option value="">Chọn đơn vị theo tên hoặc mã số thuế...</option>
+              {% if values.get('seller_new') == '1' %}<option value="0" selected>{{ values.get('seller_name') or 'Đơn vị từ hóa đơn vừa tải' }}</option>{% endif %}
+              {% set ns = namespace(matched=false) %}
+              {% for company in companies %}
+                {% set is_selected = (values.get('seller_company_id')|string == company.id|string) or (not values.get('seller_company_id') and values.get('seller_tax_code') and values.get('seller_tax_code') == company.tax_code and values.get('seller_name') == company.name) %}
+                {% if is_selected %}{% set ns.matched = true %}{% endif %}
+                <option value="{{ company.id }}" data-tax="{{ company.tax_code or '' }}" data-address="{{ company.address or '' }}" {% if is_selected %}selected{% endif %}>{{ company.name }}</option>
+              {% endfor %}
+              {% if values.get('seller_name') and not ns.matched and values.get('seller_new') != '1' %}
+                <option value="0" data-tax="{{ values.get('seller_tax_code', '') }}" data-address="{{ values.get('seller_address', '') }}" selected>{{ values.get('seller_name') }}</option>
+              {% endif %}
+            </select>
+            <input type="hidden" id="seller-new" name="seller_new" value="{{ values.get('seller_new', '0') }}">
+          </div>
+          <div class="col-sm-4 col-12 mb-2"><label for="seller-tax">Mã số thuế</label><input id="seller-tax" name="seller_tax_code" value="{{ values.get('seller_tax_code', '') }}" readonly class="form-control form-control-sm bg-light"></div>
+          <div class="col-12 mb-2"><label for="seller-address">Địa chỉ</label><input id="seller-address" name="seller_address" value="{{ values.get('seller_address', '') }}" readonly class="form-control form-control-sm bg-light"></div>
+        </div>
+        <div id="seller-new-fields" class="row" {% if values.get('seller_new') != '1' %}hidden{% endif %}>
+          <div class="col-md-12 mb-2"><label for="seller-name">Tên đơn vị bán mới *</label><input id="seller-name" name="seller_name" value="{{ values.get('seller_name', '') }}" maxlength="255" class="form-control form-control-sm"></div>
+        </div>
+        <div class="section-label">Bên mua</div>
+        <div class="row">
+          <div class="col-sm-8 col-12 mb-2"><label for="buyer-name">Tên đơn vị mua *</label><input id="buyer-name" name="buyer_name" value="{{ values.get('buyer_name', buyer.get('name', '')) }}" maxlength="255" required class="form-control form-control-sm"></div>
+          <div class="col-sm-4 col-12 mb-2"><label for="buyer-tax">Mã số thuế</label><input id="buyer-tax" name="buyer_tax_code" value="{{ values.get('buyer_tax_code', buyer.get('tax_code', '')) }}" maxlength="30" class="form-control form-control-sm"></div>
+          <div class="col-12 mb-2"><label for="buyer-address">Địa chỉ</label><input id="buyer-address" name="buyer_address" value="{{ values.get('buyer_address', buyer.get('address', '')) }}" maxlength="1000" class="form-control form-control-sm"></div>
+        </div>
+        <div class="section-label">Hàng hóa, dịch vụ</div>
+        <div class="table-responsive"><table class="table table-sm line-table mb-2">
+          <thead><tr><th style="width:40px;" class="text-center">STT</th><th style="width:40%">Tên hàng hóa, dịch vụ</th><th style="width:14%">ĐVT</th><th style="width:13%">Số lượng</th><th style="width:17%">Đơn giá (đ)</th><th class="text-right" style="width:14%">Thành tiền</th><th></th></tr></thead>
+          <tbody id="purchase-lines">{% for line in lines %}<tr{% if line.amount is defined and line.amount not in (none, '') %} data-qty0="{{ line.quantity }}" data-price0="{{ line.unit_price }}" data-amount0="{{ line.amount }}"{% endif %}>
+            <td class="text-center text-muted font-weight-medium line-stt" style="vertical-align:middle;">{{ loop.index }}</td>
+            <td><input name="description" value="{{ line.description }}" maxlength="500" class="form-control form-control-sm description" aria-label="Tên hàng hóa dịch vụ"></td>
+            <td><input name="unit" value="{{ line.unit }}" maxlength="50" class="form-control form-control-sm" aria-label="Đơn vị tính"></td>
+            <td><input name="quantity" value="{{ line.quantity }}" type="number" min="0" step="any" class="form-control form-control-sm" aria-label="Số lượng"></td>
+            <td><input name="unit_price" value="{{ line.unit_price }}" type="number" min="0" step="any" class="form-control form-control-sm" aria-label="Đơn giá"></td>
+            <td class="money line-total">0 đ<input type="hidden" name="amount" value="{{ line.amount if line.amount is defined and line.amount is not none else '' }}"></td><td><button type="button" class="btn btn-light btn-sm remove-line" title="Bỏ dòng" aria-label="Bỏ dòng"><i class="bx bx-x"></i></button></td>
+          </tr>{% endfor %}</tbody>
+        </table></div>
+        <button type="button" id="add-purchase-line" class="btn btn-light btn-sm mb-3"><i class="bx bx-plus mr-1"></i>Thêm dòng</button>
+        <div class="row">
+          <div class="col-md-3 mb-2"><label for="vat-percent">Thuế suất GTGT (%)</label><input id="vat-percent" name="vat_percent" type="number" min="0" max="100" step="0.01" value="{{ values.get('vat_percent', 10) }}" required class="form-control form-control-sm"></div>
+          {% set _vat_raw = values.get('vat_amount') %}
+          {% set _vat_auto = ((values.get('subtotal') or 0)|float) * ((values.get('vat_percent') or 0)|float) / 100 %}
+          {% set vat_override = '' if (_vat_raw is none or _vat_raw|string == '' or ((_vat_raw|float) - (_vat_auto|round(0, 'common')))|abs < 0.5) else (('%.2f'|format(_vat_raw|float)).rstrip('0').rstrip('.')) %}
+          <div class="col-md-3 mb-2"><label for="vat-amount">Tiền thuế GTGT (đ)</label><input id="vat-amount" name="vat_amount" type="number" min="0" step="any" value="{{ vat_override }}" placeholder="Tự tính theo thuế suất" title="Để trống thì tự tính theo thuế suất. Nhập tay khi hoá đơn có dòng không chịu thuế (ví dụ lệ phí đăng kiểm)." class="form-control form-control-sm"></div>
+          <div class="col-md-3 mb-2"><label for="invoice-vehicle">Biển số xe</label><select id="invoice-vehicle" name="vehicle_id" class="form-control form-control-sm"><option value="">—</option>{% for v in vehicle_options %}<option value="{{ v.id }}" {% if values.get('vehicle_id')|string == v.id|string %}selected{% endif %}>{{ v.plate_number }}</option>{% endfor %}</select></div>
+          <div class="col-md-3 mb-2"><label for="invoice-note">Ghi chú</label><input id="invoice-note" name="note" value="{{ values.get('note', '') }}" maxlength="1000" class="form-control form-control-sm"></div>
+        </div>
+        <div class="invoice-summary mb-3">
+          <div>Tổng tiền hàng<strong id="purchase-subtotal">0 đ</strong></div>
+          <div>Tiền thuế GTGT<strong id="purchase-vat">0 đ</strong></div>
+          <div class="grand-total">Tổng thanh toán<strong id="purchase-total">0 đ</strong></div>
+        </div>
+
+        <!-- BÚT TOÁN HẠCH TOÁN KẾ TOÁN (THEO MẪU NHẬP MUA HÀNG) -->
+        <div class="card mb-3 border shadow-sm" style="border-radius:8px; border-color:#cbd5e1 !important; overflow:hidden;">
+          <!-- Tabs header -->
+          <div class="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+            <ul class="nav nav-tabs card-header-tabs border-0" style="margin-bottom:-9px;">
+              <li class="nav-item">
+                <a class="nav-link active py-1 px-3 font-weight-bold text-dark border-bottom-0 bg-light" href="javascript:void(0);">
+                  <i class="bx bx-receipt mr-1 text-primary"></i>B.toán mua hàng
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link py-1 px-3 text-muted" href="javascript:void(0);">
+                  Chiết khấu
+                </a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link py-1 px-3 text-muted" href="javascript:void(0);">
+                  Bút toán khác
+                </a>
+              </li>
+            </ul>
+            <span class="badge badge-success px-2 py-1 font-weight-bold"><i class="bx bx-check-double mr-1"></i>Hạch toán tự động cân đối</span>
+          </div>
+
+          {% set cur_no_cost = (values.get('tk_no_cost') or '154')|string %}
+          {% set cur_no_vat = (values.get('tk_no_vat') or '1331')|string %}
+          {% set cur_co_pay = (values.get('tk_co_pay') or '331')|string %}
+          {% set is_custom_acc = (cur_no_cost != '154' or cur_co_pay != '331' or cur_no_vat != '1331') %}
+          <div class="card-body p-3 bg-light">
+            <div class="row align-items-center">
+              <!-- Cột trái: Phân bổ thanh toán -->
+              <div class="col-md-5 border-right pr-md-3 mb-3 mb-md-0">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <span class="font-weight-bold text-dark font-size-12">Phân bổ thanh toán</span>
+                  <span class="badge {{ 'badge-success text-white' if is_custom_acc else 'badge-info text-white' }} font-size-11 font-weight-bold" id="acc-mode-badge">{{ '<Đã hạch toán: Nợ ' ~ cur_no_cost ~ ', ' ~ cur_no_vat ~ ' / Có ' ~ cur_co_pay ~ '>' if is_custom_acc else '<Tự động: Nợ 154, 1331 / Có 331>' }}</span>
+                </div>
+                <div class="mb-2">
+                  <label class="font-size-11 text-muted mb-1 d-block font-weight-bold">Hình thức thanh toán:</label>
+                  <select id="acc-payment-method" class="form-control form-control-sm font-weight-bold" onchange="syncAccountingMethod(this.value)">
+                    <option value="331" {{ 'selected' if cur_co_pay == '331' else '' }}>Chưa thanh toán (Ghi nhận công nợ người bán 331)</option>
+                    <option value="1121" {{ 'selected' if cur_co_pay == '1121' else '' }}>Chuyển khoản Ngân hàng (VietinBank 1121)</option>
+                    <option value="1111" {{ 'selected' if cur_co_pay == '1111' else '' }}>Tiền mặt tại quỹ (1111)</option>
+                    <option value="141" {{ 'selected' if cur_co_pay == '141' else '' }}>Tạm ứng nhân viên (141)</option>
+                    <option value="3388" {{ 'selected' if cur_co_pay == '3388' else '' }}>Phải trả khác (3388)</option>
+                    {% if cur_co_pay not in ['331', '1121', '1111', '141', '3388'] %}
+                    <option value="{{ cur_co_pay }}" selected>Tài khoản khác (TK {{ cur_co_pay }})</option>
+                    {% endif %}
+                    <option value="custom">Tài khoản khác (tự gõ)...</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="font-size-11 text-muted mb-1 d-block font-weight-bold">Mục đích chi phí / Khoản mục:</label>
+                  <select id="acc-expense-purpose" class="form-control form-control-sm" onchange="syncAccountingExpense(this.value)">
+                    <option value="153" {{ 'selected' if cur_no_cost == '153' else '' }}>Mua công cụ, dụng cụ / Quả cân (TK 153)</option>
+                    <option value="154" {{ 'selected' if cur_no_cost == '154' else '' }}>Chi phí dịch vụ vận tải xe tải (TK 154 / 632)</option>
+                    <option value="156" {{ 'selected' if cur_no_cost == '156' else '' }}>Mua hàng hóa nhập kho (TK 156)</option>
+                    <option value="211" {{ 'selected' if cur_no_cost == '211' else '' }}>Mua tài sản cố định hữu hình (TK 211)</option>
+                    <option value="242" {{ 'selected' if cur_no_cost == '242' else '' }}>Chi phí trả trước CCDC / Bảo hiểm (TK 242)</option>
+                    <option value="642" {{ 'selected' if cur_no_cost == '642' else '' }}>Chi phí quản lý doanh nghiệp (TK 642)</option>
+                    <option value="632" {{ 'selected' if cur_no_cost == '632' else '' }}>Giá vốn dịch vụ vận tải (TK 632)</option>
+                    {% if cur_no_cost not in ['153', '154', '156', '211', '242', '642', '632'] %}
+                    <option value="{{ cur_no_cost }}" selected>Khoản mục khác (TK {{ cur_no_cost }})</option>
+                    {% endif %}
+                    <option value="custom">Khoản mục khác (tự gõ)...</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Cột phải: Bảng định khoản Nợ / Có trực tiếp kiểu FAST / MISA -->
+              <div class="col-md-7 pl-md-3">
+                <div class="border rounded bg-white p-2" style="border-color:#cbd5e1 !important;">
+                  <!-- Dòng 1: Tiền hàng Nợ 153 / 154 / 156 -->
+                  <div class="d-flex align-items-center justify-content-between py-1 border-bottom" style="gap:8px;">
+                    <div style="min-width:95px;" class="font-weight-bold text-dark font-size-12">
+                      Tiền hàng
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:5px;">
+                      <span class="text-muted font-weight-bold font-size-11">Nợ</span>
+                      <input type="text" id="tk-no-cost" name="tk_no_cost" value="{{ cur_no_cost }}" class="form-control form-control-sm text-center font-weight-bold text-primary" style="width:75px; height:30px; font-size:13px; font-family:monospace; background:#fff; border:1.5px solid #0284c7;" oninput="onCustomCostInput(this.value)" placeholder="153" title="Gõ trực tiếp mã tài khoản Nợ (ví dụ 153, 154, 156, 211, 242, 642...)">
+                      <select id="tk-no-cost-select" class="form-control form-control-sm text-muted font-weight-medium" style="width:105px; height:30px; font-size:11px;" onchange="handleSelectCostAccount(this.value)">
+                        <option value="">-- Chọn nhanh --</option>
+                        <option value="153" {{ 'selected' if cur_no_cost == '153' else '' }}>153 - CCDC</option>
+                        <option value="154" {{ 'selected' if cur_no_cost == '154' else '' }}>154 - Vận tải</option>
+                        <option value="156" {{ 'selected' if cur_no_cost == '156' else '' }}>156 - Hàng hóa</option>
+                        <option value="211" {{ 'selected' if cur_no_cost == '211' else '' }}>211 - TSCĐ</option>
+                        <option value="242" {{ 'selected' if cur_no_cost == '242' else '' }}>242 - Trả trước</option>
+                        <option value="642" {{ 'selected' if cur_no_cost == '642' else '' }}>642 - QLDN</option>
+                        <option value="632" {{ 'selected' if cur_no_cost == '632' else '' }}>632 - Giá vốn</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-subtotal-val" readonly class="form-control form-control-sm text-right font-weight-bold text-dark bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+
+                  <!-- Dòng 2: Thuế GTGT Nợ 1331 -->
+                  <div class="d-flex align-items-center justify-content-between py-1 border-bottom" style="gap:8px;">
+                    <div style="min-width:95px;" class="d-flex align-items-center font-weight-bold text-dark font-size-12" style="gap:4px;">
+                      <span>Thuế GTGT</span>
+                      <span class="badge badge-light border text-primary ml-1 font-weight-bold" id="acc-vat-badge" style="font-size:10.5px;">10%</span>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:5px;">
+                      <span class="text-muted font-weight-bold font-size-11">Nợ</span>
+                      <input type="text" id="tk-no-vat" name="tk_no_vat" value="{{ cur_no_vat }}" class="form-control form-control-sm text-center font-weight-bold text-info" style="width:75px; height:30px; font-size:13px; font-family:monospace; background:#fff; border:1.5px solid #0891b2;" oninput="onCustomVatInput(this.value)" placeholder="1331" title="Gõ trực tiếp mã tài khoản VAT (1331, 1332)">
+                      <select id="tk-no-vat-select" class="form-control form-control-sm text-muted font-weight-medium" style="width:105px; height:30px; font-size:11px;" onchange="handleSelectVatAccount(this.value)">
+                        <option value="">-- Chọn nhanh --</option>
+                        <option value="1331" {{ 'selected' if cur_no_vat == '1331' else '' }}>1331 - VAT HHDV</option>
+                        <option value="1332" {{ 'selected' if cur_no_vat == '1332' else '' }}>1332 - VAT TSCĐ</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-vat-val" readonly class="form-control form-control-sm text-right font-weight-bold text-info bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+
+                  <!-- Dòng 3: Tiền thanh toán Có 331 / 112 / 111 -->
+                  <div class="d-flex align-items-center justify-content-between py-1" style="gap:8px;">
+                    <div style="min-width:95px;" class="font-weight-bold text-dark font-size-12">
+                      Tiền thanh toán
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:5px;">
+                      <span class="text-muted font-weight-bold font-size-11">Có</span>
+                      <input type="text" id="tk-co-pay" name="tk_co_pay" value="{{ cur_co_pay }}" class="form-control form-control-sm text-center font-weight-bold text-danger" style="width:75px; height:30px; font-size:13px; font-family:monospace; background:#fff; border:1.5px solid #dc2626;" oninput="onCustomPayInput(this.value)" placeholder="331" title="Gõ trực tiếp mã tài khoản Có (331, 1121, 1111, 141, 3388)">
+                      <select id="tk-co-pay-select" class="form-control form-control-sm text-muted font-weight-medium" style="width:105px; height:30px; font-size:11px;" onchange="handleSelectPayAccount(this.value)">
+                        <option value="">-- Chọn nhanh --</option>
+                        <option value="331" {{ 'selected' if cur_co_pay == '331' else '' }}>331 - Công nợ</option>
+                        <option value="1121" {{ 'selected' if cur_co_pay == '1121' else '' }}>1121 - VietinBank</option>
+                        <option value="1111" {{ 'selected' if cur_co_pay == '1111' else '' }}>1111 - Tiền mặt</option>
+                        <option value="141" {{ 'selected' if cur_co_pay == '141' else '' }}>141 - Tạm ứng</option>
+                        <option value="3388" {{ 'selected' if cur_co_pay == '3388' else '' }}>3388 - Khác</option>
+                      </select>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap:4px;">
+                      <input type="text" id="acc-total-val" readonly class="form-control form-control-sm text-right font-weight-bold text-success bg-light" style="width:145px; height:28px;" value="0">
+                      <span class="text-muted font-size-11 font-weight-bold" style="width:30px;">VND</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Gợi ý gõ nhanh TK Nợ -->
+                <div class="mt-2 text-muted font-size-11 d-flex align-items-center flex-wrap" style="gap:4px;">
+                  <span class="font-weight-bold mr-1"><i class="bx bx-pointer mr-1"></i>Chọn nhanh TK Nợ:</span>
+                  <a href="javascript:void(0)" class="badge badge-light border text-primary font-weight-bold px-2 py-1" onclick="setCostAccountDirect('153')">153 (CCDC, quả cân)</a>
+                  <a href="javascript:void(0)" class="badge badge-light border text-dark font-weight-bold px-2 py-1" onclick="setCostAccountDirect('154')">154 (Chi phí xe tải)</a>
+                  <a href="javascript:void(0)" class="badge badge-light border text-dark font-weight-bold px-2 py-1" onclick="setCostAccountDirect('156')">156 (Hàng hóa)</a>
+                  <a href="javascript:void(0)" class="badge badge-light border text-dark font-weight-bold px-2 py-1" onclick="setCostAccountDirect('211')">211 (TSCĐ)</a>
+                  <a href="javascript:void(0)" class="badge badge-light border text-dark font-weight-bold px-2 py-1" onclick="setCostAccountDirect('242')">242 (Trả trước)</a>
+                  <a href="javascript:void(0)" class="badge badge-light border text-dark font-weight-bold px-2 py-1" onclick="setCostAccountDirect('642')">642 (QLDN)</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bx bx-save mr-1"></i>{{ 'Lưu thay đổi' if edit else 'Lưu hóa đơn' }}</button>
+        <a href="{{ list_url }}" class="btn btn-light btn-sm ml-1">Hủy</a>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="table-responsive"><table class="table table-sm mb-0 record-table fit-table" data-fit-min="0.8"><thead><tr><th style="width:36px;" class="text-center">STT</th><th>Ngày</th><th>Ký hiệu / Số</th><th>Đơn vị bán</th><th>Biển số xe</th>{% if company_filter == 'all' %}<th style="color:#0284c7;">Đơn vị mua</th>{% endif %}<th class="text-right">Tiền hàng</th><th class="text-right">VAT</th><th class="text-right">Tổng thanh toán</th><th class="text-center" style="width:120px;">Định khoản</th><th class="text-right">Thao tác</th></tr></thead>
+      <tbody>{% for inv in invoices %}<tr>
+        <td class="text-center text-muted font-weight-medium align-middle">{{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}</td>
+        <td class="text-nowrap">{{ inv.invoice_date.strftime('%d/%m/%Y') }}</td>
+        <td>{% if inv.serial and inv.invoice_number %}{{ inv.serial }} / {{ inv.invoice_number }}{% else %}{{ inv.serial or inv.invoice_number or '—' }}{% endif %}</td>
+        <td>{{ inv.seller_name }}{% if inv.seller_tax_code %}<div class="text-muted" style="font-size:11px">{{ inv.seller_tax_code }}</div>{% endif %}</td>
+        <td>
+          {% if inv.takes_vehicle %}
+          <form method="post" action="/admin/transport/input-invoices/{{ inv.id }}/vehicle" class="d-inline">
+            <input type="hidden" name="month" value="{{ month }}">
+            <select name="vehicle_id" class="form-control form-control-sm" onchange="this.form.submit()" aria-label="Biển số xe">
+              <option value="">—</option>
+              {% for v in vehicle_options %}
+              <option value="{{ v.id }}" {% if inv.vehicle_id|string == v.id|string %}selected{% endif %}>{{ v.plate_number }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          {% else %}
+          {{ inv.vehicle_plate or '—' }}
+          {% endif %}
+        </td>
+        {% if company_filter == 'all' %}
+        <td class="text-truncate small font-weight-medium" style="max-width:180px;" title="{{ inv.buyer_name or '' }}">
+          <span class="badge badge-light border text-dark">{{ inv.buyer_name or '—' }}</span>
+        </td>
+        {% endif %}
+        <td class="money">{{ inv.subtotal|format_currency }}</td>
+        <td class="money">{{ inv.vat_amount|format_currency }}</td>
+        <td class="money font-weight-bold text-success">{{ inv.total|format_currency }}</td>
+        <td class="text-center text-nowrap align-middle"><div class="acc-stack">
+          <span class="badge {{ 'badge-primary text-white' if inv.tk_no_cost == '153' else ('badge-secondary text-white' if inv.tk_no_cost == '642' else 'badge-light border text-dark') }} font-weight-bold" style="font-size:11px;" title="Nợ {{ inv.tk_no_cost or '154' }}, {{ inv.tk_no_vat or '1331' }} / Có {{ inv.tk_co_pay or '331' }}">
+            N:{{ inv.tk_no_cost or '154' }}/C:{{ inv.tk_co_pay or '331' }}
+          </span>
+          {% for o in inv.offsets %}
+          <a href="/admin/transport/debt-offsets" class="badge badge-warning font-weight-bold" style="font-size:11px;" title="Bù trừ công nợ ngày {{ o.date.strftime('%d/%m/%Y') }}: Nợ 331 {{ o.debit_name }} / Có 331 {{ o.credit_name }} — {{ o.amount|format_currency }}">Bù trừ N:331/C:331</a>
+          {% endfor %}</div>
+        </td>
+        <td class="text-right text-nowrap">
+          {% if inv.source_filename %}<a href="/admin/transport/input-invoices/{{ inv.id }}/file" class="btn btn-success btn-sm" title="Tải hóa đơn gốc" aria-label="Tải hóa đơn gốc"><i class="bx bx-download"></i></a>{% endif %}
+          <a href="/admin/transport/input-invoices/{{ inv.id }}/edit?month={{ month }}" class="btn btn-light btn-sm" title="Sửa" aria-label="Sửa hóa đơn"><i class="bx bx-edit-alt"></i></a>
+          <form method="post" action="/admin/transport/input-invoices/{{ inv.id }}/delete" class="d-inline" onsubmit="return confirm('Xóa hóa đơn này?')"><input type="hidden" name="month" value="{{ month }}"><button type="submit" class="btn btn-danger btn-sm" title="Xóa" aria-label="Xóa hóa đơn"><i class="bx bx-trash"></i></button></form>
+        </td>
+      </tr>{% else %}<tr><td colspan="{{ '11' if company_filter == 'all' else '10' }}" class="text-center text-muted py-4">Chưa có hóa đơn đầu vào trong kỳ này.</td></tr>{% endfor %}</tbody>
+      {% if invoices %}
+      <tfoot class="thead-light" style="font-weight:700; border-top:2px solid #cbd5e1;">
+        <tr>
+          <td colspan="{{ '6' if company_filter == 'all' else '5' }}" class="text-center text-uppercase py-2 text-muted">TỔNG CỘNG TOÀN KỲ ({{ total|default(invoices|length)|format_number }} HÓA ĐƠN)</td>
+          <td class="text-right text-dark py-2 font-weight-bold">{{ total_subtotal|format_currency }}</td>
+          <td class="text-right text-info py-2 font-weight-bold">{{ total_vat|format_currency }}</td>
+          <td class="text-right text-success py-2 font-weight-bold">{{ total_amount|format_currency }}</td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table></div>
+    {% include "partials/pagination.html" %}
+  </div>
+  {% endif %}
+
+    <!-- ==================== MODAL ĐỒNG BỘ HÓA ĐƠN TỪ SAVEINVOICE ==================== -->
+  <div x-show="openSivModal" class="sync-modal-backdrop" x-cloak
+       style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.68);backdrop-filter:blur(4px);z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;"
+       @keydown.escape.window="if(!sivImporting) openSivModal = false">
+    <div class="card shadow-lg border-0"
+         style="width:100%;max-width:980px;max-height:92vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;"
+         @click.away="if(!sivImporting) openSivModal = false">
+      
+      <!-- Modal Header -->
+      <div class="card-header bg-white d-flex align-items-center justify-content-between py-3 px-4 border-bottom">
+        <div class="d-flex align-items-center" style="gap:12px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(16,185,129,0.12);color:#059669;display:flex;align-items:center;justify-content:center;font-size:22px;">
+            <i class="bx bx-cloud-download"></i>
+          </div>
+          <div>
+            <div class="d-flex align-items-center" style="gap:8px;">
+              <h5 class="mb-0 font-size-16 font-weight-bold text-dark">Đồng bộ hóa đơn từ SaveInvoice</h5>
+              <span class="badge badge-success font-size-11">Tổng cục Thuế</span>
+            </div>
+            <div class="font-size-12 text-muted mt-1">
+              Tài khoản kết nối: <strong class="text-dark">2500561906</strong> · 
+              Kéo hóa đơn cho: <strong class="text-success" x-text="sivCurrentAccountLabel"></strong>
+              {% if active_company %}
+                <span class="badge badge-light border text-muted ml-1 font-size-11">Công ty hệ thống: {{ active_company.name }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-light btn-sm rounded-circle p-1" style="width:32px;height:32px;" :disabled="sivImporting" @click="openSivModal = false">
+          <i class="bx bx-x font-size-18"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="card-body p-4" style="overflow-y:auto;">
+        
+        <!-- Cross-company notice -->
+        <div x-show="isDifferentFromActiveCompany" 
+             class="alert alert-warning py-2 px-3 mb-3 font-size-12 d-flex align-items-center" 
+             style="border-radius:8px;border-left:4px solid #f59e0b;" x-cloak>
+          <i class="bx bx-error-circle mr-2 font-size-18 text-warning"></i>
+          <div>
+            <strong>Lưu ý:</strong> Đơn vị được chọn (<span class="font-weight-bold" x-text="sivCurrentAccountLabel"></span>) khác với công ty đang làm việc trên hệ thống (<strong x-text="sivActiveCompanyName"></strong>). Khi đồng bộ, hóa đơn sẽ được lưu riêng cho đơn vị này và không bị lẫn vào công ty khác.
+          </div>
+        </div>
+
+        <!-- Account Switcher & Search Bar -->
+        <div class="p-3 mb-3 rounded" style="border:1px solid #e2e8f0;background:#f8fafc;">
+          <div class="row align-items-center">
+            <div class="col-md-5 mb-2 mb-md-0">
+              <label class="font-size-11 font-weight-bold text-uppercase text-muted d-block mb-1">Công ty cần kéo hóa đơn (SaveInvoice)</label>
+              <select class="form-control form-control-sm font-weight-bold" x-model="sivSelectedAccount" :disabled="sivLoading || sivImporting" @change="fetchSaveInvoicePreview()">
+                <template x-for="acc in sivAccounts" :key="acc.account_id">
+                  <option :value="acc.account_id">
+                    <span x-text="acc.tax_code + ' - ' + acc.name + (acc.is_target ? ' ★ (Công ty đang chọn)' : '')"></span>
+                  </option>
+                </template>
+              </select>
+            </div>
+
+            <div class="col-md-3 mb-2 mb-md-0">
+              <label class="font-size-11 font-weight-bold text-uppercase text-muted d-block mb-1">Lọc theo tháng</label>
+              <select class="form-control form-control-sm" x-model="sivMonth" :disabled="sivLoading || sivImporting" @change="fetchSaveInvoicePreview()">
+                <option value="">Tất cả hóa đơn gần nhất</option>
+                <option value="{{ sync_month }}" selected>Tháng hiện tại ({{ sync_month }})</option>
+                {% for m in range(1,13) %}
+                  {% set m_str = '%s-%02d'|format(month[:4], m) %}
+                  <option value="{{ m_str }}">Tháng {{ m }}/{{ month[:4] }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-2 mb-2 mb-md-0">
+              <label class="font-size-11 font-weight-bold text-uppercase text-muted d-block mb-1">Số lượng</label>
+              <select class="form-control form-control-sm" x-model="sivLimit" :disabled="sivLoading || sivImporting" @change="fetchSaveInvoicePreview()">
+                <option value="20">20 hóa đơn</option>
+                <option value="50" selected>50 hóa đơn</option>
+                <option value="100">100 hóa đơn</option>
+              </select>
+            </div>
+
+            <div class="col-md-2 text-md-right mt-2 mt-md-0">
+              <button type="button" class="btn btn-success btn-sm font-weight-bold w-100" style="margin-top:18px;" :disabled="sivLoading || sivImporting" @click="fetchSaveInvoicePreview()">
+                <i class="bx" :class="sivLoading ? 'bx-loader-alt bx-spin mr-1' : 'bx-search mr-1'"></i>
+                <span x-text="sivLoading ? 'Đang tải...' : 'Tìm kiếm'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <template x-if="sivError">
+          <div class="alert alert-danger py-2 px-3 font-size-13 d-flex align-items-center mb-3">
+            <i class="bx bx-error-circle font-size-18 mr-2"></i>
+            <span x-text="sivError"></span>
+          </div>
+        </template>
+
+        <!-- Loading State -->
+        <div x-show="sivLoading" class="text-center py-5">
+          <div class="spinner-border text-success" role="status" style="width:2.5rem;height:2.5rem;"></div>
+          <div class="font-size-13 text-muted mt-2 font-weight-medium">Đang kết nối SaveInvoice và đối soát với CSDL...</div>
+        </div>
+
+        <!-- Importing State -->
+        <div x-show="sivImporting" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status" style="width:2.5rem;height:2.5rem;"></div>
+          <div class="font-size-14 font-weight-bold text-dark mt-2" x-text="sivImportProgress"></div>
+          <div class="font-size-12 text-muted mt-1">Đang tải tệp XML hóa đơn điện tử gốc và lưu vào hệ thống...</div>
+        </div>
+
+        <!-- Success Result State -->
+        <template x-if="sivImportResult">
+          <div class="p-3 mb-3 bg-light rounded" style="border:1px solid #bbf7d0;">
+            <div class="d-flex align-items-center mb-2">
+              <i class="bx bx-check-circle text-success font-size-22 mr-2"></i>
+              <strong class="font-size-14 text-success">Đồng bộ hoàn tất!</strong>
+            </div>
+            <div class="font-size-13 mb-3">
+              Đã lưu mới <strong class="text-success" x-text="sivImportResult.imported"></strong> hóa đơn, 
+              bỏ qua <span class="text-muted" x-text="sivImportResult.existing"></span> hóa đơn đã có trong CSDL.
+            </div>
+            <button type="button" class="btn btn-success btn-sm font-weight-bold" @click="reloadWithNewData()">
+              <i class="bx bx-refresh mr-1"></i>Tải lại danh sách Chi phí đầu vào
+            </button>
+          </div>
+        </template>
+
+        <!-- Invoices List Table -->
+        <div x-show="!sivLoading && !sivImporting && !sivImportResult">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="font-size-12 text-muted font-weight-medium">
+              Tìm thấy <strong class="text-dark" x-text="sivInvoices.length"></strong> hóa đơn 
+              (<span class="text-success font-weight-bold" x-text="sivNewCount"></span> chưa lưu, 
+               <span class="text-muted" x-text="sivInvoices.length - sivNewCount"></span> đã có trong CSDL)
+            </span>
+            <div class="d-flex align-items-center" style="gap:10px;">
+              <button type="button" class="btn btn-link btn-sm p-0 text-primary font-size-12" @click="selectAllNew()">Chọn tất cả hóa đơn mới</button>
+              <span class="text-muted">·</span>
+              <button type="button" class="btn btn-link btn-sm p-0 text-muted font-size-12" @click="deselectAll()">Bỏ chọn</button>
+            </div>
+          </div>
+
+          <div class="table-responsive rounded border" style="max-height:420px;overflow-y:auto;">
+            <table class="table table-hover table-sm mb-0 font-size-12">
+              <thead class="bg-light sticky-top">
+                <tr>
+                  <th style="width:36px;" class="text-center">
+                    <input type="checkbox" :checked="sivSelectAll" @change="toggleSelectAll()">
+                  </th>
+                  <th style="width:85px;">Trạng thái</th>
+                  <th style="width:90px;">Ngày HĐ</th>
+                  <th style="width:110px;">Ký hiệu / Số</th>
+                  <th>Đơn vị bán</th>
+                  <th class="text-right" style="width:110px;">Tổng tiền</th>
+                  <th>Chi tiết hàng hóa</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="inv in sivInvoices" :key="inv.id">
+                  <tr :class="inv.exists ? 'table-light text-muted' : (isInvoiceSelected(inv.id) ? 'table-success-light' : '')">
+                    <td class="text-center align-middle">
+                      <input type="checkbox" :checked="isInvoiceSelected(inv.id)" :disabled="inv.exists" @change="toggleInvoiceSelect(inv.id)">
+                    </td>
+                    <td class="align-middle">
+                      <template x-if="inv.exists">
+                        <span class="badge badge-light border text-muted">Đã có</span>
+                      </template>
+                      <template x-if="!inv.exists">
+                        <span class="badge badge-success">Mới</span>
+                      </template>
+                    </td>
+                    <td class="align-middle text-nowrap" x-text="inv.invoice_date_display || inv.invoice_date"></td>
+                    <td class="align-middle">
+                      <div class="font-weight-bold" x-text="inv.invoice_number"></div>
+                      <div class="font-size-11 text-muted" x-text="inv.serial"></div>
+                    </td>
+                    <td class="align-middle">
+                      <div class="font-weight-medium text-truncate" style="max-width:220px;" x-text="inv.seller_name" :title="inv.seller_name"></div>
+                      <div class="font-size-11 text-muted" x-text="'MST: ' + inv.seller_tax_code"></div>
+                    </td>
+                    <td class="align-middle text-right text-nowrap font-weight-bold" :class="inv.exists ? 'text-muted' : 'text-success'" x-text="formatCurrency(inv.total)"></td>
+                    <td class="align-middle text-truncate" style="max-width:240px;" x-text="inv.items_summary || '—'" :title="inv.items_summary"></td>
+                  </tr>
+                </template>
+                <template x-if="sivInvoices.length === 0">
+                  <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                      <i class="bx bx-receipt font-size-24 d-block mb-1 text-secondary"></i>
+                      Không tìm thấy hóa đơn nào trong khoảng thời gian đã chọn.
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="card-footer bg-white d-flex align-items-center justify-content-between py-3 px-4 border-top" x-show="!sivImportResult">
+        <div>
+          <span class="font-size-13 text-muted">
+            Đã chọn: <strong class="text-primary" x-text="sivSelectedCount"></strong> hóa đơn · 
+            Tổng tiền: <strong class="text-success" x-text="formatCurrency(sivSelectedTotal)"></strong>
+          </span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <button type="button" class="btn btn-light btn-sm" :disabled="sivImporting" @click="openSivModal = false">Đóng</button>
+          <button type="button" class="btn btn-success btn-sm font-weight-bold shadow-sm px-3" 
+                  :disabled="sivSelectedCount === 0 || sivImporting" 
+                  @click="importSelectedSaveInvoice()">
+            <i class="bx bx-download mr-1"></i>
+            <span>Đồng bộ <span x-text="sivSelectedCount"></span> hóa đơn vào CSDL</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ==================== MODAL ĐỒNG BỘ HÓA ĐƠN TỪ EMAIL ==================== -->
+  <div x-show="openSyncModal" class="sync-modal-backdrop" x-cloak
+       style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.68);backdrop-filter:blur(4px);z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;"
+       @keydown.escape.window="if(!syncing) openSyncModal = false">
+    <div class="card shadow-lg border-0"
+         style="width:100%;max-width:720px;max-height:92vh;display:flex;flex-direction:column;border-radius:12px;overflow:hidden;"
+         @click.away="if(!syncing) openSyncModal = false">
+      
+      <!-- Modal Header -->
+      <div class="card-header bg-white d-flex align-items-center justify-content-between py-3 px-4 border-bottom">
+        <div class="d-flex align-items-center" style="gap:12px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(37,99,235,0.1);color:#2563eb;display:flex;align-items:center;justify-content:center;font-size:22px;">
+            <i class="bx bx-envelope"></i>
+          </div>
+          <div>
+            <h5 class="mb-0 font-size-16 font-weight-bold text-dark">Đồng bộ hóa đơn từ Email</h5>
+
+          </div>
+        </div>
+        <button type="button" class="btn btn-light btn-sm rounded-circle p-1" style="width:32px;height:32px;" :disabled="syncing" @click="openSyncModal = false">
+          <i class="bx bx-x font-size-18"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="card-body p-4" style="overflow-y:auto;">
+        
+        <!-- Tabs Selection -->
+        <ul class="nav nav-pills nav-justified mb-3 p-1 bg-light rounded" style="font-size:13px;font-weight:600;">
+          <li class="nav-item">
+            <a class="nav-link py-2" :class="activeTab === 'oauth' ? 'active bg-primary text-white shadow-sm' : 'text-muted'" @click="activeTab = 'oauth'" href="javascript:void(0)">
+              <i class="bx bxl-google mr-1"></i>Google OAuth (Gmail API)
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link py-2" :class="activeTab === 'imap' ? 'active bg-primary text-white shadow-sm' : 'text-muted'" @click="activeTab = 'imap'" href="javascript:void(0)">
+              <i class="bx bx-key mr-1"></i>Mật khẩu ứng dụng (IMAP)
+            </a>
+          </li>
+        </ul>
+
+        <!-- Tab 1: Google OAuth (Gmail API) -->
+        <div x-show="activeTab === 'oauth'">
+          <!-- Connection Status Box -->
+          <div class="p-3 mb-3 rounded" style="border:1px solid #e2e8f0;background:#f8fafc;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+              <div>
+                <span class="font-size-11 font-weight-bold text-uppercase text-muted d-block mb-1">Trạng thái kết nối Gmail</span>
+                <template x-if="connected">
+                  <div>
+                    <div class="d-flex align-items-center text-success font-weight-bold">
+                      <i class="bx bx-check-circle font-size-18 mr-1"></i>
+                      <span>Đã kết nối: <span x-text="connectedEmail || 'Tài khoản Google'"></span></span>
+                    </div>
+                    <template x-if="matchedCompany">
+                      <div class="mt-2 p-2 rounded d-flex align-items-center" style="background:#eff6ff;border:1px solid #bfdbfe;font-size:12px;">
+                        <i class="bx bx-buildings text-primary mr-2" style="font-size:20px;"></i>
+                        <div>
+                          <span class="text-muted">Doanh nghiệp theo Email:</span>
+                          <strong class="text-primary font-size-13" x-text="matchedCompany.name"></strong>
+                          <span class="text-muted font-weight-bold" x-text="'(MST: ' + matchedCompany.tax_code + ')'"></span>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="!connected">
+                  <div class="d-flex align-items-center text-warning font-weight-bold">
+                    <i class="bx bx-error-circle font-size-18 mr-1"></i>
+                    <span>Chưa liên kết tài khoản Gmail</span>
+                  </div>
+                </template>
+              </div>
+
+              <div>
+                <template x-if="connected">
+                  <button type="button" class="btn btn-outline-danger btn-sm" :disabled="syncing" @click="disconnectGmail()">
+                    <i class="bx bx-log-out mr-1"></i>Ngắt kết nối
+                  </button>
+                </template>
+                <template x-if="!connected">
+                  <a :href="oauthUrl" class="btn btn-primary btn-sm font-weight-bold shadow-sm">
+                    <i class="bx bxl-google mr-1"></i>Đăng nhập Google để kết nối
+                  </a>
+                </template>
+              </div>
+            </div>
+
+            <!-- Helpful Setup Links if not connected -->
+            <template x-if="!connected">
+              <div class="mt-3 pt-3 border-top small text-muted">
+                <p class="mb-1"><i class="bx bx-info-circle text-primary mr-1"></i><strong>Kích hoạt dịch vụ trên Google Cloud Console (Project 686766750544):</strong></p>
+                <ol class="pl-3 mb-0" style="line-height:1.6;">
+                  <li>Kích hoạt Gmail API: <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=686766750544" target="_blank" class="text-primary font-weight-bold">Bật Gmail API <i class="bx bx-link-external"></i></a></li>
+                  <li>Màn hình đồng ý OAuth: <a href="https://console.cloud.google.com/apis/credentials/consent?project=686766750544" target="_blank" class="text-primary font-weight-bold">Cấu hình OAuth Consent Screen <i class="bx bx-link-external"></i></a> (thêm scope <code>gmail.readonly</code>)</li>
+                  <li>Thêm Redirect URI: <a href="https://console.cloud.google.com/apis/credentials?project=686766750544" target="_blank" class="text-primary font-weight-bold">Thêm Authorized Redirect URI <i class="bx bx-link-external"></i></a> (<code x-text="window.location.origin + '/admin/transport/input-invoices/gmail/callback'"></code>)</li>
+                </ol>
+              </div>
+            </template>
+          </div>
+
+          <!-- Doanh nghiệp nhận hóa đơn -->
+          <div class="p-3 mb-3 rounded" style="border:1px solid #bfdbfe;background:#eff6ff;" x-show="userCompanies && userCompanies.length > 0">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <label class="font-size-11 font-weight-bold text-uppercase text-primary mb-0">
+                <i class="bx bx-buildings mr-1"></i>Doanh nghiệp nhận hóa đơn
+              </label>
+              <template x-if="matchedCompany && syncCompanyId == matchedCompany.id">
+                <span class="badge badge-primary px-2 py-1 font-size-11">
+                  <i class="bx bx-check mr-1"></i>Khớp đúng theo Email
+                </span>
+              </template>
+            </div>
+            <select class="form-control form-control-sm font-weight-bold bg-white" x-model="syncCompanyId" :disabled="syncing">
+              <template x-for="c in userCompanies" :key="c.id">
+                <option :value="c.id" :selected="c.id == syncCompanyId">
+                  <span x-text="c.name + ' (' + c.tax_code + ')' + (matchedCompany && c.id == matchedCompany.id ? ' ★ Khớp Email: ' + connectedEmail : '')"></span>
+                </option>
+              </template>
+            </select>
+            <div class="small text-muted mt-1" x-show="matchedCompany">
+              Tài khoản email <code><span x-text="connectedEmail || 'vantaidailoxanh2026@gmail.com'"></span></code> là email liên hệ của <strong><span x-text="matchedCompany?.name"></span></strong> (MST: <span x-text="matchedCompany?.tax_code"></span>).
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div class="row">
+            <div class="col-md-5 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Số email quét gần nhất</label>
+              <select class="form-control form-control-sm" x-model="maxMessages" :disabled="syncing">
+                <option value="20">20 email gần nhất</option>
+                <option value="40">40 email gần nhất</option>
+                <option value="80">80 email gần nhất (Khuyến nghị)</option>
+                <option value="150">150 email</option>
+                <option value="300">300 email (Quét sâu các tháng trước)</option>
+              </select>
+            </div>
+            <div class="col-md-7 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Từ khóa tìm kiếm trong thư (Tùy chọn)</label>
+              <input type="text" class="form-control form-control-sm" x-model="searchKeyword" :disabled="syncing">
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-end pt-2">
+            <button type="button" class="btn btn-primary font-weight-bold px-3" :disabled="syncing || !connected" @click="startOAuthSync()">
+              <i class="bx bx-sync mr-1" :class="syncing ? 'bx-spin' : ''"></i>
+              <span x-text="syncing ? 'Đang đồng bộ...' : 'Bắt đầu quét & đồng bộ'"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab 2: IMAP (App Password) -->
+        <div x-show="activeTab === 'imap'">
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Địa chỉ Email Gmail *</label>
+              <input type="email" class="form-control form-control-sm" placeholder="ví dụ: congty@gmail.com" x-model="imapEmail" :disabled="syncing">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Mật khẩu ứng dụng (16 ký tự) *</label>
+              <input type="password" class="form-control form-control-sm" placeholder="xxxx xxxx xxxx xxxx" x-model="imapPassword" :disabled="syncing">
+            </div>
+            <div class="col-md-5 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Số thư quét</label>
+              <select class="form-control form-control-sm" x-model="maxMessages" :disabled="syncing">
+                <option value="20">20 email gần nhất</option>
+                <option value="30">30 email gần nhất</option>
+                <option value="50">50 email gần nhất</option>
+              </select>
+            </div>
+            <div class="col-md-7 mb-3">
+              <label class="font-size-12 text-muted font-weight-bold mb-1">Lọc từ khóa tiêu đề (Tùy chọn)</label>
+              <input type="text" class="form-control form-control-sm" placeholder="Lọc từ khóa (VD: hoa don)" x-model="searchKeyword" :disabled="syncing">
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-end pt-2">
+            <button type="button" class="btn btn-primary font-weight-bold px-3" :disabled="syncing || !imapEmail || !imapPassword" @click="startImapSync()">
+              <i class="bx bx-sync mr-1" :class="syncing ? 'bx-spin' : ''"></i>
+              <span x-text="syncing ? 'Đang đồng bộ...' : 'Đồng bộ qua IMAP'"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sync Progress Banner -->
+        <div x-show="syncing" class="mt-4 p-3 rounded bg-light border text-center" x-transition>
+          <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
+          <div class="font-weight-bold text-dark font-size-13" x-text="syncProgress || 'Đang quét email...'"></div>
+          <small class="text-muted">Hệ thống đang đọc hóa đơn XML / PDF đính kèm và trích xuất dữ liệu...</small>
+        </div>
+
+        <!-- Error Banner -->
+        <div x-show="syncError" class="mt-3 alert alert-danger py-2 px-3 small" x-transition>
+          <i class="bx bx-error mr-1"></i><span x-text="syncError"></span>
+        </div>
+
+        <!-- Results Card -->
+        <template x-if="syncResult">
+          <div class="mt-4 pt-3 border-top" x-transition>
+            <h6 class="font-weight-bold text-dark font-size-14 mb-3 d-flex align-items-center">
+              <i class="bx bx-check-double text-success font-size-18 mr-1"></i>
+              Kết quả đồng bộ
+            </h6>
+
+            <!-- 3 Metric Cards -->
+            <div class="row mb-3">
+              <div class="col-4">
+                <div class="p-2 rounded text-center border bg-light">
+                  <span class="font-size-11 text-muted d-block">Đã quét</span>
+                  <strong class="font-size-18 text-dark" x-text="syncResult.scanned || 0"></strong> <span class="font-size-11 text-muted">thư</span>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2 rounded text-center border" style="background:#ecfdf5;border-color:#a7f3d0!important;">
+                  <span class="font-size-11 text-success d-block font-weight-bold">Hóa đơn mới lưu</span>
+                  <strong class="font-size-18 text-success" x-text="syncResult.new_saved || 0"></strong>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="p-2 rounded text-center border" style="background:#fffbeb;border-color:#fde68a!important;">
+                  <span class="font-size-11 text-warning d-block font-weight-bold">Đã có từ trước</span>
+                  <strong class="font-size-18 text-warning" x-text="syncResult.existing || 0"></strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Details Table -->
+            <div class="table-responsive border rounded" style="max-height:220px;overflow-y:auto;" x-show="syncResult.details && syncResult.details.length">
+              <table class="table table-sm table-hover mb-0" style="font-size:11px;">
+                <thead class="bg-light text-muted">
+                  <tr>
+                    <th style="width:40px;" class="text-center">STT</th>
+                    <th>Số HĐ</th>
+                    <th>Đơn vị bán</th>
+                    <th class="text-right">Tổng tiền</th>
+                    <th class="text-center">Trạng thái</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(item, idx) in syncResult.details" :key="idx">
+                    <tr>
+                      <td class="text-center text-muted font-weight-medium" x-text="idx + 1"></td>
+                      <td class="font-weight-bold" x-text="item.invoice_number || '—'"></td>
+                      <td class="text-truncate" style="max-width:200px;" x-text="item.seller_name || item.subject || '—'" :title="item.seller_name || item.subject"></td>
+                      <td class="text-right font-weight-bold text-nowrap" x-text="item.total ? formatCurrency(item.total) : '—'"></td>
+                      <td class="text-center">
+                        <span class="badge" :class="item.status === 'new' ? 'badge-success' : 'badge-light text-muted'" x-text="item.status === 'new' ? 'Mới lưu' : 'Đã có'"></span>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="text-right mt-3">
+              <button type="button" class="btn btn-success btn-sm font-weight-bold px-3" @click="reloadWithNewData()">
+                <i class="bx bx-check mr-1"></i>Xem danh sách chi phí đã cập nhật
+              </button>
+            </div>
+          </div>
+        </template>
+
+      </div>
+    </div>
+  </div>
+  <!-- ==================== HẾT MODAL ==================== -->
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function invoiceSyncState() {
+  return {
+    openSyncModal: false,
+    activeTab: 'oauth',
+    connected: {{ 'true' if gmail_is_connected else 'false' }},
+    connectedEmail: {{ (gmail_email or '')|tojson }},
+    oauthUrl: {{ (gmail_oauth_url or '')|tojson }},
+    matchedCompany: {{ (matched_company or None)|tojson }},
+    userCompanies: {{ (user_companies or [])|tojson }},
+    syncCompanyId: {{ (matched_company.id if matched_company else (active_company.id if active_company else (user_companies[0].id if user_companies else '')))|tojson }},
+    maxMessages: 80,
+    searchKeyword: '',
+    syncing: false,
+    syncProgress: '',
+    syncError: '',
+    syncResult: null,
+    imapEmail: {{ (gmail_email or '')|tojson }},
+    imapPassword: '',
+
+    async startOAuthSync() {
+      if (!this.connected) {
+        window.location.href = '/admin/transport/input-invoices/gmail/auth';
+        return;
+      }
+      this.syncing = true;
+      this.syncError = '';
+      this.syncProgress = 'Đang kết nối Gmail API và quét các email chứa hóa đơn...';
+      this.syncResult = null;
+      try {
+        const formData = new FormData();
+        formData.append('max_messages', this.maxMessages);
+        formData.append('keyword', this.searchKeyword);
+        if (this.syncCompanyId) {
+          formData.append('target_company_id', this.syncCompanyId);
+        }
+        const resp = await fetch('/admin/transport/input-invoices/gmail/sync', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ hóa đơn.');
+        this.syncResult = data;
+        this.syncProgress = 'Đồng bộ hoàn tất!';
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { msg: `Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, type: 'success' }
+        }));
+        if (data.new_saved > 0 || data.existing > 0) {
+          setTimeout(() => {
+            const cid = this.syncCompanyId || (this.matchedCompany ? this.matchedCompany.id : '');
+            window.location.href = cid ? `/admin/transport/input-invoices?month={{ month }}&company_id=${cid}` : window.location.href;
+          }, 1500);
+        }
+      } catch (err) {
+        this.syncError = err.message || 'Lỗi kết nối Gmail.';
+        this.syncProgress = '';
+      } finally {
+        this.syncing = false;
+      }
+    },
+
+    async startImapSync() {
+      if (!this.imapEmail || !this.imapPassword) {
+        this.syncError = 'Vui lòng nhập Email và Mật khẩu ứng dụng 16 ký tự.';
+        return;
+      }
+      this.syncing = true;
+      this.syncError = '';
+      this.syncProgress = 'Đang đăng nhập IMAP và đọc thư hóa đơn...';
+      this.syncResult = null;
+      try {
+        const formData = new FormData();
+        formData.append('email_address', this.imapEmail);
+        formData.append('app_password', this.imapPassword);
+        formData.append('max_messages', this.maxMessages);
+        formData.append('keyword', this.searchKeyword);
+        if (this.syncCompanyId) {
+          formData.append('target_company_id', this.syncCompanyId);
+        }
+        const resp = await fetch('/admin/transport/input-invoices/imap/sync', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ qua IMAP.');
+        this.syncResult = data;
+        this.syncProgress = 'Đồng bộ hoàn tất!';
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { msg: `Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, type: 'success' }
+        }));
+        if (data.new_saved > 0 || data.existing > 0) {
+          setTimeout(() => {
+            const cid = this.syncCompanyId || (this.matchedCompany ? this.matchedCompany.id : '');
+            window.location.href = cid ? `/admin/transport/input-invoices?month={{ month }}&company_id=${cid}` : window.location.href;
+          }, 1500);
+        }
+      } catch (err) {
+        this.syncError = err.message || 'Lỗi kết nối IMAP.';
+        this.syncProgress = '';
+      } finally {
+        this.syncing = false;
+      }
+    },
+
+    async disconnectGmail() {
+      if (!confirm('Bạn có chắc muốn ngắt kết nối tài khoản Gmail này?')) return;
+      await fetch('/admin/transport/input-invoices/gmail/disconnect', { method: 'POST' });
+      this.connected = false;
+      this.connectedEmail = '';
+      window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: 'Đã ngắt kết nối Gmail.', type: 'info' } }));
+    },
+
+    // SaveInvoice State
+    openSivModal: false,
+    sivLoading: false,
+    sivAccounts: [],
+    sivSelectedAccount: '',
+    sivTargetTaxCode: '{{ active_company.tax_code if active_company else "" }}',
+    sivActiveTaxCode: '{{ active_company.tax_code if active_company else "" }}',
+    sivActiveCompanyName: '{{ active_company.name if active_company else "" }}',
+    sivActiveCompanyId: {{ active_company.id if active_company else "null" }},
+    sivMonth: '{{ sync_month }}',
+    sivLimit: '50',
+    sivInvoices: [],
+    sivSelectedIds: [],
+    sivSelectAll: false,
+    sivError: '',
+    sivImporting: false,
+    sivImportProgress: '',
+    sivImportResult: null,
+
+    get sivCurrentAccount() {
+      return this.sivAccounts.find(a => a.account_id === this.sivSelectedAccount) || null;
+    },
+
+    get sivCurrentAccountLabel() {
+      const acc = this.sivCurrentAccount;
+      if (acc) return `${acc.tax_code} (${acc.name})`;
+      if (this.sivActiveTaxCode) return `${this.sivActiveTaxCode} (${this.sivActiveCompanyName})`;
+      return 'Đang tải...';
+    },
+
+    get isDifferentFromActiveCompany() {
+      if (!this.sivActiveTaxCode || !this.sivCurrentAccount) return false;
+      return (this.sivCurrentAccount.tax_code || '').trim() !== (this.sivActiveTaxCode || '').trim();
+    },
+
+    get sivSelectedCount() {
+      return this.sivSelectedIds.length;
+    },
+
+    get sivSelectedTotal() {
+      return this.sivInvoices
+        .filter(inv => this.sivSelectedIds.includes(inv.id))
+        .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
+    },
+
+    get sivNewCount() {
+      return this.sivInvoices.filter(i => !i.exists).length;
+    },
+
+    formatCurrency(val) {
+      if (val === null || val === undefined || val === '') return '0 đ';
+      const num = Number(val) || 0;
+      return new Intl.NumberFormat('vi-VN').format(Math.round(num)) + ' đ';
+    },
+
+    async openSaveInvoiceModal() {
+      this.openSivModal = true;
+      this.sivImportResult = null;
+      this.sivError = '';
+      this.sivSelectedAccount = '';
+      await this.loadSaveInvoiceAccounts();
+    },
+
+    async loadSaveInvoiceAccounts() {
+      try {
+        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/status');
+        const data = await resp.json();
+        if (data.ok) {
+          this.sivAccounts = data.accounts || [];
+          this.sivTargetTaxCode = data.target_tax_code || this.sivTargetTaxCode;
+          this.sivActiveTaxCode = data.active_tax_code || this.sivActiveTaxCode;
+          this.sivActiveCompanyName = data.active_company_name || this.sivActiveCompanyName;
+          this.sivActiveCompanyId = data.active_company_id || this.sivActiveCompanyId;
+
+          // Always prioritize the account matching the currently active company
+          const matched = this.sivAccounts.find(a => a.is_target) || 
+                          this.sivAccounts.find(a => (a.tax_code || '').trim() === (this.sivActiveTaxCode || '').trim());
+          if (matched) {
+            this.sivSelectedAccount = matched.account_id;
+          } else if (data.target_account_id) {
+            this.sivSelectedAccount = data.target_account_id;
+          } else if (this.sivAccounts[0]) {
+            this.sivSelectedAccount = this.sivAccounts[0].account_id;
+          }
+        }
+      } catch (e) {
+        console.warn('Could not load SaveInvoice accounts:', e);
+      }
+      await this.fetchSaveInvoicePreview();
+    },
+
+    async fetchSaveInvoicePreview() {
+      this.sivLoading = true;
+      this.sivError = '';
+      this.sivImportResult = null;
+      this.sivSelectedIds = [];
+      this.sivSelectAll = false;
+      try {
+        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: this.sivSelectedAccount,
+            month: this.sivMonth,
+            limit: Number(this.sivLimit) || 50,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.error || 'Không tải được danh sách hóa đơn từ SaveInvoice.');
+        this.sivInvoices = data.invoices || [];
+        this.sivSelectedIds = this.sivInvoices.filter(i => !i.exists).map(i => i.id);
+        this.sivSelectAll = this.sivSelectedIds.length > 0 && this.sivSelectedIds.length === this.sivInvoices.filter(i => !i.exists).length;
+      } catch (err) {
+        this.sivError = err.message || 'Lỗi khi tải dữ liệu SaveInvoice.';
+      } finally {
+        this.sivLoading = false;
+      }
+    },
+
+    isInvoiceSelected(id) {
+      return this.sivSelectedIds.includes(id);
+    },
+
+    toggleInvoiceSelect(id) {
+      if (this.sivSelectedIds.includes(id)) {
+        this.sivSelectedIds = this.sivSelectedIds.filter(x => x !== id);
+      } else {
+        this.sivSelectedIds.push(id);
+      }
+      const newInvs = this.sivInvoices.filter(i => !i.exists);
+      this.sivSelectAll = newInvs.length > 0 && newInvs.every(i => this.sivSelectedIds.includes(i.id));
+    },
+
+    toggleSelectAll() {
+      const newInvs = this.sivInvoices.filter(i => !i.exists);
+      if (this.sivSelectAll) {
+        this.sivSelectedIds = [];
+        this.sivSelectAll = false;
+      } else {
+        this.sivSelectedIds = newInvs.map(i => i.id);
+        this.sivSelectAll = true;
+      }
+    },
+
+    selectAllNew() {
+      this.sivSelectedIds = this.sivInvoices.filter(i => !i.exists).map(i => i.id);
+      this.sivSelectAll = true;
+    },
+
+    deselectAll() {
+      this.sivSelectedIds = [];
+      this.sivSelectAll = false;
+    },
+
+    async importSelectedSaveInvoice() {
+      if (this.sivSelectedIds.length === 0) return;
+      this.sivImporting = true;
+      this.sivError = '';
+      this.sivImportProgress = `Đang đồng bộ ${this.sivSelectedIds.length} hóa đơn từ SaveInvoice...`;
+      try {
+        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoice_ids: this.sivSelectedIds,
+            account_id: this.sivSelectedAccount,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) throw new Error(data.error || 'Lỗi khi nhập hóa đơn vào CSDL.');
+        this.sivImportResult = data;
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {
+            msg: `Đã đồng bộ thành công ${data.imported} hóa đơn mới vào hệ thống!`,
+            type: 'success',
+          }
+        }));
+      } catch (err) {
+        this.sivError = err.message || 'Lỗi khi đồng bộ hóa đơn.';
+      } finally {
+        this.sivImporting = false;
+      }
+    },
+
+    reloadWithNewData() {
+      window.location.reload();
+    }
+  };
+}
+
+(function() {
+  {% if saved %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu hóa đơn đầu vào.',type:'success'}}));
+  {% elif deleted %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã xóa hóa đơn đầu vào.',type:'success'}}));
+  {% elif error %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:{{ error|tojson }},type:'error'}}));
+  {% elif gmail_connected %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã kết nối tài khoản Gmail thành công! Đang tự động quét hóa đơn...',type:'success'}}));
+  setTimeout(() => {
+    const el = document.querySelector('.input-invoice-page');
+    if (el && window.Alpine) {
+      const data = Alpine.$data(el);
+      if (data) {
+        data.openSyncModal = true;
+        data.startOAuthSync();
+      }
+    }
+  }, 400);
+  {% elif gmail_error %}
+  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Lỗi kết nối Gmail: ' + {{ gmail_error|tojson }},type:'error'}}));
+  {% endif %}
+  const invoiceUrl = new URL(window.location.href);
+  let changed = false;
+  ['saved', 'deleted', 'gmail_connected', 'gmail_error', 'email'].forEach(param => {
+    if (invoiceUrl.searchParams.has(param)) {
+      invoiceUrl.searchParams.delete(param);
+      changed = true;
+    }
+  });
+  if (changed) {
+    window.history.replaceState(null, '', invoiceUrl.pathname + invoiceUrl.search);
+  }
+})();
+
+(function() {
+  const LIST_KEY = 'inputInvoiceListScroll';
+  const FORM_KEY = 'inputInvoiceFormScroll';
+  const FRESH_MS = 10 * 60 * 1000;
+  const remember = key => {
+    try { sessionStorage.setItem(key, JSON.stringify({ y: Math.round(window.scrollY), t: Date.now() })); } catch (e) {}
+  };
+  const recall = key => {
+    try {
+      const data = JSON.parse(sessionStorage.getItem(key) || 'null');
+      sessionStorage.removeItem(key);
+      return data && Date.now() - data.t < FRESH_MS ? data.y : null;
+    } catch (e) { return null; }
+  };
+  const restore = y => {
+    if (y === null) return;
+    window.scrollTo(0, y);
+    window.addEventListener('load', () => window.scrollTo(0, y), { once: true });
+  };
+  {% if show_form %}
+  const invoiceForm = document.getElementById('purchase-invoice-form');
+  if (invoiceForm) invoiceForm.addEventListener('submit', () => remember(FORM_KEY));
+  const formY = recall(FORM_KEY);
+  {% if error %}restore(formY);{% endif %}
+  {% else %}
+  document.addEventListener('change', e => {
+    if (e.target.matches('.record-table select[name="vehicle_id"]')) remember(LIST_KEY);
+  }, true);
+  document.addEventListener('submit', e => {
+    if (!e.defaultPrevented && e.target.closest('.record-table')) remember(LIST_KEY);
+  });
+  document.addEventListener('click', e => {
+    if (e.target.closest('.record-table a[href*="/edit"]')) remember(LIST_KEY);
+  });
+  restore(recall(LIST_KEY));
+  {% endif %}
+})();
+
+async function repairSaveInvoiceItems(btn) {
+  if (!confirm('Lấy lại tên hàng hoá, dịch vụ từ SaveInvoice cho các hoá đơn đầu vào đang ghi gộp?')) {
+    return;
+  }
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...';
+  try {
+    const res = await fetch('/admin/transport/input-invoices/saveinvoice/repair-items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || data.error || 'Có lỗi xảy ra khi cập nhật.');
+    }
+    const checked = data.checked ?? 0;
+    const updated = data.updated ?? 0;
+    let msg = `Đã cập nhật ${updated}/${checked} hoá đơn.`;
+    if (data.not_found && data.not_found.length > 0) {
+      msg += '\nKhông tìm thấy trên SaveInvoice: ' + data.not_found.join(', ');
+    }
+    if (data.mismatch && data.mismatch.length > 0) {
+      msg += '\nKhông khớp tiền, giữ nguyên: ' + data.mismatch.join(', ');
+    }
+    if (data.error) {
+      msg += '\nLỗi: ' + data.error;
+    }
+    alert(msg);
+    location.reload();
+  } catch (err) {
+    alert(err.message || 'Lỗi khi cập nhật hàng hoá từ SaveInvoice.');
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+async function bookElectricityInvoices(btn) {
+  if (!confirm('Hạch toán các hóa đơn tiền điện vào TK 642?')) {
+    return;
+  }
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang hạch toán...';
+  try {
+    const res = await fetch('/admin/transport/input-invoices/book-electricity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || 'Không hạch toán được.');
+    }
+    const doneParts = [];
+    if (data.updated > 0) doneParts.push('Đã hạch toán ' + data.updated + ' hóa đơn tiền điện vào TK 642.');
+    if (data.renamed > 0) doneParts.push('Đã sửa diễn giải ' + data.renamed + ' phiếu chi tiền điện.');
+    alert(doneParts.length ? doneParts.join(' ') : 'Không có hóa đơn tiền điện cần hạch toán.');
+    location.reload();
+  } catch (err) {
+    alert(err.message || 'Không hạch toán được.');
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+</script>
+{% if show_form %}
+<script>
+(() => {
+  const sellerSelect = document.getElementById('seller-company');
+  const sellerNew = document.getElementById('seller-new');
+  const sellerName = document.getElementById('seller-name');
+  const sellerTax = document.getElementById('seller-tax');
+  const sellerAddress = document.getElementById('seller-address');
+  const newSellerFields = document.getElementById('seller-new-fields');
+  const syncSeller = () => {
+    const selected = sellerSelect.selectedOptions[0];
+    const isNew = sellerSelect.value === '0';
+    sellerNew.value = isNew ? '1' : '0';
+    newSellerFields.hidden = !isNew;
+    sellerName.required = isNew;
+    sellerTax.required = isNew;
+    sellerAddress.required = isNew;
+    sellerTax.readOnly = !isNew;
+    sellerAddress.readOnly = !isNew;
+    sellerTax.classList.toggle('bg-light', !isNew);
+    sellerAddress.classList.toggle('bg-light', !isNew);
+    if (!isNew) {
+      const optData = sellerSelect.tomselect?.options?.[sellerSelect.value];
+      const tax = (selected && selected.dataset && selected.dataset.tax) || optData?.tax || '';
+      const address = (selected && selected.dataset && selected.dataset.address) || optData?.address || '';
+      sellerTax.value = tax;
+      sellerAddress.value = address;
+    }
+  };
+  sellerSelect.addEventListener('change', syncSeller);
+  let sellerAddOpened = null;
+  const sellerAddUrl = input => {
+    const code = String(input || '').replace(/[\s.\-]/g, '');
+    if (!/^\d{10}(\d{3})?$/.test(code)) return '/admin/companies/add';
+    const tax = code.length === 13 ? code.slice(0, 10) + '-' + code.slice(10) : code;
+    return '/admin/companies/add?tax_code=' + encodeURIComponent(tax);
+  };
+  const refreshSellerOptions = async () => {
+    if (sellerAddOpened === null) return;
+    const typed = sellerAddOpened.replace(/[\s.\-]/g, '');
+    sellerAddOpened = null;
+    const ts = sellerSelect.tomselect;
+    try {
+      const resp = await fetch('/admin/transport/input-invoices/add', {credentials: 'same-origin'});
+      if (!resp.ok) return;
+      const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+      let found = null;
+      doc.querySelectorAll('#seller-company option').forEach(opt => {
+        if (!opt.value || opt.value === '0' || ts.options[opt.value]) return;
+        const item = {value: opt.value, text: opt.textContent.trim(), tax: opt.dataset.tax || '', address: opt.dataset.address || ''};
+        ts.addOption(item);
+        if (typed && item.tax.replace(/[\s.\-]/g, '') === typed) found = item.value;
+      });
+      if (found) ts.setValue(found);
+      else ts.refreshOptions(false);
+    } catch (err) {}
+  };
+  if (typeof TomSelect !== 'undefined') {
+    new TomSelect(sellerSelect, {
+      create: false,
+      maxItems: 1,
+      placeholder: 'Tìm theo tên hoặc mã số thuế...',
+      searchField: ['text', 'tax'],
+      render: {
+        option: function(data, escape) {
+          const taxHtml = data.tax ? '<span class="text-muted small ml-2">(MST: ' + escape(data.tax) + ')</span>' : '';
+          return '<div><span class="font-weight-medium">' + escape(data.text) + '</span>' + taxHtml + '</div>';
+        },
+        item: function(data, escape) {
+          return '<div>' + escape(data.text) + '</div>';
+        },
+        no_results: function(data) {
+          return '<div class="no-results"><a href="' + sellerAddUrl(data.input) + '" target="_blank" rel="noopener" class="font-weight-bold">+ Thêm đơn vị mới</a></div>';
+        }
+      },
+      onChange: syncSeller
+    });
+    sellerSelect.tomselect.dropdown_content.addEventListener('click', event => {
+      const link = event.target.closest('.no-results a');
+      if (link) sellerAddOpened = new URL(link.href).searchParams.get('tax_code') || '';
+    });
+    window.addEventListener('focus', refreshSellerOptions);
+  }
+  syncSeller();
+  const tbody = document.getElementById('purchase-lines');
+  const formatter = new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0});
+  const money = value => formatter.format(Math.round(value)) + ' đ';
+  function renumberPurchaseLines() {
+    Array.from(tbody.rows).forEach((row, idx) => {
+      const sttCell = row.querySelector('.line-stt');
+      if (sttCell) sttCell.textContent = idx + 1;
+    });
+  }
+  function recalc() {
+    renumberPurchaseLines();
+    let subtotal = 0;
+    for (const row of tbody.rows) {
+      const quantity = Number(row.querySelector('[name="quantity"]').value) || 0;
+      const price = Number(row.querySelector('[name="unit_price"]').value) || 0;
+      const keep = row.dataset.amount0 !== undefined && row.dataset.amount0 !== ''
+        && quantity === Number(row.dataset.qty0) && price === Number(row.dataset.price0);
+      const amount = keep ? Number(row.dataset.amount0) : Math.round(quantity * price);
+      const amountField = row.querySelector('[name="amount"]');
+      if (amountField) amountField.value = amount;
+      row.querySelector('.line-total').childNodes[0].nodeValue = money(amount);
+      subtotal += amount;
+    }
+    const manualVat = (document.getElementById('vat-amount')?.value || '').trim();
+    const tax = manualVat !== '' ? (Number(manualVat) || 0) : Math.round(subtotal * (Number(document.getElementById('vat-percent').value) || 0) / 100);
+    const total = subtotal + tax;
+    document.getElementById('purchase-subtotal').textContent = money(subtotal);
+    document.getElementById('purchase-vat').textContent = money(tax);
+    document.getElementById('purchase-total').textContent = money(total);
+
+    // Đồng bộ số tiền sang Bút toán mua hàng (Hạch toán kế toán)
+    const rawFmt = new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0});
+    const accSub = document.getElementById('acc-subtotal-val');
+    const accVat = document.getElementById('acc-vat-val');
+    const accTot = document.getElementById('acc-total-val');
+    const vatBadge = document.getElementById('acc-vat-badge');
+    const curVatRate = document.getElementById('vat-percent').value || 10;
+    if (accSub) accSub.value = rawFmt.format(Math.round(subtotal));
+    if (accVat) accVat.value = rawFmt.format(Math.round(tax));
+    if (accTot) accTot.value = rawFmt.format(Math.round(total));
+    if (vatBadge) vatBadge.textContent = curVatRate + '%';
+  }
+
+  function updateAccountingBadge() {
+    const costVal = (document.getElementById('tk-no-cost')?.value || '154').trim();
+    const vatVal = (document.getElementById('tk-no-vat')?.value || '1331').trim();
+    const payVal = (document.getElementById('tk-co-pay')?.value || '331').trim();
+    const badge = document.getElementById('acc-mode-badge');
+    if (!badge) return;
+    const isCustom = (costVal !== '154' || payVal !== '331' || vatVal !== '1331');
+    if (isCustom) {
+      badge.textContent = `<Đã hạch toán: Nợ ${costVal}, ${vatVal} / Có ${payVal}>`;
+      badge.className = 'badge badge-success text-white font-size-11 font-weight-bold';
+    } else {
+      badge.textContent = '<Tự động: Nợ 154, 1331 / Có 331>';
+      badge.className = 'badge badge-info text-white font-size-11 font-weight-bold';
+    }
+  }
+
+  window.setCostAccountDirect = function(code) {
+    const inp = document.getElementById('tk-no-cost');
+    if (inp) {
+      inp.value = code;
+      onCustomCostInput(code);
+    }
+  };
+
+  window.onCustomCostInput = function(val) {
+    val = (val || '').trim();
+    const accExpense = document.getElementById('acc-expense-purpose');
+    const select = document.getElementById('tk-no-cost-select');
+    if (select) {
+      const match = Array.from(select.options).find(o => o.value === val);
+      select.value = match ? val : '';
+    }
+    if (accExpense) {
+      let opt = Array.from(accExpense.options).find(o => o.value === val);
+      if (!opt && val) {
+        opt = new Option(`Tài khoản khác (TK ${val})`, val, true, true);
+        accExpense.add(opt, accExpense.options.length - 1);
+      }
+      accExpense.value = val || 'custom';
+    }
+    updateAccountingBadge();
+  };
+
+  window.syncAccountingExpense = function(val) {
+    const tkNoInput = document.getElementById('tk-no-cost');
+    const select = document.getElementById('tk-no-cost-select');
+    if (!tkNoInput) return;
+    if (val === 'custom') {
+      tkNoInput.focus();
+      tkNoInput.select();
+    } else {
+      tkNoInput.value = val;
+      if (select) {
+        const match = Array.from(select.options).find(o => o.value === val);
+        select.value = match ? val : '';
+      }
+    }
+    updateAccountingBadge();
+  };
+
+  window.handleSelectCostAccount = function(val) {
+    if (!val) return;
+    const tkNoInput = document.getElementById('tk-no-cost');
+    if (tkNoInput) {
+      tkNoInput.value = val;
+      onCustomCostInput(val);
+    }
+  };
+
+  window.onCustomPayInput = function(val) {
+    val = (val || '').trim();
+    const accMethod = document.getElementById('acc-payment-method');
+    const select = document.getElementById('tk-co-pay-select');
+    if (select) {
+      const match = Array.from(select.options).find(o => o.value === val);
+      select.value = match ? val : '';
+    }
+    if (accMethod) {
+      let opt = Array.from(accMethod.options).find(o => o.value === val);
+      if (!opt && val) {
+        opt = new Option(`Tài khoản khác (TK ${val})`, val, true, true);
+        accMethod.add(opt, accMethod.options.length - 1);
+      }
+      accMethod.value = val || 'custom';
+    }
+    updateAccountingBadge();
+  };
+
+  window.syncAccountingMethod = function(val) {
+    const tkCoInput = document.getElementById('tk-co-pay');
+    const select = document.getElementById('tk-co-pay-select');
+    if (!tkCoInput) return;
+    if (val === 'custom') {
+      tkCoInput.focus();
+      tkCoInput.select();
+    } else {
+      tkCoInput.value = val;
+      if (select) {
+        const match = Array.from(select.options).find(o => o.value === val);
+        select.value = match ? val : '';
+      }
+    }
+    updateAccountingBadge();
+  };
+
+  window.handleSelectPayAccount = function(val) {
+    if (!val) return;
+    const tkCoInput = document.getElementById('tk-co-pay');
+    if (tkCoInput) {
+      tkCoInput.value = val;
+      onCustomPayInput(val);
+    }
+  };
+
+  window.onCustomVatInput = function(val) {
+    val = (val || '').trim();
+    const select = document.getElementById('tk-no-vat-select');
+    if (select) {
+      const match = Array.from(select.options).find(o => o.value === val);
+      select.value = match ? val : '';
+    }
+    updateAccountingBadge();
+  };
+
+  window.handleSelectVatAccount = function(val) {
+    if (!val) return;
+    const tkVatInput = document.getElementById('tk-no-vat');
+    if (tkVatInput) {
+      tkVatInput.value = val;
+      onCustomVatInput(val);
+    }
+  };
+  document.getElementById('purchase-invoice-form').addEventListener('input', recalc);
+  tbody.addEventListener('click', event => {
+    if (!event.target.closest('.remove-line')) return;
+    if (tbody.rows.length > 1) event.target.closest('tr').remove();
+    else tbody.rows[0].querySelectorAll('input').forEach(input => input.value = '');
+    recalc();
+  });
+  document.getElementById('add-purchase-line').addEventListener('click', () => {
+    const row = tbody.rows[0].cloneNode(true);
+    row.querySelectorAll('input').forEach(input => input.value = '');
+    delete row.dataset.amount0; delete row.dataset.qty0; delete row.dataset.price0;
+    row.querySelector('.line-total').childNodes[0].nodeValue = '0 đ';
+    tbody.appendChild(row);
+    recalc();
+  });
+  const sourceFile = document.getElementById('source-file');
+  const status = document.getElementById('invoice-extract-status');
+  sourceFile.addEventListener('change', async () => {
+    const file = sourceFile.files[0];
+    if (!file) return;
+    if (file.size > 40 * 1024 * 1024) {
+      status.textContent = 'Tệp phải nhỏ hơn 40 MB.';
+      status.className = 'small text-danger mt-1';
+      sourceFile.value = '';
+      return;
+    }
+    status.textContent = 'Đang đọc hóa đơn...';
+    status.className = 'small text-muted mt-1';
+    try {
+      const payload = new FormData();
+      payload.append('source_file', file);
+      const response = await fetch('/admin/transport/input-invoices/extract', {method:'POST', body:payload});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không đọc được hóa đơn.');
+      const fill = (id, value) => {if (value !== undefined && value !== null && value !== '') document.getElementById(id).value = value;};
+      fill('invoice-date', data.invoice_date);
+      fill('invoice-serial', data.serial);
+      fill('invoice-number', data.invoice_number);
+      fill('payment-method', data.payment_method);
+      fill('buyer-name', data.buyer?.name);
+      fill('buyer-tax', data.buyer?.tax_code);
+      fill('buyer-address', data.buyer?.address);
+      fill('vat-percent', data.vat_percent);
+      if (data.vehicle_id) {
+        const vehicleSelect = document.getElementById('invoice-vehicle');
+        if (vehicleSelect && vehicleSelect.querySelector(`option[value="${data.vehicle_id}"]`)) {
+          if (vehicleSelect.tomselect) vehicleSelect.tomselect.setValue(String(data.vehicle_id));
+          else vehicleSelect.value = String(data.vehicle_id);
+        }
+      }
+      if (document.getElementById('purchase-invoice-form').dataset.edit !== '1') {
+        if (!data.invoice_date) document.getElementById('invoice-date').value = '';
+        if (!data.vat_percent) document.getElementById('vat-percent').value = '';
+        if (!data.payment_method) document.getElementById('payment-method').value = '';
+      }
+      const seller = data.seller || {};
+      if (seller.company_id) {
+        if (sellerSelect.tomselect) sellerSelect.tomselect.setValue(String(seller.company_id));
+        else sellerSelect.value = String(seller.company_id);
+        syncSeller();
+        if (seller.tax_code) fill('seller-tax', seller.tax_code);
+        if (seller.address) fill('seller-address', seller.address);
+      } else if (seller.name || seller.tax_code) {
+        const label = seller.name || 'Đơn vị từ hóa đơn vừa tải';
+        if (sellerSelect.tomselect) {
+          sellerSelect.tomselect.addOption({value:'0', text:label, tax:seller.tax_code || '', address:seller.address || ''});
+          sellerSelect.tomselect.setValue('0');
+        } else {
+          let option = sellerSelect.querySelector('option[value="0"]');
+          if (!option) {option = document.createElement('option'); option.value = '0'; sellerSelect.add(option);}
+          option.textContent = label;
+          option.dataset.tax = seller.tax_code || '';
+          option.dataset.address = seller.address || '';
+          sellerSelect.value = '0';
+        }
+        syncSeller();
+        fill('seller-name', seller.name);
+        fill('seller-tax', seller.tax_code);
+        fill('seller-address', seller.address);
+      }
+      if (data.items?.length) {
+        while (tbody.rows.length > 1) tbody.lastElementChild.remove();
+        data.items.forEach((item, index) => {
+          const row = index ? tbody.rows[0].cloneNode(true) : tbody.rows[0];
+          delete row.dataset.amount0; delete row.dataset.qty0; delete row.dataset.price0;
+          row.querySelector('[name="description"]').value = item.description || '';
+          row.querySelector('[name="unit"]').value = item.unit || '';
+          row.querySelector('[name="quantity"]').value = item.quantity || '';
+          row.querySelector('[name="unit_price"]').value = item.unit_price || '';
+          if (index) tbody.appendChild(row);
+        });
+      }
+      if (data.tk_no_cost) {
+        fill('tk-no-cost', data.tk_no_cost);
+        if (typeof onCustomCostInput === 'function') onCustomCostInput(data.tk_no_cost);
+      }
+      if (data.tk_no_vat) {
+        fill('tk-no-vat', data.tk_no_vat);
+        if (typeof onCustomVatInput === 'function') onCustomVatInput(data.tk_no_vat);
+      }
+      if (data.tk_co_pay) {
+        fill('tk-co-pay', data.tk_co_pay);
+        if (typeof onCustomPayInput === 'function') onCustomPayInput(data.tk_co_pay);
+      }
+      recalc();
+      const count = [data.invoice_date, data.invoice_number, seller.name, data.buyer?.name, data.items?.length].filter(Boolean).length;
+      status.textContent = count ? 'Đã điền thông tin đọc được từ tệp.' : 'Không nhận diện được trường hóa đơn.';
+      status.className = count ? 'small text-success mt-1' : 'small text-warning mt-1';
+    } catch (error) {
+      status.textContent = error.message || 'Không đọc được hóa đơn. Vui lòng nhập thủ công.';
+      status.className = 'small text-danger mt-1';
+    }
+  });
+  recalc();
+})();
+</script>
+{% endif %}
+<script src="/static/admin-assets/js/admin-fit-table.js?v=6" defer></script>
+{% endblock %}

@@ -1,0 +1,316 @@
+{% extends "layout.html" %}
+
+{% block title %}Chứng từ nghiệp vụ khác{% endblock %}
+{% block page_title %}Chứng từ nghiệp vụ khác{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold">
+            Danh sách chứng từ ({{ pagination.total }})
+          </span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddVoucherModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm chứng từ
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:110px;" class="text-center">Số CT</th>
+            <th style="width:100px;" class="text-center">Ngày</th>
+            <th>Diễn giải</th>
+            <th>Nợ TK</th>
+            <th>Có TK</th>
+            <th style="width:140px;" class="text-right">Số tiền</th>
+            <th style="width:90px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for v in vouchers %}
+          <tr>
+            <td class="text-center align-middle font-weight-semibold text-primary">
+              {{ v.voucher_no }}
+            </td>
+            <td class="text-center align-middle">
+              {{ v.voucher_date.strftime('%d/%m/%Y') if v.voucher_date.strftime is defined else v.voucher_date }}
+            </td>
+            <td class="align-middle text-muted">
+              {{ v.description or '—' }}
+            </td>
+            <td class="align-middle font-weight-medium text-dark">
+              {{ v.debit_account }}{% if v.debit_partner_name %} — {{ v.debit_partner_name }}{% endif %}
+            </td>
+            <td class="align-middle font-weight-medium text-dark">
+              {{ v.credit_account }}{% if v.credit_partner_name %} — {{ v.credit_partner_name }}{% endif %}
+            </td>
+            <td class="text-right align-middle font-weight-bold text-dark">
+              {{ v.amount_fmt or (v.amount|format_number) }}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1"
+                      data-id="{{ v.id }}"
+                      data-date="{{ v.voucher_date.isoformat() if v.voucher_date.isoformat is defined else v.voucher_date }}"
+                      data-debit-acc="{{ v.debit_account }}"
+                      data-credit-acc="{{ v.credit_account }}"
+                      data-debit-partner="{{ v.debit_partner_id or '' }}"
+                      data-credit-partner="{{ v.credit_partner_id or '' }}"
+                      data-amount="{{ v.amount|int }}"
+                      data-description="{{ v.description or '' }}"
+                      onclick="openEditVoucherModal(this)">Sửa</button>
+              <form method="post" action="/admin/transport/other-vouchers/{{ v.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa chứng từ này?')">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">Chưa có chứng từ.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm / Sửa chứng từ -->
+<div class="modal fade" id="voucherModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="voucherModalTitle">Thêm chứng từ</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="voucherForm" method="post" action="/admin/transport/other-vouchers">
+        <input type="hidden" name="page" value="{{ pagination.page }}">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Ngày</label>
+            <input type="date" name="voucher_date" id="voucher_date" class="form-control form-control-sm" value="{{ today }}" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Loại nghiệp vụ</label>
+            <select id="quick_preset" class="form-control form-control-sm" onchange="applyPreset(this.value)">
+              <option value="">-- Tự chọn Nợ / Có --</option>
+              <option value="p1">Xử lý nợ lẻ phải trả NCC (Nợ 331 / Có 711)</option>
+              <option value="p2">Xử lý số dư lẻ NCC nợ mình (Nợ 811 / Có 331)</option>
+              <option value="p3">Xử lý nợ lẻ khách nợ mình (Nợ 811 / Có 131)</option>
+              <option value="p4">Xử lý số dư lẻ mình nợ khách (Nợ 131 / Có 711)</option>
+              <option value="p5">Lệ phí trước bạ do người khác nộp hộ (Nợ 3339 / Có 3388)</option>
+            </select>
+          </div>
+          <div class="row mb-2">
+            <div class="col-6 pr-1">
+              <label class="small font-weight-bold">Nợ TK</label>
+              <select name="debit_account" id="debit_account" class="form-control form-control-sm" required onchange="handleAccountChange('debit')">
+                <option value="131">131 - Phải thu khách hàng</option>
+                <option value="331" selected>331 - Phải trả người bán</option>
+                <option value="711">711 - Thu nhập khác</option>
+                <option value="811">811 - Chi phí khác</option>
+                <option value="3339">3339 - Phí, lệ phí (trước bạ...)</option>
+                <option value="3388">3388 - Phải trả, phải nộp khác</option>
+              </select>
+            </div>
+            <div class="col-6 pl-1">
+              <label class="small font-weight-bold">Có TK</label>
+              <select name="credit_account" id="credit_account" class="form-control form-control-sm" required onchange="handleAccountChange('credit')">
+                <option value="131">131 - Phải thu khách hàng</option>
+                <option value="331">331 - Phải trả người bán</option>
+                <option value="711" selected>711 - Thu nhập khác</option>
+                <option value="811">811 - Chi phí khác</option>
+                <option value="3339">3339 - Phí, lệ phí (trước bạ...)</option>
+                <option value="3388">3388 - Phải trả, phải nộp khác</option>
+              </select>
+            </div>
+          </div>
+          <div id="debit_partner_group" class="form-group mb-2">
+            <label id="debit_partner_label" class="small font-weight-bold">Đối tác Nợ</label>
+            <select name="debit_partner_id" id="debit_partner_id" class="form-control form-control-sm">
+            </select>
+          </div>
+          <div id="credit_partner_group" class="form-group mb-2" style="display:none;">
+            <label id="credit_partner_label" class="small font-weight-bold">Đối tác Có</label>
+            <select name="credit_partner_id" id="credit_partner_id" class="form-control form-control-sm">
+            </select>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số tiền</label>
+            <input type="text" inputmode="numeric" name="amount" id="amount" class="form-control form-control-sm" required>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Diễn giải</label>
+            <input type="text" name="description" id="description" class="form-control form-control-sm" maxlength="500">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const vendors = {{ vendors|tojson }};
+const customers = {{ customers|tojson }};
+let debitTom = null;
+let creditTom = null;
+
+function getPartnerOptions(account) {
+  if (account === '331') return vendors;
+  if (account === '131') return customers;
+  return [];
+}
+
+function initTomSelects() {
+  if (typeof TomSelect !== 'undefined') {
+    const debitEl = document.getElementById('debit_partner_id');
+    const creditEl = document.getElementById('credit_partner_id');
+    if (debitEl && !debitTom && !debitEl.tomselect) {
+      debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
+    }
+    if (creditEl && !creditTom && !creditEl.tomselect) {
+      creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
+    }
+  }
+}
+
+function updatePartnerField(side, account, targetVal) {
+  const groupEl = document.getElementById(side + '_partner_group');
+  const labelEl = document.getElementById(side + '_partner_label');
+  const selectEl = document.getElementById(side + '_partner_id');
+  const tom = (side === 'debit') ? debitTom : creditTom;
+
+  if (account !== '131' && account !== '331') {
+    groupEl.style.display = 'none';
+    selectEl.removeAttribute('required');
+    if (tom) {
+      tom.clear();
+      tom.clearOptions();
+    }
+    selectEl.value = '';
+    return;
+  }
+
+  groupEl.style.display = '';
+  selectEl.setAttribute('required', 'required');
+  labelEl.textContent = (side === 'debit' ? 'Đối tác Nợ' : 'Đối tác Có') +
+    (account === '331' ? ' (Nhà cung cấp)' : ' (Khách hàng)');
+
+  const list = getPartnerOptions(account);
+  if (tom) {
+    tom.clear();
+    tom.clearOptions();
+    list.forEach(function(p) {
+      const txt = p.name + (p.tax_code ? ' (MST ' + p.tax_code + ')' : '');
+      tom.addOption({value: String(p.id), text: txt});
+    });
+    tom.refreshOptions(false);
+    if (targetVal) {
+      tom.setValue(String(targetVal), true);
+    }
+  } else {
+    selectEl.innerHTML = '<option value="">-- Chọn đối tác --</option>';
+    list.forEach(function(p) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name + (p.tax_code ? ' (MST ' + p.tax_code + ')' : '');
+      selectEl.appendChild(opt);
+    });
+    if (targetVal) {
+      selectEl.value = targetVal;
+    }
+  }
+}
+
+function handleAccountChange(side) {
+  const acc = document.getElementById(side + '_account').value;
+  document.getElementById('quick_preset').value = '';
+  updatePartnerField(side, acc, '');
+}
+
+function applyPreset(presetKey) {
+  const presets = {
+    'p1': {debit: '331', credit: '711'},
+    'p2': {debit: '811', credit: '331'},
+    'p3': {debit: '811', credit: '131'},
+    'p4': {debit: '131', credit: '711'},
+    'p5': {debit: '3339', credit: '3388'}
+  };
+  const p = presets[presetKey];
+  if (!p) return;
+  document.getElementById('debit_account').value = p.debit;
+  document.getElementById('credit_account').value = p.credit;
+  updatePartnerField('debit', p.debit, '');
+  updatePartnerField('credit', p.credit, '');
+}
+
+function fillVoucherForm(action, title, values) {
+  document.getElementById('voucherForm').action = action;
+  document.getElementById('voucherModalTitle').textContent = title;
+  document.getElementById('voucher_date').value = values.date || '{{ today }}';
+  document.getElementById('debit_account').value = values.debit_acc || '331';
+  document.getElementById('credit_account').value = values.credit_acc || '711';
+  document.getElementById('amount').value = values.amount || '';
+  document.getElementById('description').value = values.description || '';
+  document.getElementById('quick_preset').value = '';
+
+  updatePartnerField('debit', values.debit_acc || '331', values.debit_partner || '');
+  updatePartnerField('credit', values.credit_acc || '711', values.credit_partner || '');
+}
+
+function openAddVoucherModal() {
+  initTomSelects();
+  fillVoucherForm('/admin/transport/other-vouchers', 'Thêm chứng từ', {
+    date: '{{ today }}',
+    debit_acc: '331',
+    credit_acc: '711',
+    debit_partner: '',
+    credit_partner: '',
+    amount: '',
+    description: '',
+  });
+  $('#voucherModal').modal('show');
+}
+
+function openEditVoucherModal(btn) {
+  initTomSelects();
+  fillVoucherForm('/admin/transport/other-vouchers/' + btn.dataset.id + '/edit', 'Sửa chứng từ', {
+    date: btn.dataset.date,
+    debit_acc: btn.dataset.debitAcc,
+    credit_acc: btn.dataset.creditAcc,
+    debit_partner: btn.dataset.debitPartner,
+    credit_partner: btn.dataset.creditPartner,
+    amount: btn.dataset.amount,
+    description: btn.dataset.description,
+  });
+  $('#voucherModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initTomSelects();
+  updatePartnerField('debit', '331', '');
+  updatePartnerField('credit', '711', '');
+  {% if error or message %}
+  window.showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
+  {% endif %}
+});
+</script>
+{% endblock %}

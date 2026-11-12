@@ -1,0 +1,248 @@
+{% extends "layout.html" %}
+
+{% block title %}Danh mục sản phẩm{% endblock %}
+{% block page_title %}Danh mục sản phẩm{% endblock %}
+
+{% block content %}
+<style>
+  .shop-thumb { width: 44px; height: 44px; object-fit: contain; background: #f4f5f7; border-radius: 6px; }
+  .service-tabs .nav-link { font-size: 13px; padding: 6px 12px; color: #475569; }
+  .service-tabs .nav-link.active { color: #2563eb; border-bottom: 2px solid #2563eb; background: transparent; }
+  .service-tabs .count { color: #94a3b8; font-size: 12px; margin-left: 2px; }
+</style>
+<div class="container-fluid px-0 w-100">
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold">Danh sách sản phẩm ({{ pagination.total }})</span>
+          <form method="get" action="/admin/account-sales/products" class="d-flex align-items-center" style="gap:6px;">
+            {% if service %}<input type="hidden" name="service" value="{{ service }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:180px;">
+            <button type="submit" class="btn btn-sm btn-light border font-weight-bold">Tìm</button>
+            {% if q %}
+            <a href="/admin/account-sales/products{% if service %}?service={{ service }}{% endif %}" class="btn btn-sm btn-light border">Bỏ lọc</a>
+            {% endif %}
+          </form>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddProductModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm sản phẩm
+          </button>
+        </div>
+      </div>
+      <ul class="nav service-tabs mt-2">
+        <li class="nav-item">
+          <a class="nav-link {% if not service %}active{% endif %}" href="/admin/account-sales/products{% if q %}?q={{ q|urlencode }}{% endif %}">
+            Tất cả<span class="count">({{ total_all }})</span>
+          </a>
+        </li>
+        {% for key, label in services.items() %}
+        <li class="nav-item">
+          <a class="nav-link {% if service == key %}active{% endif %}" href="/admin/account-sales/products?service={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {{ label }}<span class="count">({{ service_counts.get(key, 0) }})</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:64px;">Ảnh</th>
+            <th>Sản phẩm</th>
+            <th style="width:130px;">Dịch vụ</th>
+            <th style="width:140px;" class="text-right">Giá</th>
+            <th style="width:90px;" class="text-center">Còn</th>
+            <th style="width:100px;" class="text-center">Giao ngay</th>
+            <th style="width:100px;" class="text-center">Trạng thái</th>
+            <th style="width:140px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in products %}
+          {% set is_account = p.service == 'tai-khoan' %}
+          <tr>
+            <td class="text-center text-muted align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">
+              {% if p.image_url %}<img src="{{ p.image_url }}" class="shop-thumb" alt="">{% endif %}
+            </td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ p.name }}</div>
+              <div class="text-muted small">{{ p.category_group }}{% if p.category %} › {{ p.category }}{% endif %}</div>
+            </td>
+            <td class="align-middle"><span class="badge badge-light border">{{ p.service_label }}</span></td>
+            <td class="text-right align-middle">
+              {% if p.price|int > 0 %}{{ "{:,.0f}".format(p.price).replace(",", ".") }}đ{% else %}<span class="text-muted">Liên hệ</span>{% endif %}
+            </td>
+            <td class="text-center align-middle">{% if is_account %}{{ p.stock }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            <td class="text-center align-middle">
+              {% if is_account and p.instant %}<span class="badge badge-info">Giao ngay</span>{% endif %}
+            </td>
+            <td class="text-center align-middle">
+              {% if p.active %}<span class="badge badge-success">Bật</span>{% else %}<span class="badge badge-secondary">Tắt</span>{% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1 btn-edit-product"
+                      data-id="{{ p.id }}"
+                      data-service="{{ p.service }}"
+                      data-name="{{ p.name }}"
+                      data-group="{{ p.category_group }}"
+                      data-category="{{ p.category }}"
+                      data-price="{{ p.price|int }}"
+                      data-stock="{{ p.stock }}"
+                      data-description="{{ p.description }}"
+                      data-specs="{{ p.specs }}"
+                      data-icon="{{ p.icon }}"
+                      data-instant="{{ 1 if p.instant else 0 }}"
+                      data-active="{{ 1 if p.active else 0 }}">
+                Sửa
+              </button>
+              <form method="post" action="/admin/account-sales/products/{{ p.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa sản phẩm này?', {title: 'Xóa sản phẩm', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">Chưa có sản phẩm.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+
+<div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="productModalTitle">Thêm sản phẩm</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <form id="productForm" method="post" action="/admin/account-sales/products" enctype="multipart/form-data">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-4 mb-2">
+              <label class="small font-weight-bold">Dịch vụ <span class="text-danger">*</span></label>
+              <select name="service" id="product-service" class="form-control form-control-sm" onchange="toggleServiceFields()">
+                {% for key, label in services.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8 mb-2">
+              <label class="small font-weight-bold">Tên sản phẩm <span class="text-danger">*</span></label>
+              <input type="text" name="name" id="product-name" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Nhóm lớn</label>
+              <input type="text" name="category_group" id="product-group" list="product-groups" class="form-control form-control-sm">
+              <datalist id="product-groups">
+                {% for g in group_names %}<option value="{{ g }}">{% endfor %}
+              </datalist>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold" id="product-category-label">Danh mục</label>
+              <input type="text" name="category" id="product-category" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Giá (đ) <span class="text-muted font-weight-normal">— để 0 là "Liên hệ"</span></label>
+              <input type="number" min="0" name="price" id="product-price" class="form-control form-control-sm" value="0" required>
+            </div>
+            <div class="col-md-6 mb-2 account-only">
+              <label class="small font-weight-bold">Còn lại</label>
+              <input type="number" min="0" name="stock" id="product-stock" class="form-control form-control-sm" value="0" required>
+            </div>
+            <div class="col-md-6 mb-2 landing-only">
+              <label class="small font-weight-bold">Biểu tượng <span class="text-muted font-weight-normal">(tên Material Symbols, vd: solar_power)</span></label>
+              <input type="text" name="icon" id="product-icon" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-2 landing-only">
+            <label class="small font-weight-bold">Mô tả</label>
+            <textarea name="description" id="product-description" rows="2" class="form-control form-control-sm"></textarea>
+          </div>
+          <div class="form-group mb-2 landing-only">
+            <label class="small font-weight-bold">Đặc điểm <span class="text-muted font-weight-normal">(mỗi dòng một ý)</span></label>
+            <textarea name="specs" id="product-specs" rows="4" class="form-control form-control-sm"></textarea>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Ảnh</label>
+            <input type="file" name="image" accept="image/*" class="form-control-file form-control-sm">
+          </div>
+          <div class="d-flex" style="gap:24px;">
+            <div class="custom-control custom-switch account-only">
+              <input type="checkbox" name="instant" class="custom-control-input" id="product-instant" value="1">
+              <label class="custom-control-label small font-weight-bold" for="product-instant">Giao ngay</label>
+            </div>
+            <div class="custom-control custom-switch">
+              <input type="checkbox" name="active" class="custom-control-input" id="product-active" value="1" checked>
+              <label class="custom-control-label small font-weight-bold" for="product-active">Bật</label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+var CURRENT_SERVICE = {{ (service or 'tai-khoan')|tojson }};
+
+function toggleServiceFields() {
+  var isAccount = document.getElementById('product-service').value === 'tai-khoan';
+  document.querySelectorAll('#productModal .account-only').forEach(function (el) { el.style.display = isAccount ? '' : 'none'; });
+  document.querySelectorAll('#productModal .landing-only').forEach(function (el) { el.style.display = isAccount ? 'none' : ''; });
+  document.getElementById('product-category-label').textContent = isAccount ? 'Danh mục' : 'Nhãn phụ (vd: cấp chính xác)';
+}
+
+function openAddProductModal() {
+  document.getElementById('productModalTitle').textContent = 'Thêm sản phẩm';
+  document.getElementById('productForm').action = '/admin/account-sales/products';
+  document.getElementById('productForm').reset();
+  document.getElementById('product-service').value = CURRENT_SERVICE;
+  document.getElementById('product-active').checked = true;
+  toggleServiceFields();
+  $('#productModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  $('.btn-edit-product').on('click', function() {
+    var btn = $(this);
+    document.getElementById('productModalTitle').textContent = 'Sửa sản phẩm';
+    document.getElementById('productForm').action = '/admin/account-sales/products/' + btn.attr('data-id');
+    document.getElementById('product-service').value = btn.attr('data-service') || 'tai-khoan';
+    document.getElementById('product-name').value = btn.attr('data-name') || '';
+    document.getElementById('product-group').value = btn.attr('data-group') || '';
+    document.getElementById('product-category').value = btn.attr('data-category') || '';
+    document.getElementById('product-price').value = btn.attr('data-price') || '0';
+    document.getElementById('product-stock').value = btn.attr('data-stock') || '0';
+    document.getElementById('product-description').value = btn.attr('data-description') || '';
+    document.getElementById('product-specs').value = btn.attr('data-specs') || '';
+    document.getElementById('product-icon').value = btn.attr('data-icon') || '';
+    document.getElementById('product-instant').checked = (btn.attr('data-instant') === '1');
+    document.getElementById('product-active').checked = (btn.attr('data-active') === '1');
+    toggleServiceFields();
+    $('#productModal').modal('show');
+  });
+});
+</script>
+{% endblock %}

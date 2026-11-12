@@ -1,0 +1,2842 @@
+{% extends "layout.html" %}
+
+{% block title %}Live Chat{% endblock %}
+{% block page_title %}{% endblock %}
+
+{% block head %}
+<link href="/static/vendor/fonts-inter/500.css" rel="stylesheet">
+<link href="/static/vendor/fonts-inter/600.css" rel="stylesheet">
+<link href="/static/vendor/fonts-inter/700.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --lc-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --lc-bg: #f8fafc;
+    --lc-surface: #ffffff;
+    --lc-surface-soft: #f1f5f9;
+    --lc-sidebar-bg: #ffffff;
+    --lc-panel-bg: #f8fafc;
+    --lc-border: #e2e8f0;
+    --lc-border-subtle: #edf2f7;
+    --lc-text: #0f172a;
+    --lc-muted: #475569;
+    --lc-faint: #64748b;
+    --lc-primary: #2563eb;
+    --lc-primary-hover: #1d4ed8;
+    --lc-primary-light: #eff6ff;
+    --lc-primary-ring: rgba(37, 99, 235, 0.14);
+    --lc-active-item: #eff6ff;
+    --lc-unread-bg: rgba(37, 99, 235, 0.045);
+    --lc-waiting-card-bg: rgba(245, 158, 11, 0.055);
+    --lc-input-focus-bg: #ffffff;
+    --lc-pill-service-bg: #eef2ff;
+    --lc-pill-service-text: #3730a3;
+    --lc-pill-service-border: #e0e7ff;
+    --lc-waiting-bg: #fef3c7;
+    --lc-waiting-text: #b45309;
+    --lc-waiting-border: #fde68a;
+    --lc-system-bg: #ecfdf5;
+    --lc-system-text: #065f46;
+    --lc-system-border: #a7f3d0;
+    --lc-customer-bubble: #ffffff;
+    --lc-customer-border: #e2e8f0;
+    --lc-admin-bubble: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    --lc-admin-text: #ffffff;
+    --lc-radius: 12px;
+    --lc-success: #10b981;
+  }
+
+  body.theme-dark {
+    --lc-bg: #0b1120;
+    --lc-surface: #131c31;
+    --lc-surface-soft: #1c273f;
+    --lc-sidebar-bg: #0f172a;
+    --lc-panel-bg: #0f172a;
+    --lc-border: #233046;
+    --lc-border-subtle: #1e293b;
+    --lc-text: #f8fafc;
+    --lc-muted: #cbd5e1;
+    --lc-faint: #94a3b8;
+    --lc-primary: #3b82f6;
+    --lc-primary-hover: #2563eb;
+    --lc-primary-light: rgba(59, 130, 246, 0.16);
+    --lc-primary-ring: rgba(59, 130, 246, 0.24);
+    --lc-active-item: rgba(59, 130, 246, 0.14);
+    --lc-unread-bg: rgba(59, 130, 246, 0.1);
+    --lc-waiting-card-bg: rgba(245, 158, 11, 0.08);
+    --lc-input-focus-bg: #0b1120;
+    --lc-pill-service-bg: rgba(59, 130, 246, 0.16);
+    --lc-pill-service-text: #93c5fd;
+    --lc-pill-service-border: rgba(59, 130, 246, 0.28);
+    --lc-waiting-bg: rgba(245, 158, 11, 0.18);
+    --lc-waiting-text: #fbbf24;
+    --lc-waiting-border: rgba(245, 158, 11, 0.35);
+    --lc-system-bg: rgba(16, 185, 129, 0.14);
+    --lc-system-text: #6ee7b7;
+    --lc-system-border: rgba(16, 185, 129, 0.32);
+    --lc-customer-bubble: #1e293b;
+    --lc-customer-border: #334155;
+    --lc-admin-bubble: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    --lc-admin-text: #ffffff;
+  }
+
+  /* Ép phông chữ Inter sạch sẽ cho khu vực Live Chat (vượt quy tắc Times New Roman toàn cục) */
+  #livechatWrapper,
+  #livechatWrapper *:not(i):not(.bx):not([class*="bx-"]):not(.bxs):not(.bxl) {
+    font-family: var(--lc-font) !important;
+  }
+
+  .page-content:has(.livechat-wrapper) {
+    padding: 8px 10px !important;
+  }
+  .main-content:has(.livechat-wrapper) {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  .main-content:has(.livechat-wrapper) .footer {
+    display: none !important;
+  }
+
+  body.theme-dark .livechat-wrapper {
+    color-scheme: dark;
+  }
+
+  body.theme-dark .status-select-wrap select option {
+    background-color: #131c31 !important;
+    color: #f8fafc !important;
+  }
+
+  body.theme-dark .chx-emoji {
+    background: var(--lc-surface);
+    border-color: var(--lc-border);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  }
+  body.theme-dark .chx-chip {
+    background: var(--lc-surface-soft);
+    border-color: var(--lc-border);
+    color: var(--lc-text);
+  }
+
+  .is-hidden {
+    display: none !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     KHUNG WORKSPACE DUY NHẤT: CỐ ĐỊNH 2 KHUNG TRÁI / PHẢI
+     ═══════════════════════════════════════════════════════════ */
+  .livechat-wrapper {
+    font-family: var(--lc-font);
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: calc(100vh - 56px);
+    min-height: 500px;
+    background: var(--lc-surface);
+    border: 1px solid var(--lc-border);
+    border-radius: var(--lc-radius);
+    overflow: hidden;
+    box-shadow: 0 4px 20px -6px rgba(15, 23, 42, 0.08);
+    position: relative;
+  }
+
+  .chat-sidebar {
+    display: flex;
+    flex-direction: column;
+    background: var(--lc-sidebar-bg);
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid var(--lc-border);
+    flex-shrink: 0;
+  }
+
+  /* Thanh công cụ sidebar gọn gàng, cân đối */
+  .chat-sidebar-topbar {
+    background: var(--lc-surface);
+    border-bottom: 1px solid var(--lc-border);
+    padding: 10px 10px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .chat-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .search-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .search-input-wrap i.search-icon {
+    position: absolute;
+    left: 10px;
+    color: var(--lc-faint);
+    font-size: 14px;
+    pointer-events: none;
+  }
+
+  .chat-search-input {
+    width: 100%;
+    height: 34px;
+    padding: 0 28px 0 30px;
+    border-radius: 8px;
+    border: 1px solid var(--lc-border);
+    font-size: 12.5px;
+    color: var(--lc-text);
+    background: var(--lc-surface-soft);
+    outline: none;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    min-width: 0;
+  }
+  .chat-search-input::placeholder {
+    color: var(--lc-faint);
+  }
+  .chat-search-input:focus {
+    background: var(--lc-input-focus-bg);
+    border-color: var(--lc-primary);
+    box-shadow: 0 0 0 3px var(--lc-primary-ring);
+  }
+
+  .search-clear-btn {
+    position: absolute;
+    right: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--lc-border);
+    border: none;
+    color: var(--lc-muted);
+    cursor: pointer;
+    font-size: 10px;
+    line-height: 1;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .search-clear-btn.visible {
+    display: inline-flex;
+  }
+  .search-clear-btn:hover {
+    color: var(--lc-text);
+  }
+
+  .chat-toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+
+  .chat-icon-btn {
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    border-radius: 8px;
+    color: var(--lc-muted);
+    height: 34px;
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+  .chat-icon-btn:hover,
+  .chat-icon-btn.active {
+    background: var(--lc-primary-light);
+    color: var(--lc-primary);
+    border-color: rgba(37, 99, 235, 0.35);
+  }
+  .chat-icon-btn.spinning i {
+    animation: lcSpin 0.7s linear infinite;
+  }
+  @keyframes lcSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Danh sách khách hàng 1 cột mật độ cao, rõ ràng */
+  .chat-session-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: var(--lc-sidebar-bg);
+  }
+
+  .session-avatar, .lead-avatar { overflow: hidden; }
+  .chat-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+
+  .chat-session-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    min-height: 68px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+    background: transparent;
+    transition: background 0.14s ease;
+    cursor: pointer;
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .chat-session-item:hover {
+    background: var(--lc-surface-soft);
+    text-decoration: none;
+  }
+  .chat-session-item.active {
+    background: var(--lc-active-item);
+  }
+
+  .session-avatar-wrap {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+  }
+
+  .session-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .session-avatar.alt-1 { background: linear-gradient(135deg, #10b981, #059669); }
+  .session-avatar.alt-2 { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .session-avatar.alt-3 { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+  .session-avatar.alt-4 { background: linear-gradient(135deg, #ec4899, #be185d); }
+
+  .session-status-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 9.5px;
+    height: 9.5px;
+    border-radius: 50%;
+    background: #10b981;
+    border: 2px solid var(--lc-surface);
+  }
+  .session-status-dot.closed { background: #94a3b8; }
+  .session-status-dot.resolved { background: #3b82f6; }
+
+  .session-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .session-row-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .session-name {
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.25;
+    color: var(--lc-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .chat-session-item.is-unread .session-name {
+    font-weight: 700;
+  }
+
+  .session-service-chip {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 6px;
+    line-height: 15px;
+    border-radius: 5px;
+    background: var(--lc-pill-service-bg);
+    color: var(--lc-pill-service-text);
+    border: 1px solid var(--lc-pill-service-border);
+    max-width: 110px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+  }
+
+  .session-row-bottom {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    font-size: 12.5px;
+    color: var(--lc-muted);
+  }
+
+  .session-snippet {
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .session-snippet.unread {
+    font-weight: 600;
+    color: var(--lc-text);
+  }
+  .snippet-self {
+    color: var(--lc-faint);
+    font-weight: 500;
+  }
+
+  .session-time {
+    color: var(--lc-faint);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .session-time::before {
+    content: "· ";
+  }
+
+  .session-unread-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #0866ff;
+    flex-shrink: 0;
+  }
+
+  .session-list-footer {
+    padding: 8px 2px 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .load-more-btn {
+    width: 100%;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid var(--lc-border);
+    background: var(--lc-surface-soft);
+    color: var(--lc-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .load-more-btn:hover:not(:disabled) {
+    background: var(--lc-primary-light);
+    border-color: var(--lc-primary);
+  }
+  .load-more-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .sidebar-empty-state {
+    padding: 40px 16px;
+    text-align: center;
+    color: var(--lc-muted);
+    margin: auto 0;
+  }
+
+  .reset-filter-btn {
+    margin-top: 10px;
+    background: var(--lc-primary-light);
+    border: 1px solid var(--lc-pill-service-border);
+    color: var(--lc-primary);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     KHUNG ĐÀM THOẠI CHÍNH
+     ═══════════════════════════════════════════════════════════ */
+  .chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--lc-surface);
+    min-width: 0;
+    min-height: 0;
+    position: relative;
+  }
+
+  .chat-active-view,
+  .chat-empty-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .chat-empty-header {
+    height: 54px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--lc-border);
+    background: var(--lc-surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .chat-empty-header-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--lc-text);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chat-empty-header-title i {
+    font-size: 17px;
+    color: var(--lc-primary);
+  }
+
+  .chat-empty-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(37, 99, 235, 0.055) 0%, transparent 56%),
+      var(--lc-bg);
+    padding: 24px;
+  }
+
+  .chat-empty-card {
+    max-width: 340px;
+    width: 100%;
+    padding: 28px 26px;
+    border-radius: 16px;
+    background: var(--lc-surface);
+    border: 1px solid var(--lc-border);
+    box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.1);
+    text-align: center;
+    color: var(--lc-muted);
+  }
+
+  .chat-empty-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    color: var(--lc-primary);
+    font-size: 26px;
+  }
+  body.theme-dark .chat-empty-icon {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.22) 0%, rgba(37, 99, 235, 0.12) 100%);
+    border-color: rgba(59, 130, 246, 0.32);
+  }
+
+  .chat-empty-card h4 {
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--lc-text);
+    margin: 0 0 6px;
+  }
+
+  .chat-empty-card p {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--lc-faint);
+    margin: 0;
+  }
+
+  .chat-main-header {
+    min-height: 54px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--lc-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--lc-surface);
+    gap: 10px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .chat-header-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .mobile-back-btn {
+    display: none;
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    border-radius: 8px;
+    color: var(--lc-text);
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 17px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .chat-customer-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .chat-customer-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--lc-text);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .chat-customer-contact-link {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #059669;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .chat-customer-contact-link:hover {
+    background: #d1fae5;
+    color: #047857;
+    text-decoration: none;
+  }
+  body.theme-dark .chat-customer-contact-link {
+    background: rgba(16, 185, 129, 0.16);
+    border-color: rgba(16, 185, 129, 0.32);
+    color: #6ee7b7;
+  }
+
+  .chat-header-submeta {
+    font-size: 11.5px;
+    color: var(--lc-faint);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    margin-top: 1px;
+  }
+
+  .main-waiting-cue {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 0 7px;
+    line-height: 16px;
+    border-radius: 999px;
+    background: var(--lc-waiting-bg);
+    color: var(--lc-waiting-text);
+    border: 1px solid var(--lc-waiting-border);
+  }
+
+  .chat-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex-shrink: 0;
+    max-width: 100%;
+  }
+
+  .service-visiting-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--lc-pill-service-bg);
+    border: 1px solid var(--lc-pill-service-border);
+    color: var(--lc-pill-service-text);
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    max-width: none;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .service-visiting-pill span {
+    white-space: nowrap;
+  }
+
+  .chat-header-actions .chat-icon-btn {
+    height: 30px;
+    width: 30px;
+    min-width: 30px;
+    font-size: 15px;
+  }
+
+  .status-select-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+  }
+  .status-select-wrap::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    pointer-events: none;
+  }
+  .status-select-wrap[data-status="resolved"]::before { background: #3b82f6; }
+  .status-select-wrap[data-status="closed"]::before { background: #94a3b8; }
+
+  .status-select-wrap select {
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--lc-border);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0 24px 0 22px;
+    color: var(--lc-text);
+    background: var(--lc-surface-soft);
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .status-select-wrap select:focus,
+  .status-select-wrap select:hover {
+    border-color: var(--lc-primary);
+    background: var(--lc-surface);
+  }
+  .status-select-wrap::after {
+    content: "";
+    position: absolute;
+    right: 9px;
+    width: 6px;
+    height: 6px;
+    border-right: 1.6px solid var(--lc-muted);
+    border-bottom: 1.6px solid var(--lc-muted);
+    transform: rotate(45deg);
+    margin-top: -3px;
+    pointer-events: none;
+  }
+
+  .toggle-panel-btn {
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    border-radius: 8px;
+    color: var(--lc-muted);
+    height: 30px;
+    padding: 0 11px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toggle-panel-btn:hover, .toggle-panel-btn.active {
+    background: var(--lc-primary-light);
+    color: var(--lc-primary);
+    border-color: rgba(37, 99, 235, 0.35);
+  }
+
+  /* Luồng tin nhắn */
+  .chat-stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--lc-bg);
+  }
+
+  .date-separator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0;
+  }
+  .date-separator span {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--lc-faint);
+    background: var(--lc-surface);
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--lc-border);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  }
+
+  .msg-bubble-wrap {
+    display: flex;
+    flex-direction: column;
+    max-width: 72%;
+    animation: fadeInMsg 0.14s ease-out;
+  }
+  @keyframes fadeInMsg {
+    from { opacity: 0; transform: translateY(3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg-bubble-wrap.customer { align-self: flex-start; }
+  .msg-bubble-wrap.admin { align-self: flex-end; }
+  .msg-bubble-wrap.system { align-self: center; max-width: 86%; }
+  .msg-bubble-wrap.system .msg-sender-meta { justify-content: center; }
+  .msg-bubble-wrap.system .msg-bubble {
+    background: var(--lc-system-bg);
+    color: var(--lc-system-text);
+    border: 1px solid var(--lc-system-border);
+    border-radius: 12px;
+    font-size: 12.5px;
+    text-align: center;
+  }
+
+  .msg-sender-meta {
+    font-size: 11px;
+    color: var(--lc-faint);
+    margin-bottom: 3px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .msg-bubble-wrap.admin .msg-sender-meta {
+    justify-content: flex-end;
+  }
+
+  .msg-bubble {
+    padding: 9px 14px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  }
+
+  .msg-bubble-wrap.customer .msg-bubble {
+    background: var(--lc-customer-bubble);
+    color: var(--lc-text);
+    border: 1px solid var(--lc-customer-border);
+    border-radius: 14px 14px 14px 4px;
+  }
+
+  .msg-bubble-wrap.admin .msg-bubble {
+    background: var(--lc-admin-bubble);
+    color: var(--lc-admin-text);
+    border-radius: 14px 14px 4px 14px;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+  }
+
+  /* Khung soạn tin nhắn hiện đại */
+  .chat-composer {
+    padding: 10px 16px 12px;
+    border-top: 1px solid var(--lc-border);
+    background: var(--lc-surface);
+    flex-shrink: 0;
+  }
+
+  .chat-quick-replies {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .quick-reply-btn {
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    color: var(--lc-muted);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.14s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .quick-reply-btn i {
+    font-size: 13px;
+    color: var(--lc-primary);
+  }
+  .quick-reply-btn:hover {
+    background: var(--lc-primary-light);
+    color: var(--lc-primary);
+    border-color: rgba(37, 99, 235, 0.35);
+  }
+
+  .composer-input-row {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    border-radius: 12px;
+    padding: 5px 6px;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .composer-input-row:focus-within {
+    background: var(--lc-input-focus-bg);
+    border-color: var(--lc-primary);
+    box-shadow: 0 0 0 3px var(--lc-primary-ring);
+  }
+
+  .composer-input-row .chx-tool-btn {
+    width: 34px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 18px;
+    color: var(--lc-faint);
+    transition: background 0.15s, color 0.15s;
+  }
+  .composer-input-row .chx-tool-btn:hover {
+    background: rgba(100, 116, 139, 0.14);
+    color: var(--lc-primary);
+  }
+
+  .composer-textarea {
+    flex: 1;
+    resize: none;
+    height: 36px;
+    max-height: 110px;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13.5px;
+    line-height: 1.4;
+    color: var(--lc-text);
+    background: transparent;
+    outline: none;
+  }
+  .composer-textarea::placeholder {
+    color: var(--lc-faint);
+  }
+
+  .composer-send-btn {
+    background: var(--lc-primary);
+    color: #ffffff;
+    border: none;
+    height: 36px;
+    padding: 0 15px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 12.5px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .composer-send-btn:hover {
+    background: var(--lc-primary-hover);
+  }
+  .composer-send-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     DRAWER HỒ SƠ KHÁCH HÀNG (ẨN MẶC ĐỊNH)
+     ═══════════════════════════════════════════════════════════ */
+  .chat-info-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 312px;
+    max-width: 100%;
+    border-left: 1px solid var(--lc-border);
+    background: var(--lc-panel-bg);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding-bottom: 14px;
+    z-index: 30;
+    box-shadow: -10px 0 32px rgba(15, 23, 42, 0.14);
+  }
+
+  .chat-info-panel.collapsed {
+    display: none !important;
+  }
+
+  .info-panel-header {
+    height: 54px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--lc-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--lc-surface);
+    flex-shrink: 0;
+  }
+
+  .info-panel-title {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--lc-text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+  }
+
+  .lc-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+  }
+  .lc-status-pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .lc-status-pill.is-resolved {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+  }
+  .lc-status-pill.is-closed {
+    background: var(--lc-surface-soft);
+    color: var(--lc-faint);
+    border-color: var(--lc-border);
+  }
+  body.theme-dark .lc-status-pill:not(.is-resolved):not(.is-closed) {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.32);
+  }
+  body.theme-dark .lc-status-pill.is-resolved {
+    background: rgba(59, 130, 246, 0.16);
+    color: #93c5fd;
+    border-color: rgba(59, 130, 246, 0.32);
+  }
+
+  .info-panel-close-btn {
+    display: inline-flex;
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    border-radius: 7px;
+    color: var(--lc-muted);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 17px;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .info-panel-close-btn:hover {
+    color: var(--lc-text);
+    border-color: var(--lc-primary);
+  }
+
+  .info-card {
+    background: var(--lc-surface);
+    border: 1px solid var(--lc-border);
+    border-radius: 10px;
+    padding: 12px;
+    margin: 10px 10px 0;
+  }
+
+  .info-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--lc-faint);
+    letter-spacing: 0.4px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .lead-profile-header {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .lead-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .lead-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--lc-text);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .lead-actions-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .lead-action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 7px 4px;
+    border-radius: 8px;
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border);
+    color: var(--lc-text);
+    font-size: 10.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .lead-action-btn:hover {
+    background: var(--lc-primary-light);
+    color: var(--lc-primary);
+    border-color: rgba(37, 99, 235, 0.35);
+    text-decoration: none;
+  }
+  .lead-action-btn i { font-size: 15px; }
+
+  .stat-grid-2x2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stat-mini-card {
+    background: var(--lc-surface-soft);
+    border: 1px solid var(--lc-border-subtle);
+    border-radius: 8px;
+    padding: 7px 6px;
+    text-align: center;
+  }
+
+  .stat-mini-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--lc-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-mini-lbl {
+    font-size: 10px;
+    color: var(--lc-faint);
+    margin-top: 2px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--lc-border-subtle);
+    font-size: 11.5px;
+    gap: 8px;
+  }
+  .detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .detail-lbl {
+    color: var(--lc-muted);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .detail-val {
+    font-weight: 600;
+    color: var(--lc-text);
+    text-align: right;
+    word-break: break-word;
+    max-width: 165px;
+  }
+
+  .agent-note-textarea {
+    width: 100%;
+    height: 60px;
+    border-radius: 8px;
+    border: 1px solid var(--lc-border);
+    background: var(--lc-surface-soft);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--lc-text);
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .agent-note-textarea:focus {
+    background: var(--lc-input-focus-bg);
+    border-color: var(--lc-primary);
+  }
+
+  .note-saved-toast {
+    font-size: 11px;
+    color: var(--lc-success);
+    display: none;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+
+  .copy-lead-btn {
+    width: 100%;
+    margin-top: 8px;
+    background: var(--lc-primary-light);
+    border: 1px solid rgba(37, 99, 235, 0.28);
+    color: var(--lc-primary);
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    transition: all 0.15s;
+  }
+  .copy-lead-btn:hover {
+    background: var(--lc-primary);
+    color: #ffffff;
+    border-color: var(--lc-primary);
+  }
+
+  #cc-chat {
+    display: none !important;
+  }
+
+  /* Desktop >= 1200px: drawer đẩy gọn khung chat, không đè cắt chữ; < 1200px trượt nổi */
+  @media (min-width: 1200px) {
+    .chat-info-panel {
+      position: static;
+      flex: 0 0 304px;
+      width: 304px;
+      box-shadow: none;
+    }
+  }
+
+  /* Desktop >= 992px: 1 chế độ cố định 2 khung (Trái: danh sách 1 cột | Phải: hội thoại) */
+  @media (min-width: 992px) {
+    .chat-sidebar {
+      width: clamp(316px, 27vw, 356px);
+      min-width: 316px;
+    }
+    .chat-main {
+      display: flex !important;
+    }
+  }
+
+  @media (min-width: 992px) and (max-width: 1199.98px) {
+    .chat-sidebar {
+      width: 296px;
+      min-width: 280px;
+    }
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     RESPONSIVE (TABLET & MOBILE)
+     ═══════════════════════════════════════════════════════════ */
+  @media (max-width: 991.98px) {
+    .page-content:has(.livechat-wrapper) {
+      padding: 6px !important;
+    }
+    .livechat-wrapper {
+      flex-direction: column;
+      height: calc(100vh - 64px);
+      min-height: 440px;
+    }
+    .mobile-back-btn {
+      display: inline-flex;
+    }
+    .livechat-wrapper:not(.mobile-show-list) .chat-sidebar {
+      display: none !important;
+    }
+    .livechat-wrapper.mobile-show-list .chat-main,
+    .livechat-wrapper.mobile-show-list .chat-info-panel {
+      display: none !important;
+    }
+    .livechat-wrapper.mobile-show-list .chat-sidebar {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      height: 100%;
+      border-right: none;
+      flex: 1 1 auto;
+      display: flex !important;
+    }
+    .chat-main {
+      flex: 1;
+      min-height: 0;
+      display: flex !important;
+    }
+    .livechat-wrapper:not(.mobile-show-list) .chat-main {
+      display: flex !important;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 991.98px) {
+    .livechat-wrapper.mobile-show-list .chat-session-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-auto-rows: max-content;
+      align-content: start;
+      gap: 6px;
+      padding: 10px;
+    }
+    .livechat-wrapper.mobile-show-list .session-list-footer,
+    .livechat-wrapper.mobile-show-list .sidebar-empty-state {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .chat-main-header { padding: 8px 10px; }
+    .chat-stream { padding: 12px 10px; }
+    .msg-bubble-wrap { max-width: 88%; }
+    .chat-composer { padding: 8px 10px 10px; }
+    .composer-send-btn { padding: 0 12px; }
+    .chat-info-panel {
+      width: 100%;
+      border-left: none;
+    }
+  }
+</style>
+
+<div class="container-fluid px-0 w-100" style="min-width:0;max-width:100%;">
+  <div class="livechat-wrapper{% if not active_session %} mobile-show-list{% endif %}" id="livechatWrapper">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         DANH SÁCH KHÁCH HÀNG (1 CHẾ ĐỘ DUY NHẤT, CÂN ĐỐI)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="chat-sidebar">
+
+      <div class="chat-sidebar-topbar">
+        <div class="chat-search-bar">
+          <div class="search-input-wrap">
+            <i class="bx bx-search search-icon"></i>
+            <input
+              type="text"
+              class="chat-search-input"
+              id="chatSearch"
+              placeholder="Tìm tên, SĐT, nội dung…"
+              value="{{ search_query }}"
+              onkeydown="if(event.key==='Enter'){event.preventDefault(); searchChats(this.value);}"
+              oninput="handleSearchInput(this.value)"
+            >
+            <button type="button" class="search-clear-btn{% if search_query %} visible{% endif %}" id="searchClearBtn" onclick="clearSearch()" title="Xóa tìm kiếm">✕</button>
+          </div>
+
+          <div class="chat-toolbar-controls">
+            <button type="button" class="chat-icon-btn" id="btnRefreshList" onclick="refreshLiveChat(true)" aria-label="Làm mới" title="Làm mới">
+              <i class="bx bx-refresh"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-session-list" id="sessionList">
+        {% if sessions %}
+          {% for s in sessions %}
+          {% set is_unread = (s.unread_admin_count or 0) > 0 %}
+          {% set is_unread = (s.unread_admin_count or 0) > 0 %}
+          <a class="chat-session-item{% if active_session and active_session.id == s.id %} active{% endif %}{% if is_unread %} is-unread{% endif %}"
+             href="/admin/account-sales/live-chat/{{ s.id }}"
+             id="sess-item-{{ s.id }}"
+             data-session-id="{{ s.id }}"
+             title="{{ (s.customer_name or 'Khách truy cập') ~ (' · ' ~ s.customer_contact if s.customer_contact else '') ~ ' | ' ~ (s.service_name or 'Vãng lai') ~ ' — ' ~ (s.last_message or '') }}"
+             onclick="return handleSessionClick(event, {{ s.id }});">
+            <div class="session-avatar-wrap">
+              <div class="session-avatar alt-{{ loop.index % 5 }}">
+                {% if s.customer_avatar %}<img src="{{ s.customer_avatar }}" alt="" class="chat-avatar-img">{% else %}{{ (s.customer_name or 'K')[0]|upper }}{% endif %}
+              </div>
+            </div>
+
+            <div class="session-info">
+              <div class="session-row-top">
+                <span class="session-name">{{ s.customer_name or 'Khách truy cập' }}</span>
+                <span class="session-service-chip" title="{{ s.service_name or 'Khách vãng lai' }}">{{ s.service_name or 'Vãng lai' }}</span>
+              </div>
+              <div class="session-row-bottom">
+                <span class="session-snippet{% if is_unread %} unread{% endif %}">{% if s.last_message_sender == 'admin' %}<span class="snippet-self">Bạn: </span>{% endif %}{{ s.last_message or 'Chưa có tin nhắn' }}</span>
+                <span class="session-time" title="{{ s.last_msg_time or '' }}">{{ s.last_msg_time_short or s.last_msg_time or '' }}</span>
+              </div>
+            </div>
+            {% if is_unread %}<span class="session-unread-dot" aria-label="Tin nhắn chưa đọc"></span>{% endif %}
+          </a>
+          {% endfor %}
+
+          {% if has_more_sessions %}
+          <div class="session-list-footer" id="sessionListFooter">
+            <button type="button" class="load-more-btn" id="btnLoadMoreSessions" onclick="loadMoreSessions()">
+              Tải thêm (+100)…
+            </button>
+          </div>
+          {% endif %}
+        {% else %}
+          <div class="sidebar-empty-state">
+            <i class="bx bx-chat" style="font-size:34px; color:var(--lc-faint); margin-bottom:6px; display:inline-block;"></i>
+            <p style="font-size:12.5px; margin:0; line-height:1.4;">{{ 'Không có kết quả.' if search_query else 'Chưa có hội thoại.' }}</p>
+            {% if search_query %}
+            <button type="button" class="reset-filter-btn" onclick="resetAllFilters()">Xem tất cả</button>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         KHUNG ĐÀM THOẠI CHÍNH (LUÔN HIỂN THỊ CỐ ĐỊNH BÊN PHẢI)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="chat-main">
+      <div class="chat-empty-view{% if active_session %} is-hidden{% endif %}" id="chatEmptyView">
+        <div class="chat-empty-header">
+          <div class="chat-empty-header-title">
+            <i class="bx bx-message-square-dots"></i>
+            <span>Hội thoại</span>
+          </div>
+        </div>
+        <div class="chat-empty-body">
+          <div class="chat-empty-card">
+            <div class="chat-empty-icon">
+              <i class="bx bx-conversation"></i>
+            </div>
+            <h4 id="chatEmptyTitle">{{ 'Chọn hội thoại' if sessions else 'Chưa có hội thoại' }}</h4>
+            <p id="chatEmptySubtitle" class="{% if not sessions %}is-hidden{% endif %}">Chọn khách hàng bên trái để nhắn tin</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-active-view{% if not active_session %} is-hidden{% endif %}" id="chatActiveView">
+        <div class="chat-main-header">
+          <div class="chat-header-identity">
+            <button type="button" class="mobile-back-btn" aria-label="Danh sách hội thoại" title="Danh sách hội thoại" onclick="openMobileList()">
+              <i class="bx bx-arrow-back"></i>
+            </button>
+
+            <div class="chat-customer-profile">
+              <div class="session-avatar-wrap" style="width:36px; height:36px;">
+                <div class="session-avatar" id="mainHeaderAvatar" style="font-size:14px;">
+                  {% if active_session %}
+                    {% if active_session.customer_avatar %}<img src="{{ active_session.customer_avatar }}" alt="" class="chat-avatar-img">{% else %}{{ (active_session.customer_name or 'K')[0]|upper }}{% endif %}
+                  {% endif %}
+                </div>
+                <span class="session-status-dot{% if active_session and active_session.status == 'closed' %} closed{% elif active_session and active_session.status == 'resolved' %} resolved{% endif %}" id="mainHeaderDot"></span>
+              </div>
+
+              <div style="min-width:0; flex:1;">
+                <div class="chat-customer-name">
+                  <span id="mainCustomerName">{{ (active_session.customer_name or 'Khách hàng') if active_session else '' }}</span>
+                  <a id="mainCustomerContactLink"
+                     href="{% if active_session and active_session.customer_contact %}{% if '@' in active_session.customer_contact %}mailto:{{ active_session.customer_contact }}{% else %}tel:{{ active_session.customer_contact }}{% endif %}{% else %}#{% endif %}"
+                     class="chat-customer-contact-link{% if not active_session or not active_session.customer_contact %} is-hidden{% endif %}"
+                     title="Liên hệ khách hàng">
+                    <i class="bx bx-phone-call"></i>
+                    <span id="mainCustomerContactText">{{ active_session.customer_contact if active_session and active_session.customer_contact else '' }}</span>
+                  </a>
+                </div>
+
+                <div class="chat-header-submeta">
+                  <span id="mainCreatedTime" title="{{ active_session.created_time if active_session and active_session.created_time else '' }}">{{ active_session.created_time[:11] if active_session and active_session.created_time else '' }}</span>
+                  <span class="main-waiting-cue{% if not active_session or active_session.status != 'open' or active_session.last_message_sender != 'customer' %} is-hidden{% endif %}" id="mainWaitingCue">Chờ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-header-actions">
+            <div class="service-visiting-pill" id="mainServicePill" title="{{ active_session.service_name if active_session and active_session.service_name else 'Vãng lai' }}">
+              <i class="bx bx-store-alt" style="font-size:13px; flex-shrink:0;"></i>
+              <span id="mainServiceText">{{ active_session.service_name if active_session and active_session.service_name else 'Vãng lai' }}</span>
+            </div>
+
+            <button type="button"
+                    class="chat-icon-btn{% if not active_session or not active_session.customer_contact %} is-hidden{% endif %}"
+                    id="btnCopyMainContact"
+                    onclick="copyCurrentContact()"
+                    title="Chép SĐT / Email">
+              <i class="bx bx-copy"></i>
+            </button>
+
+            <div class="status-select-wrap" id="mainStatusWrap" data-status="{{ active_session.status if active_session else 'open' }}">
+              <select id="mainStatusSelect" data-no-search onchange="updateSessionStatus(currentSessionId, this.value)" aria-label="Trạng thái">
+                <option value="open"{% if active_session and active_session.status == 'open' %} selected{% endif %}>Đang mở</option>
+                <option value="resolved"{% if active_session and active_session.status == 'resolved' %} selected{% endif %}>Đã xong</option>
+                <option value="closed"{% if active_session and active_session.status == 'closed' %} selected{% endif %}>Đã đóng</option>
+              </select>
+            </div>
+
+            <button type="button" class="toggle-panel-btn" id="btnToggleInfo" onclick="toggleInfoPanel()" title="Ẩn/Hiện hồ sơ khách">
+              <i class="bx bx-user-pin"></i>
+              <span>Hồ sơ</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="chat-stream" id="chatStream">
+          {% if active_session %}
+          {% if active_session.messages %}
+            {% for m in active_session.messages %}
+            <div class="msg-bubble-wrap {{ m.sender }}">
+              <div class="msg-sender-meta">
+                {% if m.sender == 'admin' %}<span>Bạn · </span>{% elif m.sender == 'system' %}<span>Hệ thống · </span>{% endif %}<span>{{ m.time_str or '' }}</span>
+                {% if m.sender == 'admin' %}
+                <i class="bx bx-check-double text-primary" style="font-size:14px;" title="Đã gửi"></i>
+                {% endif %}
+              </div>
+              <div class="msg-bubble">{% if m.message %}{{ m.message }}{% endif %}{% if m.attachment_url %}{% if m.attachment_type == 'image' %}<a class="chx-attach" href="{{ m.attachment_url }}" target="_blank" rel="noopener"><img class="chx-attach-img" src="{{ m.attachment_url }}" alt="{{ m.attachment_name }}"></a>{% else %}<a class="chx-attach chx-attach-file" href="{{ m.attachment_url }}" target="_blank" rel="noopener">📎 {{ m.attachment_name }}</a>{% endif %}{% endif %}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="sidebar-empty-state" style="padding:36px 20px;">
+              <p style="margin:0; font-size:12.5px;">Chưa có tin nhắn</p>
+            </div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="chat-composer">
+          <div class="chat-quick-replies">
+            <button type="button" class="quick-reply-btn" onclick="insertQuickReply('Dạ em chào anh/chị! Em có thể hỗ trợ gì cho mình ạ?')">
+              <i class="bx bx-smile"></i> Chào khách
+            </button>
+            <button type="button" class="quick-reply-btn" onclick="insertQuickReply('Dạ anh/chị cần tư vấn mục nào để em gửi báo giá chi tiết ạ?')">
+              <i class="bx bx-list-ul"></i> Báo giá
+            </button>
+            <button type="button" class="quick-reply-btn" onclick="insertQuickReply('Anh/chị cho em xin SĐT hoặc Zalo để bên em hỗ trợ nhanh hơn nhé!')">
+              <i class="bx bx-phone-call"></i> Xin SĐT
+            </button>
+            <button type="button" class="quick-reply-btn" onclick="insertQuickReply('Dạ bên em đã ghi nhận và sẽ phản hồi mình ngay ạ!')">
+              <i class="bx bx-check-circle"></i> Tiếp nhận
+            </button>
+          </div>
+
+          <div class="chx-wrap">
+          <div class="chx-tray" id="replyTray" hidden></div>
+          <div class="chx-emoji" id="replyEmojiPanel" hidden></div>
+          <form id="adminReplyForm" class="composer-input-row" onsubmit="sendAdminReply(event)">
+            <button type="button" class="chx-tool-btn" id="replyAttach" title="Đính kèm ảnh hoặc tệp"><i class="bx bx-paperclip"></i></button>
+            <button type="button" class="chx-tool-btn" id="replyEmoji" title="Biểu tượng cảm xúc"><i class="bx bx-smile"></i></button>
+            <textarea
+              id="replyText"
+              class="composer-textarea"
+              placeholder="Nhập tin nhắn…"
+              onkeydown="handleTextareaKey(event)"
+            ></textarea>
+
+            <button type="submit" class="composer-send-btn" id="sendBtn" title="Gửi phản hồi (Enter)">
+              <span>Gửi</span>
+              <i class="bx bx-send"></i>
+            </button>
+          </form>
+          <input type="file" id="replyFile" multiple hidden>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         DRAWER HỒ SƠ KHÁCH HÀNG (COLLAPSED BY DEFAULT)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="chat-info-panel collapsed" id="chatInfoPanel">
+      <div class="{% if not active_session %}is-hidden{% endif %}" id="infoActiveView">
+        <div class="info-panel-header">
+          <h4 class="info-panel-title">
+            <i class="bx bx-user-pin text-primary" style="font-size:17px;"></i>
+            <span>Hồ sơ</span>
+          </h4>
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <span id="infoStatusBadge"
+                  class="lc-status-pill{% if active_session and active_session.status == 'resolved' %} is-resolved{% elif active_session and active_session.status == 'closed' %} is-closed{% endif %}">
+              {% if active_session and active_session.status == 'resolved' %}Đã xong{% elif active_session and active_session.status == 'closed' %}Đã đóng{% else %}Đang mở{% endif %}
+            </span>
+            <button type="button" class="info-panel-close-btn" onclick="toggleInfoPanel()" aria-label="Đóng hồ sơ" title="Đóng hồ sơ">
+              <i class="bx bx-x"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="lead-profile-header">
+            <div class="lead-avatar" id="infoLeadAvatar">
+              {% if active_session %}
+                {% if active_session.customer_avatar %}<img src="{{ active_session.customer_avatar }}" alt="" class="chat-avatar-img">{% else %}{{ (active_session.customer_name or 'K')[0]|upper }}{% endif %}
+              {% endif %}
+            </div>
+            <div style="min-width:0;">
+              <div class="lead-name" id="infoLeadName">{{ (active_session.customer_name or 'Khách truy cập') if active_session else '' }}</div>
+            </div>
+          </div>
+
+          <div class="lead-actions-row" id="infoLeadActions">
+            {% if active_session and active_session.customer_contact %}
+              {% if '@' in active_session.customer_contact %}
+              <a href="mailto:{{ active_session.customer_contact }}" class="lead-action-btn" style="grid-column: span 2;" title="Gửi Email">
+                <i class="bx bx-envelope text-primary"></i>
+                <span>Gửi Email</span>
+              </a>
+              <button type="button" class="lead-action-btn" onclick="copyCurrentContact()" title="Sao chép Email">
+                <i class="bx bx-copy"></i>
+                <span>Chép Email</span>
+              </button>
+              {% else %}
+              <a href="tel:{{ active_session.customer_contact }}" class="lead-action-btn" title="Bấm gọi ngay">
+                <i class="bx bx-phone-call text-success"></i>
+                <span>Gọi điện</span>
+              </a>
+              <a href="https://zalo.me/{{ active_session.customer_contact|replace(' ', '')|replace('-', '')|replace('.', '') }}" target="_blank" rel="noopener" class="lead-action-btn" title="Mở Zalo chat">
+                <i class="bx bx-message-rounded-dots text-primary"></i>
+                <span>Chat Zalo</span>
+              </a>
+              <button type="button" class="lead-action-btn" onclick="copyCurrentContact()" title="Sao chép SĐT">
+                <i class="bx bx-copy"></i>
+                <span>Chép SĐT</span>
+              </button>
+              {% endif %}
+            {% else %}
+            <button type="button" class="lead-action-btn" style="grid-column: span 3;" onclick="insertQuickReply('Anh/chị cho em xin SĐT hoặc Zalo để bên em hỗ trợ nhanh hơn nhé!')">
+              <i class="bx bx-phone-plus text-primary"></i>
+              <span>Xin SĐT khách</span>
+            </button>
+            {% endif %}
+          </div>
+
+          <button type="button" class="copy-lead-btn" onclick="copyLeadSummary()">
+            <i class="bx bx-share-alt"></i> Chép thông tin
+          </button>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">
+            <span>Nguồn truy cập</span>
+            <i class="bx bx-navigation text-primary"></i>
+          </div>
+
+          <div class="detail-row">
+            <span class="detail-lbl"><i class="bx bx-building-house"></i> Dịch vụ:</span>
+            <span class="detail-val" id="infoServiceName" style="color:var(--lc-primary);">{{ (active_session.service_name or 'Vãng lai') if active_session else '' }}</span>
+          </div>
+
+          <div class="detail-row{% if not active_session or not active_session.service_group %} is-hidden{% endif %}" id="infoServiceGroupRow">
+            <span class="detail-lbl"><i class="bx bx-category"></i> Nhóm:</span>
+            <span class="detail-val" id="infoServiceGroup">{{ active_session.service_group if active_session and active_session.service_group else '' }}</span>
+          </div>
+
+          <div class="detail-row{% if not active_session or not active_session.current_url %} is-hidden{% endif %}" id="infoCurrentUrlRow">
+            <span class="detail-lbl"><i class="bx bx-link"></i> Đường dẫn:</span>
+            <span class="detail-val" style="font-size:11px;">
+              <a id="infoCurrentUrlLink" href="{{ active_session.current_url if active_session and active_session.current_url else '#' }}" target="_blank" rel="noopener" style="color:var(--lc-primary);" title="{{ active_session.current_url if active_session and active_session.current_url else '' }}">
+                {{ (active_session.current_url[:22] ~ '… ↗') if active_session and active_session.current_url else '' }}
+              </a>
+            </span>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">
+            <span>Thống kê</span>
+            <i class="bx bx-pulse text-warning"></i>
+          </div>
+
+          <div class="stat-grid-2x2">
+            <div class="stat-mini-card">
+              <div class="stat-mini-val" id="infoStatId">#{{ active_session.id if active_session else '0' }}</div>
+              <div class="stat-mini-lbl">Mã phiên</div>
+            </div>
+            <div class="stat-mini-card">
+              <div class="stat-mini-val" id="totalMsgCount">{{ (active_session.messages|length) if active_session and active_session.messages else 0 }}</div>
+              <div class="stat-mini-lbl">Tổng tin</div>
+            </div>
+            <div class="stat-mini-card">
+              <div class="stat-mini-val" id="infoStatCreated" style="font-size:12px;">{{ active_session.created_time[0:5] if active_session and active_session.created_time else '--:--' }}</div>
+              <div class="stat-mini-lbl">Bắt đầu</div>
+            </div>
+            <div class="stat-mini-card">
+              <div class="stat-mini-val" id="infoStatLast" style="font-size:12px;">{{ active_session.last_msg_time[0:5] if active_session and active_session.last_msg_time else '--:--' }}</div>
+              <div class="stat-mini-lbl">Gần nhất</div>
+            </div>
+          </div>
+
+          <div style="margin-top:6px;">
+            <div class="detail-row">
+              <span class="detail-lbl">Tin khách:</span>
+              <span class="detail-val" id="customerMsgCount">
+                {% if active_session and active_session.messages %}{{ active_session.messages|selectattr('sender', 'equalto', 'customer')|list|length }}{% else %}0{% endif %}
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-lbl">Tin trả lời:</span>
+              <span class="detail-val" id="adminMsgCount">
+                {% if active_session and active_session.messages %}{{ active_session.messages|selectattr('sender', 'equalto', 'admin')|list|length }}{% else %}0{% endif %}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="info-card-title">
+            <span>Ghi chú</span>
+            <i class="bx bx-notepad text-info"></i>
+          </div>
+
+          <textarea
+            class="agent-note-textarea"
+            id="agentNoteText"
+            placeholder="Ghi chú về khách hàng…"
+            oninput="saveAgentNote(currentSessionId, this.value)"
+          ></textarea>
+
+          <div class="note-saved-toast" id="noteSavedToast">
+            <i class="bx bx-check-circle"></i> Đã lưu
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-empty-state{% if active_session %} is-hidden{% endif %}" id="infoEmptyState">
+        <i class="bx bx-info-circle" style="font-size:30px; color:var(--lc-faint); margin-bottom:6px; display:inline-block;"></i>
+        <p style="font-size:12px; margin:0; line-height:1.4;">Chưa chọn cuộc hội thoại nào.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<link rel="stylesheet" href="/static/user/css/chat-composer.css?v=3">
+<script src="/static/user/js/chat-composer.js?v=4"></script>
+<script>
+  var INITIAL_STATE = {{ {
+    "activeSession": active_session,
+    "sessions": sessions,
+    "hasMore": has_more_sessions,
+    "q": search_query
+  }|tojson }};
+
+  var PAGE_SIZE = 100;
+  var LIST_REFRESH_MS = 8000;
+
+  var state = {
+    q: INITIAL_STATE.q || '',
+    sessions: Array.isArray(INITIAL_STATE.sessions) ? INITIAL_STATE.sessions : [],
+    hasMore: Boolean(INITIAL_STATE.hasMore),
+    activeSession: INITIAL_STATE.activeSession || null
+  };
+
+  var currentSessionId = state.activeSession ? state.activeSession.id : null;
+  var renderedMsgIds = {};
+  (function seedRenderedMsgs() {
+    if (state.activeSession && Array.isArray(state.activeSession.messages)) {
+      state.activeSession.messages.forEach(function (m) {
+        if (m && m.id != null) renderedMsgIds[String(m.id)] = true;
+      });
+    }
+  })();
+
+  var chatStream = document.getElementById('chatStream');
+  var searchDebounceTimer = null;
+  var refreshing = false;
+  var refreshQueued = false;
+  var switchSeq = 0;
+
+  function scrollChatToBottom() {
+    if (chatStream) {
+      chatStream.scrollTop = chatStream.scrollHeight;
+    }
+  }
+  scrollChatToBottom();
+
+  function openMobileList() {
+    var w = document.getElementById('livechatWrapper');
+    if (w) w.classList.add('mobile-show-list');
+  }
+
+  function closeMobileList() {
+    var w = document.getElementById('livechatWrapper');
+    if (w) w.classList.remove('mobile-show-list');
+  }
+
+  function updateEmptyMainCopy() {
+    var hasSessions = Array.isArray(state.sessions) && state.sessions.length > 0;
+    var titleEl = document.getElementById('chatEmptyTitle');
+    var subEl = document.getElementById('chatEmptySubtitle');
+    if (titleEl) titleEl.textContent = hasSessions ? 'Chọn hội thoại' : 'Chưa có hội thoại';
+    if (subEl) subEl.classList.toggle('is-hidden', !hasSessions);
+  }
+
+  function safeUrlHref(url) {
+    if (!url || typeof url !== 'string') return '#';
+    var trimmed = url.trim();
+    if (trimmed.indexOf('/') === 0 || trimmed.indexOf('https://') === 0 || trimmed.indexOf('http://') === 0) {
+      return trimmed;
+    }
+    return '#';
+  }
+
+  function safeAvatarUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    var trimmed = url.trim();
+    if (trimmed.indexOf('/') === 0 || trimmed.indexOf('https://') === 0 || trimmed.indexOf('http://') === 0) {
+      return trimmed;
+    }
+    return '';
+  }
+
+  function renderAvatarContent(el, name, avatarUrl) {
+    if (!el) return;
+    el.textContent = '';
+    var safeImg = safeAvatarUrl(avatarUrl);
+    if (safeImg) {
+      var img = document.createElement('img');
+      img.className = 'chat-avatar-img';
+      img.alt = '';
+      img.src = safeImg;
+      el.appendChild(img);
+    } else {
+      var ch = ((name || 'K').trim().charAt(0) || 'K').toUpperCase();
+      el.textContent = ch;
+    }
+  }
+
+  function buildFilterParams(extra) {
+    var params = new URLSearchParams();
+    if (state.q) params.set('q', state.q);
+    if (extra && extra.limit != null) params.set('limit', String(extra.limit));
+    if (extra && extra.offset != null) params.set('offset', String(extra.offset));
+    return params;
+  }
+
+  function buildBrowserUrl(sessionId) {
+    var base = sessionId ? ('/admin/account-sales/live-chat/' + sessionId) : '/admin/account-sales/live-chat';
+    var params = buildFilterParams();
+    var qs = params.toString();
+    return qs ? (base + '?' + qs) : base;
+  }
+
+  function syncUrlState(pushHistory) {
+    try {
+      var target = buildBrowserUrl(currentSessionId);
+      if (window.location.pathname + window.location.search === target) return;
+      var payload = {
+        sessionId: currentSessionId,
+        q: state.q
+      };
+      if (pushHistory) {
+        window.history.pushState(payload, '', target);
+      } else {
+        window.history.replaceState(payload, '', target);
+      }
+    } catch (e) { /* ignore history errors */ }
+  }
+
+  function createSessionElement(s, index) {
+    var isUnread = (parseInt(s.unread_admin_count, 10) || 0) > 0;
+    var isActive = currentSessionId != null && Number(s.id) === Number(currentSessionId);
+
+    var item = document.createElement('a');
+    item.id = 'sess-item-' + s.id;
+    item.setAttribute('data-session-id', String(s.id));
+    item.href = '/admin/account-sales/live-chat/' + s.id;
+    item.title = (s.customer_name || 'Khách truy cập') +
+      (s.customer_contact ? (' · ' + s.customer_contact) : '') +
+      ' | ' + (s.service_name || 'Vãng lai') +
+      ' — ' + (s.last_message || '');
+    item.className = 'chat-session-item' + (isActive ? ' active' : '') + (isUnread ? ' is-unread' : '');
+    item.onclick = function (ev) {
+      return handleSessionClick(ev, s.id);
+    };
+
+    var avatarWrap = document.createElement('div');
+    avatarWrap.className = 'session-avatar-wrap';
+    var avatar = document.createElement('div');
+    avatar.className = 'session-avatar alt-' + ((index + 1) % 5);
+    renderAvatarContent(avatar, s.customer_name, s.customer_avatar);
+    avatarWrap.appendChild(avatar);
+
+    var info = document.createElement('div');
+    info.className = 'session-info';
+
+    var rowTop = document.createElement('div');
+    rowTop.className = 'session-row-top';
+    var nameEl = document.createElement('span');
+    nameEl.className = 'session-name';
+    nameEl.textContent = s.customer_name || 'Khách truy cập';
+    var svcChip = document.createElement('span');
+    svcChip.className = 'session-service-chip';
+    svcChip.title = s.service_name || 'Khách vãng lai';
+    svcChip.textContent = s.service_name || 'Vãng lai';
+    rowTop.appendChild(nameEl);
+    rowTop.appendChild(svcChip);
+
+    var rowBottom = document.createElement('div');
+    rowBottom.className = 'session-row-bottom';
+    var snip = document.createElement('span');
+    snip.className = 'session-snippet' + (isUnread ? ' unread' : '');
+    if (s.last_message_sender === 'admin') {
+      var selfSpan = document.createElement('span');
+      selfSpan.className = 'snippet-self';
+      selfSpan.textContent = 'Bạn: ';
+      snip.appendChild(selfSpan);
+    }
+    snip.appendChild(document.createTextNode(s.last_message || 'Chưa có tin nhắn'));
+    var timeEl = document.createElement('span');
+    timeEl.className = 'session-time';
+    timeEl.title = s.last_msg_time || '';
+    timeEl.textContent = s.last_msg_time_short || s.last_msg_time || '';
+    rowBottom.appendChild(snip);
+    rowBottom.appendChild(timeEl);
+
+    info.appendChild(rowTop);
+    info.appendChild(rowBottom);
+
+    item.appendChild(avatarWrap);
+    item.appendChild(info);
+    if (isUnread) {
+      var unreadDot = document.createElement('span');
+      unreadDot.className = 'session-unread-dot';
+      unreadDot.setAttribute('aria-label', 'Tin nhắn chưa đọc');
+      item.appendChild(unreadDot);
+    }
+    return item;
+  }
+
+  function renderSessionList(preserveScroll) {
+    updateEmptyMainCopy();
+    var listEl = document.getElementById('sessionList');
+    if (!listEl) return;
+    var prevScroll = preserveScroll ? listEl.scrollTop : 0;
+
+    listEl.textContent = '';
+    if (!state.sessions || state.sessions.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'sidebar-empty-state';
+      var icon = document.createElement('i');
+      icon.className = 'bx bx-chat';
+      icon.style.cssText = 'font-size:34px; color:var(--lc-faint); margin-bottom:6px; display:inline-block;';
+      var msg = document.createElement('p');
+      msg.style.cssText = 'font-size:12.5px; margin:0; line-height:1.4;';
+      msg.textContent = state.q
+        ? 'Không có kết quả.'
+        : 'Chưa có hội thoại.';
+      empty.appendChild(icon);
+      empty.appendChild(msg);
+
+      if (state.q) {
+        var resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'reset-filter-btn';
+        resetBtn.textContent = 'Xem tất cả';
+        resetBtn.onclick = resetAllFilters;
+        empty.appendChild(resetBtn);
+      }
+      listEl.appendChild(empty);
+      return;
+    }
+
+    var frag = document.createDocumentFragment();
+    state.sessions.forEach(function (s, idx) {
+      frag.appendChild(createSessionElement(s, idx));
+    });
+
+    if (state.hasMore) {
+      var footer = document.createElement('div');
+      footer.className = 'session-list-footer';
+      footer.id = 'sessionListFooter';
+
+      var moreBtn = document.createElement('button');
+      moreBtn.type = 'button';
+      moreBtn.className = 'load-more-btn';
+      moreBtn.id = 'btnLoadMoreSessions';
+      moreBtn.textContent = 'Tải thêm (+' + PAGE_SIZE + ')…';
+      moreBtn.onclick = loadMoreSessions;
+      footer.appendChild(moreBtn);
+
+      frag.appendChild(footer);
+    }
+
+    listEl.appendChild(frag);
+    if (preserveScroll) {
+      listEl.scrollTop = prevScroll;
+    }
+  }
+
+  function fetchSessionsList(options) {
+    options = options || {};
+    var append = Boolean(options.append);
+    var offset = append ? state.sessions.length : 0;
+    var limit = append ? PAGE_SIZE : Math.max(PAGE_SIZE, state.sessions.length);
+
+    var params = buildFilterParams({
+      limit: limit,
+      offset: offset
+    });
+
+    return fetch('/admin/account-sales/live-chat/sessions?' + params.toString(), {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (res) {
+        if (!res || !res.ok) return null;
+        if (append) {
+          var existingIds = {};
+          state.sessions.forEach(function (item) { existingIds[item.id] = true; });
+          (res.sessions || []).forEach(function (item) {
+            if (!existingIds[item.id]) state.sessions.push(item);
+          });
+        } else {
+          state.sessions = res.sessions || [];
+        }
+        state.hasMore = Boolean(res.has_more);
+        renderSessionList(options.preserveScroll !== false);
+
+        if (options.syncActiveFromList && currentSessionId && Array.isArray(res.sessions)) {
+          var activeSummary = res.sessions.find(function (x) { return Number(x.id) === Number(currentSessionId); });
+          if (activeSummary && state.activeSession) {
+            var changed = (activeSummary.last_message !== state.activeSession.last_message) ||
+              (activeSummary.last_msg_time !== state.activeSession.last_msg_time) ||
+              (activeSummary.unread_admin_count > 0);
+            if (changed) {
+              syncActiveMessagesOnly(currentSessionId);
+            }
+          }
+        }
+        return res;
+      })
+      .catch(function () { return null; });
+  }
+
+  function loadMoreSessions() {
+    var btn = document.getElementById('btnLoadMoreSessions');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Đang tải…';
+    }
+    fetchSessionsList({ append: true, preserveScroll: true }).finally(function () {
+      var b = document.getElementById('btnLoadMoreSessions');
+      if (b) {
+        b.disabled = false;
+        b.textContent = 'Tải thêm (+' + PAGE_SIZE + ')…';
+      }
+    });
+  }
+
+  function toggleClearBtn(val) {
+    var btn = document.getElementById('searchClearBtn');
+    if (btn) {
+      btn.classList.toggle('visible', Boolean(val && val.trim()));
+    }
+  }
+
+  function searchChats(q) {
+    clearTimeout(searchDebounceTimer);
+    state.q = (q || '').trim();
+    toggleClearBtn(q);
+    syncUrlState(false);
+    fetchSessionsList({ preserveScroll: false });
+  }
+
+  function handleSearchInput(val) {
+    toggleClearBtn(val);
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(function () {
+      state.q = (val || '').trim();
+      syncUrlState(false);
+      fetchSessionsList({ preserveScroll: false });
+    }, 250);
+  }
+
+  function clearSearch() {
+    var inp = document.getElementById('chatSearch');
+    if (inp) inp.value = '';
+    searchChats('');
+  }
+
+  function resetAllFilters() {
+    state.q = '';
+    var inp = document.getElementById('chatSearch');
+    if (inp) inp.value = '';
+    toggleClearBtn('');
+    syncUrlState(false);
+    fetchSessionsList({ preserveScroll: false });
+  }
+
+  function handleSessionClick(ev, sessionId) {
+    if (ev && (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1)) {
+      return true;
+    }
+    if (ev && ev.preventDefault) ev.preventDefault();
+    selectSession(sessionId, { pushHistory: true });
+    return false;
+  }
+
+  function serverAttachment(m) {
+    return m.attachment_url ? { url: m.attachment_url, name: m.attachment_name, type: m.attachment_type } : null;
+  }
+
+  function buildMessageBubbleElement(sender, senderName, message, timeStr, attachment) {
+    var wrap = document.createElement('div');
+    wrap.className = 'msg-bubble-wrap ' + (sender === 'admin' || sender === 'system' ? sender : 'customer');
+
+    var meta = document.createElement('div');
+    meta.className = 'msg-sender-meta';
+
+    if (sender === 'admin' || sender === 'system') {
+      var whoSpan = document.createElement('span');
+      whoSpan.textContent = sender === 'admin' ? 'Bạn' : 'Hệ thống';
+      var dotSpan = document.createElement('span');
+      dotSpan.textContent = '·';
+      meta.appendChild(whoSpan);
+      meta.appendChild(dotSpan);
+    }
+
+    var timeSpan = document.createElement('span');
+    timeSpan.textContent = timeStr || 'Vừa xong';
+    meta.appendChild(timeSpan);
+
+    if (sender === 'admin') {
+      var checkIcon = document.createElement('i');
+      checkIcon.className = 'bx bx-check-double text-primary';
+      checkIcon.style.fontSize = '14px';
+      checkIcon.title = 'Đã gửi';
+      meta.appendChild(checkIcon);
+    }
+
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    if (message || !attachment) bubble.textContent = message || '';
+    if (attachment) bubble.appendChild(ChatComposer.attachmentNode(attachment));
+
+    wrap.appendChild(meta);
+    wrap.appendChild(bubble);
+    return wrap;
+  }
+
+  function renderChatStream(detail) {
+    if (!chatStream) return;
+    chatStream.textContent = '';
+    renderedMsgIds = {};
+
+    var msgs = Array.isArray(detail.messages) ? detail.messages : [];
+    if (msgs.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'sidebar-empty-state';
+      empty.style.padding = '36px 20px';
+      var p = document.createElement('p');
+      p.style.cssText = 'margin:0; font-size:12.5px;';
+      p.textContent = 'Chưa có tin nhắn';
+      empty.appendChild(p);
+      chatStream.appendChild(empty);
+      return;
+    }
+
+    var lastDate = '';
+    var frag = document.createDocumentFragment();
+    msgs.forEach(function (m) {
+      if (m.id != null) renderedMsgIds[String(m.id)] = true;
+      if (m.date_str && m.date_str !== lastDate) {
+        lastDate = m.date_str;
+        var sep = document.createElement('div');
+        sep.className = 'date-separator';
+        var sp = document.createElement('span');
+        sp.textContent = m.date_str;
+        sep.appendChild(sp);
+        frag.appendChild(sep);
+      }
+      frag.appendChild(buildMessageBubbleElement(m.sender, m.sender_name, m.message, m.time_str, serverAttachment(m)));
+    });
+    chatStream.appendChild(frag);
+    scrollChatToBottom();
+  }
+
+  function updateStatusBadgesUI(statusVal) {
+    var st = statusVal || 'open';
+    var dot = document.getElementById('mainHeaderDot');
+    if (dot) {
+      dot.className = 'session-status-dot' + (st === 'closed' ? ' closed' : (st === 'resolved' ? ' resolved' : ''));
+    }
+    var wrap = document.getElementById('mainStatusWrap');
+    if (wrap) wrap.setAttribute('data-status', st);
+    var sel = document.getElementById('mainStatusSelect');
+    if (sel) sel.value = st;
+
+    var infoBadge = document.getElementById('infoStatusBadge');
+    if (infoBadge) {
+      infoBadge.className = 'lc-status-pill' + (st === 'resolved' ? ' is-resolved' : (st === 'closed' ? ' is-closed' : ''));
+      infoBadge.textContent = st === 'resolved' ? 'Đã xong' : (st === 'closed' ? 'Đã đóng' : 'Đang mở');
+    }
+  }
+
+  function populateActiveSession(detail) {
+    state.activeSession = detail;
+    currentSessionId = detail ? detail.id : null;
+
+    var emptyView = document.getElementById('chatEmptyView');
+    var activeView = document.getElementById('chatActiveView');
+    var infoActive = document.getElementById('infoActiveView');
+    var infoEmpty = document.getElementById('infoEmptyState');
+
+    if (!detail) {
+      updateEmptyMainCopy();
+      if (emptyView) emptyView.classList.remove('is-hidden');
+      if (activeView) activeView.classList.add('is-hidden');
+      if (infoActive) infoActive.classList.add('is-hidden');
+      if (infoEmpty) infoEmpty.classList.remove('is-hidden');
+      return;
+    }
+
+    if (emptyView) emptyView.classList.add('is-hidden');
+    if (activeView) activeView.classList.remove('is-hidden');
+    if (infoActive) infoActive.classList.remove('is-hidden');
+    if (infoEmpty) infoEmpty.classList.add('is-hidden');
+
+    renderAvatarContent(document.getElementById('mainHeaderAvatar'), detail.customer_name, detail.customer_avatar);
+    renderAvatarContent(document.getElementById('infoLeadAvatar'), detail.customer_name, detail.customer_avatar);
+
+    var custName = detail.customer_name || 'Khách truy cập';
+    var mainName = document.getElementById('mainCustomerName');
+    if (mainName) mainName.textContent = detail.customer_name || 'Khách hàng';
+    var infoName = document.getElementById('infoLeadName');
+    if (infoName) infoName.textContent = custName;
+
+    var contact = (detail.customer_contact || '').trim();
+    var cLink = document.getElementById('mainCustomerContactLink');
+    var cText = document.getElementById('mainCustomerContactText');
+    var cCopyBtn = document.getElementById('btnCopyMainContact');
+    if (cLink && cText) {
+      if (contact) {
+        cText.textContent = contact;
+        cLink.href = contact.indexOf('@') !== -1 ? ('mailto:' + contact) : ('tel:' + contact);
+        cLink.classList.remove('is-hidden');
+      } else {
+        cLink.classList.add('is-hidden');
+      }
+    }
+    if (cCopyBtn) {
+      cCopyBtn.classList.toggle('is-hidden', !contact);
+    }
+
+    var crEl = document.getElementById('mainCreatedTime');
+    if (crEl) {
+      crEl.title = detail.created_time || '';
+      crEl.textContent = detail.created_time ? detail.created_time.slice(0, 11) : '';
+    }
+
+    var waitCue = document.getElementById('mainWaitingCue');
+    if (waitCue) {
+      waitCue.classList.toggle('is-hidden', !(detail.status === 'open' && detail.last_message_sender === 'customer'));
+    }
+
+    var svcPill = document.getElementById('mainServicePill');
+    var svcText = document.getElementById('mainServiceText');
+    if (svcPill && svcText) {
+      svcPill.title = detail.service_name || 'Vãng lai';
+      svcText.textContent = detail.service_name || 'Vãng lai';
+    }
+
+    updateStatusBadgesUI(detail.status);
+
+    var actionsRow = document.getElementById('infoLeadActions');
+    if (actionsRow) {
+      actionsRow.textContent = '';
+      if (contact && contact.indexOf('@') !== -1) {
+        var mailBtn = document.createElement('a');
+        mailBtn.href = 'mailto:' + contact;
+        mailBtn.className = 'lead-action-btn';
+        mailBtn.style.gridColumn = 'span 2';
+        mailBtn.title = 'Gửi Email';
+        mailBtn.innerHTML = '<i class="bx bx-envelope text-primary"></i><span>Gửi Email</span>';
+        actionsRow.appendChild(mailBtn);
+
+        var copyMail = document.createElement('button');
+        copyMail.type = 'button';
+        copyMail.className = 'lead-action-btn';
+        copyMail.onclick = copyCurrentContact;
+        copyMail.innerHTML = '<i class="bx bx-copy"></i><span>Chép Email</span>';
+        actionsRow.appendChild(copyMail);
+      } else if (contact) {
+        var callBtn = document.createElement('a');
+        callBtn.href = 'tel:' + contact;
+        callBtn.className = 'lead-action-btn';
+        callBtn.title = 'Bấm gọi ngay';
+        callBtn.innerHTML = '<i class="bx bx-phone-call text-success"></i><span>Gọi điện</span>';
+        actionsRow.appendChild(callBtn);
+
+        var zaloBtn = document.createElement('a');
+        var cleanPhone = contact.replace(/[^0-9+]/g, '');
+        zaloBtn.href = 'https://zalo.me/' + cleanPhone;
+        zaloBtn.target = '_blank';
+        zaloBtn.rel = 'noopener';
+        zaloBtn.className = 'lead-action-btn';
+        zaloBtn.title = 'Mở Zalo chat';
+        zaloBtn.innerHTML = '<i class="bx bx-message-rounded-dots text-primary"></i><span>Chat Zalo</span>';
+        actionsRow.appendChild(zaloBtn);
+
+        var copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'lead-action-btn';
+        copyBtn.onclick = copyCurrentContact;
+        copyBtn.innerHTML = '<i class="bx bx-copy"></i><span>Chép SĐT</span>';
+        actionsRow.appendChild(copyBtn);
+      } else {
+        var askBtn = document.createElement('button');
+        askBtn.type = 'button';
+        askBtn.className = 'lead-action-btn';
+        askBtn.style.gridColumn = 'span 3';
+        askBtn.innerHTML = '<i class="bx bx-phone-plus text-primary"></i><span>Xin SĐT khách</span>';
+        askBtn.onclick = function () {
+          insertQuickReply('Anh/chị cho em xin SĐT hoặc Zalo để bên em hỗ trợ nhanh hơn nhé!');
+        };
+        actionsRow.appendChild(askBtn);
+      }
+    }
+
+    var infoSvc = document.getElementById('infoServiceName');
+    if (infoSvc) infoSvc.textContent = detail.service_name || 'Vãng lai';
+
+    var grpRow = document.getElementById('infoServiceGroupRow');
+    var grpEl = document.getElementById('infoServiceGroup');
+    if (grpRow && grpEl) {
+      if (detail.service_group) {
+        grpEl.textContent = detail.service_group;
+        grpRow.classList.remove('is-hidden');
+      } else {
+        grpRow.classList.add('is-hidden');
+      }
+    }
+
+    var urlRow = document.getElementById('infoCurrentUrlRow');
+    var urlLink = document.getElementById('infoCurrentUrlLink');
+    if (urlRow && urlLink) {
+      if (detail.current_url) {
+        urlLink.href = safeUrlHref(detail.current_url);
+        urlLink.title = detail.current_url;
+        urlLink.textContent = detail.current_url.length > 22 ? (detail.current_url.slice(0, 22) + '… ↗') : (detail.current_url + ' ↗');
+        urlRow.classList.remove('is-hidden');
+      } else {
+        urlRow.classList.add('is-hidden');
+      }
+    }
+
+    var msgs = Array.isArray(detail.messages) ? detail.messages : [];
+    var custCnt = 0;
+    var adminCnt = 0;
+    msgs.forEach(function (m) {
+      if (m.sender === 'admin') adminCnt++;
+      else custCnt++;
+    });
+    var stId = document.getElementById('infoStatId');
+    if (stId) stId.textContent = '#' + detail.id;
+    var stTot = document.getElementById('totalMsgCount');
+    if (stTot) stTot.textContent = String(msgs.length);
+    var stCr = document.getElementById('infoStatCreated');
+    if (stCr) stCr.textContent = detail.created_time ? detail.created_time.slice(0, 5) : '--:--';
+    var stLst = document.getElementById('infoStatLast');
+    if (stLst) stLst.textContent = detail.last_msg_time ? detail.last_msg_time.slice(0, 5) : '--:--';
+    var elC = document.getElementById('customerMsgCount');
+    if (elC) elC.textContent = String(custCnt);
+    var elA = document.getElementById('adminMsgCount');
+    if (elA) elA.textContent = String(adminCnt);
+
+    renderChatStream(detail);
+    loadAgentNote(detail.id);
+  }
+
+  function syncActiveMessagesOnly(sessionId) {
+    return fetch('/admin/account-sales/live-chat/' + sessionId + '/detail', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (res) {
+        if (!res || !res.ok || !res.data || Number(res.data.id) !== Number(currentSessionId)) return;
+        var detail = res.data;
+        state.activeSession = detail;
+        var msgs = Array.isArray(detail.messages) ? detail.messages : [];
+        var appended = false;
+        msgs.forEach(function (m) {
+          if (m.id != null && !renderedMsgIds[String(m.id)]) {
+            appendMessageBubble(m.sender, m.sender_name, m.message, m.time_str || 'Vừa xong', m.id, serverAttachment(m));
+            appended = true;
+          }
+        });
+        var custCnt = 0;
+        var adminCnt = 0;
+        msgs.forEach(function (m) {
+          if (m.sender === 'admin') adminCnt++;
+          else custCnt++;
+        });
+        var stTot = document.getElementById('totalMsgCount');
+        if (stTot) stTot.textContent = String(msgs.length);
+        var elC = document.getElementById('customerMsgCount');
+        if (elC) elC.textContent = String(custCnt);
+        var elA = document.getElementById('adminMsgCount');
+        if (elA) elA.textContent = String(adminCnt);
+        var waitCue = document.getElementById('mainWaitingCue');
+        if (waitCue) {
+          waitCue.classList.toggle('is-hidden', !(detail.status === 'open' && detail.last_message_sender === 'customer'));
+        }
+        if (appended) scrollChatToBottom();
+      })
+      .catch(function () {});
+  }
+
+  function selectSession(sessionId, opts) {
+    opts = opts || {};
+    closeMobileList();
+    if (!sessionId) return;
+    var mySeq = ++switchSeq;
+
+    currentSessionId = Number(sessionId);
+    state.sessions.forEach(function (item) {
+      if (Number(item.id) === currentSessionId) {
+        item.unread_admin_count = 0;
+      }
+    });
+    renderSessionList(true);
+
+    if (opts.pushHistory !== false) {
+      syncUrlState(true);
+    }
+
+    fetch('/admin/account-sales/live-chat/' + sessionId + '/detail', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (res) {
+        if (mySeq !== switchSeq) return;
+        if (res && res.ok && res.data) {
+          populateActiveSession(res.data);
+          fetchSessionsList({ preserveScroll: true });
+        }
+      })
+      .catch(function (err) {
+        console.error('Switch session error:', err);
+      });
+  }
+
+  window.addEventListener('popstate', function () {
+    var m = window.location.pathname.match(/\/admin\/account-sales\/live-chat\/(\d+)/);
+    var sp = new URLSearchParams(window.location.search);
+    state.q = sp.get('q') || '';
+    var inp = document.getElementById('chatSearch');
+    if (inp) inp.value = state.q;
+    toggleClearBtn(state.q);
+    fetchSessionsList({ preserveScroll: false });
+    if (m && m[1]) {
+      selectSession(Number(m[1]), { pushHistory: false });
+    } else {
+      currentSessionId = null;
+      populateActiveSession(null);
+      renderSessionList(true);
+      openMobileList();
+    }
+  });
+
+  function insertQuickReply(text) {
+    var ta = document.getElementById('replyText');
+    if (ta) {
+      ta.value = text;
+      ta.focus();
+    }
+  }
+
+  function handleTextareaKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendAdminReply(e);
+    }
+  }
+
+  function toggleInfoPanel() {
+    var panel = document.getElementById('chatInfoPanel');
+    var btn = document.getElementById('btnToggleInfo');
+    if (panel) {
+      panel.classList.toggle('collapsed');
+      var isOpen = !panel.classList.contains('collapsed');
+      if (btn) btn.classList.toggle('active', isOpen);
+    }
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      var panel = document.getElementById('chatInfoPanel');
+      if (panel && !panel.classList.contains('collapsed')) {
+        toggleInfoPanel();
+      }
+    }
+  });
+
+  function updateSessionStatus(sessionId, status) {
+    if (!sessionId) return;
+    var fd = new FormData();
+    fd.append('status', status);
+    fetch('/admin/account-sales/live-chat/' + sessionId + '/status', {
+      method: 'POST',
+      body: fd
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.ok) {
+          if (state.activeSession && Number(state.activeSession.id) === Number(sessionId)) {
+            state.activeSession.status = status;
+            if (status !== 'open') state.activeSession.unread_admin_count = 0;
+          }
+          state.sessions.forEach(function (item) {
+            if (Number(item.id) === Number(sessionId)) {
+              item.status = status;
+              if (status !== 'open') item.unread_admin_count = 0;
+            }
+          });
+          updateStatusBadgesUI(status);
+          var waitCue = document.getElementById('mainWaitingCue');
+          if (waitCue && status !== 'open') waitCue.classList.add('is-hidden');
+          fetchSessionsList({ preserveScroll: true });
+          if (window.toastr) {
+            toastr.success('Đã cập nhật trạng thái phiên trò chuyện!');
+          }
+        }
+      });
+  }
+
+  var replyInput = document.getElementById('replyText');
+  var replyComposer = replyInput ? ChatComposer({
+    input: replyInput,
+    fileInput: document.getElementById('replyFile'),
+    attachButton: document.getElementById('replyAttach'),
+    emojiButton: document.getElementById('replyEmoji'),
+    emojiPanel: document.getElementById('replyEmojiPanel'),
+    tray: document.getElementById('replyTray'),
+    dropTarget: document.getElementById('chatStream')
+  }) : { files: function () { return []; }, clear: function () {} };
+
+  function sendAdminReply(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!currentSessionId) return;
+
+    var ta = document.getElementById('replyText');
+    var text = ta ? ta.value.trim() : '';
+    var files = replyComposer.files();
+    if (!text && !files.length) return;
+
+    var btn = document.getElementById('sendBtn');
+    if (btn) btn.disabled = true;
+
+    var targetSessionId = currentSessionId;
+    var fd = new FormData();
+    fd.append('message', text);
+    files.forEach(function (file) { fd.append('files', file, file.name); });
+
+    fetch('/admin/account-sales/live-chat/' + targetSessionId + '/reply', {
+      method: 'POST',
+      body: fd
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        if (res.ok) {
+          ta.value = '';
+          replyComposer.clear();
+          (res.messages || []).forEach(function (m) {
+            appendMessageBubble('admin', m.sender_name || res.sender_name || 'Quản trị viên', m.message, m.time || 'Vừa xong', m.id, serverAttachment(m));
+            incrementMsgCounters('admin');
+          });
+          scrollChatToBottom();
+
+          if (state.activeSession && Number(state.activeSession.id) === Number(targetSessionId)) {
+            state.activeSession.last_message_sender = 'admin';
+            state.activeSession.last_message = res.message;
+            var waitCue = document.getElementById('mainWaitingCue');
+            if (waitCue) waitCue.classList.add('is-hidden');
+            var stLst = document.getElementById('infoStatLast');
+            if (stLst && res.time) stLst.textContent = res.time;
+          }
+
+          state.sessions.forEach(function (item) {
+            if (Number(item.id) === Number(targetSessionId)) {
+              item.last_message = res.message;
+              item.last_message_sender = 'admin';
+              item.unread_admin_count = 0;
+              if (res.time) item.last_msg_time_short = res.time;
+            }
+          });
+          renderSessionList(true);
+          fetchSessionsList({ preserveScroll: true });
+        } else {
+          alert(res.error || 'Lỗi gửi tin nhắn.');
+        }
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        console.error(err);
+      });
+  }
+
+  function appendMessageBubble(sender, senderName, message, timeStr, messageId, attachment) {
+    if (!chatStream) return;
+    if (messageId != null) {
+      if (renderedMsgIds[String(messageId)]) return;
+      renderedMsgIds[String(messageId)] = true;
+    }
+    var emptyNotice = chatStream.querySelector('.sidebar-empty-state');
+    if (emptyNotice) emptyNotice.remove();
+
+    var wrap = buildMessageBubbleElement(sender, senderName, message, timeStr, attachment);
+    chatStream.appendChild(wrap);
+    scrollChatToBottom();
+  }
+
+  function incrementMsgCounters(sender) {
+    var totalEl = document.getElementById('totalMsgCount');
+    if (totalEl) totalEl.textContent = String((parseInt(totalEl.textContent, 10) || 0) + 1);
+    if (sender === 'admin') {
+      var adminEl = document.getElementById('adminMsgCount');
+      if (adminEl) adminEl.textContent = String((parseInt(adminEl.textContent, 10) || 0) + 1);
+    } else {
+      var custEl = document.getElementById('customerMsgCount');
+      if (custEl) custEl.textContent = String((parseInt(custEl.textContent, 10) || 0) + 1);
+    }
+  }
+
+  function copyToClipboard(text, successMsg) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        if (window.toastr) toastr.success(successMsg || 'Đã sao chép vào bộ nhớ đệm!');
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (window.toastr) toastr.success(successMsg || 'Đã sao chép!');
+    }
+  }
+
+  function copyCurrentContact() {
+    var contact = state.activeSession ? (state.activeSession.customer_contact || '') : '';
+    if (!contact) return;
+    copyToClipboard(contact, contact.indexOf('@') !== -1 ? 'Đã chép Email!' : 'Đã chép số điện thoại!');
+  }
+
+  var noteSaveTimer = null;
+  function saveAgentNote(sessionId, note) {
+    if (!sessionId) return;
+    clearTimeout(noteSaveTimer);
+    noteSaveTimer = setTimeout(function () {
+      try {
+        localStorage.setItem('sl_livechat_note_' + sessionId, note);
+        var toast = document.getElementById('noteSavedToast');
+        if (toast) {
+          toast.style.display = 'inline-flex';
+          setTimeout(function () { toast.style.display = 'none'; }, 2000);
+        }
+      } catch (e) {
+        console.error('LocalStorage error:', e);
+      }
+    }, 400);
+  }
+
+  function loadAgentNote(sessionId) {
+    var ta = document.getElementById('agentNoteText');
+    if (ta && sessionId) {
+      ta.value = localStorage.getItem('sl_livechat_note_' + sessionId) || '';
+    }
+  }
+  if (currentSessionId) loadAgentNote(currentSessionId);
+
+  function copyLeadSummary() {
+    if (!state.activeSession) return;
+    var s = state.activeSession;
+    var noteVal = document.getElementById('agentNoteText') ? document.getElementById('agentNoteText').value.trim() : '';
+    var text = [
+      '[THÔNG TIN KHÁCH CHAT]',
+      '• Khách hàng: ' + (s.customer_name || 'Khách truy cập'),
+      '• Liên hệ: ' + (s.customer_contact || 'Chưa cung cấp'),
+      '• Dịch vụ: ' + (s.service_name || 'Chưa rõ'),
+      '• URL: ' + window.location.origin + (s.current_url || ''),
+      '• Tạo lúc: ' + (s.created_time || ''),
+      noteVal ? ('• Ghi chú: ' + noteVal) : ''
+    ].filter(Boolean).join('\n');
+    copyToClipboard(text, 'Đã sao chép thông tin khách!');
+  }
+
+  function refreshLiveChat(manualClick) {
+    if (refreshing) { refreshQueued = true; return; }
+    refreshing = true;
+    var refreshBtn = document.getElementById('btnRefreshList');
+    if (manualClick && refreshBtn) refreshBtn.classList.add('spinning');
+
+    fetchSessionsList({ preserveScroll: true, syncActiveFromList: true })
+      .finally(function () {
+        refreshing = false;
+        if (refreshBtn) refreshBtn.classList.remove('spinning');
+        if (refreshQueued) {
+          refreshQueued = false;
+          refreshLiveChat(false);
+        }
+      });
+  }
+
+  setInterval(function () {
+    if (!document.hidden) refreshLiveChat(false);
+  }, LIST_REFRESH_MS);
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) refreshLiveChat(false);
+  });
+
+  // WebSocket thời gian thực
+  (function initLiveChatWs() {
+    var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = proto + '//' + window.location.host + '/ws/notifications';
+    var ws;
+
+    function connect() {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.onmessage = function (ev) {
+          try {
+            var payload = JSON.parse(ev.data);
+            if (payload && payload.type === 'CHAT_MESSAGE') {
+              var data = payload.data || {};
+              if (currentSessionId && Number(data.session_id) === Number(currentSessionId)) {
+                if (data.sender === 'customer' || data.sender === 'system') {
+                  var isNewMsg = data.message_id == null || !renderedMsgIds[String(data.message_id)];
+                  appendMessageBubble(data.sender, data.sender_name || 'Khách hàng', data.message, data.time_short || 'Vừa xong', data.message_id, data.attachment);
+                  if (isNewMsg && data.sender === 'customer') {
+                    incrementMsgCounters('customer');
+                  }
+                  if (state.activeSession) {
+                    state.activeSession.last_message_sender = 'customer';
+                    state.activeSession.last_message = data.preview || data.message;
+                    state.activeSession.status = 'open';
+                  }
+                  updateStatusBadgesUI('open');
+                  var waitCue = document.getElementById('mainWaitingCue');
+                  if (waitCue) waitCue.classList.remove('is-hidden');
+                  if (!document.hidden) {
+                    fetch('/admin/account-sales/live-chat/' + currentSessionId + '/detail', { credentials: 'same-origin' })
+                      .then(function () { fetchSessionsList({ preserveScroll: true }); })
+                      .catch(function () {});
+                  } else {
+                    refreshLiveChat(false);
+                  }
+                }
+              } else {
+                refreshLiveChat(false);
+                if (window.toastr) {
+                  toastr.options.escapeHtml = true;
+                  toastr.info(
+                    data.message || data.preview || 'Tin nhắn mới',
+                    '💬 ' + (data.customer_name || 'Khách') + ' (' + (data.service_name || 'Dịch vụ') + ')',
+                    {
+                      timeOut: 6000,
+                      onclick: function () {
+                        selectSession(data.session_id, { pushHistory: true });
+                      }
+                    }
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            console.error('WS parse error:', e);
+          }
+        };
+        ws.onclose = function () {
+          setTimeout(connect, 4000);
+        };
+      } catch (err) {
+        console.warn('WS not supported or failed to connect:', err);
+      }
+    }
+    connect();
+  })();
+</script>
+{% endblock %}

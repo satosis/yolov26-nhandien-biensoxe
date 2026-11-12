@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/static/favicon.ico?v=clean">
+  <title>Chính sách quyền riêng tư | {{ company.company_name }}</title>
+  <meta name="description" content="Chính sách quyền riêng tư của {{ company.company_name }}: dữ liệu được thu thập, cách sử dụng dữ liệu người dùng Google (Gmail, Google Ads, Google Maps), thời hạn lưu trữ và quyền yêu cầu xóa dữ liệu.">
+  <meta name="robots" content="index, follow">
+  {% include "partials/tracking_head.html" %}
+  <style>
+    :root { --ink: #1f2937; --muted: #6b7280; --line: #e5e7eb; --brand: #b91c1c; --soft: #f9fafb; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); line-height: 1.7; background: #fff; }
+    header.site { border-bottom: 1px solid var(--line); background: var(--soft); }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 0 20px; }
+    header.site .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; padding-bottom: 16px; }
+    .brand { font-weight: 800; font-size: 1.05rem; color: var(--ink); text-decoration: none; }
+    nav a { color: var(--brand); text-decoration: none; font-weight: 600; margin-left: 18px; font-size: .95rem; }
+    h1 { font-size: 1.9rem; line-height: 1.25; margin: 32px 0 6px; }
+    h2 { font-size: 1.3rem; margin: 34px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+    h3 { font-size: 1.05rem; margin: 20px 0 6px; }
+    p, li { font-size: 1rem; }
+    ul { padding-left: 22px; }
+    .meta { color: var(--muted); font-size: .92rem; }
+    .box { background: var(--soft); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 8px; padding: 14px 18px; margin: 18px 0; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: .95rem; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: var(--soft); }
+    footer.site { margin-top: 48px; border-top: 1px solid var(--line); background: var(--soft); padding: 22px 0 30px; font-size: .92rem; color: var(--muted); }
+    a { color: var(--brand); }
+  </style>
+</head>
+<body>
+  {% include "partials/tracking_body.html" %}
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="/xe-cau">{{ company.company_name }}</a>
+      <nav>
+        <a href="/xe-cau">Trang chủ ứng dụng</a>
+        <a href="/data-deletion">Xóa dữ liệu</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <h1>Chính sách quyền riêng tư</h1>
+    <p class="meta">Ứng dụng: <strong>{{ company.company_name }}</strong> · Phiên bản 2026.2 · Cập nhật ngày 29/10/2026</p>
+
+    <div class="box">
+      <strong>Tóm tắt.</strong> Chúng tôi chỉ thu thập dữ liệu cần thiết để vận hành dịch vụ vận tải, cho thuê xe cẩu, quả cân kiểm định, container, kinh doanh thiết bị điện năng lượng mặt trời, cho thuê máy ảnh và photobooth, lập hóa đơn và quản lý nội bộ. Dữ liệu lấy từ tài khoản Google của công ty (Gmail, Google Ads) chỉ dùng cho tính năng nội bộ nêu ở mục 3, không bán, không dùng để quảng cáo và không chuyển cho bên thứ ba ngoài phạm vi cần thiết. Bạn có thể thu hồi quyền hoặc yêu cầu xóa dữ liệu bất cứ lúc nào (mục 7). An English summary for Google API reviewers is in section 11.
+    </div>
+
+    <h2>1. Đơn vị vận hành và phạm vi áp dụng</h2>
+    <p>Chính sách này áp dụng cho ứng dụng <strong>{{ company.company_name }}</strong> (sau đây gọi là "Ứng dụng", "chúng tôi"), gồm:</p>
+    <ul>
+      <li>website giới thiệu dịch vụ xe cẩu tự hành, cho thuê quả cân kiểm định, cho thuê container, kinh doanh thiết bị điện năng lượng mặt trời, cho thuê máy ảnh và photobooth và biểu mẫu nhận yêu cầu tư vấn;</li>
+      <li>phần mềm quản trị nội bộ: vận tải, hóa đơn, công nợ, nhân sự, bãi xe, quảng cáo và trang Facebook của công ty;</li>
+      <li>các kết nối tới dịch vụ bên ngoài mà công ty chủ động cấp quyền: Google (Gmail, Google Ads, Google Maps), Meta/Facebook, Zalo, Telegram và nhà cung cấp hóa đơn điện tử BKAV.</li>
+    </ul>
+    <p>
+      <strong>Pháp nhân:</strong> {{ company.company_name }} · Mã số thuế {{ company.tax_id }}<br>
+      <strong>Địa chỉ:</strong> {{ company.address }}<br>
+      <strong>Email liên hệ về quyền riêng tư:</strong> <a href="mailto:{{ company.email }}">{{ company.email }}</a><br>
+      <strong>Điện thoại:</strong> {{ company.phone }}
+    </p>
+
+    <h2>2. Dữ liệu chúng tôi thu thập</h2>
+    <table>
+      <thead><tr><th>Nhóm dữ liệu</th><th>Nội dung</th><th>Nguồn và mục đích</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Khách gửi yêu cầu tư vấn</td>
+          <td>Họ tên, số điện thoại, tên công ty (nếu có), nhu cầu, trang đã gửi biểu mẫu, thời điểm khách đồng ý với chính sách này; thông tin nguồn truy cập như tham số quảng cáo (gclid, fbclid, utm), địa chỉ trang đích và trang giới thiệu.</td>
+          <td>Do khách tự nhập và tích chọn đồng ý khi gửi biểu mẫu. Dùng để liên hệ báo giá và để biết yêu cầu đến từ kênh nào. Thông tin nguồn truy cập được trình duyệt giữ tối đa 30 ngày.</td>
+        </tr>
+        <tr>
+          <td>Khách hàng, đối tác vận tải</td>
+          <td>Tên đơn vị, mã số thuế, địa chỉ, số điện thoại, tuyến vận chuyển, biển số xe, thông tin hóa đơn và công nợ.</td>
+          <td>Từ hợp đồng, đơn hàng, tin nhắn đặt xe. Dùng để thực hiện vận chuyển, lập hóa đơn, đối soát công nợ.</td>
+        </tr>
+        <tr>
+          <td>Nhân sự công ty</td>
+          <td>Dữ liệu chấm công, tăng ca, lương, tạm ứng.</td>
+          <td>Từ nhân sự công ty. Dùng để tính lương và quản lý lao động; chỉ người được phân quyền xem.</td>
+        </tr>
+        <tr>
+          <td>Camera và biển số tại bãi xe (hệ thống Parking Camera AI)</td>
+          <td>Hình ảnh, video, biển số xe ra vào bãi.</td>
+          <td>Từ camera lắp tại bãi xe của công ty. Dùng để nhận diện xe, an ninh bãi. Tự động xóa sau 30 ngày (video ghi hình thông minh 15 ngày).</td>
+        </tr>
+        <tr>
+          <td>Tin nhắn nhóm Zalo và Telegram của công ty</td>
+          <td>Nội dung tin, hình ảnh, vị trí gửi trong các nhóm làm việc.</td>
+          <td>Dùng để lập đơn vận chuyển, hóa đơn và thông báo nội bộ. Chỉ đọc các nhóm đã được cấu hình cho công ty.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>Sự đồng ý của khách gửi yêu cầu tư vấn:</strong> trước khi gửi biểu mẫu, khách phải tích chọn ô đồng ý để chúng tôi xử lý họ tên, số điện thoại và nội dung yêu cầu nhằm liên hệ báo giá. Chúng tôi lưu thời điểm đồng ý để chứng minh. Khách có thể rút lại sự đồng ý bất cứ lúc nào theo mục 7; việc rút lại không ảnh hưởng đến các xử lý đã thực hiện trước đó.</p>
+
+    <h2>3. Dữ liệu người dùng Google</h2>
+    <p>Ứng dụng chỉ truy cập dữ liệu Google khi quản trị viên của công ty chủ động cấp quyền. Từng quyền được dùng như sau:</p>
+    <h3>3.1 Gmail (quyền chỉ đọc) và địa chỉ email</h3>
+    <ul>
+      <li><strong>Quyền:</strong> <code>gmail.readonly</code> và <code>userinfo.email</code>.</li>
+      <li><strong>Dữ liệu truy cập:</strong> thư trong hộp thư Gmail của công ty có liên quan đến hóa đơn điện tử đầu vào (tiêu đề, nội dung và tệp PDF/ZIP đính kèm) và địa chỉ email của tài khoản đã kết nối.</li>
+      <li><strong>Mục đích:</strong> nhận diện và nhập hóa đơn điện tử đầu vào vào sổ sách kế toán của công ty. Ứng dụng không gửi, sửa hay xóa thư.</li>
+      <li><strong>Lưu trữ:</strong> chỉ giữ thông tin hóa đơn cần thiết và tệp hóa đơn; mã làm mới (refresh token) được mã hóa trước khi lưu.</li>
+    </ul>
+    <h3>3.2 Google Ads</h3>
+    <ul>
+      <li><strong>Quyền:</strong> <code>adwords</code>, chỉ khi chủ tài khoản quảng cáo của công ty cấp quyền.</li>
+      <li><strong>Dữ liệu truy cập:</strong> số liệu chiến dịch của chính tài khoản Google Ads của công ty (lượt hiển thị, lượt nhấp, cuộc gọi, chi phí, trạng thái chiến dịch).</li>
+      <li><strong>Mục đích:</strong> hiển thị hiệu quả quảng cáo và bật/tạm dừng chiến dịch theo lịch của công ty. Dữ liệu không dùng để lập hồ sơ cá nhân hay quảng cáo cho bên khác.</li>
+    </ul>
+    <h3>3.3 Google Maps Platform</h3>
+    <ul>
+      <li>Địa chỉ điểm đi và điểm đến của chuyến vận tải được gửi tới Google Maps để chuẩn hóa địa chỉ và tính khoảng cách. Không gửi thông tin định danh cá nhân.</li>
+    </ul>
+    <h3>3.4 Cam kết khi sử dụng dữ liệu Google</h3>
+    <ul>
+      <li>Việc sử dụng và chuyển giao thông tin nhận từ Google API tới bất kỳ ứng dụng nào khác tuân thủ <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Chính sách dữ liệu người dùng của Google API Services</a>, bao gồm các yêu cầu Sử dụng hạn chế (Limited Use).</li>
+      <li>Chúng tôi không bán dữ liệu Google, không dùng để hiển thị quảng cáo và không dùng để huấn luyện mô hình AI đa dụng.</li>
+      <li>Người thật chỉ xem dữ liệu Google khi cần thiết cho bảo mật, tuân thủ pháp luật hoặc khi được chủ dữ liệu cho phép.</li>
+      <li><strong>Thu hồi quyền:</strong> tại <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a> hoặc dùng nút "Ngắt kết nối Gmail" trong trang quản trị. Sau khi thu hồi, Ứng dụng không còn đọc thêm dữ liệu.</li>
+    </ul>
+
+    <h2>4. Mục đích sử dụng</h2>
+    <ul>
+      <li>Cung cấp dịch vụ vận tải, xe cẩu, quả cân kiểm định, cho thuê container, thiết bị điện năng lượng mặt trời, cho thuê máy ảnh và photobooth và liên hệ báo giá.</li>
+      <li>Lập, gửi và đối soát hóa đơn; quản lý công nợ, sổ quỹ, nhân sự và bãi xe.</li>
+      <li>Đo lường hiệu quả quảng cáo và quản lý trang Facebook của công ty.</li>
+      <li>Bảo mật hệ thống, phát hiện truy cập bất thường, tuân thủ nghĩa vụ pháp luật.</li>
+    </ul>
+
+    <h2>5. Chia sẻ dữ liệu</h2>
+    <p>Chúng tôi không bán dữ liệu cá nhân. Dữ liệu chỉ được chuyển cho các nhà cung cấp dịch vụ trong phạm vi cần thiết để Ứng dụng hoạt động: Google (Gmail, Ads, Maps, Cloud), Cloudflare (đường truyền an toàn), Meta/Facebook (trang Facebook của công ty), Zalo và Telegram (nhóm làm việc, thông báo), BKAV (hóa đơn điện tử), cùng cơ quan nhà nước khi pháp luật yêu cầu.</p>
+
+    <h2>6. Bảo mật và thời hạn lưu trữ</h2>
+    <ul>
+      <li>Khóa API, mã truy cập và mã làm mới được mã hóa (AES, thư viện Fernet) trước khi lưu vào cơ sở dữ liệu; phân quyền theo vai trò, chỉ người được cấp quyền mới xem được.</li>
+      <li>Truy cập từ internet đi qua kết nối HTTPS của Cloudflare.</li>
+      <li>Dữ liệu camera tự xóa sau 30 ngày. Hóa đơn, chứng từ kế toán và thuế được lưu theo thời hạn pháp luật quy định. Yêu cầu tư vấn và dữ liệu khác được lưu đến khi hết mục đích sử dụng hoặc khi có yêu cầu xóa.</li>
+    </ul>
+
+    <h2>7. Quyền của bạn và yêu cầu xóa dữ liệu</h2>
+    <p>Bạn có quyền được biết, truy cập, chỉnh sửa, rút lại sự đồng ý và yêu cầu xóa dữ liệu cá nhân của mình, theo Luật Bảo vệ dữ liệu cá nhân và Nghị định 13/2023/NĐ-CP. Để yêu cầu xóa dữ liệu, dùng trang <a href="/data-deletion">hướng dẫn xóa dữ liệu</a> hoặc gửi email tới <a href="mailto:{{ company.email }}">{{ company.email }}</a> kèm số điện thoại hoặc email đã dùng để liên hệ với chúng tôi.</p>
+
+    <h2>8. Trẻ em</h2>
+    <p>Ứng dụng phục vụ doanh nghiệp và không hướng tới người dưới 16 tuổi. Nếu phát hiện đã thu thập dữ liệu của trẻ em, chúng tôi sẽ xóa dữ liệu đó.</p>
+
+    <h2>9. Cookie và lưu trữ trên trình duyệt</h2>
+    <p>Website lưu thông tin nguồn truy cập (tham số quảng cáo, trang giới thiệu) trong bộ nhớ cục bộ của trình duyệt tối đa 30 ngày để biết yêu cầu tư vấn đến từ kênh nào. Khi công ty bật Google tag (gtag.js), Google Tag Manager hoặc Meta Pixel, các công cụ này có thể dùng cookie để đo lượt gọi, lượt bấm Zalo và lượt gửi biểu mẫu. Bạn có thể xóa dữ liệu trình duyệt hoặc chặn cookie trong phần cài đặt trình duyệt.</p>
+
+    <h2>10. Cập nhật chính sách</h2>
+    <p>Khi có thay đổi quan trọng, chúng tôi cập nhật nội dung tại trang này và ghi rõ ngày hiệu lực ở đầu văn bản.</p>
+
+    <h2>11. English summary for Google API reviewers</h2>
+    <div class="box">
+      <p><strong>Application:</strong> {{ company.company_name }} (tax code {{ company.tax_id }}), a Vietnamese transport and crane-rental company. The application is its internal operations system plus the public website at which this policy is hosted.</p>
+      <p><strong>Google user data accessed:</strong> (1) Gmail read-only (<code>gmail.readonly</code>) and the account email address (<code>userinfo.email</code>) of the company mailbox, only after a company administrator connects it, to detect and import incoming e-invoices (subject, body and PDF/ZIP attachments); the app never sends, modifies or deletes email. (2) Google Ads (<code>adwords</code>) data of the company's own advertising account, only after the account owner authorizes it, to show campaign performance and pause or enable the company's campaigns. (3) Google Maps Platform, receiving only trip addresses.</p>
+      <p><strong>Use and sharing:</strong> data is used only to provide these internal features. It is not sold, not used for advertising, not used to train general-purpose AI models, and not transferred to third parties except infrastructure providers needed to run the app or when required by law. Humans read Google user data only for security, legal compliance, or with the data owner's consent.</p>
+      <p><strong>Storage and security:</strong> refresh tokens and API keys are encrypted at rest; access is restricted by role; traffic uses HTTPS.</p>
+      <p><strong>Retention and deletion:</strong> invoice records follow statutory accounting retention; camera data is deleted after 30 days. Users can revoke access at <a href="https://myaccount.google.com/permissions" rel="noopener">myaccount.google.com/permissions</a> or by using "Disconnect Gmail" in the admin page, and can request deletion through <a href="/data-deletion">/data-deletion</a> or <a href="mailto:{{ company.email }}">{{ company.email }}</a>.</p>
+      <p><strong>Limited Use:</strong> the app's use and transfer of information received from Google APIs to any other app will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+    </div>
+  </main>
+
+  <footer class="site">
+    <div class="wrap">
+      <strong>{{ company.company_name }}</strong> · MST {{ company.tax_id }}<br>
+      {{ company.address }}<br>
+      <a href="mailto:{{ company.email }}">{{ company.email }}</a> · <a href="/xe-cau">Trang chủ</a> · <a href="/data-deletion">Xóa dữ liệu</a>
+    </div>
+  </footer>
+
+  <!-- LIVE CHATBOT TOÀN HỆ THỐNG -->
+  {% include "partials/live_chat_widget.html" %}
+</body>
+</html>

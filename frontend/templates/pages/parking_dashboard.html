@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% block title %}Dashboard Bãi xe — Parking Camera{% endblock %}
+{% block page_title %}Dashboard Bãi xe{% endblock %}
+{% block content %}
+
+{% set pct = ((stats.occupied or 0) / (stats.total_slots or 1) * 100)|int %}
+
+
+<div class="row mb-4">
+  <div class="col-12 col-md-4 mb-3">
+    <div class="kpi-card kpi-gradient-2 p-4 rounded">
+      <i class="fas fa-parking kpi-icon"></i>
+      <p class="kpi-label mb-1">Tổng chỗ</p>
+      <p class="kpi-value">{{ stats.total_slots or 0 }}</p>
+    </div>
+  </div>
+  <div class="col-12 col-md-4 mb-3">
+    <div class="kpi-card kpi-gradient-3 p-4 rounded">
+      <i class="fas fa-car kpi-icon"></i>
+      <p class="kpi-label mb-1">Đang đỗ</p>
+      <p class="kpi-value">{{ stats.occupied or 0 }}</p>
+    </div>
+  </div>
+  <div class="col-12 col-md-4 mb-3">
+    <div class="kpi-card kpi-gradient-1 p-4 rounded">
+      <i class="fas fa-check-circle kpi-icon"></i>
+      <p class="kpi-label mb-1">Còn trống</p>
+      <p class="kpi-value">{{ (stats.total_slots or 0) - (stats.occupied or 0) }}</p>
+    </div>
+  </div>
+</div>
+
+
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-2" style="font-size:13px;">
+      <span class="text-muted">Tỷ lệ lấp đầy</span>
+      <span class="font-weight-bold text-dark">{{ pct }}%</span>
+    </div>
+    <div class="progress" style="height:12px;">
+      <div class="progress-bar {% if pct > 80 %}bg-danger{% elif pct > 50 %}bg-warning{% else %}bg-success{% endif %}"
+        role="progressbar" style="width:{{ pct }}%;" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

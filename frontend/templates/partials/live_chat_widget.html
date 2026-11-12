@@ -1,0 +1,172 @@
+<!-- ══════════════════════════════════════════════════════════════
+     HỆ THỐNG LIVE CHAT TƯ VẤN TRỰC TUYẾN 24/7
+     Giao diện di động chuẩn Mobile-First, tinh gọn
+     Brand: THÉP SƠN LÂM Industrial & Transport Core
+     ══════════════════════════════════════════════════════════════ -->
+
+<link rel="stylesheet" href="/static/user/css/live-chat.css?v=4.1">
+<link rel="stylesheet" href="/static/user/css/chat-composer.css?v=3">
+
+<div id="slContactRoot" class="sl-theme-light"{% if settings is defined and settings and settings.phone_raw %} data-phone="{{ settings.phone_raw }}"{% endif %}{% if user is defined and user %} data-authenticated="1"{% endif %}>
+  <button type="button" class="sl-btn-chat" id="slChatTrigger" aria-label="Mở cửa sổ tư vấn trực tuyến" aria-haspopup="dialog" aria-expanded="false" title="Tư vấn trực tuyến 24/7">
+    <span class="sl-chat-pulse-dot" aria-hidden="true"></span>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+    <span class="sl-dock-text">Tư vấn 24/7</span>
+    <span class="sl-chat-unread-badge" id="slChatUnreadBadge" aria-label="Số tin nhắn mới">0</span>
+  </button>
+</div>
+
+<!-- NỀN LÀM MỜ TRÊN MOBILE KHI MỞ SHEET -->
+<div class="sl-chat-backdrop" id="slChatBackdrop" aria-hidden="true"></div>
+
+<!-- CỬA SỔ HỘP CHAT GỌN GÀNG (DIALOG / BOTTOM SHEET) -->
+<div class="sl-chat-drawer sl-theme-light" id="slChatDrawer" role="dialog" aria-modal="false" aria-labelledby="slChatTitle">
+    
+    <!-- Thanh kéo Bottom Sheet trên mobile (iOS style handle) -->
+    <div class="sl-sheet-handle-wrap" id="slSheetHandleWrap" aria-hidden="true">
+      <div class="sl-sheet-handle"></div>
+    </div>
+
+    <!-- Header Hộp Chat Sang Trọng -->
+    <div class="sl-chat-header">
+      <div class="sl-chat-agent">
+        <div class="sl-chat-agent-avatar" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+        <div class="sl-agent-details">
+          <div class="sl-agent-name-row">
+            <span class="sl-chat-agent-name" id="slChatTitle">THÉP SƠN LÂM</span>
+            <span class="sl-verified-badge" title="Tài khoản doanh nghiệp xác thực">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#2563eb">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nút đóng cửa sổ chat -->
+      <div class="sl-header-actions">
+        <button type="button" class="sl-chat-close-btn" id="slChatCloseBtn" aria-label="Đóng cửa sổ chat" title="Đóng chat">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Thanh thông tin ngữ cảnh dịch vụ -->
+    <div class="sl-chat-service-context">
+      <div class="sl-svc-pill">
+        <span class="sl-svc-icon" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </span>
+        <span class="sl-svc-label">Đang xem:</span>
+        <strong id="slChatServiceBadge" class="sl-svc-title">Đang nhận diện…</strong>
+      </div>
+    </div>
+
+    <!-- Dòng thời gian tin nhắn -->
+    <div class="sl-chat-messages" id="slChatMessages" role="log" aria-live="polite" aria-label="Lịch sử tin nhắn">
+      <div class="sl-msg-bubble sl-msg-bot sl-msg-welcome">
+        <div class="sl-msg-sender-name">Chuyên viên THÉP SƠN LÂM</div>
+        <div class="sl-msg-text">Dạ em chào anh/chị ạ! 👋 Em có thể giúp mình tư vấn và báo giá dịch vụ. Anh/chị cứ nhắn nhu cầu, em phản hồi ngay nhé!</div>
+      </div>
+
+      <div class="sl-quick-chips-wrap" id="slQuickChipsWrap">
+        <div class="sl-quick-chips" id="slQuickChips" role="group" aria-label="Câu hỏi gợi ý">
+          <button type="button" class="sl-chip-btn" data-quick-chip="Tư vấn và báo giá chi tiết dịch vụ này" aria-label="Chọn câu hỏi: Báo giá chi tiết">
+            <span>Báo giá chi tiết</span>
+          </button>
+          <button type="button" class="sl-chip-btn" data-quick-chip="Dịch vụ này bên mình có sẵn và hỗ trợ ngay không?" aria-label="Chọn câu hỏi: Hỗ trợ ngay không">
+            <span>Hỗ trợ ngay không?</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Khung nhập tin nhắn tinh gọn: mặc định chỉ 1 ô nhập chính -->
+    <form class="sl-chat-footer" id="slChatForm" novalidate>
+
+      <!-- Thanh gợi ý nhập SĐT/Zalo gọn nhẹ (chỉ hiện sau tin nhắn đầu với khách chưa có liên hệ) -->
+      <div class="sl-contact-prompt" id="slContactPrompt" style="display:none;">
+        <div class="sl-field-wrap">
+          <svg class="sl-field-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          <input
+            type="text"
+            class="sl-chat-contact-input"
+            id="slChatContact"
+            placeholder="SĐT / Zalo nhận báo giá…"
+            aria-label="Số điện thoại hoặc Zalo nhận báo giá"
+          >
+        </div>
+        <button type="button" class="sl-contact-done-btn" id="slSaveContactBtn" title="Lưu SĐT / Zalo" aria-label="Lưu số điện thoại hoặc Zalo">Lưu</button>
+        <button type="button" class="sl-contact-skip-btn" id="slSkipContactBtn" title="Bỏ qua" aria-label="Bỏ qua nhập liên hệ">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="sl-contact-toast" id="slContactToast" role="status" aria-live="polite" style="display:none;">✓ Đã lưu SĐT / Zalo liên hệ</div>
+
+      <div class="sl-chat-error-msg" id="slContactError" role="alert">
+        Vui lòng nhập đúng số điện thoại (10 số) hoặc email hợp lệ.
+      </div>
+
+      <!-- Hàng nhập tin nhắn chính -->
+      <div class="chx-wrap">
+      <div class="chx-tray" id="slChatTray" hidden></div>
+      <div class="chx-emoji" id="slChatEmojiPanel" hidden></div>
+      <div class="sl-chat-input-row">
+        <button type="button" class="chx-tool-btn" id="slChatAttach" aria-label="Đính kèm ảnh hoặc tệp" title="Đính kèm ảnh hoặc tệp">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+          </svg>
+        </button>
+        <button type="button" class="chx-tool-btn" id="slChatEmoji" aria-label="Chọn biểu tượng cảm xúc" aria-expanded="false" title="Biểu tượng cảm xúc">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.95" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9.5"></circle>
+            <path d="M8.3 14.1c1 1.4 2.2 2.1 3.7 2.1s2.7-.7 3.7-2.1"></path>
+            <circle cx="9.1" cy="9.8" r="1.2" fill="currentColor" stroke="none"></circle>
+            <circle cx="14.9" cy="9.8" r="1.2" fill="currentColor" stroke="none"></circle>
+          </svg>
+        </button>
+        <textarea
+          class="sl-chat-text-input"
+          id="slChatInput"
+          rows="1"
+          placeholder="Nhập nội dung cần tư vấn…"
+          autocomplete="off"
+          spellcheck="false"
+          maxlength="1000"
+          aria-label="Nội dung tin nhắn"
+          required
+        ></textarea>
+        <button type="submit" class="sl-chat-send-btn" id="slChatSendBtn" aria-label="Gửi tin nhắn" title="Gửi tin nhắn">
+          <svg class="sl-send-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a.993.993 0 0 0-1.39.91L2 9.12c0 .5.37.93.87.99L17 12 2.87 13.88c-.5.07-.87.5-.87 1l.01 4.61c0 .71.73 1.2 1.39.91z"></path>
+          </svg>
+          <span class="sl-chat-spinner" id="slChatSpinner" aria-hidden="true"></span>
+        </button>
+      </div>
+      <input type="file" id="slChatFile" multiple hidden>
+      </div>
+
+    </form>
+  </div>
+
+<script defer src="/static/user/js/chat-composer.js?v=4"></script>
+<script defer src="/static/user/js/live-chat.js?v=4.4"></script>

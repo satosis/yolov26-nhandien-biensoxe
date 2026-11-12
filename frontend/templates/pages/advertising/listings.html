@@ -1,0 +1,286 @@
+{% extends "layout.html" %}
+
+{% block title %}Tin rao vặt{% endblock %}
+{% block page_title %}Tin rao vặt{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Thẻ chọn Dịch vụ & Khu vực -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3">
+      <form method="get" action="/admin/advertising/listings" class="form-inline flex-wrap" style="gap:8px;">
+        <label class="font-weight-bold mr-1 mb-0">Dịch vụ:</label>
+        <select name="service" class="form-control form-control-sm mr-3" style="width:auto;" onchange="this.form.submit()">
+          {% for k, s in services.items() %}
+          <option value="{{ k }}" {% if k == selected_service %}selected{% endif %}>{{ s.label }}</option>
+          {% endfor %}
+        </select>
+
+        <label class="font-weight-bold mr-1 mb-0">Khu vực:</label>
+        <select name="area" class="form-control form-control-sm mr-3" style="width:auto;" onchange="this.form.submit()">
+          {% for k, a in areas.items() %}
+          <option value="{{ k }}" {% if k == selected_area %}selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+
+        <button type="submit" class="btn btn-sm btn-primary font-weight-bold">
+          <i class="bx bx-edit mr-1"></i>Soạn
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ba thẻ nội dung soạn sẵn -->
+  <div class="row">
+    {% set variant_names = ["Bản ngắn", "Bản chi tiết", "Bản câu hỏi"] %}
+    {% for ad in ads %}
+    <div class="col-lg-4 col-md-12 mb-3">
+      <div class="card h-100">
+        <div class="card-header bg-light py-2 px-3 font-weight-bold text-dark">
+          {{ variant_names[loop.index0] if loop.index0 < variant_names|length else 'Nội dung mẫu' }}
+        </div>
+        <div class="card-body p-3 d-flex flex-column">
+          <div class="form-group mb-2">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <label class="small font-weight-bold mb-0">Tiêu đề</label>
+              <button type="button" class="btn btn-xs btn-light border btn-copy-title" data-target="ad-title-{{ loop.index }}">
+                Sao chép tiêu đề
+              </button>
+            </div>
+            <input type="text" id="ad-title-{{ loop.index }}" class="form-control form-control-sm bg-light" readonly value="{{ ad.title }}">
+          </div>
+
+          <div class="form-group mb-0 flex-grow-1 d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <label class="small font-weight-bold mb-0">Nội dung</label>
+              <button type="button" class="btn btn-xs btn-light border btn-copy-body" data-target="ad-body-{{ loop.index }}">
+                Sao chép nội dung
+              </button>
+            </div>
+            <textarea id="ad-body-{{ loop.index }}" class="form-control form-control-sm bg-light flex-grow-1" rows="9" readonly>{{ ad.body }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Thẻ Nơi đăng -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">
+          Danh sách nơi đăng ({{ pagination.total }})
+        </span>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddDirectoryModal()">
+          <i class="bx bx-plus mr-1"></i>Thêm nơi đăng
+        </button>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Tên</th>
+            <th style="width:140px;">Trạng thái</th>
+            <th style="width:260px;">Link tin</th>
+            <th style="width:120px;">Ngày đăng</th>
+            <th style="width:140px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for d in directories %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else loop.index }}
+            </td>
+            <td class="align-middle">
+              {% if d.url %}
+                <a href="{{ d.url }}" target="_blank" rel="noopener" class="font-weight-bold text-primary">{{ d.name }}</a>
+              {% else %}
+                <span class="font-weight-bold text-dark">{{ d.name }}</span>
+              {% endif %}
+              {% if d.note %}
+                <div class="small text-muted">{{ d.note }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              <form method="post" action="/admin/advertising/listings/directories/{{ d.id }}/mark" class="d-inline">
+                <input type="hidden" name="service" value="{{ selected_service }}">
+                <input type="hidden" name="area" value="{{ selected_area }}">
+                <input type="hidden" name="posted_url" value="{{ d.posted_url or '' }}">
+                <input type="hidden" name="posted_on" value="{{ d.posted_on or '' }}">
+                <select name="status" class="form-control form-control-sm" style="width:auto;" onchange="this.form.submit()">
+                  <option value="todo" {% if d.status == 'todo' %}selected{% endif %}>Chưa đăng</option>
+                  <option value="posted" {% if d.status == 'posted' %}selected{% endif %}>Đã đăng</option>
+                  <option value="skip" {% if d.status == 'skip' %}selected{% endif %}>Bỏ qua</option>
+                </select>
+              </form>
+            </td>
+            <td class="align-middle">
+              {% if d.posted_url %}
+                <a href="{{ d.posted_url }}" target="_blank" rel="noopener" class="text-truncate d-inline-block" style="max-width:240px;">
+                  {{ d.posted_url }}
+                </a>
+              {% else %}
+                <span class="text-muted small">--</span>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {% if d.posted_on %}
+                {{ d.posted_on.strftime('%d/%m/%Y') if d.posted_on.strftime is defined else d.posted_on }}
+              {% else %}
+                <span class="text-muted small">--</span>
+              {% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1 btn-edit-dir"
+                      data-id="{{ d.id }}"
+                      data-name="{{ d.name }}"
+                      data-url="{{ d.url }}"
+                      data-posted-url="{{ d.posted_url }}"
+                      data-posted-on="{{ d.posted_on or '' }}"
+                      data-note="{{ d.note }}">
+                Sửa
+              </button>
+              <form method="post" action="/admin/advertising/listings/directories/{{ d.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa nơi đăng này?', {title: 'Xóa nơi đăng', confirmText: 'Xóa'})">
+                <input type="hidden" name="service" value="{{ selected_service }}">
+                <input type="hidden" name="area" value="{{ selected_area }}">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">Chưa có nơi đăng.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm / Sửa Nơi đăng -->
+<div class="modal fade" id="dirModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="dirModalTitle">Thêm nơi đăng</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="dirForm" method="post" action="/admin/advertising/listings/directories">
+        <input type="hidden" name="service" value="{{ selected_service }}">
+        <input type="hidden" name="area" value="{{ selected_area }}">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Tên nơi đăng <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="dir-name" class="form-control form-control-sm" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Địa chỉ trang web</label>
+            <input type="text" name="url" id="dir-url" class="form-control form-control-sm">
+          </div>
+          <div class="form-row" id="dir-posted-group" style="display:none;">
+            <div class="col-md-7 mb-2">
+              <label class="small font-weight-bold">Link bài đăng</label>
+              <input type="text" name="posted_url" id="dir-posted-url" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-5 mb-2">
+              <label class="small font-weight-bold">Ngày đăng</label>
+              <input type="date" name="posted_on" id="dir-posted-on" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" id="dir-note" class="form-control form-control-sm" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (window.showNotify) {
+        window.showNotify('Đã sao chép.', 'success');
+      }
+    }).catch(function() {
+      if (window.showNotify) {
+        window.showNotify('Không thể sao chép.', 'error');
+      }
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      if (window.showNotify) {
+        window.showNotify('Đã sao chép.', 'success');
+      }
+    } catch (e) {
+      if (window.showNotify) {
+        window.showNotify('Không thể sao chép.', 'error');
+      }
+    }
+    document.body.removeChild(ta);
+  }
+}
+
+function openAddDirectoryModal() {
+  document.getElementById('dirModalTitle').textContent = 'Thêm nơi đăng';
+  document.getElementById('dirForm').action = '/admin/advertising/listings/directories';
+  document.getElementById('dir-name').value = '';
+  document.getElementById('dir-url').value = '';
+  document.getElementById('dir-posted-url').value = '';
+  document.getElementById('dir-posted-on').value = '';
+  document.getElementById('dir-note').value = '';
+  document.getElementById('dir-posted-group').style.display = 'none';
+  $('#dirModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  $('.btn-copy-title, .btn-copy-body').on('click', function() {
+    var targetId = $(this).attr('data-target');
+    var el = document.getElementById(targetId);
+    if (el) {
+      copyToClipboard(el.value || '');
+    }
+  });
+
+  $('.btn-edit-dir').on('click', function() {
+    var btn = $(this);
+    var dirId = btn.attr('data-id');
+    document.getElementById('dirModalTitle').textContent = 'Sửa nơi đăng';
+    document.getElementById('dirForm').action = '/admin/advertising/listings/directories/' + dirId;
+    document.getElementById('dir-name').value = btn.attr('data-name') || '';
+    document.getElementById('dir-url').value = btn.attr('data-url') || '';
+    document.getElementById('dir-posted-url').value = btn.attr('data-posted-url') || '';
+    document.getElementById('dir-posted-on').value = btn.attr('data-posted-on') || '';
+    document.getElementById('dir-note').value = btn.attr('data-note') || '';
+    document.getElementById('dir-posted-group').style.display = 'flex';
+    $('#dirModal').modal('show');
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+# ==============================================================================
+# BỘ TỪ KHÓA QUẢNG CÁO CHO THUÊ QUẢ CÂN KIỂM ĐỊNH & THỬ TẢI
+# Cú pháp Google Ads:
+#   "từ khóa" : Khớp cụm từ (Phrase Match - Khuyên dùng)
+#   [từ khóa] : Khớp chính xác (Exact Match)
+# ==============================================================================
+
+# --- NHÓM 1: QUẢ CÂN KIỂM ĐỊNH TRẠM CÂN Ô TÔ XE TẢI ---
+"thuê quả cân kiểm định"
+[thuê quả cân kiểm định]
+"cho thuê quả cân kiểm định"
+[cho thuê quả cân kiểm định]
+"thuê quả cân chuẩn"
+[thuê quả cân chuẩn]
+"cho thuê quả cân chuẩn"
+"thuê quả cân kiểm định trạm cân"
+[thuê quả cân kiểm định trạm cân]
+"cho thuê quả cân kiểm định cân ô tô"
+"thuê quả cân kiểm định cân xe tải"
+"bảng giá thuê quả cân kiểm định"
+"thuê quả cân kiểm định phú thọ"
+"thuê quả cân kiểm định hà nội"
+"thuê quả cân kiểm định vĩnh phúc"
+"thuê quả cân kiểm định miền bắc"
+
+# --- NHÓM 2: QUẢ CÂN THỬ TẢI CẦU TRỤC, SÀN NÂNG, PALANG ---
+"thuê quả cân thử tải"
+[thuê quả cân thử tải]
+"cho thuê quả cân thử tải"
+"thuê quả cân thử tải cầu trục"
+[thuê quả cân thử tải cầu trục]
+"cho thuê quả tải thử cầu trục"
+"thuê tải thử cầu trục"
+"thuê tải thử sàn nâng"
+"thuê tải thử pa lăng"
+"thuê khối tải thử tải công trình"
+
+# --- NHÓM 3: KHỐI LƯỢNG TẢI TRỌNG CỤ THỂ ---
+"thuê quả cân 20 tấn"
+"thuê quả cân 40 tấn"
+"thuê quả cân 60 tấn"
+"thuê quả cân 80 tấn"
+"thuê quả cân 100 tấn"
+"thuê quả cân 120 tấn"
+"thuê quả cân 500kg"
+"thuê quả cân chuẩn 1 tấn"
+"thuê quả cân gang kiểm định"
+
+# --- NHÓM 4: KIỂM ĐỊNH HIỆU CHUẨN CÂN TRẠM TRỘN, BĂNG ĐỊNH LƯỢNG ---
+"kiểm định trạm cân ô tô"
+"hiệu chuẩn cân điện tử công nghiệp"
+"kiểm định trạm trộn bê tông"
+"cho thuê xe cẩu kèm quả cân kiểm định"
+"xe cẩu bốc xếp quả cân kiểm định"

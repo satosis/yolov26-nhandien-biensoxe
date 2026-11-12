@@ -1,0 +1,1785 @@
+{% extends "layout.html" %}
+{% block head %}
+<style>
+  .catalog-company-toolbar > .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 12.5px !important;
+    border-radius: 6px;
+  }
+
+  /* ── Catalog Items (Service / Cargo Type) ── */
+  .catalog-add-card {
+    border: 2px dashed #dee2e6;
+    border-radius: 12px;
+    background: #f8faff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .catalog-add-card:focus-within {
+    border-color: #4f86f7;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(79,134,247,.12);
+  }
+  .catalog-item-row {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f0f0f5;
+    gap: 12px;
+    transition: background 0.15s;
+  }
+  .catalog-item-row:last-child { border-bottom: none; }
+  .catalog-item-row:hover { background: #f5f7ff; }
+  .catalog-item-index {
+    min-width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .catalog-item-name {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #212529;
+    word-break: break-word;
+  }
+  .catalog-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .catalog-edit-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px 12px 58px;
+    background: #f0f4ff;
+    border-top: 1px solid #dbe4ff;
+    animation: catalogSlideDown 0.18s ease;
+  }
+  @keyframes catalogSlideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .catalog-empty-state {
+    text-align: center;
+    padding: 52px 24px;
+    color: #adb5bd;
+  }
+  .catalog-empty-state .empty-icon {
+    font-size: 52px;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.3;
+  }
+  .catalog-count-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #e9ecef;
+    color: #495057;
+    border-radius: 20px;
+    padding: 1px 9px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  /* Spinner overlay */
+  #catalog-items-area .catalog-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    z-index: 5;
+  }
+</style>
+{% endblock %}
+{% block title %}{{ 'Danh mục dịch vụ' if tab == 'service' else 'Danh mục hàng hóa' if tab == 'cargo_type' else 'Danh mục khách hàng (Đại Lộ Xanh)' }}{% endblock %}
+{% block page_title %}{{ 'Danh mục dịch vụ' if tab == 'service' else 'Danh mục hàng hóa' if tab == 'cargo_type' else 'Danh mục khách hàng (Đại Lộ Xanh)' }}{% endblock %}
+{% block page_back_button %}<a href="{{ back_url }}" class="btn btn-light btn-sm font-weight-bold"><i class="bx bx-arrow-back mr-1"></i> Quay lại</a>{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  {% if tab == 'service' or tab == 'cargo_type' %}
+    {% set items = services if tab == 'service' else cargo_types %}
+    {% set label = 'Dịch vụ' if tab == 'service' else 'Loại hàng hóa' %}
+    {% set icon  = 'bx-cog' if tab == 'service' else 'bx-package' %}
+
+    <div id="catalog-items-area" style="position: relative; transition: opacity 0.2s ease;">
+
+      {# ── Flash messages ── #}
+      {% if message %}
+      <div class="alert alert-success alert-dismissible fade show py-2 px-3 mb-3 d-flex align-items-center" style="border-radius:10px;" role="alert">
+        <i class="bx bx-check-circle mr-2 font-size-18 text-success"></i>
+        <span>{{ message }}</span>
+        <button type="button" class="close ml-auto" data-dismiss="alert"><span>&times;</span></button>
+      </div>
+      {% endif %}
+      {% if error %}
+      <div class="alert alert-danger alert-dismissible fade show py-2 px-3 mb-3 d-flex align-items-center" style="border-radius:10px;" role="alert">
+        <i class="bx bx-error-circle mr-2 font-size-18 text-danger"></i>
+        <span>{{ error }}</span>
+        <button type="button" class="close ml-auto" data-dismiss="alert"><span>&times;</span></button>
+      </div>
+      {% endif %}
+
+      {# ── Add form card ── #}
+      <div class="catalog-add-card p-3 mb-4">
+        <div class="d-flex align-items-center mb-2">
+          <i class="bx bx-plus-circle mr-2 font-size-18 text-primary"></i>
+          <span class="font-weight-bold text-dark font-size-14">Thêm {{ label|lower }} mới</span>
+        </div>
+        <form method="post" action="/admin/transport/catalog/items"
+              class="d-flex flex-wrap" style="gap:8px;"
+              onsubmit="return submitCatalogItemAjax(event, this)">
+          <input type="hidden" name="kind" value="{{ tab }}">
+          <input type="hidden" name="back" value="{{ back_url }}">
+          <input type="text" name="name" id="catalog-add-input" maxlength="200" required
+                 class="form-control" style="flex:1 1 280px; min-width:0; border-radius:8px;"
+                 placeholder="Nhập tên {{ label|lower }}…"
+                 autocomplete="off">
+          <button type="submit" class="btn btn-primary d-inline-flex align-items-center" style="border-radius:8px; padding-left:18px; padding-right:18px;">
+            <i class="bx bx-plus mr-1"></i> Thêm
+          </button>
+        </form>
+      </div>
+
+      {# ── List card ── #}
+      <div class="card shadow-sm border-0" style="border-radius:12px; overflow:hidden;">
+        <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-2 px-3">
+          <div class="d-flex align-items-center">
+            <i class="bx {{ icon }} mr-2 text-primary font-size-18"></i>
+            <span class="font-weight-bold text-dark font-size-14">{{ label }}</span>
+            <span class="catalog-count-badge">{{ items|length }}</span>
+          </div>
+        </div>
+
+        <div id="catalog-items-list">
+          {% for item in items %}
+          <div class="catalog-item-wrapper">
+            <div class="catalog-item-row">
+              <span class="catalog-item-index">{{ loop.index }}</span>
+              <span class="catalog-item-name">{{ item.name }}</span>
+              <div class="catalog-item-actions">
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center catalog-edit-btn"
+                        data-item-id="{{ item.id }}"
+                        data-item-name="{{ item.name|e }}"
+                        onclick="toggleCatalogEditForm(this)"
+                        title="Sửa tên">
+                  <i class="bx bx-edit-alt mr-1"></i> Sửa
+                </button>
+                <form method="post" action="/admin/transport/catalog/items/{{ item.id }}/delete"
+                      onsubmit="return submitCatalogItemAjax(event, this, 'Xóa &laquo;{{ item.name|e }}&raquo;? Chuyến hàng đã lưu sẽ giữ nguyên.')">
+                  <input type="hidden" name="kind" value="{{ tab }}">
+                  <input type="hidden" name="back" value="{{ back_url }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center" title="Xóa">
+                    <i class="bx bx-trash mr-1"></i> Xóa
+                  </button>
+                </form>
+              </div>
+            </div>
+            {# Inline edit form – hidden by default #}
+            <div class="catalog-edit-form d-none" id="edit-form-{{ item.id }}">
+              <form method="post" action="/admin/transport/catalog/items/{{ item.id }}/edit"
+                    class="d-flex align-items-center w-100" style="gap:6px;"
+                    onsubmit="return submitCatalogItemAjax(event, this)">
+                <input type="hidden" name="kind" value="{{ tab }}">
+                <input type="hidden" name="back" value="{{ back_url }}">
+                <input type="text" name="name" value="{{ item.name }}" maxlength="200" required
+                       class="form-control form-control-sm" style="flex:1; border-radius:6px;">
+                <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center">
+                  <i class="bx bx-check mr-1"></i> Lưu
+                </button>
+                <button type="button" class="btn btn-sm btn-light d-inline-flex align-items-center"
+                        onclick="toggleCatalogEditForm(document.querySelector('[data-item-id=\'{{ item.id }}\']'))">
+                  Hủy
+                </button>
+              </form>
+            </div>
+          </div>
+          {% else %}
+          <div class="catalog-empty-state">
+            <i class="bx {{ icon }} empty-icon"></i>
+            <div class="font-weight-bold font-size-14 mb-1">Chưa có {{ label|lower }} nào</div>
+            <div class="font-size-12">Nhập tên và nhấn <strong>Thêm</strong> ở trên để tạo mục đầu tiên.</div>
+          </div>
+          {% endfor %}
+        </div>
+
+        {% include "partials/pagination.html" %}
+      </div>
+    </div>
+
+    <script>
+    function toggleCatalogEditForm(btn) {
+      var itemId = btn.getAttribute('data-item-id');
+      var form   = document.getElementById('edit-form-' + itemId);
+      var isHidden = form.classList.contains('d-none');
+      // Close all open forms first
+      document.querySelectorAll('.catalog-edit-form').forEach(function(f) { f.classList.add('d-none'); });
+      document.querySelectorAll('.catalog-edit-btn').forEach(function(b) { b.classList.remove('active'); });
+      if (isHidden) {
+        form.classList.remove('d-none');
+        btn.classList.add('active');
+        var input = form.querySelector('input[type=text]');
+        if (input) { input.focus(); input.select(); }
+      }
+    }
+    </script>
+
+  {% else %}
+    <!-- 3 SUBTABS CHO DANH MỤC KHÁCH HÀNG & NHÀ CUNG CẤP (ẢNH 2) -->
+    <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <a href="/admin/transport/catalog?tab=companies&subtab=131" 
+           class="btn font-weight-bold px-3 py-2 shadow-sm {{ 'btn-danger text-white' if subtab == '131' else 'btn-outline-danger bg-white text-danger' }}" 
+           style="border-radius: 8px; font-size: 13.5px; border-width: 2px;">
+          <i class="bx bx-book-bookmark mr-1"></i>131 - Phải thu KH
+        </a>
+        <a href="/admin/transport/catalog?tab=companies&subtab=331" 
+           class="btn font-weight-bold px-3 py-2 shadow-sm {{ 'btn-danger text-white' if subtab == '331' else 'btn-outline-danger bg-white text-danger' }}" 
+           style="border-radius: 8px; font-size: 13.5px; border-width: 2px;">
+          <i class="bx bx-wallet-alt mr-1"></i>331 - Phải trả người bán
+        </a>
+        <a href="/admin/transport/catalog?tab=companies&subtab=list" 
+           class="btn font-weight-bold px-3 py-2 shadow-sm {{ 'btn-primary text-white' if subtab == 'list' else 'btn-outline-primary bg-white text-primary' }}" 
+           style="border-radius: 8px; font-size: 13.5px; border-width: 2px;">
+          <i class="bx bx-list-ul mr-1"></i>Danh sách KH/NCC
+        </a>
+      </div>
+      <div>
+        <span class="badge badge-light border text-muted py-2 px-3" style="font-size:12px;">
+          <i class="bx bx-info-circle mr-1 text-primary"></i>Tích chọn vai trò KH / NCC để hạch toán vào Sổ 131 / 331
+        </span>
+      </div>
+    </div>
+
+    {% if subtab == '131' %}
+      <!-- SHEET 2: SỔ TK 131 - PHẢI THU KHÁCH HÀNG (ẢNH 3) -->
+      <div class="card shadow-sm border-0" style="border-radius: 10px; overflow:hidden;">
+        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div>
+            <h5 class="mb-0 font-weight-bold text-dark font-size-15">
+              <i class="bx bx-book-bookmark mr-1 text-danger"></i>Sheet 2: Sổ chi tiết TK 131 - Phải thu khách hàng
+              <span class="badge badge-light border text-danger ml-2 font-size-12">{{ ledger_131.total_count }} đối tác</span>
+            </h5>
+          </div>
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <form method="get" action="/admin/transport/catalog" class="d-flex align-items-center flex-wrap" style="gap:8px;">
+              <input type="hidden" name="tab" value="companies">
+              <input type="hidden" name="subtab" value="131">
+              <input id="catalog-131-search" type="search" name="q"
+                     class="form-control form-control-sm"
+                     style="width:240px; max-width:100%;"
+                     placeholder="Tìm tên KH, MST..."
+                     value="{{ q }}">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="catalog-131-debt" name="debt" value="any" {% if debt_filter %}checked{% endif %} onchange="this.form.submit()">
+                <label class="custom-control-label font-weight-bold text-danger" for="catalog-131-debt">Chỉ KH còn số dư</label>
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bx bx-search mr-1"></i>Tìm
+              </button>
+            </form>
+            <a href="/admin/vehicles/cargo" class="btn btn-sm btn-outline-primary font-weight-bold">
+              <i class="bx bx-trip mr-1"></i>Chuyến hàng vận tải
+            </a>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" style="font-size:12.5px;">
+            <thead class="bg-light text-center">
+              <tr>
+                <th rowspan="2" style="width:45px;" class="align-middle">STT</th>
+                <th rowspan="2" style="width:108px;" class="align-middle">MST</th>
+                <th rowspan="2" style="min-width:220px;" class="text-left align-middle">Tên khách hàng</th>
+                <th colspan="2" class="border-bottom">Số đầu kỳ</th>
+                <th colspan="2" class="border-bottom">PS trong kỳ</th>
+                <th colspan="2" class="border-bottom">Số dư cuối kỳ</th>
+                <th rowspan="2" style="width:92px;" class="align-middle">Hợp đồng</th>
+                <th rowspan="2" style="width:92px;" class="align-middle">Sổ chi tiết</th>
+                <th rowspan="2" style="width:66px;" class="align-middle">Thao tác</th>
+              </tr>
+              <tr style="font-size:11.5px; color:#64748b;">
+                <th style="width:64px;">Nợ</th>
+                <th style="width:64px;">Có</th>
+                <th style="min-width:100px;">Nợ</th>
+                <th style="min-width:100px;">Có</th>
+                <th style="min-width:100px;">Nợ</th>
+                <th style="min-width:100px;">Có</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ledger_131.rows %}
+              <tr>
+                <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
+                <td class="font-weight-bold text-center align-middle" style="font-family:monospace;">{{ row.tax_code or '—' }}</td>
+                <td class="align-middle">
+                  <span class="font-weight-bold text-dark">{{ row.name }}</span>
+                </td>
+                <td class="text-right align-middle" style="font-size:11.5px;">{{ row.open_dr_fmt if row.open_dr > 0 else '—' }}</td>
+                <td class="text-right align-middle" style="font-size:11.5px;">{{ row.open_cr_fmt if row.open_cr > 0 else '—' }}</td>
+                <td class="text-right align-middle font-weight-bold {{ 'text-primary' if row.ps_dr > 0 else 'text-muted' }}">
+                  {{ row.ps_dr_fmt if row.ps_dr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold {{ 'text-success' if row.ps_cr > 0 else 'text-muted' }}">
+                  {{ row.ps_cr_fmt if row.ps_cr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold text-danger">
+                  {{ row.close_dr_fmt if row.close_dr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold text-success">
+                  {{ row.close_cr_fmt if row.close_cr > 0 else '—' }}
+                </td>
+                <td class="text-center align-middle">
+                  <a href="/admin/transport/contracts?customer_id={{ row.id }}"
+                     class="btn btn-xs btn-outline-info py-1 px-2 font-weight-bold text-nowrap"
+                     title="In / lưu hợp đồng của khách hàng này">
+                    <i class="bx bx-file mr-1"></i>Hợp đồng
+                  </a>
+                </td>
+                <td class="text-center align-middle">
+                  <a href="{{ row.detail_url }}"
+                     class="btn btn-xs btn-outline-primary py-1 px-2 font-weight-bold text-nowrap"
+                     title="Xem sổ chi tiết công nợ TK 131 của khách hàng này"
+                     onclick="event.preventDefault(); openPartnerSubledgerModal({{ row.id }}, '131', '{{ row.name|replace('\'', '\\\'') }}');">
+                    <i class="bx bx-spreadsheet mr-1"></i>Chi tiết
+                  </a>
+                </td>
+                <td class="text-center align-middle">
+                  <button type="button" class="btn btn-xs btn-light border py-1 px-2 font-weight-bold"
+                          title="Sửa số dư đầu kỳ TK 131"
+                          onclick="openEditOpeningDebtModal({{ row.id }}, '131', '{{ row.name|replace('\'', '\\\'') }}', {{ row.open_dr }}, {{ row.open_cr }})">
+                    <i class="bx bx-edit mr-1"></i>Sửa
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="12" class="text-center text-muted py-4">Chưa có phát sinh công nợ phải thu trong kỳ.</td></tr>
+              {% endfor %}
+            </tbody>
+            {% if ledger_131.rows %}
+            <tfoot class="bg-light font-weight-bold" style="border-top:2px solid #334155;">
+              <tr>
+                <td colspan="3" class="text-center text-uppercase">
+                  <i class="bx bx-check-double mr-1 text-success"></i>Tổng cộng ({{ ledger_131.total_count }} đối tác)
+                </td>
+                <td class="text-right text-primary" style="font-size:11.5px;">{{ ledger_131.totals.open_dr_fmt }}</td>
+                <td class="text-right text-primary" style="font-size:11.5px;">{{ ledger_131.totals.open_cr_fmt }}</td>
+                <td class="text-right text-dark">{{ ledger_131.totals.ps_dr_fmt }}</td>
+                <td class="text-right text-dark">{{ ledger_131.totals.ps_cr_fmt }}</td>
+                <td class="text-right text-danger">{{ ledger_131.totals.close_dr_fmt }}</td>
+                <td class="text-right text-success">{{ ledger_131.totals.close_cr_fmt }}</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+    {% elif subtab == '331' %}
+      <!-- SHEET 3: SỔ TK 331 - PHẢI TRẢ NGƯỜI BÁN (ẢNH 3) -->
+      <div class="card shadow-sm border-0" style="border-radius: 10px; overflow:hidden;">
+        <div class="card-header bg-white py-3 px-3 border-bottom d-flex align-items-center justify-content-between flex-wrap" style="gap:10px;">
+          <div>
+            <h5 class="mb-0 font-weight-bold text-dark font-size-15">
+              <i class="bx bx-wallet-alt mr-1 text-danger"></i>Sheet 3: Sổ chi tiết TK 331 - Phải trả người bán
+              <span class="badge badge-light border text-danger ml-2 font-size-12">{{ ledger_331.total_count }} NCC</span>
+            </h5>
+          </div>
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <form method="get" action="/admin/transport/catalog" class="d-flex align-items-center flex-wrap" style="gap:8px;">
+              <input type="hidden" name="tab" value="companies">
+              <input type="hidden" name="subtab" value="331">
+              <input id="catalog-331-search" type="search" name="q"
+                     class="form-control form-control-sm"
+                     style="width:240px; max-width:100%;"
+                     placeholder="Tìm tên NCC, MST..."
+                     value="{{ q }}">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="catalog-331-debt" name="debt" value="any" {% if debt_filter %}checked{% endif %} onchange="this.form.submit()">
+                <label class="custom-control-label font-weight-bold text-danger" for="catalog-331-debt">Chỉ NCC còn số dư</label>
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary">
+                <i class="bx bx-search mr-1"></i>Tìm
+              </button>
+            </form>
+            <a href="/admin/transport/input-invoices" class="btn btn-sm btn-outline-primary font-weight-bold">
+              <i class="bx bx-receipt mr-1"></i>Hóa đơn đầu vào
+            </a>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm table-hover mb-0" style="font-size:12.5px;">
+            <thead class="bg-light text-center">
+              <tr>
+                <th rowspan="2" style="width:45px;" class="align-middle">STT</th>
+                <th rowspan="2" style="width:130px;" class="align-middle">MST</th>
+                <th rowspan="2" style="min-width:260px;" class="text-left align-middle">Tên nhà cung cấp</th>
+                <th colspan="2" class="border-bottom">Số đầu kỳ</th>
+                <th colspan="2" class="border-bottom">PS trong kỳ</th>
+                <th colspan="2" class="border-bottom">Số dư cuối kỳ</th>
+                <th rowspan="2" style="width:120px;" class="align-middle">Sổ chi tiết</th>
+                <th rowspan="2" style="width:75px;" class="align-middle">Thao tác</th>
+              </tr>
+              <tr style="font-size:11.5px; color:#64748b;">
+                <th style="min-width:105px;">Nợ</th>
+                <th style="min-width:105px;">Có</th>
+                <th style="min-width:115px;">Nợ</th>
+                <th style="min-width:115px;">Có</th>
+                <th style="min-width:115px;">Nợ</th>
+                <th style="min-width:115px;">Có</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ledger_331.rows %}
+              <tr>
+                <td class="text-center text-muted font-weight-medium align-middle">{{ loop.index }}</td>
+                <td class="font-weight-bold text-center align-middle" style="font-family:monospace;">{{ row.tax_code or '—' }}</td>
+                <td class="align-middle">
+                  <span class="font-weight-bold text-dark">{{ row.name }}</span>
+                </td>
+                <td class="text-right align-middle">{{ row.open_dr_fmt if row.open_dr > 0 else '—' }}</td>
+                <td class="text-right align-middle">{{ row.open_cr_fmt if row.open_cr > 0 else '—' }}</td>
+                <td class="text-right align-middle font-weight-bold {{ 'text-primary' if row.ps_dr > 0 else 'text-muted' }}">
+                  {{ row.ps_dr_fmt if row.ps_dr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold {{ 'text-success' if row.ps_cr > 0 else 'text-muted' }}">
+                  {{ row.ps_cr_fmt if row.ps_cr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold text-danger">
+                  {{ row.close_dr_fmt if row.close_dr > 0 else '—' }}
+                </td>
+                <td class="text-right align-middle font-weight-bold text-success">
+                  {{ row.close_cr_fmt if row.close_cr > 0 else '—' }}
+                </td>
+                <td class="text-center align-middle">
+                  <a href="{{ row.detail_url }}"
+                     class="btn btn-xs btn-outline-primary py-1 px-2 font-weight-bold text-nowrap"
+                     title="Xem sổ chi tiết công nợ TK 331 của nhà cung cấp này"
+                     onclick="event.preventDefault(); openPartnerSubledgerModal({{ row.id }}, '331', '{{ row.name|replace('\'', '\\\'') }}');">
+                    <i class="bx bx-spreadsheet mr-1"></i>Chi tiết
+                  </a>
+                </td>
+                <td class="text-center align-middle">
+                  <button type="button" class="btn btn-xs btn-light border py-1 px-2 font-weight-bold"
+                          title="Sửa số dư đầu kỳ TK 331"
+                          onclick="openEditOpeningDebtModal({{ row.id }}, '331', '{{ row.name|replace('\'', '\\\'') }}', {{ row.open_dr }}, {{ row.open_cr }})">
+                    <i class="bx bx-edit mr-1"></i>Sửa
+                  </button>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="11" class="text-center text-muted py-4">Chưa có phát sinh công nợ phải trả trong kỳ.</td></tr>
+              {% endfor %}
+            </tbody>
+            {% if ledger_331.rows %}
+            <tfoot class="bg-light font-weight-bold" style="border-top:2px solid #334155;">
+              <tr>
+                <td colspan="3" class="text-center text-uppercase">
+                  <i class="bx bx-check-double mr-1 text-success"></i>Tổng cộng ({{ ledger_331.total_count }} nhà cung cấp)
+                </td>
+                <td class="text-right text-primary">{{ ledger_331.totals.open_dr_fmt }}</td>
+                <td class="text-right text-primary">{{ ledger_331.totals.open_cr_fmt }}</td>
+                <td class="text-right text-dark">{{ ledger_331.totals.ps_dr_fmt }}</td>
+                <td class="text-right text-dark">{{ ledger_331.totals.ps_cr_fmt }}</td>
+                <td class="text-right text-danger">{{ ledger_331.totals.close_dr_fmt }}</td>
+                <td class="text-right text-success">{{ ledger_331.totals.close_cr_fmt }}</td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+    {% else %}
+      <!-- SHEET 1: DANH SÁCH KH/NCC (ẢNH 1) -->
+      <div class="card shadow-sm border-0" style="border-radius: 10px; overflow:hidden;">
+        <div class="card-header bg-white py-2 px-3 border-bottom">
+          <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+            <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+              <span class="font-weight-bold text-dark font-size-14" style="white-space:nowrap;">
+                Sheet 1: Danh sách KH/NCC (<span id="catalog-company-count">{{ total }}</span>)
+              </span>
+            </div>
+            <div class="catalog-company-toolbar d-flex align-items-center flex-wrap" style="gap:6px;">
+              <button id="btn-toolbar-bulk-refresh" type="button"
+                      class="btn btn-sm btn-outline-primary"
+                      onclick="confirmBulkRefreshTax()"
+                      style="white-space:nowrap;"
+                      title="Cập nhật thông tin từ MST cho các đơn vị đã chọn">
+                <i class="bx bx-refresh mr-1"></i>Cập nhật MST
+              </button>
+              <button id="btn-toolbar-bulk-delete" type="button"
+                      class="btn btn-sm btn-outline-danger"
+                      onclick="confirmBulkDeleteCompanies()"
+                      style="white-space:nowrap;"
+                      title="Xóa các đơn vị đã chọn">
+                <i class="bx bx-trash mr-1"></i>Xóa nhiều
+              </button>
+              <a href="/admin/transport/catalog/companies/add?partner_type={{ partner_type if partner_type in ['organization', 'individual'] else 'organization' }}&back={{ request.url|urlencode }}"
+                 class="btn btn-sm btn-primary" style="white-space:nowrap;">
+                <i class="bx bx-plus mr-1"></i>Thêm đơn vị
+              </a>
+              <input id="catalog-company-search" type="search"
+                     class="form-control form-control-sm"
+                     style="width:260px; max-width:100%;"
+                     placeholder="Tìm tên, MST, địa chỉ..."
+                     aria-label="Tìm đơn vị hoặc công ty"
+                     value="{{ q }}"
+                     oninput="scheduleCatalogCompanySearch()"
+                     onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitCatalogCompanySearch(); }">
+            </div>
+          </div>
+        </div>
+
+        <!-- BỘ LỌC ĐỐI TÁC (ẢNH 1 MINH HỌA KETOAN247) -->
+        <div class="d-flex align-items-center justify-content-between flex-wrap px-3 py-2 bg-light border-bottom" style="gap:12px;">
+          <div class="d-flex align-items-center flex-wrap" style="gap:16px;">
+            <div class="d-flex align-items-center" style="gap:8px;">
+              <span class="text-muted font-weight-bold font-size-12">Phân loại:</span>
+              <div class="custom-control custom-radio custom-control-inline mb-0">
+                <input type="radio" id="pt_all" name="partner_type_filter" class="custom-control-input" value="all" {% if partner_type == 'all' or not partner_type %}checked{% endif %} onchange="onPartnerFilterChange()">
+                <label class="custom-control-label font-size-12 cursor-pointer" for="pt_all">Tất cả</label>
+              </div>
+              <div class="custom-control custom-radio custom-control-inline mb-0">
+                <input type="radio" id="pt_org" name="partner_type_filter" class="custom-control-input" value="organization" {% if partner_type == 'organization' %}checked{% endif %} onchange="onPartnerFilterChange()">
+                <label class="custom-control-label font-size-12 font-weight-bold text-primary cursor-pointer" for="pt_org">1. Tổ chức</label>
+              </div>
+              <div class="custom-control custom-radio custom-control-inline mb-0">
+                <input type="radio" id="pt_ind" name="partner_type_filter" class="custom-control-input" value="individual" {% if partner_type == 'individual' %}checked{% endif %} onchange="onPartnerFilterChange()">
+                <label class="custom-control-label font-size-12 font-weight-bold text-success cursor-pointer" for="pt_ind">2. Cá nhân</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <span class="text-muted font-weight-bold font-size-12">Lọc vai trò:</span>
+            <div class="btn-group btn-group-toggle" data-toggle="buttons">
+              <label class="btn btn-xs btn-outline-secondary {{ 'active' if role_filter == 'all' or not role_filter else '' }}" onclick="onRoleFilterChange('all')">
+                <input type="radio" name="role_opt" value="all" {% if role_filter == 'all' or not role_filter %}checked{% endif %}> Tất cả
+              </label>
+              <label class="btn btn-xs btn-outline-info {{ 'active' if role_filter == 'customer' else '' }}" onclick="onRoleFilterChange('customer')">
+                <input type="radio" name="role_opt" value="customer" {% if role_filter == 'customer' %}checked{% endif %}> Khách hàng (KH)
+              </label>
+              <label class="btn btn-xs btn-outline-warning {{ 'active' if role_filter == 'vendor' else '' }}" onclick="onRoleFilterChange('vendor')">
+                <input type="radio" name="role_opt" value="vendor" {% if role_filter == 'vendor' %}checked{% endif %}> Nhà cung cấp (NCC)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Bar -->
+        <div id="catalog-bulk-actions-bar" class="alert alert-info py-2 px-3 d-none align-items-center justify-content-between mb-0 border-0 rounded-0 shadow-sm" style="border-bottom: 1px solid #bfdbfe !important;">
+          <div class="d-flex align-items-center">
+            <i class="bx bx-check-square mr-2 font-size-18 text-primary"></i>
+            <span>Đã chọn <strong id="catalog-selected-count">0</strong> đơn vị</span>
+          </div>
+          <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+            <button type="button" class="btn btn-sm btn-light" onclick="clearAllCatalogSelections()">Bỏ chọn</button>
+            <button type="button" id="btn-bar-bulk-refresh" class="btn btn-sm btn-primary font-weight-bold" onclick="confirmBulkRefreshTax()">
+              <i class="bx bx-refresh mr-1 font-size-14"></i>Cập nhật MST
+            </button>
+            <button type="button" id="btn-bar-bulk-delete" class="btn btn-sm btn-danger font-weight-bold" onclick="confirmBulkDeleteCompanies()">
+              <i class="bx bx-trash mr-1 font-size-12"></i>Xóa đã chọn (<span class="catalog-selected-count-badge">0</span>)
+            </button>
+          </div>
+        </div>
+
+        <div id="catalog-table-area" style="position: relative; transition: opacity 0.2s ease;">
+          <div class="table-responsive" style="min-height: 280px;">
+            <table class="table table-sm table-hover mb-0" style="font-size:12.5px;">
+              <thead class="bg-light">
+                <tr>
+                  <th class="catalog-select-column"><input id="catalog-select-all" type="checkbox" aria-label="Chọn tất cả đơn vị trên trang" onchange="toggleAllCatalogCompanies(this)"></th>
+                  <th style="width:45px;" class="text-center">STT</th>
+                  <th style="width:130px;">Mã số thuế</th>
+                  <th style="min-width:240px;">Tên khách hàng / Đối tác</th>
+                  <th style="min-width:250px;">Địa chỉ</th>
+                  <th style="width:140px;" class="text-center" title="Tích chọn KH (nhảy Sổ 131) hoặc NCC (nhảy Sổ 331)">Mục đích (KH / NCC)</th>
+                  <th class="text-right" style="min-width:360px;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for company in companies %}
+                <tr class="catalog-company-row">
+                  <td class="catalog-select-column align-middle">
+                    <input type="checkbox" class="catalog-company-select" value="{{ company.id }}" aria-label="Chọn {{ company.name }}" onchange="updateCatalogSelectAll()">
+                  </td>
+                  <td class="text-center text-muted font-weight-medium align-middle">
+                    {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+                  </td>
+                  <td class="font-weight-bold align-middle" style="font-family:monospace;">{{ company.tax_code or '—' }}</td>
+                  <td class="align-middle">
+                    <span class="catalog-company-name font-weight-bold text-dark">{{ company.name }}</span>
+                    {% if company.partner_type == 'individual' %}
+                      <span class="badge badge-light border text-success ml-1 font-size-10">Cá nhân</span>
+                    {% endif %}
+                    {% if company.phone %}
+                    <div class="small text-muted font-size-11"><i class="bx bx-phone mr-1"></i>{{ company.phone }}</div>
+                    {% endif %}
+                  </td>
+                  <td class="align-middle text-muted small" style="max-width:260px; white-space:normal;">
+                    {{ company.address or '—' }}
+                  </td>
+                  <!-- 2 MỤC TÍCH CHỌN KH / NCC (ẢNH 1) -->
+                  <td class="text-center align-middle">
+                    <div class="d-inline-flex align-items-center justify-content-center bg-light border px-2 py-1 rounded" style="gap:10px;">
+                      <label class="mb-0 d-inline-flex align-items-center cursor-pointer font-weight-bold {{ 'text-primary' if company.is_customer else 'text-muted' }}" 
+                             style="gap:4px; font-size:12px;" 
+                             title="Tích chọn KH: Công nợ nhảy sổ 131">
+                        <input type="checkbox" class="chk-role-kh" data-company-id="{{ company.id }}" value="1" 
+                               {% if company.is_customer %}checked{% endif %} 
+                               onchange="handlePartnerRoleChange(this, 'is_customer')">
+                        <span>KH</span>
+                      </label>
+                      <span class="text-muted">|</span>
+                      <label class="mb-0 d-inline-flex align-items-center cursor-pointer font-weight-bold {{ 'text-warning' if company.is_vendor else 'text-muted' }}" 
+                             style="gap:4px; font-size:12px;" 
+                             title="Tích chọn NCC: Công nợ nhảy sổ 331">
+                        <input type="checkbox" class="chk-role-ncc" data-company-id="{{ company.id }}" value="1" 
+                               {% if company.is_vendor %}checked{% endif %} 
+                               onchange="handlePartnerRoleChange(this, 'is_vendor')">
+                        <span>NCC</span>
+                      </label>
+                    </div>
+                  </td>
+                  <td class="text-nowrap text-right align-middle">
+                    <div class="d-inline-flex align-items-center justify-content-end" style="gap:4px;">
+                      <a href="/admin/transport/catalog/companies/{{ company.id }}/edit?back={{ request.url|urlencode }}"
+                         class="btn btn-light btn-sm font-weight-bold d-inline-flex align-items-center" title="Sửa"><i class="bx bx-edit-alt mr-1"></i>Sửa</a>
+                      <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
+                              onclick="refreshCatalogCompany(this, {{ company.id }})" title="Đồng bộ lại thông tin từ Tổng cục Thuế">
+                        <i class="bx bx-refresh mr-1 font-size-14"></i>MST
+                      </button>
+                      <button type="button" class="btn btn-danger btn-sm d-inline-flex align-items-center"
+                              onclick="deleteCatalogCompany(event, {{ company.id }}, '{{ company.name|escape }}')" title="Xóa đơn vị">
+                        <i class="bx bx-trash mr-1 font-size-12"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Không tìm thấy đơn vị đối tác nào phù hợp.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% include "partials/pagination.html" %}
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+<!-- MODAL SỬA SỐ DƯ ĐẦU KỲ (TK 131 HOẶC TK 331 - YÊU CẦU ẢNH 3) -->
+<div class="modal fade" id="modalEditOpeningDebt" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0" style="border-radius:10px; overflow:hidden;">
+      <div class="modal-header bg-dark text-white py-2 px-3">
+        <h5 class="modal-title font-weight-bold font-size-15 text-white mb-0">
+          <i class="bx bx-edit mr-1"></i>Sửa số dư đầu kỳ: <span id="debtModalAccountBadge" class="badge badge-warning text-dark font-size-13"></span>
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="formEditOpeningDebt" onsubmit="submitEditOpeningDebt(event)">
+        <input type="hidden" name="company_id" id="debtModalCompanyId">
+        <input type="hidden" name="account" id="debtModalAccount">
+        <div class="modal-body p-3">
+          <div class="form-group mb-2">
+            <label class="font-weight-bold text-dark font-size-12">Tên đối tác</label>
+            <input type="text" id="debtModalCompanyName" class="form-control form-control-sm bg-light" readonly>
+          </div>
+          <div class="row">
+            <div class="col-6">
+              <div class="form-group mb-2">
+                <label class="font-weight-bold text-dark font-size-12">Số đầu kỳ Nợ</label>
+                <input type="text" name="open_dr" id="debtModalOpenDr" class="form-control form-control-sm text-right font-weight-bold text-primary" oninput="formatCurrencyInput(this)">
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="form-group mb-2">
+                <label class="font-weight-bold text-dark font-size-12">Số đầu kỳ Có</label>
+                <input type="text" name="open_cr" id="debtModalOpenCr" class="form-control form-control-sm text-right font-weight-bold text-primary" oninput="formatCurrencyInput(this)">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 px-3 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSaveOpeningDebt">
+            <i class="bx bx-check mr-1"></i>Lưu số dư
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL XEM SỔ CHI TIẾT CÔNG NỢ (TK 131 HOẶC TK 331 - MẪU S31-DNN / S32-DNN) -->
+<div class="modal fade" id="modalPartnerSubledger" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document" style="max-width: 95%;">
+    <div class="modal-content shadow-lg border-0" style="border-radius:12px; overflow:hidden;">
+      <div class="modal-header bg-dark text-white py-2 px-3 d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+          <h5 class="modal-title font-weight-bold font-size-15 text-white mb-0">
+            <i class="bx bx-book-open mr-1 text-warning"></i>Sổ chi tiết công nợ:
+            <span id="subledgerModalTitle" class="text-warning"></span>
+          </h5>
+          <span id="subledgerModalAccountBadge" class="badge badge-warning text-dark font-size-12 font-weight-bold ml-1"></span>
+          <span id="subledgerModalFormCode" class="badge badge-secondary text-white font-size-11"></span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <a id="btnSubledgerOpenStandalone" href="#" target="_blank" class="btn btn-sm btn-outline-light font-weight-bold" title="Mở trang in chuẩn A4">
+            <i class="bx bx-printer mr-1"></i>Trang in A4
+          </a>
+          <button type="button" class="close text-white mb-0" data-dismiss="modal" aria-label="Close" style="font-size:24px; opacity:0.9;">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-body p-3 bg-light" style="min-height: 400px;">
+        <!-- Loading state -->
+        <div id="subledgerModalSpinner" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="sr-only">Đang tải...</span>
+          </div>
+          <div class="mt-2 text-muted font-weight-bold font-size-14">Đang truy xuất sổ chi tiết công nợ...</div>
+        </div>
+
+        <!-- Content Area -->
+        <div id="subledgerModalContent" class="d-none">
+          <!-- Information cards -->
+          <div class="row mb-3">
+            <div class="col-md-6 mb-2 mb-md-0">
+              <div class="bg-white p-3 rounded border shadow-sm h-100">
+                <div class="text-muted font-size-11 font-weight-bold text-uppercase">Đơn vị theo dõi</div>
+                <div id="subledgerOwnerName" class="font-weight-bold text-dark font-size-14 mt-1"></div>
+                <div class="text-muted font-size-12">MST: <strong id="subledgerOwnerTax" class="text-dark"></strong></div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="bg-white p-3 rounded border shadow-sm h-100">
+                <div class="text-muted font-size-11 font-weight-bold text-uppercase">Đối tác giao dịch</div>
+                <div id="subledgerPartnerName" class="font-weight-bold text-primary font-size-14 mt-1"></div>
+                <div class="text-muted font-size-12">MST: <strong id="subledgerPartnerTax" class="text-dark"></strong> | <span id="subledgerPartnerAddress"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Balance Summary Badges -->
+          <div class="row mb-3">
+            <div class="col-md-4 mb-2 mb-md-0">
+              <div class="bg-white p-2 px-3 rounded border shadow-sm text-center">
+                <div class="text-muted font-size-11 font-weight-bold text-uppercase">Số đầu kỳ</div>
+                <div class="d-flex justify-content-around mt-1">
+                  <span class="font-size-12">Nợ: <strong id="subledgerSumOpenDr" class="text-danger">0 đ</strong></span>
+                  <span class="font-size-12">Có: <strong id="subledgerSumOpenCr" class="text-success">0 đ</strong></span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-2 mb-md-0">
+              <div class="bg-white p-2 px-3 rounded border shadow-sm text-center">
+                <div class="text-muted font-size-11 font-weight-bold text-uppercase">Phát sinh trong kỳ</div>
+                <div class="d-flex justify-content-around mt-1">
+                  <span class="font-size-12">Nợ: <strong id="subledgerSumPsDr" class="text-danger">0 đ</strong></span>
+                  <span class="font-size-12">Có: <strong id="subledgerSumPsCr" class="text-success">0 đ</strong></span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="bg-white p-2 px-3 rounded border shadow-sm text-center" style="background-color: #f8fafc;">
+                <div class="text-muted font-size-11 font-weight-bold text-uppercase">Số dư cuối kỳ</div>
+                <div class="d-flex justify-content-around mt-1">
+                  <span class="font-size-12 font-weight-bold">Dư Nợ: <strong id="subledgerSumCloseDr" class="text-danger font-size-13">0 đ</strong></span>
+                  <span class="font-size-12 font-weight-bold">Dư Có: <strong id="subledgerSumCloseCr" class="text-success font-size-13">0 đ</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transactions Table -->
+          <div class="card border-0 shadow-sm" style="border-radius:8px; overflow:hidden;">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0 bg-white" style="font-size:12px;">
+                <thead class="bg-light text-center">
+                  <tr>
+                    <th rowspan="2" style="width:40px;" class="align-middle">STT</th>
+                    <th rowspan="2" style="width:90px;" class="align-middle">Ngày ghi</th>
+                    <th colspan="2" class="border-bottom">Chứng từ</th>
+                    <th rowspan="2" style="min-width:220px;" class="align-middle text-left">Diễn giải</th>
+                    <th rowspan="2" style="width:80px;" class="align-middle">TK đối ứng</th>
+                    <th colspan="2" class="border-bottom">Số phát sinh</th>
+                    <th colspan="2" class="border-bottom">Số dư</th>
+                    <th rowspan="2" style="width:75px;" class="align-middle">Chứng từ</th>
+                    <th rowspan="2" style="width:96px;" class="align-middle">Thao tác</th>
+                  </tr>
+                  <tr style="font-size:11.5px; color:#64748b;">
+                    <th style="width:100px;">Số hiệu</th>
+                    <th style="width:85px;">Ngày</th>
+                    <th style="min-width:105px;">Nợ</th>
+                    <th style="min-width:105px;">Có</th>
+                    <th style="min-width:105px;">Nợ</th>
+                    <th style="min-width:105px;">Có</th>
+                  </tr>
+                </thead>
+                <tbody id="subledgerTableBody">
+                  <!-- Generated dynamically via JS -->
+                </tbody>
+                <tfoot class="bg-light font-weight-bold" style="border-top:2px solid #334155;">
+                  <tr>
+                    <td colspan="4" class="text-center text-uppercase">Cộng phát sinh trong kỳ</td>
+                    <td colspan="2"></td>
+                    <td class="text-right text-danger font-weight-bold" id="subledgerFootPsDr">0 đ</td>
+                    <td class="text-right text-success font-weight-bold" id="subledgerFootPsCr">0 đ</td>
+                    <td colspan="4"></td>
+                  </tr>
+                  <tr style="background-color:#e2e8f0;">
+                    <td colspan="4" class="text-center text-uppercase text-dark font-weight-bold">
+                      <i class="bx bx-check-double mr-1 text-success"></i>Số dư cuối kỳ
+                    </td>
+                    <td colspan="4"></td>
+                    <td class="text-right text-danger font-weight-bold font-size-13" id="subledgerFootCloseDr">0 đ</td>
+                    <td class="text-right text-success font-weight-bold font-size-13" id="subledgerFootCloseCr">0 đ</td>
+                    <td colspan="2"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer py-2 px-3 bg-light d-flex align-items-center justify-content-between">
+        <span class="text-muted font-size-12">
+          Theo <span id="subledgerCircularDesc">Thông tư 133/2016/TT-BTC</span>
+        </span>
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/admin-assets/js/admin-inputs.js?v=20261104-1"></script>
+<script>
+function showNotify(msg, type = 'success') {
+  if (window.toastr) {
+    if (type === 'error') toastr.error(msg);
+    else if (type === 'warning') toastr.warning(msg);
+    else toastr.success(msg);
+  }
+  window.dispatchEvent(new CustomEvent('showToast', {
+    detail: { msg: msg, type: type }
+  }));
+}
+
+{% if message or error %}
+showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
+const catalogUrl = new URL(window.location.href);
+catalogUrl.searchParams.delete('message');
+catalogUrl.searchParams.delete('error');
+window.history.replaceState(null, '', catalogUrl.pathname + catalogUrl.search + catalogUrl.hash);
+{% endif %}
+
+async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
+  const tableArea = document.getElementById('catalog-table-area');
+  if (!tableArea) return;
+  tableArea.style.opacity = '0.45';
+  tableArea.style.pointerEvents = 'none';
+
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) throw new Error('Không thể tải dữ liệu danh mục.');
+    const htmlText = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(htmlText, 'text/html');
+
+    const newTableArea = doc.getElementById('catalog-table-area');
+    if (newTableArea) {
+      tableArea.innerHTML = newTableArea.innerHTML;
+    }
+
+    const newCount = doc.getElementById('catalog-company-count');
+    const curCount = document.getElementById('catalog-company-count');
+    if (newCount && curCount) {
+      curCount.textContent = newCount.textContent;
+    }
+
+    const newDebtBtn = doc.getElementById('catalog-debt-filter-btn');
+    const curDebtBtn = document.getElementById('catalog-debt-filter-btn');
+    if (newDebtBtn && curDebtBtn) {
+      curDebtBtn.className = newDebtBtn.className;
+      curDebtBtn.setAttribute('aria-pressed', newDebtBtn.getAttribute('aria-pressed'));
+    }
+
+    clearAllCatalogSelections();
+
+    if (pushState) {
+      window.history.pushState(null, '', targetUrl);
+    }
+  } catch (err) {
+    console.error('Lỗi tải danh mục qua AJAX:', err);
+    showNotify('Lỗi tải danh mục: ' + err.message, 'error');
+  } finally {
+    tableArea.style.opacity = '1';
+    tableArea.style.pointerEvents = '';
+  }
+}
+
+function reloadCatalogTableAjax() {
+  loadCatalogCompaniesAjax(window.location.href, false);
+}
+
+async function loadCatalogItemsAjax(targetUrl, pushState = false) {
+  const itemsArea = document.getElementById('catalog-items-area');
+  if (!itemsArea) return;
+  itemsArea.style.opacity = '0.45';
+  itemsArea.style.pointerEvents = 'none';
+  try {
+    const res = await fetch(targetUrl, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) throw new Error('Không thể tải dữ liệu.');
+    const htmlText = await res.text();
+    const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+    const newItemsArea = doc.getElementById('catalog-items-area');
+    if (newItemsArea) {
+      itemsArea.innerHTML = newItemsArea.innerHTML;
+    }
+    if (pushState) {
+      window.history.pushState(null, '', targetUrl);
+    }
+  } catch (err) {
+    console.error('Lỗi tải items qua AJAX:', err);
+    showNotify('Lỗi tải dữ liệu: ' + err.message, 'error');
+  } finally {
+    itemsArea.style.opacity = '1';
+    itemsArea.style.pointerEvents = '';
+  }
+}
+
+window.addEventListener('popstate', function() {
+  const url = window.location.href;
+  const searchParams = new URL(url).searchParams;
+  const tab = searchParams.get('tab');
+  if (tab === 'service' || tab === 'cargo_type') {
+    loadCatalogItemsAjax(url, false);
+  } else {
+    const searchInput = document.getElementById('catalog-company-search');
+    if (searchInput) {
+      searchInput.value = searchParams.get('q') || '';
+    }
+    loadCatalogCompaniesAjax(url, false);
+  }
+});
+
+document.addEventListener('click', function(e) {
+  const paginationLink = e.target.closest('#catalog-table-area .pagination a.page-link');
+  if (paginationLink && paginationLink.href) {
+    e.preventDefault();
+    loadCatalogCompaniesAjax(paginationLink.href, true);
+    return;
+  }
+  const itemsPaginationLink = e.target.closest('#catalog-items-area .pagination a.page-link');
+  if (itemsPaginationLink && itemsPaginationLink.href) {
+    e.preventDefault();
+    loadCatalogItemsAjax(itemsPaginationLink.href, true);
+    return;
+  }
+});
+
+window.onActiveCompanyChanged = function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tab = urlParams.get('tab');
+  if (tab === 'service' || tab === 'cargo_type') {
+    loadCatalogItemsAjax(window.location.href, false);
+  } else {
+    reloadCatalogTableAjax();
+  }
+};
+
+function toggleCatalogCompanyEditor(button, companyId) {
+  const editor = document.getElementById(`catalog-company-editor-${companyId}`);
+  const trigger = button || document.querySelector(`[aria-controls="catalog-company-editor-${companyId}"]`);
+  const opening = editor.hidden;
+  document.querySelectorAll('.catalog-company-editor-row').forEach(row => {
+    row.hidden = true;
+    row.style.display = 'none';
+  });
+  document.querySelectorAll('[aria-controls^="catalog-company-editor-"]').forEach(item => item.setAttribute('aria-expanded', 'false'));
+  editor.hidden = !opening;
+  editor.style.display = opening ? '' : 'none';
+  trigger?.setAttribute('aria-expanded', String(opening));
+  if (opening) editor.querySelector('input[name="tax_code"]').focus();
+}
+
+async function refreshCatalogCompany(button, companyId) {
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...';
+  try {
+    const response = await fetch(`/admin/vehicles/api/invoice-companies/${companyId}/refresh`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.message || 'Không cập nhật được đơn vị.');
+
+    const company = result.company;
+    const message = (company && company.director_user_created)
+      ? `Đã cập nhật từ MST và tạo người dùng mới: ${company.director_name}.`
+      : 'Đã cập nhật thông tin đơn vị và đồng bộ giám đốc từ MST.';
+    showNotify(message, 'success');
+    reloadCatalogTableAjax();
+  } catch (error) {
+    console.error('Không cập nhật được MST:', error);
+    showNotify(error.message || 'Không cập nhật được đơn vị.', 'error');
+  } finally {
+    button.innerHTML = originalHtml;
+    button.disabled = false;
+  }
+}
+
+async function deleteCatalogCompany(event, companyId, companyName) {
+  if (event) event.preventDefault();
+  const ok = confirm(`Bạn có chắc chắn muốn xóa đơn vị "${companyName}"? Thao tác này không thể hoàn tác.`);
+  if (!ok) return;
+
+  const btn = event ? event.currentTarget : null;
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang xóa...';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('back', window.location.href);
+    const response = await fetch(`/admin/transport/catalog/companies/${companyId}/delete`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || 'Không thể xóa đơn vị.');
+    }
+    showNotify(data.message || 'Đã xóa đơn vị.', 'success');
+    reloadCatalogTableAjax();
+  } catch (err) {
+    console.error('Lỗi khi xóa đơn vị:', err);
+    showNotify(err.message || 'Lỗi khi xóa đơn vị.', 'error');
+    if (btn) {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  }
+}
+
+function toggleDebtFilter() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get('debt') === 'true') {
+    url.searchParams.delete('debt');
+  } else {
+    url.searchParams.set('debt', 'true');
+  }
+  url.searchParams.delete('page');
+  loadCatalogCompaniesAjax(url.toString(), true);
+}
+
+function onCatalogSelectionChange() {
+  const checked = document.querySelectorAll('.catalog-company-select:checked');
+  const count = checked.length;
+  const bar = document.getElementById('catalog-bulk-actions-bar');
+  const countEl = document.getElementById('catalog-selected-count');
+  const countBadges = document.querySelectorAll('.catalog-selected-count-badge');
+  const master = document.getElementById('catalog-select-all');
+  const allBoxes = document.querySelectorAll('.catalog-company-select');
+
+  if (countEl) countEl.textContent = count;
+  countBadges.forEach(b => b.textContent = count);
+
+  if (bar) {
+    if (count > 0) {
+      bar.classList.remove('d-none');
+      bar.classList.add('d-flex');
+    } else {
+      bar.classList.add('d-none');
+      bar.classList.remove('d-flex');
+    }
+  }
+
+  if (master && allBoxes.length > 0) {
+    master.checked = (count === allBoxes.length);
+    master.indeterminate = (count > 0 && count < allBoxes.length);
+  }
+
+  const btnDelete = document.getElementById('btn-toolbar-bulk-delete');
+  const btnRefresh = document.getElementById('btn-toolbar-bulk-refresh');
+  if (btnDelete) {
+    btnDelete.classList.toggle('btn-danger', count > 0);
+    btnDelete.classList.toggle('btn-outline-danger', count === 0);
+    btnDelete.innerHTML = count > 0 ? `<i class="bx bx-trash mr-1"></i>Xóa nhiều (${count})` : '<i class="bx bx-trash mr-1"></i>Xóa nhiều';
+  }
+  if (btnRefresh) {
+    btnRefresh.classList.toggle('btn-primary', count > 0);
+    btnRefresh.classList.toggle('btn-outline-primary', count === 0);
+    btnRefresh.innerHTML = count > 0 ? `<i class="bx bx-refresh mr-1"></i>Cập nhật MST (${count})` : '<i class="bx bx-refresh mr-1"></i>Cập nhật MST';
+  }
+}
+
+function toggleAllCatalogCompanies(source) {
+  document.querySelectorAll('.catalog-company-row')
+    .forEach(row => {
+      const cb = row.querySelector('.catalog-company-select');
+      if (cb) cb.checked = source.checked;
+    });
+  onCatalogSelectionChange();
+}
+
+function updateCatalogSelectAll() {
+  onCatalogSelectionChange();
+}
+
+function clearAllCatalogSelections() {
+  const master = document.getElementById('catalog-select-all');
+  if (master) {
+    master.checked = false;
+    master.indeterminate = false;
+  }
+  document.querySelectorAll('.catalog-company-select').forEach(box => { box.checked = false; });
+  onCatalogSelectionChange();
+}
+
+async function confirmBulkDeleteCompanies() {
+  const selected = Array.from(document.querySelectorAll('.catalog-company-select:checked')).map(cb => parseInt(cb.value));
+  if (selected.length === 0) {
+    showNotify('Vui lòng tích chọn ít nhất một đơn vị để xóa.', 'warning');
+    return;
+  }
+
+  if (!confirm(`Bạn có chắc chắn muốn xóa ${selected.length} đơn vị đã chọn? Thao tác này không thể hoàn tác.`)) {
+    return;
+  }
+
+  const btns = [
+    document.getElementById('btn-toolbar-bulk-delete'),
+    document.getElementById('btn-bar-bulk-delete')
+  ].filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang xóa...'; });
+
+  try {
+    const res = await fetch('/admin/transport/catalog/companies/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ ids: selected })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showNotify(data.message || 'Đã xóa các đơn vị thành công.', 'success');
+      clearAllCatalogSelections();
+      reloadCatalogTableAjax();
+    } else {
+      showNotify(data.message || 'Lỗi khi xóa đơn vị.', 'error');
+    }
+  } catch (err) {
+    showNotify('Lỗi mạng hoặc máy chủ không phản hồi: ' + err.message, 'error');
+  } finally {
+    btns.forEach(b => {
+      b.disabled = false;
+      b.innerHTML = '<i class="bx bx-trash mr-1"></i>Xóa nhiều';
+    });
+    onCatalogSelectionChange();
+  }
+}
+
+async function confirmBulkRefreshTax() {
+  const selected = Array.from(document.querySelectorAll('.catalog-company-select:checked')).map(cb => parseInt(cb.value));
+  if (selected.length === 0) {
+    showNotify('Vui lòng tích chọn ít nhất một đơn vị để cập nhật từ MST.', 'warning');
+    return;
+  }
+
+  if (!confirm(`Bạn có chắc muốn đồng bộ và cập nhật thông tin từ Mã số thuế cho ${selected.length} đơn vị đã chọn?`)) {
+    return;
+  }
+
+  const btns = [
+    document.getElementById('btn-toolbar-bulk-refresh'),
+    document.getElementById('btn-bar-bulk-refresh')
+  ].filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...'; });
+
+  try {
+    const res = await fetch('/admin/transport/catalog/companies/bulk-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ ids: selected })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showNotify(data.message || 'Đã cập nhật các đơn vị thành công.', 'success');
+      clearAllCatalogSelections();
+      reloadCatalogTableAjax();
+    } else {
+      showNotify(data.message || 'Lỗi khi cập nhật từ MST.', 'error');
+    }
+  } catch (err) {
+    showNotify('Lỗi mạng hoặc máy chủ không phản hồi: ' + err.message, 'error');
+  } finally {
+    btns.forEach(b => {
+      b.disabled = false;
+      b.innerHTML = '<i class="bx bx-refresh mr-1"></i>Cập nhật MST';
+    });
+    onCatalogSelectionChange();
+  }
+}
+
+let _catalogCompanySearchTimer;
+function submitCatalogCompanySearch() {
+  clearTimeout(_catalogCompanySearchTimer);
+  const search = document.getElementById('catalog-company-search');
+  if (!search) return;
+  const url = new URL(window.location.href);
+  const term = search.value.trim();
+  if (term) url.searchParams.set('q', term);
+  else url.searchParams.delete('q');
+  url.searchParams.delete('page');
+  loadCatalogCompaniesAjax(url.toString(), true);
+}
+function scheduleCatalogCompanySearch() {
+  clearTimeout(_catalogCompanySearchTimer);
+  _catalogCompanySearchTimer = setTimeout(submitCatalogCompanySearch, 300);
+}
+
+function confirmPayDebt(form, companyName, totalDebt) {
+  const amountStr = form.amount.value.replace(/\D/g, '');
+  if (!amountStr || Number(amountStr) <= 0) {
+    showNotify('Vui lòng nhập số tiền thanh toán hợp lệ.', 'warning');
+    return false;
+  }
+  const amount = Number(amountStr);
+  const formattedAmount = formatCurrency(amount);
+  const formattedDebt = formatCurrency(totalDebt);
+
+  let confirmMsg = `Xác nhận khách hàng "${companyName}" thanh toán: ${formattedAmount}?\n(Tổng nợ: ${formattedDebt}).`;
+  if (amount > totalDebt) {
+    confirmMsg = `Số tiền trả (${formattedAmount}) lớn hơn tổng nợ (${formattedDebt}).\nBạn có muốn tiếp tục?`;
+  }
+  return confirm(confirmMsg);
+}
+
+async function submitPayDebtAjax(event, form, companyName, totalDebt) {
+  if (event) event.preventDefault();
+  if (!confirmPayDebt(form, companyName, totalDebt)) {
+    return false;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalHtml = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>';
+  }
+
+  try {
+    const response = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.message || 'Lỗi khi trừ nợ đơn vị.');
+    }
+    showNotify(data.message || 'Đã trừ nợ thành công.', 'success');
+    reloadCatalogTableAjax();
+  } catch (err) {
+    console.error('Lỗi thanh toán nợ:', err);
+    showNotify(err.message || 'Lỗi khi trừ nợ đơn vị.', 'error');
+    if (submitBtn) {
+      submitBtn.innerHTML = originalHtml;
+      submitBtn.disabled = false;
+    }
+  }
+  return false;
+}
+
+async function submitCatalogItemAjax(event, form, confirmMsg) {
+  if (event) event.preventDefault();
+  if (confirmMsg && !confirm(confirmMsg)) {
+    return false;
+  }
+
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const originalHtml = submitBtn ? submitBtn.innerHTML : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>';
+  }
+
+  try {
+    const res = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.message || 'Lỗi xử lý danh mục.');
+    }
+    showNotify(data.message || 'Thành công.', 'success');
+    loadCatalogItemsAjax(window.location.href, false);
+  } catch (err) {
+    console.error('Lỗi danh mục items:', err);
+    showNotify(err.message || 'Lỗi xử lý danh mục.', 'error');
+    if (submitBtn) {
+      submitBtn.innerHTML = originalHtml;
+      submitBtn.disabled = false;
+    }
+  }
+  return false;
+}
+
+async function handlePartnerRoleChange(checkbox, roleKey) {
+  const tr = checkbox.closest('tr');
+  const companyId = checkbox.dataset.companyId;
+  const isCustomer = tr.querySelector('.chk-role-kh')?.checked ?? false;
+  const isVendor = tr.querySelector('.chk-role-ncc')?.checked ?? false;
+
+  // Toggle Hợp đồng & BBVC buttons dynamically in UI
+  const contractBtn = tr.querySelector('.btn-contract-action');
+  const bbvcBtn = tr.querySelector('.btn-bbvc-action');
+  if (contractBtn) contractBtn.classList.toggle('d-none', !isCustomer);
+  if (bbvcBtn) bbvcBtn.classList.toggle('d-none', !isCustomer);
+
+  try {
+    const formData = new FormData();
+    formData.append('is_customer', isCustomer ? 'true' : 'false');
+    formData.append('is_vendor', isVendor ? 'true' : 'false');
+
+    const res = await fetch(`/admin/transport/catalog/companies/${companyId}/toggle-role`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi cập nhật vai trò');
+    showNotify(data.message || 'Đã cập nhật vai trò đối tác.', 'success');
+  } catch (err) {
+    showNotify(err.message, 'error');
+    // Revert checkbox on error
+    checkbox.checked = !checkbox.checked;
+    const finalCustomer = tr.querySelector('.chk-role-kh')?.checked ?? false;
+    if (contractBtn) contractBtn.classList.toggle('d-none', !finalCustomer);
+    if (bbvcBtn) bbvcBtn.classList.toggle('d-none', !finalCustomer);
+  }
+}
+
+function onPartnerFilterChange() {
+  const selected = document.querySelector('input[name="partner_type_filter"]:checked')?.value || 'all';
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', 'companies');
+  url.searchParams.set('subtab', 'list');
+  url.searchParams.set('partner_type', selected);
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
+function onRoleFilterChange(role) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', 'companies');
+  url.searchParams.set('subtab', 'list');
+  url.searchParams.set('role_filter', role);
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
+function openEditOpeningDebtModal(companyId, account, name, openDr, openCr) {
+  document.getElementById('debtModalCompanyId').value = companyId;
+  document.getElementById('debtModalAccount').value = account;
+  document.getElementById('debtModalAccountBadge').textContent = account === '131' ? '131 - Phải thu KH' : '331 - Phải trả NCC';
+  document.getElementById('debtModalCompanyName').value = name;
+  document.getElementById('debtModalOpenDr').value = openDr ? Number(openDr).toLocaleString('vi-VN') : '0';
+  document.getElementById('debtModalOpenCr').value = openCr ? Number(openCr).toLocaleString('vi-VN') : '0';
+  $('#modalEditOpeningDebt').modal('show');
+}
+
+async function submitEditOpeningDebt(e) {
+  e.preventDefault();
+  const form = document.getElementById('formEditOpeningDebt');
+  const companyId = document.getElementById('debtModalCompanyId').value;
+  const btn = document.getElementById('btnSaveOpeningDebt');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang lưu...';
+
+  const formData = new FormData(form);
+  try {
+    const res = await fetch(`/admin/transport/catalog/companies/${companyId}/update-opening-debts`, {
+      method: 'POST',
+      body: formData,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi cập nhật số dư đầu kỳ');
+    showNotify(data.message || 'Đã cập nhật số dư đầu kỳ thành công.', 'success');
+    $('#modalEditOpeningDebt').modal('hide');
+    setTimeout(() => window.location.reload(), 500);
+  } catch (err) {
+    showNotify(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu số dư';
+  }
+}
+
+function subledgerEscapeAttr(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function subledgerExecutePost(btn, url, options) {
+  if (btn) btn.disabled = true;
+  try {
+    const opts = options || { method: 'POST' };
+    if (!opts.method) opts.method = 'POST';
+    const res = await fetch(url, opts);
+    let data = null;
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = {};
+    }
+    if (res.ok && data && data.ok) {
+      if (typeof showNotify === 'function') {
+        showNotify(data.message || 'Đã cập nhật sổ công nợ.', 'success');
+      }
+      window.subledgerDirty = true;
+      const ctx = window.subledgerCtx;
+      if (ctx && ctx.partnerId) {
+        openPartnerSubledgerModal(ctx.partnerId, ctx.account, ctx.partnerName);
+      }
+    } else {
+      const errMsg = (data && data.message) ? data.message : 'Không thực hiện được thao tác.';
+      if (typeof showNotify === 'function') {
+        showNotify(errMsg, 'error');
+      }
+    }
+  } catch (err) {
+    if (typeof showNotify === 'function') {
+      showNotify(err.message || 'Lỗi kết nối máy chủ.', 'error');
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function subledgerHandleTableClick(e) {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+  const kind = btn.getAttribute('data-kind') || '';
+  const id = btn.getAttribute('data-id') || '';
+  const guid = btn.getAttribute('data-guid') || '';
+  const link = btn.getAttribute('data-link') || '';
+  const vNo = btn.getAttribute('data-voucher') || '';
+
+  if (action === 'cancel-quick-edit') {
+    const quickRow = document.getElementById('subledgerQuickEditRow');
+    if (quickRow) quickRow.remove();
+    return;
+  }
+
+  if (action === 'save-quick-edit') {
+    const quickRow = document.getElementById('subledgerQuickEditRow');
+    if (!quickRow) return;
+    const editId = btn.getAttribute('data-id');
+    const dateInput = document.getElementById('subledgerEditDate');
+    const vnoInput = document.getElementById('subledgerEditVoucherNo');
+    const descInput = document.getElementById('subledgerEditDesc');
+    const amtInput = document.getElementById('subledgerEditAmount');
+
+    const formData = new FormData();
+    formData.append('voucher_date', dateInput ? dateInput.value : '');
+    formData.append('voucher_no', vnoInput ? vnoInput.value : '');
+    formData.append('description', descInput ? descInput.value : '');
+    formData.append('amount', amtInput ? amtInput.value : '');
+
+    await subledgerExecutePost(btn, '/admin/transport/api/cash-bank/entry/' + encodeURIComponent(editId) + '/update', {
+      method: 'POST',
+      body: formData,
+    });
+    return;
+  }
+
+  if (action === 'edit') {
+    if (kind === 'invoice' || kind === 'invoice_receipt' || (kind === 'cash_entry' && guid) || kind === 'input_invoice') {
+      if (link) {
+        window.open(link, '_blank');
+      }
+      return;
+    }
+
+    if (kind === 'cash_entry' && !guid) {
+      const tr = btn.closest('tr');
+      if (!tr) return;
+      const existingQuickRow = document.getElementById('subledgerQuickEditRow');
+      if (existingQuickRow) {
+        const isSame = existingQuickRow.previousElementSibling === tr;
+        existingQuickRow.remove();
+        if (isSame) return;
+      }
+
+      const dateVal = subledgerEscapeAttr(btn.getAttribute('data-date') || '');
+      const descVal = subledgerEscapeAttr(btn.getAttribute('data-desc') || '');
+      const amtVal = subledgerEscapeAttr(btn.getAttribute('data-amount') || '');
+
+      const quickTr = document.createElement('tr');
+      quickTr.id = 'subledgerQuickEditRow';
+      quickTr.style.backgroundColor = '#f1f5f9';
+      quickTr.innerHTML = `
+        <td colspan="12" class="p-2 border">
+          <div class="card card-body bg-white border-primary p-2 mb-0 shadow-sm">
+            <div class="row align-items-end" style="row-gap:8px;">
+              <div class="col-md-2 col-sm-6">
+                <label class="font-size-11 font-weight-bold text-muted mb-1">Ngày ghi sổ</label>
+                <input type="date" class="form-control form-control-sm" id="subledgerEditDate" value="${dateVal}">
+              </div>
+              <div class="col-md-2 col-sm-6">
+                <label class="font-size-11 font-weight-bold text-muted mb-1">Số hiệu chứng từ</label>
+                <input type="text" class="form-control form-control-sm" id="subledgerEditVoucherNo" value="${subledgerEscapeAttr(vNo)}">
+              </div>
+              <div class="col-md-4 col-sm-12">
+                <label class="font-size-11 font-weight-bold text-muted mb-1">Diễn giải</label>
+                <input type="text" class="form-control form-control-sm" id="subledgerEditDesc" value="${descVal}">
+              </div>
+              <div class="col-md-2 col-sm-6">
+                <label class="font-size-11 font-weight-bold text-muted mb-1">Số tiền (VNĐ)</label>
+                <input type="number" step="1" class="form-control form-control-sm" id="subledgerEditAmount" value="${amtVal}">
+              </div>
+              <div class="col-md-2 col-sm-6 text-right">
+                <button type="button" class="btn btn-sm btn-primary mr-1" data-action="save-quick-edit" data-id="${subledgerEscapeAttr(id)}">
+                  <i class="bx bx-check mr-1"></i>Lưu
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" data-action="cancel-quick-edit">
+                  <i class="bx bx-x mr-1"></i>Hủy
+                </button>
+              </div>
+            </div>
+          </div>
+        </td>
+      `;
+      tr.insertAdjacentElement('afterend', quickTr);
+      return;
+    }
+  }
+
+  if (action === 'delete') {
+    if (kind === 'invoice') {
+      const targetGuid = guid || id;
+      if (!confirm('Xóa hóa đơn ' + vNo + '? Thao tác này xóa cả hóa đơn khỏi hệ thống.')) return;
+      await subledgerExecutePost(btn, '/admin/vehicles/cargo/invoices/' + encodeURIComponent(targetGuid) + '/delete');
+      return;
+    }
+
+    if (kind === 'invoice_receipt' || (kind === 'cash_entry' && guid)) {
+      const targetGuid = guid || id;
+      if (!confirm('Hủy khoản thu tiền của hóa đơn này?')) return;
+      await subledgerExecutePost(btn, '/admin/vehicles/cargo/bulk-mark-unpaid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: ['invoice:' + targetGuid] }),
+      });
+      return;
+    }
+
+    if (kind === 'cash_entry' && !guid) {
+      if (!confirm('Xóa chứng từ ' + vNo + '?')) return;
+      await subledgerExecutePost(btn, '/admin/transport/api/cash-bank/entry/' + encodeURIComponent(id) + '/delete');
+      return;
+    }
+  }
+}
+
+function subledgerInitDelegation() {
+  if (window.subledgerDelegationInit) return;
+  const tbodyEl = document.getElementById('subledgerTableBody');
+  if (!tbodyEl) return;
+  tbodyEl.addEventListener('click', subledgerHandleTableClick);
+  window.subledgerDelegationInit = true;
+}
+
+async function openPartnerSubledgerModal(partnerId, account, partnerName) {
+  window.subledgerCtx = { partnerId: partnerId, account: account, partnerName: partnerName };
+  subledgerInitDelegation();
+
+  $('#modalPartnerSubledger').off('hidden.bs.modal.subledger').one('hidden.bs.modal.subledger', function() {
+    if (window.subledgerDirty) {
+      window.location.reload();
+    }
+  });
+
+  $('#modalPartnerSubledger').modal('show');
+  const spinner = document.getElementById('subledgerModalSpinner');
+  const content = document.getElementById('subledgerModalContent');
+  const titleEl = document.getElementById('subledgerModalTitle');
+  const badgeEl = document.getElementById('subledgerModalAccountBadge');
+  const formCodeEl = document.getElementById('subledgerModalFormCode');
+  const btnStandalone = document.getElementById('btnSubledgerOpenStandalone');
+  const tbody = document.getElementById('subledgerTableBody');
+
+  spinner.classList.remove('d-none');
+  content.classList.add('d-none');
+  titleEl.textContent = partnerName || 'Đối tác';
+  badgeEl.textContent = account === '131' ? 'TK 131 - Phải thu KH' : 'TK 331 - Phải trả NCC';
+  badgeEl.className = 'badge font-size-12 font-weight-bold ml-1 ' + (account === '131' ? 'badge-primary' : 'badge-danger');
+  formCodeEl.textContent = account === '131' ? 'Mẫu S32-DNN' : 'Mẫu S31-DNN';
+  btnStandalone.href = `/admin/transport/catalog/companies/${partnerId}/subledger?account=${account}`;
+
+  try {
+    const res = await fetch(`/admin/transport/catalog/companies/${partnerId}/subledger-data?account=${account}&year=2026`);
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi tải sổ chi tiết.');
+
+    document.getElementById('subledgerOwnerName').textContent = data.owner_name;
+    document.getElementById('subledgerOwnerTax').textContent = data.owner_tax;
+    document.getElementById('subledgerPartnerName').textContent = data.partner_name;
+    document.getElementById('subledgerPartnerTax').textContent = data.partner_tax || '—';
+    document.getElementById('subledgerPartnerAddress').textContent = data.partner_address || '';
+
+    document.getElementById('subledgerSumOpenDr').textContent = data.open_dr_fmt;
+    document.getElementById('subledgerSumOpenCr').textContent = data.open_cr_fmt;
+    document.getElementById('subledgerSumPsDr').textContent = data.tot_ps_dr_fmt;
+    document.getElementById('subledgerSumPsCr').textContent = data.tot_ps_cr_fmt;
+    document.getElementById('subledgerSumCloseDr').textContent = data.close_dr_fmt;
+    document.getElementById('subledgerSumCloseCr').textContent = data.close_cr_fmt;
+
+    document.getElementById('subledgerFootPsDr').textContent = data.tot_ps_dr_fmt;
+    document.getElementById('subledgerFootPsCr').textContent = data.tot_ps_cr_fmt;
+    document.getElementById('subledgerFootCloseDr').textContent = data.close_dr_fmt;
+    document.getElementById('subledgerFootCloseCr').textContent = data.close_cr_fmt;
+
+    let rowsHtml = '';
+    // Row 0: Opening balance
+    rowsHtml += `
+      <tr style="background-color:#fefce8; font-weight:600;">
+        <td class="text-center">—</td>
+        <td class="text-center">01/01/${data.year}</td>
+        <td colspan="2" class="text-center font-italic text-muted">—</td>
+        <td class="font-weight-bold text-dark">Số dư đầu kỳ</td>
+        <td class="text-center text-muted">—</td>
+        <td class="text-right text-muted">—</td>
+        <td class="text-right text-muted">—</td>
+        <td class="text-right text-danger font-weight-bold">${data.open_dr_fmt}</td>
+        <td class="text-right text-success font-weight-bold">${data.open_cr_fmt}</td>
+        <td class="text-center text-muted">—</td>
+        <td class="text-center text-muted">—</td>
+      </tr>
+    `;
+
+    if (data.entries && data.entries.length > 0) {
+      data.entries.forEach((e, idx) => {
+        const linkHtml = e.doc_link
+          ? `<a href="${e.doc_link}" target="_blank" class="badge badge-light border text-primary p-1" title="Xem chứng từ"><i class="bx bx-link-external mr-1"></i>Xem</a>`
+          : '<span class="text-muted font-size-11">—</span>';
+
+        const kind = e.row_kind || '';
+        const srcId = e.source_id || '';
+        const invGuid = e.invoice_guid || '';
+        const editLink = e.edit_link || '';
+        const vNo = subledgerEscapeAttr(e.voucher_no || '');
+        const dateIso = subledgerEscapeAttr(e.date_iso || '');
+        const descText = subledgerEscapeAttr(e.description || '');
+        const rawAmount = subledgerEscapeAttr((String(e.amount_raw || '0')).split('.')[0]);
+
+        let actionHtml = '';
+        if (kind === 'input_invoice') {
+          actionHtml = `
+            <div class="d-flex align-items-center" style="gap:4px;">
+              <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+            </div>
+          `;
+        } else if (kind === 'debt_offset' || kind === 'other_voucher') {
+          actionHtml = '<span class="text-muted font-size-11">—</span>';
+        } else {
+          actionHtml = `
+            <div class="d-flex align-items-center" style="gap:4px;">
+              <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" data-date="${dateIso}" data-desc="${descText}" data-amount="${rawAmount}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
+                <i class="bx bx-edit-alt"></i>
+              </button>
+              <button type="button" class="btn btn-sm btn-danger" data-action="delete" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" title="Xóa">
+                <i class="bx bx-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+
+        rowsHtml += `
+          <tr>
+            <td class="text-center align-middle">${idx + 1}</td>
+            <td class="text-center align-middle">${e.date_str}</td>
+            <td class="text-center align-middle font-weight-semibold text-primary">${e.voucher_no}</td>
+            <td class="text-center align-middle text-muted">${e.voucher_date_str}</td>
+            <td class="align-middle">
+              ${e.description}
+              ${e.serial ? `<span class="badge badge-light border text-muted ml-1 font-size-11">${e.serial}</span>` : ''}
+            </td>
+            <td class="text-center align-middle font-weight-semibold">${e.offset_account}</td>
+            <td class="text-right align-middle ${e.ps_dr > 0 ? 'text-danger font-weight-bold' : 'text-muted'}">${e.ps_dr_fmt}</td>
+            <td class="text-right align-middle ${e.ps_cr > 0 ? 'text-success font-weight-bold' : 'text-muted'}">${e.ps_cr_fmt}</td>
+            <td class="text-right align-middle text-danger font-weight-semibold">${e.bal_dr_fmt}</td>
+            <td class="text-right align-middle text-success font-weight-semibold">${e.bal_cr_fmt}</td>
+            <td class="text-center align-middle">${linkHtml}</td>
+            <td class="text-left align-middle">${actionHtml}</td>
+          </tr>
+        `;
+      });
+    } else {
+      rowsHtml += `
+        <tr>
+          <td colspan="12" class="text-center py-4 text-muted">Chưa có phát sinh giao dịch trong kỳ.</td>
+        </tr>
+      `;
+    }
+
+    tbody.innerHTML = rowsHtml;
+    spinner.classList.add('d-none');
+    content.classList.remove('d-none');
+  } catch (err) {
+    spinner.innerHTML = `<div class="text-danger py-4"><i class="bx bx-error-circle mr-1 font-size-18"></i>${err.message}</div>`;
+  }
+}
+</script>
+{% endblock %}

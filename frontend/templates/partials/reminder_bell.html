@@ -1,0 +1,524 @@
+{# Header Bell Notification for Schedule Reminders — bản gọn #}
+<style>
+.rm-bell-btn{position:relative;background:#fff!important;border:1px solid #e2e8f0!important;border-radius:6px!important;height:32px!important;width:34px;padding:0!important;display:flex;align-items:center;justify-content:center;outline:none}
+.rm-bell-btn:hover{background:#f8fafc!important}
+.rm-bell-btn .rm-badge{position:absolute;top:-6px;right:-6px;min-width:17px;height:17px;line-height:17px;padding:0 4px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:600;display:none}
+.rm-menu{width:320px;max-width:94vw;border:1px solid #e2e8f0!important;border-radius:8px;margin-top:6px;overflow:hidden;z-index:1050;background:#fff}
+.rm-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:600;color:#0f172a}
+.rm-icon-btn{border:0;background:transparent;color:#64748b;width:26px;height:26px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;padding:0;cursor:pointer}
+.rm-icon-btn:hover{background:#f1f5f9;color:#2563eb}
+.rm-icon-btn.ok:hover{color:#16a34a;background:#f0fdf4}
+.rm-icon-btn.del:hover{color:#dc2626;background:#fef2f2}
+.rm-list{max-height:340px;overflow-y:auto}
+.rm-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid #f8fafc}
+.rm-item:hover{background:#f8fafc}
+.rm-dot{width:7px;height:7px;border-radius:50%;flex:none;background:#f59e0b}
+.rm-dot.hot{background:#ef4444}
+.rm-dot.done{background:#22c55e}
+.rm-title{font-size:12.5px;font-weight:500;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rm-sub{font-size:11px;color:#64748b}
+.rm-sub .hot{color:#dc2626;font-weight:600}
+.rm-sub .warn{color:#b45309}
+.rm-empty{padding:16px;text-align:center;color:#94a3b8;font-size:12px}
+.rm-modal .modal-content{border:0;border-radius:8px}
+.rm-modal .modal-header{padding:8px 12px;border-bottom:1px solid #f1f5f9}
+.rm-modal .modal-title{font-size:14px;font-weight:600;margin:0}
+.rm-modal .modal-body{padding:12px}
+.rm-modal .modal-footer{padding:8px 12px;border-top:1px solid #f1f5f9}
+.rm-modal label{font-size:11.5px;font-weight:600;color:#475569;margin-bottom:2px}
+.rm-chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:2px 0 8px}
+.rm-chip{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:12px;font-size:11px;padding:1px 8px;line-height:18px;cursor:pointer}
+.rm-chip:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
+.rm-base{width:118px!important;height:24px!important;font-size:11px!important;padding:0 4px!important}
+.rm-tabs .btn{font-size:12px;padding:2px 10px}
+.rm-table td,.rm-table th{padding:6px 8px;vertical-align:middle;font-size:12px}
+.rm-table th{background:#f8fafc;font-weight:600;color:#475569;position:sticky;top:0;z-index:1}
+.rm-table tr.done .rm-title{text-decoration:line-through;color:#94a3b8}
+</style>
+
+<div class="dropdown d-inline-block mr-2 mr-sm-3" id="reminders-bell-container">
+  <button type="button" class="btn rm-bell-btn" id="page-header-reminders-dropdown"
+          data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Nhắc việc">
+    <i class="bx bx-bell" id="reminders-bell-icon" style="font-size:17px;color:#64748b;"></i>
+    <span class="rm-badge" id="reminders-bell-badge">0</span>
+  </button>
+
+  <div class="dropdown-menu dropdown-menu-right p-0 shadow-sm rm-menu" aria-labelledby="page-header-reminders-dropdown">
+    <div class="rm-head">
+      <span>Nhắc việc <span class="text-danger" id="reminders-dropdown-count-badge"></span></span>
+      <span>
+        <button type="button" class="rm-icon-btn" title="Thêm việc" onclick="window.RemindersUI.openCreateModal(event)"><i class="bx bx-plus"></i></button>
+        <button type="button" class="rm-icon-btn" title="Xem tất cả" onclick="window.RemindersUI.openManagerModal(event)"><i class="bx bx-list-ul"></i></button>
+      </span>
+    </div>
+    <div class="rm-list" id="reminders-dropdown-list">
+      <div class="rm-empty"><i class="bx bx-loader-alt bx-spin"></i></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Thêm / Sửa nhắc việc (dùng chung) -->
+<div class="modal fade rm-modal" id="modal-reminder-form" tabindex="-1" role="dialog" aria-hidden="true" style="z-index:10060;">
+  <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:440px;">
+    <div class="modal-content shadow-sm">
+      <div class="modal-header">
+        <h6 class="modal-title" id="reminder-form-heading">Thêm nhắc việc</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+      </div>
+      <form id="form-reminder" onsubmit="window.RemindersUI.submitForm(event)">
+        <input type="hidden" id="reminder-form-id" value="">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label>Nội dung <span class="text-danger">*</span></label>
+            <input type="text" id="reminder-form-title" class="form-control form-control-sm"
+                   placeholder="VD: Đáo hạn ngân hàng, đăng kiểm xe..." required>
+          </div>
+          <div class="form-group mb-2">
+            <input type="text" id="reminder-form-description" class="form-control form-control-sm"
+                   placeholder="Ghi chú (không bắt buộc)">
+          </div>
+          <div class="form-row">
+            <div class="col-7 form-group mb-1">
+              <label>Hạn chót <span class="text-danger">*</span></label>
+              <input type="date" id="reminder-form-due-date" class="form-control form-control-sm font-weight-bold text-primary" required>
+            </div>
+            <div class="col-5 form-group mb-1">
+              <label>Nhắc trước (ngày)</label>
+              <input type="number" id="reminder-form-before-days" class="form-control form-control-sm" min="0" max="365" value="15" required>
+            </div>
+          </div>
+          <div class="rm-chips">
+            <span class="rm-sub">Từ</span>
+            <input type="date" id="reminder-form-base-date" class="form-control rm-base">
+            <button type="button" class="rm-chip" onclick="window.RemindersUI.applyInterval(1,'month')">+1T</button>
+            <button type="button" class="rm-chip" onclick="window.RemindersUI.applyInterval(3,'month')">+3T</button>
+            <button type="button" class="rm-chip" onclick="window.RemindersUI.applyInterval(6,'month')">+6T</button>
+            <button type="button" class="rm-chip" onclick="window.RemindersUI.applyInterval(1,'year')">+1 năm</button>
+            <button type="button" class="rm-chip" onclick="window.RemindersUI.applyInterval(7,'day')">+7 ngày</button>
+          </div>
+          <div class="d-flex align-items-center" style="gap:6px;">
+            <label class="mb-0 text-nowrap">Hạn cũ</label>
+            <input type="date" id="reminder-form-old-due-date" class="form-control form-control-sm" style="max-width:150px;">
+            <button type="button" class="rm-icon-btn" id="reminder-form-copy-old" title="Đưa hạn chót hiện tại sang Hạn cũ"
+                    onclick="window.RemindersUI.copyCurrentDueToOld()"><i class="bx bx-history"></i></button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary" id="btn-submit-reminder">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Hoàn tất & Gia hạn -->
+<div class="modal fade rm-modal" id="modal-reminder-renew" tabindex="-1" role="dialog" aria-hidden="true" style="z-index:10070;">
+  <div class="modal-dialog modal-dialog-centered" role="document" style="max-width:400px;">
+    <div class="modal-content shadow-sm">
+      <div class="modal-header">
+        <h6 class="modal-title">Đánh dấu xong</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="rm-title mb-1" id="reminder-renew-title" style="white-space:normal;"></div>
+        <div class="rm-sub mb-2">Hạn hiện tại: <strong class="text-dark" id="reminder-renew-current-due"></strong></div>
+        <label>Hạn tiếp theo</label>
+        <input type="date" id="reminder-renew-next-due" class="form-control form-control-sm font-weight-bold text-success mb-1">
+        <div class="rm-chips mb-0">
+          <span class="rm-sub">Từ</span>
+          <input type="date" id="reminder-renew-base-date" class="form-control rm-base">
+          <button type="button" class="rm-chip" onclick="window.RemindersUI.applyRenewInterval(1,'month')">+1T</button>
+          <button type="button" class="rm-chip" onclick="window.RemindersUI.applyRenewInterval(3,'month')">+3T</button>
+          <button type="button" class="rm-chip" onclick="window.RemindersUI.applyRenewInterval(6,'month')">+6T</button>
+          <button type="button" class="rm-chip" onclick="window.RemindersUI.applyRenewInterval(1,'year')">+1 năm</button>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-sm btn-light" onclick="window.RemindersUI.confirmCompleteOnly()">Chỉ đánh dấu xong</button>
+        <button type="button" class="btn btn-sm btn-success" onclick="window.RemindersUI.confirmRenew()">Xong & gia hạn</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Danh sách nhắc việc -->
+<div class="modal fade rm-modal" id="modal-reminder-manager" tabindex="-1" role="dialog" aria-hidden="true" style="z-index:10040;">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document" style="max-width:820px;">
+    <div class="modal-content shadow-sm">
+      <div class="modal-header">
+        <h6 class="modal-title">Danh sách nhắc việc</h6>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-wrap align-items-center mb-2" style="gap:6px;">
+          <div class="btn-group btn-group-sm rm-tabs" role="group" id="reminders-filter-tabs">
+            <button type="button" class="btn btn-outline-secondary active" onclick="window.RemindersUI.setManagerFilter('all', this)">Tất cả <span id="count-tab-all">0</span></button>
+            <button type="button" class="btn btn-outline-secondary" onclick="window.RemindersUI.setManagerFilter('active', this)">Đang nhắc <span id="count-tab-active">0</span></button>
+            <button type="button" class="btn btn-outline-secondary" onclick="window.RemindersUI.setManagerFilter('completed', this)">Đã xong <span id="count-tab-completed">0</span></button>
+          </div>
+          <input type="text" id="reminders-manager-search" class="form-control form-control-sm ml-auto" style="width:200px;max-width:100%;"
+                 placeholder="Tìm..." oninput="window.RemindersUI.onSearchInput(this.value)">
+          <button type="button" class="btn btn-sm btn-primary py-0 px-2" style="height:31px;" onclick="window.RemindersUI.openCreateModal(event)"><i class="bx bx-plus"></i> Thêm</button>
+        </div>
+        <div class="table-responsive" style="max-height:460px;overflow-y:auto;">
+          <table class="table table-hover mb-0 rm-table">
+            <thead>
+              <tr>
+                <th>Nội dung</th>
+                <th style="width:110px;">Hạn chót</th>
+                <th style="width:150px;">Trạng thái</th>
+                <th style="width:96px;" class="text-right"></th>
+              </tr>
+            </thead>
+            <tbody id="reminders-manager-tbody">
+              <tr><td colspan="4" class="rm-empty">Đang tải...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function flash(el, color) {
+    if (!el) return;
+    el.style.backgroundColor = color;
+    setTimeout(() => { el.style.backgroundColor = ''; }, 600);
+  }
+  function notify(msg, type) {
+    if (window.showNotify) window.showNotify(msg, type || 'success');
+  }
+  function closeDropdown() {
+    try { $('#page-header-reminders-dropdown').dropdown('hide'); } catch (err) {}
+    $('#reminders-bell-container .dropdown-menu').removeClass('show');
+  }
+
+  window.RemindersUI = {
+    activeItems: [],
+    allItems: [],
+    currentFilter: 'all',
+    searchQuery: '',
+    pendingRenewItemId: null,
+
+    init: function() {
+      $('#modal-reminder-form, #modal-reminder-renew, #modal-reminder-manager').appendTo('body');
+      this.fetchBadge();
+      setInterval(() => this.fetchBadge(), 60000);
+    },
+
+    addMonths: function(dateStr, monthsToAdd) {
+      if (!dateStr) return '';
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const total = (m - 1) + monthsToAdd;
+      const ty = y + Math.floor(total / 12);
+      const tm = ((total % 12) + 12) % 12;
+      const td = Math.min(d, new Date(ty, tm + 1, 0).getDate());
+      return `${ty}-${String(tm + 1).padStart(2, '0')}-${String(td).padStart(2, '0')}`;
+    },
+
+    addInterval: function(base, count, unit) {
+      if (unit === 'day') {
+        const [y, m, d] = base.split('-').map(Number);
+        const dt = new Date(y, m - 1, d + count);
+        return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+      }
+      return this.addMonths(base, unit === 'year' ? count * 12 : count);
+    },
+
+    applyInterval: function(count, unit) {
+      const baseEl = document.getElementById('reminder-form-base-date');
+      const dueEl = document.getElementById('reminder-form-due-date');
+      if (!baseEl.value) baseEl.value = todayStr();
+      dueEl.value = this.addInterval(baseEl.value, count, unit);
+      flash(dueEl, '#fef08a');
+    },
+
+    applyRenewInterval: function(count, unit) {
+      const baseEl = document.getElementById('reminder-renew-base-date');
+      const dueEl = document.getElementById('reminder-renew-next-due');
+      if (!baseEl.value) baseEl.value = todayStr();
+      dueEl.value = this.addInterval(baseEl.value, count, unit);
+      flash(dueEl, '#bbf7d0');
+    },
+
+    stateClass: function(item) {
+      if (item.status === 'completed') return 'done';
+      return (item.state === 'overdue' || item.state === 'due_today') ? 'hot' : '';
+    },
+
+    fetchBadge: function() {
+      fetch('/api/reminders/badge')
+        .then(r => r.json())
+        .then(res => {
+          if (!res.ok) return;
+          this.activeItems = res.items || [];
+          this.updateBellBadge(res.count || 0);
+          this.renderDropdown(this.activeItems);
+        })
+        .catch(err => console.warn('Reminders fetch error:', err));
+    },
+
+    updateBellBadge: function(count) {
+      const badge = document.getElementById('reminders-bell-badge');
+      const icon = document.getElementById('reminders-bell-icon');
+      const head = document.getElementById('reminders-dropdown-count-badge');
+      if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+      }
+      if (icon) {
+        icon.className = count > 0 ? 'bx bxs-bell' : 'bx bx-bell';
+        icon.style.color = count > 0 ? '#f59e0b' : '#64748b';
+      }
+      if (head) head.textContent = count > 0 ? '(' + count + ')' : '';
+    },
+
+    renderDropdown: function(items) {
+      const box = document.getElementById('reminders-dropdown-list');
+      if (!box) return;
+      if (!items || !items.length) {
+        box.innerHTML = '<div class="rm-empty">Không có việc cần nhắc</div>';
+        return;
+      }
+      box.innerHTML = items.map(item => {
+        const cls = this.stateClass(item);
+        return `
+          <div class="rm-item">
+            <span class="rm-dot ${cls}"></span>
+            <div style="flex:1;min-width:0;">
+              <div class="rm-title" title="${this.escapeHtml(item.title)}">${this.escapeHtml(item.title)}</div>
+              <div class="rm-sub">${item.due_date_display} · <span class="${cls === 'hot' ? 'hot' : 'warn'}">${this.escapeHtml(item.text)}</span></div>
+            </div>
+            <button type="button" class="rm-icon-btn ok" title="Đánh dấu xong" onclick="window.RemindersUI.openRenewModal(${item.id})"><i class="bx bx-check"></i></button>
+          </div>`;
+      }).join('');
+    },
+
+    openFormModal: function(item) {
+      const isEdit = !!item;
+      const today = todayStr();
+      document.getElementById('reminder-form-heading').textContent = isEdit ? 'Sửa nhắc việc' : 'Thêm nhắc việc';
+      document.getElementById('btn-submit-reminder').textContent = isEdit ? 'Cập nhật' : 'Lưu';
+      document.getElementById('reminder-form-id').value = isEdit ? item.id : '';
+      document.getElementById('reminder-form-title').value = isEdit ? (item.title || '') : '';
+      document.getElementById('reminder-form-description').value = isEdit ? (item.description || '') : '';
+      document.getElementById('reminder-form-old-due-date').value = isEdit ? (item.old_due_date || '') : '';
+      document.getElementById('reminder-form-due-date').value = isEdit ? (item.due_date || '') : this.addMonths(today, 1);
+      document.getElementById('reminder-form-before-days').value = isEdit ? (item.remind_before_days || 15) : 15;
+      document.getElementById('reminder-form-base-date').value = isEdit ? (item.due_date || today) : today;
+      document.getElementById('reminder-form-copy-old').style.display = isEdit ? '' : 'none';
+      $('#modal-reminder-form').modal('show');
+      setTimeout(() => document.getElementById('reminder-form-title').focus(), 300);
+    },
+
+    openCreateModal: function(e) {
+      if (e) { e.stopPropagation(); e.preventDefault(); }
+      closeDropdown();
+      this.openFormModal(null);
+    },
+
+    openEditModal: function(id) {
+      const item = this.allItems.find(x => Number(x.id) === Number(id));
+      if (item) this.openFormModal(item);
+    },
+
+    copyCurrentDueToOld: function() {
+      const cur = document.getElementById('reminder-form-due-date').value;
+      if (!cur) return;
+      document.getElementById('reminder-form-old-due-date').value = cur;
+      document.getElementById('reminder-form-base-date').value = cur;
+    },
+
+    submitForm: function(e) {
+      e.preventDefault();
+      const id = document.getElementById('reminder-form-id').value;
+      const btn = document.getElementById('btn-submit-reminder');
+      const label = btn.textContent;
+      const payload = {
+        title: document.getElementById('reminder-form-title').value.trim(),
+        description: document.getElementById('reminder-form-description').value.trim(),
+        old_due_date: document.getElementById('reminder-form-old-due-date').value || null,
+        due_date: document.getElementById('reminder-form-due-date').value,
+        remind_before_days: parseInt(document.getElementById('reminder-form-before-days').value, 10) || 15
+      };
+      if (!payload.title || !payload.due_date) {
+        alert('Vui lòng nhập nội dung và hạn chót.');
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Đang lưu...';
+      fetch(id ? `/api/reminders/${id}` : '/api/reminders', {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok) {
+          $('#modal-reminder-form').modal('hide');
+          notify(res.message || (id ? 'Đã cập nhật nhắc việc.' : 'Đã thêm nhắc việc.'));
+          this.refresh();
+        } else {
+          alert(res.message || 'Lỗi khi lưu');
+        }
+      })
+      .catch(() => alert('Lỗi kết nối máy chủ'))
+      .finally(() => { btn.disabled = false; btn.textContent = label; });
+    },
+
+    openRenewModal: function(id) {
+      const item = this.allItems.find(x => Number(x.id) === Number(id)) || this.activeItems.find(x => Number(x.id) === Number(id));
+      if (!item) { this.completeItem(id); return; }
+      closeDropdown();
+      this.pendingRenewItemId = id;
+      const today = todayStr();
+      document.getElementById('reminder-renew-title').textContent = item.title;
+      document.getElementById('reminder-renew-current-due').textContent = item.due_date_display || item.due_date;
+      document.getElementById('reminder-renew-base-date').value = today;
+      document.getElementById('reminder-renew-next-due').value = this.addMonths(today, 1);
+      $('#modal-reminder-renew').modal('show');
+    },
+
+    confirmCompleteOnly: function() {
+      if (!this.pendingRenewItemId) return;
+      $('#modal-reminder-renew').modal('hide');
+      this.completeItem(this.pendingRenewItemId);
+      this.pendingRenewItemId = null;
+    },
+
+    confirmRenew: function() {
+      if (!this.pendingRenewItemId) return;
+      const nextDue = document.getElementById('reminder-renew-next-due').value;
+      if (!nextDue) { alert('Vui lòng chọn hạn tiếp theo'); return; }
+      const id = this.pendingRenewItemId;
+      fetch(`/api/reminders/${id}/renew`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_due_date: nextDue })
+      })
+      .then(r => r.json())
+      .then(res => {
+        $('#modal-reminder-renew').modal('hide');
+        this.pendingRenewItemId = null;
+        if (res.ok) { notify(res.message || 'Đã gia hạn.'); this.refresh(); }
+        else alert(res.message || 'Lỗi gia hạn');
+      })
+      .catch(() => alert('Lỗi kết nối máy chủ'));
+    },
+
+    postAction: function(url, method, okMsg, okType) {
+      fetch(url, { method: method })
+        .then(r => r.json())
+        .then(res => {
+          if (res.ok) { notify(okMsg, okType); this.refresh(); }
+          else alert(res.message || 'Lỗi cập nhật');
+        })
+        .catch(err => console.error(err));
+    },
+
+    completeItem: function(id) { this.postAction(`/api/reminders/${id}/complete`, 'POST', 'Đã đánh dấu xong.'); },
+    reopenItem: function(id) { this.postAction(`/api/reminders/${id}/reopen`, 'POST', 'Đã mở lại.', 'info'); },
+    deleteItem: function(id) {
+      if (!confirm('Xóa lịch nhắc này?')) return;
+      this.postAction(`/api/reminders/${id}`, 'DELETE', 'Đã xóa.');
+    },
+
+    refresh: function() {
+      this.fetchBadge();
+      if ($('#modal-reminder-manager').hasClass('show')) this.fetchAll();
+    },
+
+    openManagerModal: function(e) {
+      if (e) { e.stopPropagation(); e.preventDefault(); }
+      closeDropdown();
+      $('#modal-reminder-manager').modal('show');
+      this.fetchAll();
+    },
+
+    fetchAll: function() {
+      fetch('/api/reminders/all')
+        .then(r => r.json())
+        .then(res => {
+          if (!res.ok) return;
+          this.allItems = res.items || [];
+          this.updateManagerCounts();
+          this.renderManagerTable();
+        })
+        .catch(err => console.error(err));
+    },
+
+    updateManagerCounts: function() {
+      const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+      set('count-tab-all', this.allItems.length);
+      set('count-tab-active', this.allItems.filter(x => x.is_active).length);
+      set('count-tab-completed', this.allItems.filter(x => x.status === 'completed').length);
+    },
+
+    setManagerFilter: function(filter, btn) {
+      this.currentFilter = filter;
+      document.querySelectorAll('#reminders-filter-tabs button').forEach(t => t.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      this.renderManagerTable();
+    },
+
+    onSearchInput: function(val) {
+      this.searchQuery = (val || '').toLowerCase().trim();
+      this.renderManagerTable();
+    },
+
+    renderManagerTable: function() {
+      const tbody = document.getElementById('reminders-manager-tbody');
+      if (!tbody) return;
+      let rows = this.allItems.slice();
+      if (this.currentFilter === 'active') rows = rows.filter(x => x.is_active);
+      else if (this.currentFilter === 'completed') rows = rows.filter(x => x.status === 'completed');
+      if (this.searchQuery) {
+        const q = this.searchQuery;
+        rows = rows.filter(x => (x.title || '').toLowerCase().includes(q) || (x.description || '').toLowerCase().includes(q));
+      }
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="rm-empty">Không có lịch nhắc nào.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(item => {
+        const cls = this.stateClass(item);
+        const done = cls === 'done';
+        const status = done
+          ? '<span class="text-success">Đã xong</span>'
+          : `<span class="${cls === 'hot' ? 'text-danger font-weight-bold' : ''}" style="${cls === 'hot' ? '' : 'color:#b45309;'}">${this.escapeHtml(item.text)}</span>`;
+        const note = item.description ? `<div class="rm-sub text-truncate" style="max-width:380px;">${this.escapeHtml(item.description)}</div>` : '';
+        const oldDue = item.old_due_date_display ? `<div class="rm-sub">cũ: ${item.old_due_date_display}</div>` : '';
+        const mainBtn = done
+          ? `<button type="button" class="rm-icon-btn" title="Mở lại" onclick="window.RemindersUI.reopenItem(${item.id})"><i class="bx bx-revision"></i></button>`
+          : `<button type="button" class="rm-icon-btn ok" title="Đánh dấu xong" onclick="window.RemindersUI.openRenewModal(${item.id})"><i class="bx bx-check"></i></button>`;
+        return `
+          <tr class="${done ? 'done' : ''}">
+            <td><div class="d-flex align-items-center" style="gap:6px;"><span class="rm-dot ${cls}"></span>
+              <div style="min-width:0;"><div class="rm-title">${this.escapeHtml(item.title)}</div>${note}</div></div></td>
+            <td><div class="font-weight-bold">${item.due_date_display}</div>${oldDue}</td>
+            <td>${status}<div class="rm-sub">nhắc trước ${item.remind_before_days} ngày</div></td>
+            <td class="text-right text-nowrap">
+              ${mainBtn}
+              <button type="button" class="rm-icon-btn" title="Sửa" onclick="window.RemindersUI.openEditModal(${item.id})"><i class="bx bx-edit-alt"></i></button>
+              <button type="button" class="rm-icon-btn del" title="Xóa" onclick="window.RemindersUI.deleteItem(${item.id})"><i class="bx bx-trash"></i></button>
+            </td>
+          </tr>`;
+      }).join('');
+    },
+
+    escapeHtml: function(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', function() { window.RemindersUI.init(); });
+})();
+</script>

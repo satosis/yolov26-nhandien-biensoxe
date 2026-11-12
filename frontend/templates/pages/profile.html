@@ -1,0 +1,129 @@
+{% extends "layout.html" %}
+{% block title %}Thông tin cá nhân{% endblock %}
+{% block page_title %}Thông tin cá nhân{% endblock %}
+
+{% block content %}
+<style>
+  .profile-avatar { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 2px solid #cbd5e1; }
+  .profile-avatar-initial { width: 88px; height: 88px; border-radius: 50%; background: #6366f1; color: #fff;
+                            font-size: 34px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+  .profile-avatar-box { position: relative; display: inline-block; cursor: pointer; border-radius: 50%; line-height: 0; }
+  .profile-avatar-overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(15, 23, 42, .45); color: #fff;
+                            font-size: 26px; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s; }
+  .profile-avatar-box:hover .profile-avatar-overlay { opacity: 1; }
+</style>
+
+<div class="row">
+  <div class="col-12 col-xl-8 col-lg-9">
+    <div class="card shadow-sm border-0 mb-4" style="border-radius:10px;">
+      <div class="card-body p-4">
+        <form method="POST" action="/profile" enctype="multipart/form-data">
+          <div class="d-flex align-items-center mb-4 pb-3 border-bottom" style="gap:16px;">
+            <label id="profile-avatar-box" class="profile-avatar-box mb-0" for="profile-avatar-input" title="Bấm để đổi ảnh đại diện">
+              {% if me.avatar %}
+              <img id="profile-avatar-img" src="{{ me.avatar }}" alt="Ảnh đại diện người dùng" class="profile-avatar">
+              {% else %}
+              <span id="profile-avatar-initial" class="profile-avatar-initial">{{ ((me.full_name or me.username)[0] | upper) }}</span>
+              <img id="profile-avatar-img" src="" alt="Ảnh đại diện người dùng" class="profile-avatar d-none">
+              {% endif %}
+              <span class="profile-avatar-overlay"><i class="mdi mdi-camera"></i></span>
+            </label>
+            <input type="file" name="avatar" id="profile-avatar-input" accept="image/*" class="d-none">
+            <div>
+              <h5 class="mb-1 font-weight-bold text-dark">{{ me.full_name or me.username }}</h5>
+              <div class="text-muted small">{{ me.username }} · {{ me.role }}</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-5 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Họ và tên</label>
+              <input name="full_name" value="{{ me.full_name or '' }}" class="form-control">
+            </div>
+            <div class="col-12 col-md-2 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Giới tính</label>
+              <select name="gender" class="form-control">
+                <option value="nam" {% if (me.gender or 'nam') == 'nam' %}selected{% endif %}>Nam</option>
+                <option value="nữ" {% if me.gender == 'nữ' %}selected{% endif %}>Nữ</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Nickname</label>
+              <input name="nickname" value="{{ me.nickname or '' }}" class="form-control">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Số điện thoại</label>
+              <input name="phone" type="tel" value="{{ me.phone or '' }}" class="form-control">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Email</label>
+              <input name="email" type="email" value="{{ me.email or '' }}" class="form-control">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Ngân hàng</label>
+              <input name="bank_name" value="{{ me.bank_name or '' }}" class="form-control">
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Số tài khoản</label>
+              <input name="bank_account" value="{{ me.bank_account or '' }}" inputmode="numeric" class="form-control">
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center mt-3 pt-3 border-top" style="gap:10px;">
+            <button type="submit" class="btn btn-primary px-4 font-weight-bold">
+              <i class="bx bx-save mr-1"></i> Lưu thay đổi
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0" style="border-radius:10px;">
+      <div class="card-body p-4">
+        <h6 class="font-weight-bold text-dark mb-3">Đổi mật khẩu</h6>
+        <form method="POST" action="/profile/password">
+          <div class="row">
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Mật khẩu hiện tại</label>
+              <input name="current_password" type="password" required autocomplete="current-password" class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Mật khẩu mới</label>
+              <input name="new_password" type="password" required autocomplete="new-password" class="form-control">
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+              <label class="text-muted small font-weight-bold text-uppercase">Nhập lại mật khẩu mới</label>
+              <input name="confirm_password" type="password" required autocomplete="new-password" class="form-control">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary px-4 font-weight-bold">Đổi mật khẩu</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var input = document.getElementById('profile-avatar-input');
+  var img = document.getElementById('profile-avatar-img');
+  var initial = document.getElementById('profile-avatar-initial');
+  input.addEventListener('change', function () {
+    if (!input.files.length) return;
+    img.src = URL.createObjectURL(input.files[0]);
+    img.classList.remove('d-none');
+    if (initial) initial.classList.add('d-none');
+    // Lưu ảnh đại diện ngay sau khi chọn
+    if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+  });
+});
+</script>
+{% endblock %}

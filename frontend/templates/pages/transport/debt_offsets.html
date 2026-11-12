@@ -1,0 +1,193 @@
+{% extends "layout.html" %}
+
+{% block title %}Bù trừ công nợ{% endblock %}
+{% block page_title %}Bù trừ công nợ{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold">
+            Danh sách bút toán ({{ pagination.total }})
+          </span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddOffsetModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm bút toán
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th style="width:110px;" class="text-center">Ngày</th>
+            <th>Giảm nợ (Nợ 331)</th>
+            <th>Nhận nợ (Có 331)</th>
+            <th style="width:150px;" class="text-right">Số tiền</th>
+            <th>Diễn giải</th>
+            <th style="width:90px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for o in offsets %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index }}
+            </td>
+            <td class="text-center align-middle">
+              {{ o.offset_date.strftime('%d/%m/%Y') if o.offset_date.strftime is defined else o.offset_date }}
+            </td>
+            <td class="align-middle font-weight-medium text-dark">
+              {{ o.debit_name or '—' }}
+            </td>
+            <td class="align-middle font-weight-medium text-dark">
+              {{ o.credit_name or '—' }}
+            </td>
+            <td class="text-right align-middle font-weight-bold text-dark">
+              {{ o.amount_fmt or (o.amount|format_number) }}
+            </td>
+            <td class="align-middle text-muted">
+              {{ o.description or '—' }}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1"
+                      data-id="{{ o.id }}"
+                      data-date="{{ o.offset_date.isoformat() if o.offset_date.isoformat is defined else o.offset_date }}"
+                      data-debit="{{ o.debit_partner_id }}"
+                      data-credit="{{ o.credit_partner_id }}"
+                      data-amount="{{ o.amount|int }}"
+                      data-description="{{ o.description or '' }}"
+                      onclick="openEditOffsetModal(this)">Sửa</button>
+              <form method="post" action="/admin/transport/debt-offsets/{{ o.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa bút toán này?')">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">Chưa có bút toán.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm bút toán -->
+<div class="modal fade" id="offsetModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="offsetModalTitle">Thêm bút toán</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="offsetForm" method="post" action="/admin/transport/debt-offsets">
+        <input type="hidden" name="page" value="{{ pagination.page }}">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Ngày</label>
+            <input type="date" name="offset_date" id="offset_date" class="form-control form-control-sm" value="{{ today }}" required>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Giảm nợ (Nợ 331)</label>
+            <select name="debit_partner_id" id="debit_partner_id" class="form-control form-control-sm" required>
+              <option value="">-- Chọn đối tác --</option>
+              {% for p in partners %}
+              <option value="{{ p.id }}">{{ p.name }}{% if p.tax_code %} (MST {{ p.tax_code }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Nhận nợ (Có 331)</label>
+            <select name="credit_partner_id" id="credit_partner_id" class="form-control form-control-sm" required>
+              <option value="">-- Chọn đối tác --</option>
+              {% for p in partners %}
+              <option value="{{ p.id }}">{{ p.name }}{% if p.tax_code %} (MST {{ p.tax_code }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số tiền</label>
+            <input type="text" inputmode="numeric" name="amount" id="amount" class="form-control form-control-sm" required>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Diễn giải</label>
+            <input type="text" name="description" id="description" class="form-control form-control-sm" maxlength="500">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+let debitTom = null;
+let creditTom = null;
+
+function initTomSelects() {
+  if (typeof TomSelect !== 'undefined') {
+    const debitEl = document.getElementById('debit_partner_id');
+    const creditEl = document.getElementById('credit_partner_id');
+    if (debitEl && !debitTom && !debitEl.tomselect) {
+      debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body'});
+    }
+    if (creditEl && !creditTom && !creditEl.tomselect) {
+      creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body'});
+    }
+  }
+}
+
+function fillOffsetForm(action, title, values) {
+  document.getElementById('offsetForm').action = action;
+  document.getElementById('offsetModalTitle').textContent = title;
+  document.getElementById('offset_date').value = values.date;
+  document.getElementById('amount').value = values.amount;
+  document.getElementById('description').value = values.description;
+  [['debit_partner_id', debitTom, values.debit], ['credit_partner_id', creditTom, values.credit]].forEach(function (f) {
+    if (f[1]) f[1].setValue(f[2], true);
+    else document.getElementById(f[0]).value = f[2];
+  });
+}
+
+function openAddOffsetModal() {
+  initTomSelects();
+  fillOffsetForm('/admin/transport/debt-offsets', 'Thêm bút toán',
+    {date: '{{ today }}', amount: '', description: '', debit: '', credit: ''});
+  $('#offsetModal').modal('show');
+}
+
+function openEditOffsetModal(btn) {
+  initTomSelects();
+  fillOffsetForm('/admin/transport/debt-offsets/' + btn.dataset.id + '/edit', 'Sửa bút toán', {
+    date: btn.dataset.date, amount: btn.dataset.amount, description: btn.dataset.description,
+    debit: btn.dataset.debit, credit: btn.dataset.credit,
+  });
+  $('#offsetModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  initTomSelects();
+  {% if error or message %}
+  window.showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
+  {% endif %}
+});
+</script>
+{% endblock %}

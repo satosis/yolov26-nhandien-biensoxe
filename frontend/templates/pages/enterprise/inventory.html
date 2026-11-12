@@ -1,0 +1,824 @@
+{% extends "layout.html" %}
+
+{% block title %}Sổ tồn kho — {{ company.name if company else 'Doanh nghiệp' }}{% endblock %}
+{% block page_title %}Sổ tồn kho{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/sales">
+    <i class="bx bx-receipt mr-1"></i>Sổ bán hàng
+  </a>
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/suppliers">
+    <i class="bx bx-cart mr-1"></i>Sổ nhập hàng
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  /* Table text as large as the action buttons (Nhập, Xuất, Sửa, Xóa). */
+  .table.inventory-table tbody td { font-size: 14px !important; vertical-align: middle; }
+  .table.inventory-table tbody td .btn { font-size: 14px !important; }
+  .table.inventory-table tbody td .small, .table.inventory-table tbody td .badge { font-size: 14px !important; }
+  .table.inventory-table tbody td div.small { font-size: 12.5px !important; }
+  .table.inventory-table thead th { font-size: 12.5px !important; }
+  .table.inventory-table tbody td.inv-num { font-size: 16px !important; }
+  .table.inventory-table thead th.inv-in, .table.inventory-table tbody td.inv-in { background-color: #e7f6ec !important; color: #15803d !important; font-weight: 700 !important; }
+  .table.inventory-table thead th.inv-out, .table.inventory-table tbody td.inv-out { background-color: #fdeee4 !important; color: #c2410c !important; font-weight: 700 !important; }
+  .table.inventory-table tbody td.inv-wh-dv { color: #1d4ed8 !important; font-weight: 700; }
+  .table.inventory-table tbody td.inv-wh-tl { color: #dc2626 !important; font-weight: 700; }
+  #movementModal .modal-title { font-size: 21px !important; }
+  #movementModal .modal-body label { font-size: 15px !important; }
+  #movementModal .form-control { font-size: 16px !important; height: auto; }
+  #movementModal .ts-control, #movementModal .ts-control > .item, #movementModal .ts-control input, #movementModal .ts-dropdown, #movementModal .ts-dropdown .option { font-size: 16px !important; }
+  #movementModal .modal-footer .btn { font-size: 15px !important; }
+  #movementModal #mov-stock { font-size: 16px; color: #15803d; }
+  #movementModal #mov-stock.is-empty { color: #dc2626; }
+  /* Fit the screen: tighter cells and action buttons, notes wrap instead of widening the table. */
+  .table.inventory-table th, .table.inventory-table td { padding: 6px 3px !important; }
+  .table.inventory-table tbody td .btn { padding: 2px 5px !important; margin-right: 1px !important; }
+  .table.inventory-table td.inv-note { max-width: 130px; white-space: normal; word-break: break-word; font-size: 13px !important; }
+  .table.inventory-table td.inv-name { min-width: 150px; }
+</style>
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card mb-3">
+    <div class="card-header bg-white py-2 px-2 border-bottom">
+      <div class="d-flex align-items-center justify-content-between flex-wrap flex-lg-nowrap" style="gap:6px;">
+        <ul class="nav nav-pills card-header-pills m-0 flex-nowrap text-nowrap">
+          <li class="nav-item">
+            <a class="nav-link font-weight-bold py-1 px-3 {% if tab == 'journal' %}active{% endif %}"
+               href="/admin/enterprise/inventory?tab=journal{% if q %}&q={{ q|urlencode }}{% endif %}{% if warehouse %}&warehouse={{ warehouse|urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="bx bx-history mr-1"></i>Nhật ký nhập xuất
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link font-weight-bold py-1 px-3 {% if tab == 'stock' %}active{% endif %}"
+               href="/admin/enterprise/inventory?tab=stock{% if q %}&q={{ q|urlencode }}{% endif %}{% if warehouse %}&warehouse={{ warehouse|urlencode }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}">
+              <i class="bx bx-book-content mr-1"></i>Sổ tồn kho
+            </a>
+          </li>
+          <li class="nav-item"><a class="nav-link font-weight-bold py-1 px-3" href="/admin/enterprise/inventory/specs"><i class="bx bx-ruler mr-1"></i>Quy cách hàng hóa</a></li>
+        </ul>
+
+        <div class="d-flex align-items-center flex-nowrap text-nowrap" style="gap:4px; min-width:0;">
+          <select id="inventoryWarehouseFilter" data-no-search class="form-control form-control-sm" style="width:auto; max-width:100px;">
+            <option value="">Tất cả kho</option>
+            {% for w in warehouses %}<option value="{{ w }}" {% if warehouse == w %}selected{% endif %}>{{ w }}</option>{% endfor %}
+            <option value="__none__" {% if warehouse == '__none__' %}selected{% endif %}>Chưa chọn kho</option>
+          </select>
+          {% if tab == 'journal' %}
+          <select id="inventoryKindFilter" data-no-search class="form-control form-control-sm" style="width:auto;">
+            <option value="">Loại</option>
+            <option value="in" {% if kind == 'in' %}selected{% endif %}>Nhập</option>
+            <option value="out" {% if kind == 'out' %}selected{% endif %}>Xuất</option>
+          </select>
+          {% endif %}
+          <div class="input-group input-group-sm" style="min-width:100px; width:200px; flex:1 1 100px;">
+            <div class="input-group-prepend">
+              <span class="input-group-text bg-white border-right-0"><i class="bx bx-search text-muted"></i></span>
+            </div>
+            <input type="search" class="form-control border-left-0 pl-0" id="inventorySearch" placeholder="Tìm kiếm" value="{{ q }}">
+          </div>
+
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddItemModal()">
+            <i class="bx bx-plus mr-1 d-none d-xl-inline"></i>Thêm hàng
+          </button>
+          <button type="button" class="btn btn-sm btn-success font-weight-bold" onclick="openCreateMovementModal('in')">
+            <i class="bx bx-down-arrow-circle mr-1 d-none d-xl-inline"></i>Nhập kho
+          </button>
+          <button type="button" class="btn btn-sm btn-warning font-weight-bold text-dark" onclick="openCreateMovementModal('out')">
+            <i class="bx bx-up-arrow-circle mr-1 d-none d-xl-inline"></i>Xuất kho
+          </button>
+          <button type="button" class="btn btn-sm btn-light border font-weight-bold" onclick="openImportModal()">
+            <i class="bx bx-upload mr-1 d-none d-xl-inline"></i>Nhập Excel
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+    {% if tab == 'stock' %}
+    <!-- Bảng Sổ tồn kho -->
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0 inventory-table" data-bulk-select="1">
+        <thead>
+          <tr class="text-nowrap bg-light">
+            <th style="width:36px;" class="text-center">STT</th>
+            <th style="width:48px;">Kho</th>
+            <th>Tên hàng</th>
+            <th style="width:56px;" class="text-center">ĐVT</th>
+            <th style="width:70px;" class="text-right">Tồn đầu</th>
+            <th style="width:76px;" class="text-right inv-in">Nhập kho</th>
+            <th style="width:76px;" class="text-right inv-out">Xuất kho</th>
+            <th style="width:70px;" class="text-right">Tồn kho</th>
+            <th style="width:80px;" class="text-center">Tình trạng</th>
+            <th>Ghi chú</th>
+            <th style="width:1%;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in items %}
+          <tr>
+            <td class="text-center text-muted align-middle font-weight-medium">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else loop.index }}
+            </td>
+            <td class="align-middle {% if r.wh_key == 'dv' %}inv-wh-dv{% elif r.wh_key == 'tl' %}inv-wh-tl{% endif %}">{{ r.warehouse or '--' }}</td>
+            <td class="align-middle inv-name">
+              <div class="font-weight-bold text-dark">{{ r.name }}</div>
+            </td>
+            <td class="text-center align-middle inv-num">{{ r.unit or '--' }}</td>
+            <td class="text-right align-middle inv-num">{{ r.opening | format_number }}</td>
+            <td class="text-right align-middle inv-num inv-in">{{ r.qty_in | format_number }}</td>
+            <td class="text-right align-middle inv-num inv-out">{{ r.qty_out | format_number }}</td>
+            <td class="text-right align-middle font-weight-bold text-dark inv-num">{{ r.closing | format_number }}</td>
+            <td class="text-center align-middle">
+              {% if r.in_stock %}
+                <span class="text-success font-weight-bold small">Còn hàng</span>
+              {% else %}
+                <span class="badge badge-danger">Hết hàng</span>
+              {% endif %}
+            </td>
+            <td class="align-middle inv-note">{{ r.note or '' }}</td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border text-success mr-1"
+                      onclick="openItemMovementModal('in', {{ r.id }}, '{{ (r.warehouse or '')|escape }}', '{{ (r.code or '')|escape }}', '{{ (r.name or '')|escape }}')">
+                Nhập
+              </button>
+              <button type="button" class="btn btn-sm btn-light border text-warning mr-1"
+                      onclick="openItemMovementModal('out', {{ r.id }}, '{{ (r.warehouse or '')|escape }}', '{{ (r.code or '')|escape }}', '{{ (r.name or '')|escape }}')">
+                Xuất
+              </button>
+              <button type="button" class="btn btn-sm btn-light border mr-1"
+                      onclick="openEditItemModal({{ r.id }}, '{{ (r.warehouse or '')|escape }}', '{{ (r.code or '')|escape }}', '{{ (r.name or '')|escape }}', '{{ (r.unit or '')|escape }}', '{{ r.opening_qty | format_number }}', '{{ (r.note or '')|escape }}')">
+                Sửa
+              </button>
+              <button type="button" class="btn btn-sm btn-light border text-danger"
+                      data-bulk-action="delete"
+                      data-bulk-url="/admin/enterprise/inventory/items/{{ r.id }}/delete"
+                      data-bulk-method="POST"
+                      onclick="deleteItem({{ r.id }})">
+                Xóa
+              </button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-4 text-muted">Chưa có dữ liệu tồn kho.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <!-- Bảng Nhật ký nhập xuất -->
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0 inventory-table" data-bulk-select="1">
+        <thead>
+          <tr class="text-nowrap bg-light">
+            <th style="width:100px;">Ngày</th>
+            <th style="width:48px;">Kho</th>
+            <th>Nội dung</th>
+            <th style="min-width:260px;">Tên hàng</th>
+            <th style="width:56px;" class="text-center">ĐVT</th>
+            <th style="width:110px;" class="text-right inv-in">Nhập</th>
+            <th style="width:110px;" class="text-right inv-out">Xuất</th>
+            <th style="width:120px;" class="text-right">Giá nhập</th>
+            <th style="width:120px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for m in movements %}
+          <tr>
+            <td class="align-middle text-nowrap">
+              {{ m.movement_date.strftime('%d/%m/%Y') if m.movement_date else '--' }}
+            </td>
+            <td class="align-middle {% if m.wh_key == 'dv' %}inv-wh-dv{% elif m.wh_key == 'tl' %}inv-wh-tl{% endif %}">{{ m.warehouse or '--' }}</td>
+            <td class="align-middle text-dark">{{ m.note or '--' }}</td>
+            <td class="align-middle font-weight-medium text-dark">{{ m.name }}</td>
+            <td class="text-center align-middle inv-num">{{ m.unit or '--' }}</td>
+            <td class="text-right align-middle inv-num inv-in">
+              {% if m.kind == 'in' %}
+                {{ m.quantity | format_number }}
+              {% else %}
+                --
+              {% endif %}
+            </td>
+            <td class="text-right align-middle inv-num inv-out">
+              {% if m.kind == 'out' %}
+                {{ m.quantity | format_number }}
+              {% else %}
+                --
+              {% endif %}
+            </td>
+            <td class="text-right align-middle inv-num">
+              {% if m.kind == 'in' and m.purchase_price %}{{ m.purchase_price | format_number }}{% else %}--{% endif %}
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              {% if m.source == 'sale' or m.source == 'purchase' %}
+                <span class="text-muted small">--</span>
+              {% else %}
+                <button type="button" class="btn btn-sm btn-light border mr-1"
+                        onclick="openEditMovementModal({{ m.id }}, {{ m.item_id }}, '{{ m.kind }}', '{{ m.movement_date.isoformat() if m.movement_date else '' }}', '{{ m.quantity | format_number }}', '{{ (m.note or '')|escape }}')">
+                  Sửa
+                </button>
+                <button type="button" class="btn btn-sm btn-light border text-danger"
+                        data-bulk-action="delete"
+                        data-bulk-url="/admin/enterprise/inventory/movements/{{ m.id }}/delete"
+                        data-bulk-method="POST"
+                        onclick="deleteMovement({{ m.id }})">
+                  Xóa
+                </button>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">Chưa có nhật ký nhập xuất.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <div class="card-footer bg-white border-top py-2 px-3">
+      {% include "partials/pagination.html" %}
+    </div>
+  </div>
+
+</div>
+
+<!-- Datalists -->
+<datalist id="inventory-warehouse-list">
+  {% for w in warehouses %}
+    <option value="{{ w }}">
+  {% endfor %}
+</datalist>
+
+<datalist id="inventory-unit-list">
+  {% for u in units %}
+    <option value="{{ u }}">
+  {% endfor %}
+</datalist>
+
+<!-- Modal Hàng (Thêm / Sửa) -->
+<div class="modal fade" id="itemModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="itemModalTitle">Thêm mặt hàng</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="itemForm" onsubmit="submitItemForm(event)">
+        <div class="modal-body">
+          <input type="hidden" name="code" id="item-code">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Kho hàng</label>
+            <input type="text" name="warehouse" id="item-warehouse" class="form-control form-control-sm" list="inventory-warehouse-list" autocomplete="off">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Tên hàng <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="item-name" class="form-control form-control-sm" required>
+            <div id="item-name-dup" class="text-danger font-weight-bold mt-1" style="display:none; font-size:13px;"></div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Đơn vị tính</label>
+              <input type="text" name="unit" id="item-unit" class="form-control form-control-sm" list="inventory-unit-list" autocomplete="off">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Tồn đầu</label>
+              <input type="text" name="opening_qty" id="item-opening" class="form-control form-control-sm" placeholder="0">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" id="item-note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu thông tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Phiếu Nhập / Xuất (Thêm / Sửa) -->
+<div class="modal fade" id="movementModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="movementModalTitle">Phiếu nhập kho</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="movementForm" onsubmit="submitMovementForm(event)">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Loại phiếu <span class="text-danger">*</span></label>
+              <select name="kind" id="mov-kind" class="form-control form-control-sm" required>
+                <option value="in">Nhập kho</option>
+                <option value="out">Xuất kho</option>
+              </select>
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Ngày <span class="text-danger">*</span></label>
+              <input type="date" name="movement_date" id="mov-date" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Mặt hàng <span class="text-danger">*</span></label>
+            <select name="item_id" id="mov-item-id" class="form-control form-control-sm" required>
+              <option value="">-- Chọn mặt hàng --</option>
+              {% for it in all_items %}
+                <option value="{{ it.id }}" data-closing="{{ it.closing | format_number }}" data-unit="{{ it.unit or '' }}" data-negative="{{ 1 if (it.closing or 0) <= 0 else 0 }}">
+                  {{ (it.warehouse ~ ' · ') if it.warehouse else '' }}{{ it.name }}{{ (' (' ~ it.unit ~ ')') if it.unit else '' }} · tồn {{ it.closing | format_number }}
+                </option>
+              {% endfor %}
+            </select>
+            <div id="mov-stock" class="font-weight-bold mt-1" style="display:none;"></div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Số lượng <span class="text-danger">*</span></label>
+            <input type="text" name="quantity" id="mov-qty" class="form-control form-control-sm" required>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" id="mov-note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu phiếu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nhập Excel -->
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Nhập dữ liệu từ Excel</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="importForm" onsubmit="submitImportForm(event)">
+        <div class="modal-body">
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">File Excel</label>
+            <input type="file" name="file" id="import-file" class="form-control-file border p-2 rounded" accept=".xlsx, .xlsm" required>
+          </div>
+          <a class="btn btn-sm btn-light border mt-2" href="/admin/enterprise/inventory/template"><i class="bx bx-download mr-1"></i>Tải file mẫu</a>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" id="btn-import-submit" class="btn btn-sm btn-primary font-weight-bold">Tải lên</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Gộp Mặt Hàng -->
+<div class="modal fade" id="mergeModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Gộp mặt hàng</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group mb-2">
+          <label class="small font-weight-bold">Hàng đang gộp</label>
+          <div id="merge-source-display" class="font-weight-bold text-dark"></div>
+        </div>
+        <div class="form-group mb-0">
+          <label class="small font-weight-bold" for="merge-target-id">Gộp vào</label>
+          <select id="merge-target-id" class="form-control form-control-sm"></select>
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="submitMergeModal()">Gộp</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var itemActionUrl = '/admin/enterprise/inventory/items';
+var movementActionUrl = '/admin/enterprise/inventory/movements';
+
+function reloadPreservingScroll() {
+  try {
+    sessionStorage.setItem('inventory_scroll_y', String(window.scrollY));
+  } catch (e) {}
+  window.location.reload();
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  try {
+    var y = sessionStorage.getItem('inventory_scroll_y');
+    if (y !== null) {
+      sessionStorage.removeItem('inventory_scroll_y');
+      window.scrollTo(0, parseInt(y, 10));
+    }
+  } catch (e) {}
+
+  [['inventoryWarehouseFilter', 'warehouse'], ['inventoryKindFilter', 'kind']].forEach(function (pair) {
+    var sel = document.getElementById(pair[0]);
+    if (!sel) return;
+    sel.addEventListener('change', function () {
+      var url = new URL(window.location.href);
+      if (sel.value) url.searchParams.set(pair[1], sel.value); else url.searchParams.delete(pair[1]);
+      ['page', 'date_from', 'date_to'].forEach(function (k) { url.searchParams.delete(k); });
+      window.location.href = url.toString();
+    });
+  });
+  var searchInput = document.getElementById('inventorySearch');
+  if (searchInput) {
+    var searchTimer = null;
+    function triggerSearch() {
+      var val = searchInput.value.trim();
+      var url = new URL(window.location.href);
+      if (val) {
+        url.searchParams.set('q', val);
+      } else {
+        url.searchParams.delete('q');
+      }
+      url.searchParams.delete('page');
+      window.location.href = url.toString();
+    }
+
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(triggerSearch, 600);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(searchTimer);
+        triggerSearch();
+      }
+    });
+
+    if (searchInput.value) {
+      searchInput.focus();
+      try {
+        var len = searchInput.value.length;
+        searchInput.setSelectionRange(len, len);
+      } catch (err) {}
+    }
+  }
+});
+
+function getTodayString() {
+  var d = new Date();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+var INVENTORY_ITEMS = {{ all_items|tojson }};
+var editingItemId = null;
+function foldVi(text) {
+  return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd')
+    .toLowerCase().replace(/\s+/g, ' ').trim();
+}
+function warehouseKeyOf(text) {
+  var compact = foldVi(text).replace(/\s+/g, '');
+  return ({ dongvan: 'dv', dv: 'dv', telo: 'tl', tl: 'tl' })[compact] || compact;
+}
+// Warns while typing when the same item name is already in that warehouse.
+function checkItemNameDup() {
+  var box = document.getElementById('item-name-dup');
+  var name = foldVi(document.getElementById('item-name').value);
+  var wh = warehouseKeyOf(document.getElementById('item-warehouse').value);
+  var clash = name ? INVENTORY_ITEMS.find(function (it) {
+    if (it.id === editingItemId || warehouseKeyOf(it.warehouse) !== wh) return false;
+    if (foldVi(it.name) === name) return true;
+    if (Array.isArray(it.aliases) && it.aliases.some(function (a) { return foldVi(a) === name; })) return true;
+    return false;
+  }) : null;
+  if (clash) {
+    box.textContent = 'Đã có mặt hàng "' + clash.name + '" trong kho ' + (clash.warehouse || 'này');
+    box.style.display = 'block';
+  } else {
+    box.textContent = '';
+    box.style.display = 'none';
+  }
+}
+document.getElementById('item-name').addEventListener('input', checkItemNameDup);
+document.getElementById('item-warehouse').addEventListener('input', checkItemNameDup);
+
+function mergeFromEditModal(targetId, targetName) {
+  if (!editingItemId) return;
+  var source = INVENTORY_ITEMS.find(function(it) { return it.id === editingItemId; });
+  var srcName = source ? source.name : (document.getElementById('item-name').value || '');
+  if (!confirm('Gộp ' + srcName + ' vào ' + targetName + '?')) return;
+
+  fetch('/admin/enterprise/inventory/items/' + editingItemId + '/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_id: targetId })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    if (res.ok) {
+      $('#itemModal').modal('hide');
+      reloadPreservingScroll();
+    } else {
+      alert(res.message || 'Lỗi gộp mặt hàng.');
+    }
+  })
+  .catch(function(err) {
+    alert('Lỗi kết nối: ' + err);
+  });
+}
+
+var mergingSourceId = null;
+
+function openMergeModal(id) {
+  mergingSourceId = Number(id);
+  var source = INVENTORY_ITEMS.find(function(it) { return it.id === mergingSourceId; });
+  if (!source) return;
+
+  var srcName = (source.warehouse ? source.warehouse + ' · ' : '') + source.name;
+  document.getElementById('merge-source-display').textContent = srcName;
+
+  var sel = document.getElementById('merge-target-id');
+  sel.innerHTML = '';
+
+  var srcWhKey = warehouseKeyOf(source.warehouse);
+  var others = INVENTORY_ITEMS.filter(function(it) { return it.id !== mergingSourceId; });
+  var sameWh = [];
+  var diffWh = [];
+  others.forEach(function(it) {
+    if (warehouseKeyOf(it.warehouse) === srcWhKey) {
+      sameWh.push(it);
+    } else {
+      diffWh.push(it);
+    }
+  });
+  var targets = sameWh.concat(diffWh);
+
+  targets.forEach(function(t) {
+    var opt = document.createElement('option');
+    opt.value = String(t.id);
+    opt.textContent = (t.warehouse ? t.warehouse + ' · ' : '') + t.name + (t.unit ? ' (' + t.unit + ')' : '');
+    sel.appendChild(opt);
+  });
+
+  $('#mergeModal').modal('show');
+}
+
+function submitMergeModal() {
+  if (!mergingSourceId) return;
+  var source = INVENTORY_ITEMS.find(function(it) { return it.id === mergingSourceId; });
+  var sel = document.getElementById('merge-target-id');
+  var targetId = Number(sel.value);
+  var target = INVENTORY_ITEMS.find(function(it) { return it.id === targetId; });
+  if (!target) {
+    alert('Vui lòng chọn mặt hàng đích.');
+    return;
+  }
+  var srcName = source ? source.name : '';
+  if (!confirm('Gộp ' + srcName + ' vào ' + target.name + '?')) return;
+
+  fetch('/admin/enterprise/inventory/items/' + mergingSourceId + '/merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_id: targetId })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    if (res.ok) {
+      $('#mergeModal').modal('hide');
+      reloadPreservingScroll();
+    } else {
+      alert(res.message || 'Lỗi gộp mặt hàng.');
+    }
+  })
+  .catch(function(err) {
+    alert('Lỗi kết nối: ' + err);
+  });
+}
+
+function openAddItemModal() {
+  itemActionUrl = '/admin/enterprise/inventory/items';
+  document.getElementById('itemModalTitle').textContent = 'Thêm mặt hàng';
+  document.getElementById('item-warehouse').value = '';
+  document.getElementById('item-code').value = '';
+  document.getElementById('item-name').value = '';
+  document.getElementById('item-unit').value = '';
+  document.getElementById('item-opening').value = '0';
+  document.getElementById('item-note').value = '';
+  editingItemId = null;
+  checkItemNameDup();
+  $('#itemModal').modal('show');
+}
+
+function openEditItemModal(id, warehouse, code, name, unit, opening, note) {
+  itemActionUrl = '/admin/enterprise/inventory/items/' + id;
+  document.getElementById('itemModalTitle').textContent = 'Chỉnh sửa mặt hàng';
+  document.getElementById('item-warehouse').value = warehouse || '';
+  document.getElementById('item-code').value = code || '';
+  document.getElementById('item-name').value = name || '';
+  document.getElementById('item-unit').value = unit || '';
+  document.getElementById('item-opening').value = opening || '0';
+  document.getElementById('item-note').value = note || '';
+  editingItemId = Number(id);
+  checkItemNameDup();
+  $('#itemModal').modal('show');
+}
+
+function submitItemForm(e) {
+  e.preventDefault();
+  var form = document.getElementById('itemForm');
+  var formData = new FormData(form);
+  var payload = {
+    warehouse: formData.get('warehouse') || '',
+    code: formData.get('code') || '',
+    name: formData.get('name') || '',
+    unit: formData.get('unit') || '',
+    opening_qty: formData.get('opening_qty') || '0',
+    note: formData.get('note') || ''
+  };
+
+  fetch(itemActionUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    if (res.ok) {
+      $('#itemModal').modal('hide');
+      reloadPreservingScroll();
+    } else {
+      alert(res.message || 'Lỗi lưu mặt hàng.');
+    }
+  })
+  .catch(function(err) {
+    alert('Lỗi kết nối: ' + err);
+  });
+}
+
+function deleteItem(id) {
+  if (!confirm('Bạn có chắc muốn xóa mặt hàng này? Các phiếu liên quan sẽ bị xóa.')) return;
+  fetch('/admin/enterprise/inventory/items/' + id + '/delete', { method: 'POST' })
+    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        reloadPreservingScroll();
+      } else {
+        alert(res.message || 'Lỗi xóa mặt hàng.');
+      }
+    })
+    .catch(function(err) {
+      alert('Lỗi kết nối: ' + err);
+    });
+}
+
+// "Còn tồn" of the item chosen in the stock voucher.
+function updateMovementStock() {
+  var sel = document.getElementById('mov-item-id');
+  var box = document.getElementById('mov-stock');
+  var opt = sel && sel.selectedOptions ? sel.selectedOptions[0] : null;
+  if (!opt || !opt.value) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = 'Còn tồn: ' + (opt.dataset.closing || '0') + (opt.dataset.unit ? ' ' + opt.dataset.unit : '');
+  box.classList.toggle('is-empty', opt.dataset.negative === '1');
+  box.style.display = 'block';
+}
+document.getElementById('mov-item-id').addEventListener('change', updateMovementStock);
+window.addEventListener('DOMContentLoaded', function() { $('#movementModal').on('shown.bs.modal', updateMovementStock); });
+
+function openCreateMovementModal(kind) {
+  movementActionUrl = '/admin/enterprise/inventory/movements';
+  document.getElementById('movementModalTitle').textContent = (kind === 'out' ? 'Phiếu xuất kho' : 'Phiếu nhập kho');
+  document.getElementById('mov-kind').value = kind || 'in';
+  document.getElementById('mov-date').value = getTodayString();
+  document.getElementById('mov-item-id').value = '';
+  document.getElementById('mov-qty').value = '';
+  document.getElementById('mov-note').value = '';
+  $('#movementModal').modal('show');
+}
+
+function openItemMovementModal(kind, itemId, warehouse, code, name) {
+  movementActionUrl = '/admin/enterprise/inventory/movements';
+  document.getElementById('movementModalTitle').textContent = (kind === 'out' ? 'Phiếu xuất kho' : 'Phiếu nhập kho');
+  document.getElementById('mov-kind').value = kind || 'in';
+  document.getElementById('mov-date').value = getTodayString();
+  document.getElementById('mov-item-id').value = String(itemId);
+  document.getElementById('mov-qty').value = '';
+  document.getElementById('mov-note').value = '';
+  $('#movementModal').modal('show');
+}
+
+function openEditMovementModal(id, itemId, kind, movementDate, qty, note) {
+  movementActionUrl = '/admin/enterprise/inventory/movements/' + id;
+  document.getElementById('movementModalTitle').textContent = 'Chỉnh sửa phiếu';
+  document.getElementById('mov-kind').value = kind || 'in';
+  document.getElementById('mov-date').value = movementDate ? movementDate.slice(0, 10) : getTodayString();
+  document.getElementById('mov-item-id').value = String(itemId);
+  document.getElementById('mov-qty').value = qty || '';
+  document.getElementById('mov-note').value = note || '';
+  $('#movementModal').modal('show');
+}
+
+function submitMovementForm(e) {
+  e.preventDefault();
+  var form = document.getElementById('movementForm');
+  var formData = new FormData(form);
+  var payload = {
+    kind: formData.get('kind'),
+    movement_date: formData.get('movement_date'),
+    item_id: formData.get('item_id'),
+    quantity: formData.get('quantity'),
+    note: formData.get('note') || ''
+  };
+
+  fetch(movementActionUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    if (res.ok) {
+      $('#movementModal').modal('hide');
+      reloadPreservingScroll();
+    } else {
+      alert(res.message || 'Lỗi lưu phiếu.');
+    }
+  })
+  .catch(function(err) {
+    alert('Lỗi kết nối: ' + err);
+  });
+}
+
+function deleteMovement(id) {
+  if (!confirm('Bạn có chắc muốn xóa phiếu này?')) return;
+  fetch('/admin/enterprise/inventory/movements/' + id + '/delete', { method: 'POST' })
+    .then(function(res) { return res.json(); })
+    .then(function(res) {
+      if (res.ok) {
+        reloadPreservingScroll();
+      } else {
+        alert(res.message || 'Lỗi xóa phiếu.');
+      }
+    })
+    .catch(function(err) {
+      alert('Lỗi kết nối: ' + err);
+    });
+}
+
+function openImportModal() {
+  document.getElementById('import-file').value = '';
+  $('#importModal').modal('show');
+}
+
+function submitImportForm(e) {
+  e.preventDefault();
+  var form = document.getElementById('importForm');
+  var formData = new FormData(form);
+  var btn = document.getElementById('btn-import-submit');
+  btn.disabled = true;
+
+  fetch('/admin/enterprise/inventory/import', {
+    method: 'POST',
+    body: formData
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(res) {
+    btn.disabled = false;
+    if (res.ok) {
+      $('#importModal').modal('hide');
+      alert(res.message || 'Đã nhập thành công.');
+      reloadPreservingScroll();
+    } else {
+      alert(res.message || 'Lỗi nhập dữ liệu.');
+    }
+  })
+  .catch(function(err) {
+    btn.disabled = false;
+    alert('Lỗi kết nối: ' + err);
+  });
+}
+</script>
+{% endblock %}

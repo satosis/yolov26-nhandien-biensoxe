@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/static/favicon.ico?v=clean">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{ ledger_title }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      color: #334155;
+      background: #fff;
+      line-height: 1.4;
+    }
+    .ledger-title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 20px;
+      margin-bottom: 12px;
+      color: #0f172a;
+    }
+    .ledger-summary {
+      margin-bottom: 12px;
+      font-size: 15px;
+      color: #475569;
+    }
+    .table-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border-spacing: 0;
+      border: 1px solid #999;
+      min-width: 800px;
+    }
+    thead th {
+      background: #ffff00 !important;
+      color: #000 !important;
+      font-size: 14px !important;
+      font-weight: 700 !important;
+      text-transform: none !important;
+      letter-spacing: normal !important;
+      border: 1px solid #999 !important;
+      text-align: center !important;
+      white-space: normal !important;
+      vertical-align: middle !important;
+      padding: 4px 6px !important;
+    }
+    tbody td {
+      font-size: 15px !important;
+      color: #334155;
+      padding: 2px 6px !important;
+      line-height: 1.35 !important;
+      border: 1px solid #ccc !important;
+      vertical-align: middle !important;
+    }
+    tbody tr:hover { background: #f8faff !important; }
+    .text-danger { color: #dc3545 !important; }
+    .text-right { text-align: right !important; }
+    .text-center { text-align: center !important; }
+    .text-nowrap { white-space: nowrap !important; }
+    .text-muted { color: #64748b !important; }
+    .small { font-size: 12px; line-height: 1.1; }
+    .font-weight-bold { font-weight: 700 !important; }
+    .bg-light { background: #f8f9fa !important; }
+    .sum-item { display: inline-block; white-space: nowrap; margin-right: 18px; }
+  </style>
+</head>
+<body>
+  <div class="ledger-title">{{ ledger_title }}</div>
+  <div class="ledger-summary">
+    <span class="sum-item">Thành tiền: {{ totals.take|format_number }}</span>
+    <span class="sum-item">{{ owe_label }}: {{ totals.owe|format_number }}</span>
+    <span class="sum-item">Tổng nợ: <strong class="{% if totals.balance < 0 %}text-danger{% endif %} font-weight-bold">{{ totals.balance|format_number }}</strong></span>
+  </div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:96px;">Ngày</th>
+          <th style="min-width:170px;">Tên hàng</th>
+          <th style="width:48px;"></th>
+          <th style="width:80px;">Số lượng</th>
+          <th style="width:86px;">Đơn giá</th>
+          <th style="width:112px;">Thành tiền</th>
+          <th style="width:120px;">{{ owe_label }}</th>
+          <th style="width:118px;">Tổng nợ</th>
+          <th style="width:150px;">Ghi chú</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if partner and partner.opening_balance and partner.opening_balance != 0 %}
+        <tr class="bg-light font-weight-bold">
+          <td></td>
+          <td>Nợ đầu kỳ</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="text-right {% if partner.opening_balance < 0 %}text-danger{% endif %}">
+            {{ partner.opening_balance|format_number }}
+          </td>
+          <td></td>
+        </tr>
+        {% endif %}
+
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.entry_date.strftime('%d/%m/%Y') if r.entry_date else '' }}</td>
+          <td class="{% if r.side == 'owe' %}text-danger{% endif %}">
+            {%- if r.has_details -%}
+              <a href="/so-doi-tac/{{ token }}/chi-tiet/{{ r.id }}" style="text-decoration: underline; color: {% if r.side == 'owe' %}#dc3545{% else %}#1d4ed8{% endif %};">{{ r.item_name or '' }}</a>
+            {%- else -%}
+              {{ r.item_name or '' }}
+            {%- endif -%}
+          </td>
+          <td class="text-center {% if r.side == 'owe' %}text-danger{% endif %}">{{ r.buyer or '' }}</td>
+          <td class="text-right {% if r.side == 'owe' %}text-danger{% endif %}">{{ r.quantity|format_number('') if r.quantity is not none else '' }}{% if r.qty_formula %}<div class="small text-muted text-nowrap">fx: {{ r.qty_formula }}</div>{% endif %}</td>
+          <td class="text-right {% if r.side == 'owe' %}text-danger{% endif %}" {% if r.quantity is not none and (not r.unit_price or r.unit_price == 0) and (not r.amount or r.amount == 0) %}style="background: #ffff00 !important;"{% endif %}>{{ r.unit_price|format_number('') if (r.unit_price is not none and r.unit_price != 0) else '' }}</td>
+          <td class="text-right">{% if r.side == 'take' and r.amount and r.amount != 0 %}{{ r.amount|format_number('') }}{% endif %}</td>
+          <td class="text-right {% if r.side == 'owe' and r.amount and r.amount != 0 %}text-danger{% endif %}">{% if r.side == 'owe' and r.amount and r.amount != 0 %}{{ r.amount|format_number('') }}{% endif %}</td>
+          <td class="text-right">{{ r.balance|format_number('0') if r.balance is not none else '0' }}</td>
+          <td>{{ r.note or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

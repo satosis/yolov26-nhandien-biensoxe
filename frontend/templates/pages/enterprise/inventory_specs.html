@@ -1,0 +1,636 @@
+{% extends "layout.html" %}
+
+{% block title %}Quy cách hàng hóa — {{ company.name if company else 'Doanh nghiệp' }}{% endblock %}
+{% block page_title %}Quy cách hàng hóa{% endblock %}
+{% block page_actions %}
+<div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/sales">
+    <i class="bx bx-receipt mr-1"></i>Sổ bán hàng
+  </a>
+  <a class="btn btn-sm btn-light border font-weight-medium" href="/admin/enterprise/suppliers">
+    <i class="bx bx-cart mr-1"></i>Sổ nhập hàng
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  .spec-table th, .spec-table td { font-size: 14px; vertical-align: middle; }
+  .table.spec-compact thead th { padding: 3px 5px !important; }
+  .table.spec-compact tbody td { padding: 1px 5px !important; line-height: 1.35 !important; font-size: 13px !important; }
+  .table.spec-compact .btn-sm { height: 20px !important; min-height: 20px !important; padding: 0 6px !important; font-size: 11.5px !important; line-height: 18px !important; }
+  .spec-side { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
+  .spec-side > .spec-side-item { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+  .spec-photo { width: 100%; height: 220px; object-fit: contain; background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 4px; display: block; }
+  .spec-photo-tile { width: 240px; }
+</style>
+
+<div class="card mb-3">
+  <div class="card-header bg-white py-2 px-2 border-bottom">
+    <div class="d-flex align-items-center justify-content-between flex-wrap flex-lg-nowrap" style="gap:6px;">
+      <ul class="nav nav-pills card-header-pills m-0 flex-nowrap text-nowrap">
+        <li class="nav-item">
+          <a class="nav-link font-weight-bold py-1 px-3" href="/admin/enterprise/inventory?tab=journal">
+            <i class="bx bx-history mr-1"></i>Nhật ký nhập xuất
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link font-weight-bold py-1 px-3" href="/admin/enterprise/inventory?tab=stock">
+            <i class="bx bx-book-content mr-1"></i>Sổ tồn kho
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link font-weight-bold py-1 px-3 active" href="/admin/enterprise/inventory/specs">
+            <i class="bx bx-ruler mr-1"></i>Quy cách hàng hóa
+          </a>
+        </li>
+      </ul>
+
+      <div class="d-flex align-items-center flex-nowrap text-nowrap" style="gap:4px; min-width:0;">
+        <div class="input-group input-group-sm" style="min-width:100px; width:200px; flex:1 1 100px;">
+          <div class="input-group-prepend">
+            <span class="input-group-text bg-white border-right-0"><i class="bx bx-search text-muted"></i></span>
+          </div>
+          <input type="search" class="form-control border-left-0 pl-0" id="specSearch" placeholder="Tìm kiếm">
+        </div>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddSpecModal()">
+          <i class="bx bx-plus mr-1 d-none d-xl-inline"></i>Thêm quy cách
+        </button>
+        <button type="button" class="btn btn-sm btn-light border font-weight-bold" onclick="openAddPhotoModal()">
+          <i class="bx bx-image-add mr-1 d-none d-xl-inline"></i>Thêm ảnh
+        </button>
+        <button type="button" class="btn btn-sm btn-light border font-weight-bold" data-toggle="modal" data-target="#specImportModal">
+          <i class="bx bx-upload mr-1 d-none d-xl-inline"></i>Nhập Excel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body p-2">
+    <!-- Phần 1: Bảng thép hộp -->
+    <div class="spec-side mb-4">
+      <div class="spec-side-item">
+        <div class="d-flex align-items-end flex-wrap mb-2" style="gap:8px;">
+          <div>
+            <label class="small font-weight-bold mb-1 d-block" for="lookupSize">Kích thước</label>
+            <input type="text" id="lookupSize" class="form-control form-control-sm" list="lookupSizeList" autocomplete="off" style="width:140px;">
+            <datalist id="lookupSizeList"></datalist>
+          </div>
+          <div>
+            <label class="small font-weight-bold mb-1 d-block" for="lookupThickness">Độ ly</label>
+            <input type="text" inputmode="decimal" id="lookupThickness" class="form-control form-control-sm" list="lookupThicknessList" autocomplete="off" style="width:100px;">
+            <datalist id="lookupThicknessList"></datalist>
+          </div>
+        </div>
+        <div class="mb-3" id="lookupResultWrap" style="display:none;">
+          <table class="table table-sm table-bordered mb-0 no-bulk spec-table" style="width:auto; min-width:360px;">
+            <thead>
+              <tr class="text-nowrap bg-light">
+                <th>Kích thước</th>
+                <th class="text-right">Độ ly</th>
+                <th class="text-right">BAZEM</th>
+              </tr>
+            </thead>
+            <tbody id="lookupResultBody"></tbody>
+          </table>
+        </div>
+        <h6 class="font-weight-bold mb-2">{{ sections['box'] }}</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered table-hover mb-0 no-bulk spec-table spec-compact" style="width:auto;">
+            <thead>
+              <tr class="text-nowrap bg-light">
+                {% if book.box.thicknesses %}
+                  <th rowspan="2" class="align-middle">Kích thước</th>
+                  <th colspan="{{ book.box.thicknesses|length }}" class="text-center">Độ dày</th>
+                  <th rowspan="2" class="align-middle text-right">Thao tác</th>
+                {% else %}
+                  <th class="align-middle">Kích thước</th>
+                  <th class="align-middle text-right">Thao tác</th>
+                {% endif %}
+              </tr>
+              {% if book.box.thicknesses %}
+              <tr class="text-nowrap bg-light">
+                {% for t in book.box.thicknesses %}
+                  <th class="text-center">{{ t|format_number }}</th>
+                {% endfor %}
+              </tr>
+              {% endif %}
+            </thead>
+            <tbody>
+              {% for r in book.box.rows %}
+                <tr data-spec-row data-search="{{ r.name }}">
+                  <td class="font-weight-bold text-nowrap">{{ r.name }}</td>
+                  {% for w in r.cells %}
+                    <td class="text-right text-nowrap spec-num">{{ w|format_number if w is not none else '' }}</td>
+                  {% endfor %}
+                  <td class="text-right text-nowrap">
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 mr-1" onclick="openEditSpecModal(this)" data-spec='{{ r.edit|tojson }}'>Sửa</button>
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 text-danger" onclick="deleteSpec({{ r.id }})">Xóa</button>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="{{ (2 + book.box.thicknesses|length) if book.box.thicknesses else 2 }}" class="text-center py-2 text-muted">Chưa có dữ liệu</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BAZEM I, H -->
+      <div class="spec-side-item">
+        <div class="mb-2">
+          <label class="small font-weight-bold mb-1 d-block" for="lookupShape">Tên hàng</label>
+          <input type="text" id="lookupShape" class="form-control form-control-sm" list="lookupShapeList" autocomplete="off" style="width:160px;">
+          <datalist id="lookupShapeList"></datalist>
+        </div>
+        <div class="mb-3" id="lookupShapeWrap" style="display:none;">
+          <table class="table table-sm table-bordered mb-0 no-bulk spec-table" style="width:auto; min-width:300px;">
+            <thead>
+              <tr class="text-nowrap bg-light">
+                <th>Tên hàng</th>
+                <th>Trọng lượng</th>
+                <th>Quy cách</th>
+              </tr>
+            </thead>
+            <tbody id="lookupShapeBody"></tbody>
+          </table>
+        </div>
+        <h6 class="font-weight-bold mb-2">{{ sections['shape'] }}</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered table-hover mb-0 no-bulk spec-table spec-compact" style="width:auto;">
+            <thead>
+              <tr class="text-nowrap bg-light">
+                <th>Tên hàng</th>
+                <th>Trọng lượng (6m)</th>
+                <th>Quy cách</th>
+                <th class="text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in book.shape %}
+                <tr data-spec-row data-search="{{ r.name }} {{ r.spec_text }}">
+                  <td class="font-weight-bold text-nowrap">{{ r.name }}</td>
+                  <td class="text-nowrap">{{ r.weight_text }}</td>
+                  <td class="text-nowrap">{{ r.spec_text }}</td>
+                  <td class="text-right text-nowrap">
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 mr-1" onclick="openEditSpecModal(this)" data-spec='{{ r.edit|tojson }}'>Sửa</button>
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 text-danger" onclick="deleteSpec({{ r.id }})">Xóa</button>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="4" class="text-center py-2 text-muted">Chưa có dữ liệu</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phần 2: Quy cách thép hình -->
+    <div class="row">
+      <div class="col-lg-6 mb-4">
+        <h6 class="font-weight-bold mb-2">{{ sections['channel'] }}</h6>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered table-hover mb-0 no-bulk spec-table">
+            <thead>
+              <tr class="text-nowrap bg-light">
+                <th>Tên hàng</th>
+                <th style="width:110px;" class="text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in book.channel %}
+                <tr data-spec-row data-search="{{ r.name }}">
+                  <td class="font-weight-bold text-nowrap">{{ r.name }}</td>
+                  <td class="text-right text-nowrap">
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 mr-1" onclick="openEditSpecModal(this)" data-spec='{{ r.edit|tojson }}'>Sửa</button>
+                    <button type="button" class="btn btn-sm btn-light border py-0 px-2 text-danger" onclick="deleteSpec({{ r.id }})">Xóa</button>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="2" class="text-center py-4 text-muted">Chưa có dữ liệu</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phần 3: Hình ảnh -->
+    <h6 class="font-weight-bold mb-2">Hình ảnh</h6>
+    <div class="d-flex flex-wrap" style="gap:12px;">
+      {% for p in book.photos %}
+        <div class="spec-photo-tile border rounded p-1 bg-white" data-spec-row data-search="{{ p.caption }}">
+          <a href="{{ p.url }}" target="_blank"><img src="{{ p.url }}" class="spec-photo" alt=""></a>
+          <div class="font-weight-bold mt-1 text-truncate" title="{{ p.caption }}">{% if p.caption %}{{ p.caption }}{% else %}&nbsp;{% endif %}</div>
+          <div class="d-flex justify-content-end mt-1" style="gap:4px;">
+            <button type="button" class="btn btn-sm btn-light border py-0 px-2" data-caption="{{ p.caption }}" onclick="openEditPhotoModal({{ p.id }}, this.dataset.caption)">Sửa</button>
+            <button type="button" class="btn btn-sm btn-light border py-0 px-2 text-danger" onclick="deletePhoto({{ p.id }})">Xóa</button>
+          </div>
+        </div>
+      {% else %}
+        <div class="text-muted py-3">Chưa có ảnh</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal Thêm / Sửa Quy cách -->
+<div class="modal fade" id="specModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="specModalTitle">Thêm quy cách</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="specForm" onsubmit="submitSpecForm(event)">
+        <input type="hidden" id="specId" value="">
+        <div class="modal-body py-2">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold mb-1">Nhóm</label>
+            <select id="specSection" class="form-control form-control-sm" onchange="onSpecSectionChange()">
+              {% for k, v in sections.items() %}
+                <option value="{{ k }}">{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold mb-1">Tên hàng <span class="text-danger">*</span></label>
+            <input type="text" id="specName" class="form-control form-control-sm" required>
+          </div>
+          <div id="groupWeightText" class="form-group mb-2" style="display:none;">
+            <label class="small font-weight-bold mb-1">Trọng lượng (6m)</label>
+            <input type="text" id="specWeightText" class="form-control form-control-sm">
+          </div>
+          <div id="groupSpecText" class="form-group mb-2" style="display:none;">
+            <label class="small font-weight-bold mb-1">Quy cách</label>
+            <input type="text" id="specSpecText" class="form-control form-control-sm">
+          </div>
+          <div id="groupWeights" class="form-group mb-2">
+            <label class="small font-weight-bold mb-1 d-flex justify-content-between align-items-center">
+              <span>Trọng lượng theo độ dày</span>
+              <button type="button" class="btn btn-sm btn-link p-0" onclick="addWeightRow()">+ Thêm độ dày</button>
+            </label>
+            <div class="table-responsive border rounded" style="max-height:220px; overflow-y:auto;">
+              <table class="table table-sm mb-0">
+                <thead class="bg-light">
+                  <tr>
+                    <th style="width:45%;">Độ dày</th>
+                    <th style="width:45%;">Trọng lượng (kg)</th>
+                    <th style="width:10%;"></th>
+                  </tr>
+                </thead>
+                <tbody id="specWeightsBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSaveSpec">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Thêm / Sửa Ảnh -->
+<div class="modal fade" id="photoModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="photoModalTitle">Thêm ảnh</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="photoForm" onsubmit="submitPhotoForm(event)">
+        <input type="hidden" id="photoId" value="">
+        <div class="modal-body py-2">
+          <div class="form-group mb-2" id="groupPhotoFile">
+            <label class="small font-weight-bold mb-1">Tệp ảnh <span class="text-danger">*</span></label>
+            <input type="file" id="photoFile" class="form-control-file form-control-sm border p-1" accept="image/*">
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold mb-1">Chú thích</label>
+            <input type="text" id="photoCaption" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSavePhoto">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nhập Excel -->
+<div class="modal fade" id="specImportModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold">Nhập sổ quy cách từ Excel</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="specImportForm" onsubmit="submitImportForm(event)">
+        <div class="modal-body py-2">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold mb-1">File Excel (.xlsx, .xlsm) <span class="text-danger">*</span></label>
+            <input type="file" id="specImportFile" class="form-control-file form-control-sm border p-1" accept=".xlsx,.xlsm" required>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitImport">Nhập</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="/static/admin-assets/css/goods-spec-lookup.css?v=20261109-3">
+<script src="/static/admin-assets/js/goods-spec-lookup.js?v=20261109-1"></script>
+<script>
+function onSpecSectionChange() {
+  var section = document.getElementById('specSection').value;
+  document.getElementById('groupWeights').style.display = (section === 'box') ? '' : 'none';
+  document.getElementById('groupWeightText').style.display = (section === 'shape') ? '' : 'none';
+  document.getElementById('groupSpecText').style.display = (section === 'shape') ? '' : 'none';
+}
+
+function addWeightRow(thickness, weight) {
+  thickness = (thickness !== undefined && thickness !== null) ? thickness : '';
+  weight = (weight !== undefined && weight !== null) ? weight : '';
+  var tbody = document.getElementById('specWeightsBody');
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td><input type="text" inputmode="decimal" class="form-control form-control-sm weight-t" value="' + thickness + '"></td>' +
+                 '<td><input type="text" inputmode="decimal" class="form-control form-control-sm weight-w" value="' + weight + '"></td>' +
+                 '<td class="text-center align-middle"><button type="button" class="btn btn-sm btn-link text-danger p-0 font-weight-bold" onclick="this.closest(\'tr\').remove()">&times;</button></td>';
+  tbody.appendChild(tr);
+}
+
+function openAddSpecModal() {
+  document.getElementById('specId').value = '';
+  document.getElementById('specModalTitle').textContent = 'Thêm quy cách';
+  document.getElementById('specSection').value = 'box';
+  document.getElementById('specName').value = '';
+  document.getElementById('specWeightText').value = '';
+  document.getElementById('specSpecText').value = '';
+  document.getElementById('specWeightsBody').innerHTML = '';
+  addWeightRow('', '');
+  onSpecSectionChange();
+  $('#specModal').modal('show');
+}
+
+function openEditSpecModal(btn) {
+  var spec = JSON.parse(btn.dataset.spec);
+  document.getElementById('specId').value = spec.id;
+  document.getElementById('specModalTitle').textContent = 'Sửa quy cách';
+  document.getElementById('specSection').value = spec.section;
+  document.getElementById('specName').value = spec.name || '';
+  document.getElementById('specWeightText').value = spec.weight_text || '';
+  document.getElementById('specSpecText').value = spec.spec_text || '';
+  var tbody = document.getElementById('specWeightsBody');
+  tbody.innerHTML = '';
+  if (spec.weights && spec.weights.length > 0) {
+    spec.weights.forEach(function(w) {
+      addWeightRow(w.thickness, w.weight);
+    });
+  } else if (spec.section === 'box') {
+    addWeightRow('', '');
+  }
+  onSpecSectionChange();
+  $('#specModal').modal('show');
+}
+
+function submitSpecForm(e) {
+  e.preventDefault();
+  var specId = document.getElementById('specId').value;
+  var section = document.getElementById('specSection').value;
+  var name = document.getElementById('specName').value.trim();
+  var weightText = document.getElementById('specWeightText').value.trim();
+  var specText = document.getElementById('specSpecText').value.trim();
+
+  var weights = [];
+  if (section === 'box') {
+    var rows = document.querySelectorAll('#specWeightsBody tr');
+    rows.forEach(function(r) {
+      var t = r.querySelector('.weight-t').value.trim();
+      var w = r.querySelector('.weight-w').value.trim();
+      if (t || w) {
+        weights.push({thickness: t, weight: w});
+      }
+    });
+  }
+
+  var payload = {
+    section: section,
+    name: name,
+    weight_text: weightText,
+    spec_text: specText,
+    weights: weights
+  };
+
+  var btn = document.getElementById('btnSaveSpec');
+  btn.disabled = true;
+  var url = specId ? ('/admin/enterprise/inventory/specs/items/' + specId) : '/admin/enterprise/inventory/specs/items';
+
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    btn.disabled = false;
+    if (res.ok) {
+      location.reload();
+    } else {
+      window.showNotify(res.message, 'error');
+    }
+  })
+  .catch(function() {
+    btn.disabled = false;
+    window.showNotify('Có lỗi xảy ra.', 'error');
+  });
+}
+
+function deleteSpec(id) {
+  window.appConfirm('Xóa quy cách này?', {confirmText: 'Xóa'}, function() {
+    fetch('/admin/enterprise/inventory/specs/items/' + id + '/delete', {method: 'POST'})
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.ok) {
+          location.reload();
+        } else {
+          window.showNotify(res.message, 'error');
+        }
+      })
+      .catch(function() {
+        window.showNotify('Có lỗi xảy ra.', 'error');
+      });
+  });
+}
+
+function openAddPhotoModal() {
+  document.getElementById('photoId').value = '';
+  document.getElementById('photoModalTitle').textContent = 'Thêm ảnh';
+  document.getElementById('groupPhotoFile').style.display = '';
+  document.getElementById('photoFile').required = true;
+  document.getElementById('photoFile').value = '';
+  document.getElementById('photoCaption').value = '';
+  $('#photoModal').modal('show');
+}
+
+function openEditPhotoModal(id, caption) {
+  document.getElementById('photoId').value = id;
+  document.getElementById('photoModalTitle').textContent = 'Sửa chú thích ảnh';
+  document.getElementById('groupPhotoFile').style.display = 'none';
+  document.getElementById('photoFile').required = false;
+  document.getElementById('photoCaption').value = caption || '';
+  $('#photoModal').modal('show');
+}
+
+function submitPhotoForm(e) {
+  e.preventDefault();
+  var photoId = document.getElementById('photoId').value;
+  var caption = document.getElementById('photoCaption').value.trim();
+  var btn = document.getElementById('btnSavePhoto');
+  btn.disabled = true;
+
+  if (photoId) {
+    fetch('/admin/enterprise/inventory/specs/photos/' + photoId, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({caption: caption})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      btn.disabled = false;
+      if (res.ok) {
+        location.reload();
+      } else {
+        window.showNotify(res.message, 'error');
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.showNotify('Có lỗi xảy ra.', 'error');
+    });
+  } else {
+    var fileInput = document.getElementById('photoFile');
+    if (!fileInput.files || !fileInput.files[0]) {
+      btn.disabled = false;
+      window.showNotify('Vui lòng chọn ảnh.', 'error');
+      return;
+    }
+    var fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fd.append('caption', caption);
+    fetch('/admin/enterprise/inventory/specs/photos', {
+      method: 'POST',
+      body: fd
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      btn.disabled = false;
+      if (res.ok) {
+        location.reload();
+      } else {
+        window.showNotify(res.message, 'error');
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      window.showNotify('Có lỗi xảy ra.', 'error');
+    });
+  }
+}
+
+function deletePhoto(id) {
+  window.appConfirm('Xóa ảnh này?', {confirmText: 'Xóa'}, function() {
+    fetch('/admin/enterprise/inventory/specs/photos/' + id + '/delete', {method: 'POST'})
+      .then(function(r) { return r.json(); })
+      .then(function(res) {
+        if (res.ok) {
+          location.reload();
+        } else {
+          window.showNotify(res.message, 'error');
+        }
+      })
+      .catch(function() {
+        window.showNotify('Có lỗi xảy ra.', 'error');
+      });
+  });
+}
+
+function submitImportForm(e) {
+  e.preventDefault();
+  var fileInput = document.getElementById('specImportFile');
+  if (!fileInput.files || !fileInput.files[0]) {
+    window.showNotify('Vui lòng chọn file Excel.', 'error');
+    return;
+  }
+  window.appConfirm('Thay toàn bộ sổ quy cách bằng dữ liệu trong file này?', {confirmText: 'Nhập', confirmClass: 'btn-primary'}, function() {
+    var btn = document.getElementById('btnSubmitImport');
+    btn.disabled = true;
+    btn.textContent = 'Đang nhập...';
+    var fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    fetch('/admin/enterprise/inventory/specs/import', {
+      method: 'POST',
+      body: fd
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      btn.disabled = false;
+      btn.textContent = 'Nhập';
+      if (res.ok) {
+        window.showNotify(res.message, 'success');
+        $('#specImportModal').modal('hide');
+        setTimeout(function() { location.reload(); }, 600);
+      } else {
+        window.showNotify(res.message, 'error');
+      }
+    })
+    .catch(function() {
+      btn.disabled = false;
+      btn.textContent = 'Nhập';
+      window.showNotify('Có lỗi xảy ra khi nhập file.', 'error');
+    });
+  });
+}
+
+function removeAccents(str) {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .trim();
+}
+
+document.getElementById('specSearch').addEventListener('input', function() {
+  var q = removeAccents(this.value);
+  document.querySelectorAll('[data-spec-row]').forEach(function(el) {
+    var text = removeAccents(el.getAttribute('data-search') || '');
+    el.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+  });
+});
+
+initGoodsSpecLookup({box: {{ book.box.lookup|tojson }}, shape: {{ book.shape|tojson }}});
+</script>
+{% endblock %}

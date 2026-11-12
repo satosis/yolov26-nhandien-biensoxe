@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+
+{% block title %}Đối tác giới thiệu{% endblock %}
+{% block page_title %}Đối tác giới thiệu{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Main Card -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <div class="d-flex align-items-center" style="gap:8px;">
+          <span class="font-weight-bold">
+            Danh sách đối tác ({{ pagination.total }})
+          </span>
+          <form method="get" action="/admin/advertising/partners" class="d-flex align-items-center" style="gap:6px;">
+            <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" style="width:180px;">
+            <button type="submit" class="btn btn-sm btn-light border font-weight-bold">Tìm</button>
+            {% if q %}
+            <a href="/admin/advertising/partners" class="btn btn-sm btn-light border">Bỏ lọc</a>
+            {% endif %}
+          </form>
+        </div>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="openAddPartnerModal()">
+            <i class="bx bx-plus mr-1"></i>Thêm đối tác
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>Đối tác</th>
+            <th style="width:180px;">Loại</th>
+            <th style="width:140px;">Mã</th>
+            <th style="width:110px;" class="text-center">Hoa hồng (%)</th>
+            <th style="width:160px;" class="text-center">Yêu cầu</th>
+            <th style="width:100px;" class="text-center">Trạng thái</th>
+            <th style="width:120px;" class="text-center">Link</th>
+            <th style="width:140px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in partners %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">
+              {{ (pagination.page - 1) * pagination.per_page + loop.index if pagination else loop.index }}
+            </td>
+            <td class="align-middle">
+              <div class="font-weight-bold text-dark">{{ p.name }}</div>
+              {% if p.phone %}
+              <div class="text-muted small">{{ p.phone }}</div>
+              {% endif %}
+            </td>
+            <td class="align-middle">
+              {{ kinds.get(p.kind, p.kind) }}
+            </td>
+            <td class="align-middle">
+              <code class="text-dark font-weight-bold">{{ p.code }}</code>
+            </td>
+            <td class="text-center align-middle">
+              {{ p.commission_percent }}%
+            </td>
+            <td class="text-center align-middle">
+              <span class="badge badge-light border text-dark">{{ p.stats.total }} / {{ p.stats.last30 }}</span>
+            </td>
+            <td class="text-center align-middle">
+              {% if p.active %}
+              <span class="badge badge-success">Bật</span>
+              {% else %}
+              <span class="badge badge-secondary">Tắt</span>
+              {% endif %}
+            </td>
+            <td class="text-center align-middle">
+              <button type="button" class="btn btn-sm btn-light border btn-copy-link" data-link="{{ p.link }}">
+                Sao chép link
+              </button>
+            </td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border mr-1 btn-edit-partner"
+                      data-id="{{ p.id }}"
+                      data-name="{{ p.name }}"
+                      data-phone="{{ p.phone }}"
+                      data-kind="{{ p.kind }}"
+                      data-code="{{ p.code }}"
+                      data-commission="{{ p.commission_percent }}"
+                      data-active="{{ 1 if p.active else 0 }}"
+                      data-note="{{ p.note }}">
+                Sửa
+              </button>
+              <form method="post" action="/admin/advertising/partners/{{ p.id }}/delete" class="d-inline"
+                    onsubmit="return appConfirmForm(event, 'Xóa đối tác này?', {title: 'Xóa đối tác', confirmText: 'Xóa'})">
+                <button type="submit" class="btn btn-sm btn-light border text-danger">Xóa</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">Chưa có đối tác.</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<!-- Modal Thêm / Sửa Đối tác -->
+<div class="modal fade" id="partnerModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-light py-2">
+        <h5 class="modal-title font-weight-bold" id="partnerModalTitle">Thêm đối tác</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <form id="partnerForm" method="post" action="/admin/advertising/partners">
+        <div class="modal-body">
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Tên đối tác <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="partner-name" class="form-control form-control-sm" required>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Số điện thoại</label>
+              <input type="text" name="phone" id="partner-phone" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Loại</label>
+              <select name="kind" id="partner-kind" class="form-control form-control-sm" style="width:100%;">
+                {% for k_val, k_name in kinds.items() %}
+                <option value="{{ k_val }}">{{ k_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Mã</label>
+              <input type="text" name="code" id="partner-code" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-6 mb-2">
+              <label class="small font-weight-bold">Hoa hồng (%)</label>
+              <input type="number" step="0.1" name="commission_percent" id="partner-commission" class="form-control form-control-sm" value="3.0">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label class="small font-weight-bold">Trạng thái</label>
+            <div>
+              <div class="custom-control custom-switch">
+                <input type="checkbox" name="active" class="custom-control-input" id="partner-active" value="1" checked>
+                <label class="custom-control-label small font-weight-bold" for="partner-active">Bật</label>
+              </div>
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label class="small font-weight-bold">Ghi chú</label>
+            <textarea name="note" id="partner-note" class="form-control form-control-sm" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold">Lưu thông tin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAddPartnerModal() {
+  document.getElementById('partnerModalTitle').textContent = 'Thêm đối tác';
+  document.getElementById('partnerForm').action = '/admin/advertising/partners';
+  document.getElementById('partner-name').value = '';
+  document.getElementById('partner-phone').value = '';
+  document.getElementById('partner-kind').value = 'other';
+  document.getElementById('partner-code').value = '';
+  document.getElementById('partner-commission').value = '3.0';
+  document.getElementById('partner-active').checked = true;
+  document.getElementById('partner-note').value = '';
+  $('#partnerModal').modal('show');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  $('.btn-copy-link').on('click', function() {
+    var link = $(this).attr('data-link');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function() {
+        if (window.showNotify) {
+          window.showNotify('Đã sao chép.', 'success');
+        }
+      });
+    }
+  });
+
+  $('.btn-edit-partner').on('click', function() {
+    var btn = $(this);
+    document.getElementById('partnerModalTitle').textContent = 'Chỉnh sửa đối tác';
+    document.getElementById('partnerForm').action = '/admin/advertising/partners/' + btn.attr('data-id');
+    document.getElementById('partner-name').value = btn.attr('data-name') || '';
+    document.getElementById('partner-phone').value = btn.attr('data-phone') || '';
+    document.getElementById('partner-kind').value = btn.attr('data-kind') || 'other';
+    document.getElementById('partner-code').value = btn.attr('data-code') || '';
+    document.getElementById('partner-commission').value = btn.attr('data-commission') || '3.0';
+    document.getElementById('partner-active').checked = (btn.attr('data-active') === '1');
+    document.getElementById('partner-note').value = btn.attr('data-note') || '';
+    $('#partnerModal').modal('show');
+  });
+});
+</script>
+{% endblock %}

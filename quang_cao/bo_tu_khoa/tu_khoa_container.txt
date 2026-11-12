@@ -1,0 +1,50 @@
+# ==============================================================================
+# BỘ TỪ KHÓA QUẢNG CÁO CHO THUÊ CONTAINER (PHÚ THỌ, VĨNH PHÚC & KHU VỰC LÂN CẬN)
+# Cú pháp Google Ads:
+#   "từ khóa" : Khớp cụm từ (Phrase Match - Khuyên dùng)
+#   [từ khóa] : Khớp chính xác (Exact Match)
+# ==============================================================================
+
+# --- NHÓM 1: THUÊ CONTAINER CHUNG ---
+"thuê container"
+[thuê container]
+"cho thuê container"
+[cho thuê container]
+"thuê container phú thọ"
+[thuê container phú thọ]
+"cho thuê container phú thọ"
+"thuê container vĩnh phúc"
+[thuê container vĩnh phúc]
+"cho thuê container vĩnh phúc"
+"giá thuê container"
+"bảng giá thuê container"
+"thuê container theo tháng"
+
+# --- NHÓM 2: CONTAINER VĂN PHÒNG ---
+"thuê container văn phòng"
+[thuê container văn phòng]
+"cho thuê container văn phòng"
+"container văn phòng phú thọ"
+"container văn phòng vĩnh phúc"
+"thuê container văn phòng công trình"
+
+# --- NHÓM 3: CONTAINER KHO ---
+"thuê container kho"
+[thuê container kho]
+"cho thuê container kho"
+"container kho phú thọ"
+"container chứa hàng cho thuê"
+"thuê container chứa vật tư"
+
+# --- NHÓM 4: CẨU HẠ CONTAINER ---
+"cẩu hạ container"
+"xe cẩu hạ container"
+"cẩu container văn phòng"
+"xe cẩu container phú thọ"
+
+# --- NHÓM 5: KHU CÔNG NGHIỆP ---
+"thuê container kcn cổ tiết"
+"thuê container kcn thụy vân"
+"thuê container kcn trung hà"
+"thuê container kcn bình xuyên"
+"thuê container kcn khai quang"

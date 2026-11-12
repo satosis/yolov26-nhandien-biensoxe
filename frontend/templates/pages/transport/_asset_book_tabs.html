@@ -1,0 +1,51 @@
+<style>
+  .abk-tabs-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    white-space: nowrap;
+    border-bottom: 2px solid #93c5fd;
+    padding-bottom: 0;
+    margin-bottom: 16px;
+  }
+  .abk-tab-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e3a8a;
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .abk-tab-item:hover {
+    background: #bfdbfe;
+    color: #1e3a8a;
+    text-decoration: none;
+  }
+  .abk-tab-item.active {
+    background: #fde68a;
+    color: #92400e;
+    font-weight: 700;
+    border-color: #f59e0b;
+    border-bottom: 2px solid #fde68a;
+    margin-bottom: -2px;
+  }
+  .abk-tab-item i {
+    font-size: 16px;
+  }
+</style>
+
+<div class="abk-tabs-bar">
+  {% for tab_key, tab_label, tab_icon in book_tabs %}
+  <a href="{{ tab_base_url }}?{{ tab_query }}&tab={{ tab_key }}"
+     class="abk-tab-item {% if tab_key == active_tab %}active{% endif %}">
+    <i class="bx {{ tab_icon }} mr-1"></i>{{ tab_label }}
+  </a>
+  {% endfor %}
+</div>

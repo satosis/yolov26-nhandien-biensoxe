@@ -1,0 +1,23 @@
+{# Tab sổ tô màu như sheet Excel: mỗi sổ một màu, tab đang mở tô đậm. #}
+<style>
+  .nav-tabs .nav-link.sheet-tab {
+    background: var(--sheet-soft) !important;
+    color: var(--sheet-text) !important;
+    border: 1px solid var(--sheet-soft) !important;
+    border-top: 3px solid var(--sheet) !important;
+    border-bottom: 0 !important;
+    border-radius: 6px 6px 0 0 !important;
+    margin-right: 3px;
+  }
+  .nav-tabs .nav-link.sheet-tab:hover { filter: brightness(0.96); }
+  .nav-tabs .nav-link.sheet-tab.active {
+    background: var(--sheet) !important;
+    color: #fff !important;
+    border-color: var(--sheet) !important;
+  }
+  .nav-tabs .nav-link.sheet-tab.active .debt-tab-count { background: #fff; color: var(--sheet-text); border-color: #fff; }
+  .sheet-tab-blue { --sheet: #2563eb; --sheet-soft: #dbeafe; --sheet-text: #1e40af; }
+  .sheet-tab-amber { --sheet: #d97706; --sheet-soft: #fef3c7; --sheet-text: #92400e; }
+  .sheet-tab-green { --sheet: #16a34a; --sheet-soft: #dcfce7; --sheet-text: #166534; }
+  .sheet-tab-purple { --sheet: #7c3aed; --sheet-soft: #ede9fe; --sheet-text: #5b21b6; }
+</style>

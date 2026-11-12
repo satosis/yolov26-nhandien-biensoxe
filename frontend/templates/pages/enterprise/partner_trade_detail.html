@@ -1,0 +1,356 @@
+{% extends "layout.html" %}
+
+{% block title %}Chi tiết dòng sổ — {{ ledger_title }}{% endblock %}
+{% block page_title %}Chi tiết dòng sổ{% endblock %}
+
+{% block page_actions %}
+<div class="d-flex align-items-center" style="gap:6px;">
+  <a href="/admin/enterprise/partner-trades?partner={{ partner.id }}" class="btn btn-sm btn-light border">Quay lại sổ</a>
+  <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="saveDetails()">Lưu</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  #detailPage .card { box-shadow: none; border: 1px solid #e2e8f0; border-radius: 6px; }
+  #detailPage thead th {
+    background: #ffff00 !important;
+    color: #000 !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    border: 1px solid #999 !important;
+    text-align: center !important;
+    white-space: normal !important;
+    vertical-align: middle !important;
+    padding: 4px 6px !important;
+  }
+  #detailPage tbody td {
+    font-size: 15px !important;
+    color: #334155;
+    padding: 3px 6px !important;
+    border: 1px solid #ccc !important;
+    vertical-align: middle !important;
+  }
+  #detailPage tbody td .form-control {
+    font-size: 14.5px !important;
+    padding: 2px 6px !important;
+    height: 30px !important;
+  }
+  #detailPage .table-responsive { min-height: 0 !important; width: auto !important; }
+  /* Bảng gọn, không kéo hết bề ngang màn hình */
+  #detailPage table.table { width: auto !important; max-width: 100%; table-layout: fixed; }
+  #detailPage tbody td .btn {
+    padding: 0 7px !important;
+    font-size: 13.5px !important;
+    line-height: 1.6 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+</style>
+
+<div class="container-fluid px-0" id="detailPage">
+  <div class="card p-3 mb-4">
+    <div class="mb-3">
+      <h5 class="mb-1 font-weight-bold">{{ ledger_title }}</h5>
+      <div class="text-muted" style="font-size: 15px;">
+        {{ entry.entry_date.strftime('%d/%m/%Y') if entry.entry_date else '' }} · {{ entry.item_name or '' }} · {{ owe_label if entry.side == 'owe' else 'Thành tiền' }}
+      </div>
+    </div>
+
+    {% set item_lines = [] %}
+    {% set plus_lines = [] %}
+    {% set minus_lines = [] %}
+    {% for l in lines %}
+      {% if l.kind == 'plus' %}
+        {% set _ = plus_lines.append(l) %}
+      {% elif l.kind == 'minus' %}
+        {% set _ = minus_lines.append(l) %}
+      {% else %}
+        {% set _ = item_lines.append(l) %}
+      {% endif %}
+    {% endfor %}
+
+    <!-- Phần 1: Hàng -->
+    <div class="mb-4">
+      <h6 class="font-weight-bold mb-2">Hàng</h6>
+      <div class="d-flex align-items-end flex-wrap" style="gap:8px 16px;">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-1" id="table-items">
+            <colgroup><col style="width: 280px;"><col style="width: 110px;"><col style="width: 110px;"><col style="width: 130px;"><col style="width: 60px;"></colgroup>
+            <thead>
+              <tr>
+                <th style="width: 280px;">Tên</th>
+                <th style="width: 110px;">Số lượng</th>
+                <th style="width: 110px;">Đơn giá</th>
+                <th style="width: 130px;">Thành tiền</th>
+                <th style="width: 60px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if item_lines %}
+                {% for l in item_lines %}
+                <tr data-kind="item">
+                  <td><input type="text" class="form-control form-control-sm row-name" value="{{ l.item_name or '' }}"></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-qty" value="{{ l.qty_formula or (l.quantity|format_number('') if l.quantity is not none else '') }}" oninput="formatQtyInput(this); onRowChange(this);"></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-price" value="{{ l.unit_price|format_number('') if (l.unit_price is not none and l.unit_price != 0) else '' }}" oninput="formatNumberInput(this); onRowChange(this);"></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-amount" value="{{ l.amount|format_number('') if (l.amount is not none and l.amount != 0) else '' }}" oninput="formatNumberInput(this); onAmountChange(this);"></td>
+                  <td class="text-center"><button type="button" class="btn btn-sm btn-light border text-danger btn-del-row">Xóa</button></td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr data-kind="item">
+                  <td><input type="text" class="form-control form-control-sm row-name" value=""></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-qty" value="" oninput="formatQtyInput(this); onRowChange(this);"></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-price" value="" oninput="formatNumberInput(this); onRowChange(this);"></td>
+                  <td><input type="text" class="form-control form-control-sm text-right row-amount" value="" oninput="formatNumberInput(this); onAmountChange(this);"></td>
+                  <td class="text-center"><button type="button" class="btn btn-sm btn-light border text-danger btn-del-row">Xóa</button></td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mb-1 d-flex align-items-center flex-wrap" style="gap:6px 14px;">
+          <button type="button" class="btn btn-sm btn-light border" onclick="addRow('items')">+ Thêm</button>
+          <div class="text-muted" style="font-size: 15px;">
+            Cộng: <span class="text-dark font-weight-bold" id="sum-items-qty">{{ totals.items_qty|format_number('0') }}</span> · <span class="text-dark font-weight-bold" id="sum-items-amt">{{ totals['items']|format_number('0') }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phần 2: Cộng thêm -->
+    <div class="mb-4">
+      <h6 class="font-weight-bold mb-2">Cộng thêm</h6>
+      <div class="d-flex align-items-end flex-wrap" style="gap:8px 16px;">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-1" id="table-plus">
+            <colgroup><col style="width: 280px;"><col style="width: 110px;"><col style="width: 110px;"><col style="width: 130px;"><col style="width: 60px;"></colgroup>
+            <tbody>
+              {% for l in plus_lines %}
+              <tr data-kind="plus">
+                <td><input type="text" class="form-control form-control-sm row-name" value="{{ l.item_name or '' }}"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-qty" value="{{ l.qty_formula or (l.quantity|format_number('') if l.quantity is not none else '') }}" oninput="formatQtyInput(this); onRowChange(this);"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-price" value="{{ l.unit_price|format_number('') if (l.unit_price is not none and l.unit_price != 0) else '' }}" oninput="formatNumberInput(this); onRowChange(this);"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-amount" value="{{ l.amount|format_number('') if (l.amount is not none and l.amount != 0) else '' }}" oninput="formatNumberInput(this); onAmountChange(this);"></td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-light border text-danger btn-del-row">Xóa</button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mb-1 d-flex align-items-center flex-wrap" style="gap:6px 14px;">
+          <button type="button" class="btn btn-sm btn-light border" onclick="addRow('plus')">+ Thêm</button>
+          <div class="text-muted" style="font-size: 15px;">
+            Tổng tiền: <span class="text-dark font-weight-bold" id="sum-subtotal">{{ totals.subtotal|format_number('0') }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phần 3: Trừ -->
+    <div class="mb-4">
+      <h6 class="font-weight-bold mb-2">Trừ</h6>
+      <div class="d-flex align-items-end flex-wrap" style="gap:8px 16px;">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered mb-1" id="table-minus">
+            <colgroup><col style="width: 280px;"><col style="width: 110px;"><col style="width: 110px;"><col style="width: 130px;"><col style="width: 60px;"></colgroup>
+            <tbody>
+              {% for l in minus_lines %}
+              <tr data-kind="minus">
+                <td><input type="text" class="form-control form-control-sm row-name" value="{{ l.item_name or '' }}"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-qty" value="{{ l.qty_formula or (l.quantity|format_number('') if l.quantity is not none else '') }}" oninput="formatQtyInput(this); onRowChange(this);"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-price" value="{{ l.unit_price|format_number('') if (l.unit_price is not none and l.unit_price != 0) else '' }}" oninput="formatNumberInput(this); onRowChange(this);"></td>
+                <td><input type="text" class="form-control form-control-sm text-right row-amount" value="{{ l.amount|format_number('') if (l.amount is not none and l.amount != 0) else '' }}" oninput="formatNumberInput(this); onAmountChange(this);"></td>
+                <td class="text-center"><button type="button" class="btn btn-sm btn-light border text-danger btn-del-row">Xóa</button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mb-1 d-flex align-items-center flex-wrap" style="gap:6px 14px;">
+          <button type="button" class="btn btn-sm btn-light border" onclick="addRow('minus')">+ Thêm</button>
+          <div style="font-size: 18px;" class="font-weight-bold text-dark">
+            Còn phải thanh toán: <span id="sum-total">{{ totals.total|format_number('0') }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pt-3 border-top d-flex align-items-center" style="gap:10px;">
+      <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="saveDetails()">Lưu</button>
+      <a href="/admin/enterprise/partner-trades?partner={{ partner.id }}" class="btn btn-sm btn-light border">Quay lại sổ</a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function plainQtyToken(t) {
+  if (t.indexOf('.') >= 0 && t.indexOf(',') >= 0) {
+    return t.lastIndexOf(',') > t.lastIndexOf('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  }
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) return t.replace(/\./g, '');
+  return t.replace(',', '.');
+}
+
+function parseQtyJs(str) {
+  var raw = String(str || '').replace(/\s+/g, '').replace(/^=/, '').replace(/[xX×]/g, '*');
+  if (!raw || !/^[0-9.,+\-*\/()]+$/.test(raw)) return null;
+  var expr = raw.replace(/\d[\d.,]*/g, plainQtyToken);
+  try {
+    var val = Function('"use strict"; return (' + expr + ');')();
+    return (typeof val === 'number' && isFinite(val)) ? val : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function formatQtyInput(el) {
+  el.value = el.value.replace(/[xX×]/g, '*').replace(/\d[\d.]*(,\d*)?/g, function (num) {
+    var parts = num.split(',');
+    var digits = parts[0].replace(/\./g, '');
+    var grouped = digits ? new Intl.NumberFormat('vi-VN').format(parseInt(digits, 10)) : '';
+    return parts.length > 1 ? grouped + ',' + parts[1] : grouped;
+  });
+}
+
+function parsePriceJs(str) {
+  if (!str) return null;
+  var clean = String(str).trim().replace(/[^\d-]/g, '');
+  if (!clean || clean === '-') return null;
+  var val = parseInt(clean, 10);
+  return isNaN(val) ? null : val;
+}
+
+function formatVndJs(num) {
+  if (num === null || num === undefined || isNaN(num)) return '0';
+  return new Intl.NumberFormat('vi-VN').format(Math.round(num));
+}
+
+function formatQtyJs(val) {
+  if (val === null || val === undefined || isNaN(val)) return '0';
+  var round3 = Math.round(val * 1000) / 1000;
+  var parts = String(round3).split('.');
+  var intPart = new Intl.NumberFormat('vi-VN').format(parseInt(parts[0], 10) || 0);
+  return parts.length > 1 ? intPart + ',' + parts[1] : intPart;
+}
+
+function onRowChange(el) {
+  var $tr = $(el).closest('tr');
+  var qty = parseQtyJs($tr.find('.row-qty').val());
+  var price = parsePriceJs($tr.find('.row-price').val());
+  if (qty !== null && price !== null) {
+    var amt = Math.round(qty * price);
+    $tr.find('.row-amount').val(formatVndJs(amt));
+  }
+  recalc();
+}
+
+function onAmountChange(el) {
+  recalc();
+}
+
+function recalc() {
+  var itemsQty = 0;
+  var itemsAmt = 0;
+  var plusAmt = 0;
+  var minusAmt = 0;
+
+  $('#table-items tbody tr').each(function() {
+    var q = parseQtyJs($(this).find('.row-qty').val());
+    if (q !== null) itemsQty += q;
+    var a = parsePriceJs($(this).find('.row-amount').val());
+    if (a !== null) itemsAmt += a;
+  });
+
+  $('#table-plus tbody tr').each(function() {
+    var a = parsePriceJs($(this).find('.row-amount').val());
+    if (a !== null) plusAmt += a;
+  });
+
+  $('#table-minus tbody tr').each(function() {
+    var a = parsePriceJs($(this).find('.row-amount').val());
+    if (a !== null) minusAmt += a;
+  });
+
+  var subtotal = itemsAmt + plusAmt;
+  var total = itemsAmt + plusAmt - minusAmt;
+
+  $('#sum-items-qty').text(formatQtyJs(itemsQty));
+  $('#sum-items-amt').text(formatVndJs(itemsAmt));
+  $('#sum-subtotal').text(formatVndJs(subtotal));
+  $('#sum-total').text(formatVndJs(total));
+}
+
+function addRow(section) {
+  var tbody = $('#table-' + section + ' tbody');
+  var kind = section === 'plus' ? 'plus' : (section === 'minus' ? 'minus' : 'item');
+  var tr = $('<tr data-kind="' + kind + '">' +
+    '<td><input type="text" class="form-control form-control-sm row-name"></td>' +
+    '<td><input type="text" class="form-control form-control-sm text-right row-qty" oninput="formatQtyInput(this); onRowChange(this);"></td>' +
+    '<td><input type="text" class="form-control form-control-sm text-right row-price" oninput="formatNumberInput(this); onRowChange(this);"></td>' +
+    '<td><input type="text" class="form-control form-control-sm text-right row-amount" oninput="formatNumberInput(this); onAmountChange(this);"></td>' +
+    '<td class="text-center"><button type="button" class="btn btn-sm btn-light border text-danger btn-del-row">Xóa</button></td>' +
+  '</tr>');
+  tbody.append(tr);
+  tr.find('.row-name').focus();
+}
+
+$(document).on('click', '.btn-del-row', function() {
+  $(this).closest('tr').remove();
+  recalc();
+});
+
+async function saveDetails() {
+  var lines = [];
+  $('#table-items tbody tr').each(function() {
+    lines.push({
+      kind: 'item',
+      item_name: $(this).find('.row-name').val() || '',
+      quantity: $(this).find('.row-qty').val() || '',
+      unit_price: $(this).find('.row-price').val() || '',
+      amount: $(this).find('.row-amount').val() || ''
+    });
+  });
+  $('#table-plus tbody tr').each(function() {
+    lines.push({
+      kind: 'plus',
+      item_name: $(this).find('.row-name').val() || '',
+      quantity: $(this).find('.row-qty').val() || '',
+      unit_price: $(this).find('.row-price').val() || '',
+      amount: $(this).find('.row-amount').val() || ''
+    });
+  });
+  $('#table-minus tbody tr').each(function() {
+    lines.push({
+      kind: 'minus',
+      item_name: $(this).find('.row-name').val() || '',
+      quantity: $(this).find('.row-qty').val() || '',
+      unit_price: $(this).find('.row-price').val() || '',
+      amount: $(this).find('.row-amount').val() || ''
+    });
+  });
+
+  try {
+    var res = await fetch('/admin/enterprise/partner-trades/entries/{{ entry.id }}/details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lines: lines })
+    });
+    var data = await res.json();
+    if (res.ok && data.ok) {
+      window.showNotify('Đã lưu.', 'success');
+      setTimeout(function() { window.location.reload(); }, 300);
+    } else {
+      window.showNotify((data && data.message) || 'Lỗi khi lưu chi tiết.', 'error');
+    }
+  } catch (e) {
+    window.showNotify('Lỗi kết nối máy chủ.', 'error');
+  }
+}
+</script>
+{% endblock %}

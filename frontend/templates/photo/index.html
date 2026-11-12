@@ -1,0 +1,1572 @@
+{% extends "photo/layout.html" %}
+
+{% block title %}{{ company.seo_config.title }}{% endblock %}
+
+{% block seo %}
+<meta name="description" content="{{ company.seo_config.description }}">
+<meta name="keywords" content="{{ company.seo_config.keywords }}">
+<meta name="author" content="{{ company.company_name }}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="{{ request.base_url }}{{ canonical_path.lstrip('/') }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ company.seo_config.title }}">
+<meta property="og:description" content="{{ company.seo_config.description }}">
+<meta property="og:image" content="{{ request.base_url }}static/services/photo/img/hero_studio.jpg">
+<meta property="og:url" content="{{ request.base_url }}{{ canonical_path.lstrip('/') }}">
+{% endblock %}
+
+{% block schema %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "LocalBusiness",
+      "name": {{ company.company_name | tojson }},
+      "description": {{ company.seo_config.description | tojson }},
+      "image": {{ (request.base_url ~ "static/services/photo/img/hero_studio.jpg") | tojson }},
+      "telephone": {{ settings.phone_raw | tojson }},
+      "email": {{ company.email | tojson }},
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": {{ company.address | tojson }},
+        "addressCountry": "VN"
+      },
+      "taxID": {{ company.tax_id | tojson }}
+    },
+    {
+      "@type": "Service",
+      "name": "Cho thuê máy ảnh, ống kính và dịch vụ Photobooth sự kiện",
+      "provider": {
+        "@type": "LocalBusiness",
+        "name": {{ company.company_name | tojson }}
+      },
+      "areaServed": ["Vĩnh Phúc", "Phú Thọ", "Hà Nội", "Miền Bắc"]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {% for item in faq_items %}
+        {
+          "@type": "Question",
+          "name": {{ item.q | tojson }},
+          "acceptedAnswer": { "@type": "Answer", "text": {{ item.a | tojson }} }
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+
+<!-- ═══════════════════════════════════════════════════════════════
+     1. HERO — STUDIO EDITORIAL SPLIT (GIÁ CÔNG KHAI TỪ ĐẦU)
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="relative bg-gradient-to-b from-[#FBF7F1] via-[#FAF8F5] to-white pt-8 pb-10 sm:pt-12 sm:pb-14 border-b border-stone-200/80 overflow-hidden">
+  <div class="absolute inset-0 studio-grid-bg opacity-60 pointer-events-none"></div>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <div class="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+
+      <!-- Left Copy & Actions -->
+      <div class="lg:col-span-6 space-y-5 text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-emerald-200/90 text-stone-800 text-[11px] sm:text-xs font-semibold shadow-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+          <span>Giá thuê niêm yết công khai · Xem giá trực tiếp từng máy &amp; gói</span>
+        </div>
+
+        <h1 class="text-[27px] sm:text-4xl lg:text-[40px] font-extrabold text-stone-900 tracking-tight leading-[1.18]">
+          Cho Thuê Máy Ảnh
+          <span class="block mt-1 bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 bg-clip-text text-transparent">
+            &amp; Photobooth Sự Kiện
+          </span>
+        </h1>
+
+        <p class="text-sm sm:text-[15px] text-stone-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+          {{ page.intro | safe }}
+        </p>
+
+        <!-- Primary Friendly Pills (Single row on desktop) -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 pt-1">
+          <a href="#thiet-bi"
+             class="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 sm:py-3 rounded-full bg-stone-900 hover:bg-amber-700 text-white font-bold text-xs sm:text-[13px] shadow-md shadow-stone-900/15 hover:-translate-y-0.5 transition-all whitespace-nowrap">
+            <span>Xem bảng giá thiết bị</span>
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+          </a>
+
+          <a href="tel:{{ settings.phone_raw }}"
+             class="inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs sm:text-[13px] shadow-md shadow-amber-600/20 hover:-translate-y-0.5 transition-all whitespace-nowrap">
+            <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <span>{{ settings.phone }}</span>
+          </a>
+
+          <button type="button"
+                  data-consult="Tư vấn lịch trống thuê máy ảnh & Photobooth"
+                  class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-3 rounded-full bg-white hover:bg-amber-50 text-stone-700 hover:text-amber-800 font-semibold text-xs sm:text-[13px] border border-stone-200 hover:border-amber-300 shadow-2xs transition-all cursor-pointer whitespace-nowrap">
+            <svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+            <span>Chat tư vấn</span>
+          </button>
+        </div>
+
+        <!-- Quick Jump Filter Pills -->
+        <div class="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-1 text-xs">
+          <span class="text-stone-400 font-medium">Lọc nhanh:</span>
+          <a href="#thiet-bi" onclick="window.photoJumpGroup && window.photoJumpGroup('Máy ảnh')"
+             class="px-3 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold transition-colors">
+            Body từ 220k/ngày
+          </a>
+          <a href="#thiet-bi" onclick="window.photoJumpGroup && window.photoJumpGroup('Ống kính')"
+             class="px-3 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold transition-colors">
+            Lens từ 150k/ngày
+          </a>
+          <a href="#bang-gia"
+             class="px-3 py-1 rounded-full bg-amber-100/85 hover:bg-amber-200/80 text-amber-900 font-semibold transition-colors">
+            Photobooth từ 4,2tr
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Visual Hero Showcase -->
+      <div class="lg:col-span-6 relative">
+        <div class="relative rounded-3xl overflow-hidden bg-stone-900 border border-stone-200/90 shadow-2xl shadow-stone-900/10 group">
+          <div class="relative h-[260px] sm:h-[330px] lg:h-[360px]">
+            <img src="{{ page.hero_image }}"
+                 alt="{{ page.hero_caption }}"
+                 class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700">
+            <div class="absolute inset-0 bg-gradient-to-t from-stone-950/80 via-stone-900/15 to-transparent"></div>
+          </div>
+
+          <!-- Top Pill Overlay -->
+          <div class="absolute top-3.5 left-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900/80 backdrop-blur-md text-white text-[11px] font-semibold border border-white/15">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>Vĩnh Phúc · Phú Thọ · Hà Nội</span>
+          </div>
+
+          <!-- Bottom Glass Direct Price Summary -->
+          <div class="absolute bottom-3.5 inset-x-3.5 grid grid-cols-2 gap-2">
+            <div class="px-3 py-2 rounded-2xl bg-white/95 backdrop-blur-md border border-white/60 shadow-sm">
+              <p class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700">Máy ảnh &amp; Lens</p>
+              <p class="text-[11px] sm:text-xs font-extrabold text-stone-900 mt-0.5 truncate">
+                <span class="sm:hidden">120k – 550k/ngày</span>
+                <span class="hidden sm:inline">Từ 120.000đ – 550.000đ/ngày</span>
+              </p>
+            </div>
+            <div class="px-3 py-2 rounded-2xl bg-stone-900/90 backdrop-blur-md border border-white/15 shadow-sm text-white">
+              <p class="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-400">Photobooth Trọn Gói</p>
+              <p class="text-[11px] sm:text-xs font-extrabold text-white mt-0.5 truncate">
+                <span class="sm:hidden">4,2tr – 6,8tr / gói</span>
+                <span class="hidden sm:inline">4.200.000đ – 6.800.000đ</span>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 4 Price & Guarantee Highlights Ribbon -->
+    <div class="mt-8 pt-6 border-t border-stone-200/80 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-2xs flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <span class="block text-[11px] font-medium text-stone-500 truncate">Body Sony / Canon / Fuji</span>
+          <strong class="block text-xs sm:text-sm font-extrabold text-emerald-700 truncate">Từ 220.000đ / ngày</strong>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-2xs flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <span class="block text-[11px] font-medium text-stone-500 truncate">Ống Kính &amp; Ánh Sáng</span>
+          <strong class="block text-xs sm:text-sm font-extrabold text-stone-900 truncate">Từ 120.000đ / ngày</strong>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-2xs flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="19" y1="5" x2="5" y2="19"></line>
+            <circle cx="6.5" cy="6.5" r="2.5"></circle>
+            <circle cx="17.5" cy="17.5" r="2.5"></circle>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <span class="block text-[11px] font-medium text-stone-500 truncate">Thuê Dài Ngày (24h)</span>
+          <strong class="block text-xs sm:text-sm font-extrabold text-stone-900 truncate">Ngày 2 -20% · N3 -25%</strong>
+        </div>
+      </div>
+
+      <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-2xs flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+            <rect x="6" y="14" width="12" height="8"></rect>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <span class="block text-[11px] font-medium text-stone-500 truncate">Photobooth Sự Kiện</span>
+          <strong class="block text-xs sm:text-sm font-extrabold text-amber-700 truncate">Từ 4.200.000đ / gói</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- Catalog Metadata for Client Filtering & Live Multi-day Pricing (mirrors /tai-khoan storefront clarity) -->
+<script id="photo-catalog-data" type="application/json">
+[
+  {% for item in items %}
+  {
+    "id": {{ item.id | tojson }},
+    "name": {{ item.name | tojson }},
+    "group": {{ item.group | tojson }},
+    "brand": {{ item.brand | tojson }},
+    "price": {{ item.price | int }},
+    "isPackage": {{ 'true' if item.is_package else 'false' }},
+    "unit": {{ item.unit | tojson }},
+    "search": {{ (item.name ~ ' ' ~ item.group ~ ' ' ~ item.brand ~ ' ' ~ item.desc) | tojson }}
+  }{% if not loop.last %},{% endif %}
+  {% endfor %}
+]
+</script>
+
+<script>
+  window.photoStorefront = function() {
+    var metaEl = document.getElementById('photo-catalog-data');
+    var parsedMeta = [];
+    try {
+      parsedMeta = metaEl ? JSON.parse(metaEl.textContent || '[]') : [];
+    } catch (e) {
+      parsedMeta = [];
+    }
+
+    function foldText(str) {
+      return String(str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    var factors = [1.0, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55];
+
+    return {
+      q: {{ initial_q | tojson }},
+      group: {{ initial_group | tojson }},
+      brand: {{ initial_category | tojson }},
+      rentalDays: 1,
+      activePreset: 'event',
+      meta: parsedMeta,
+      init: function() {
+        var self = this;
+        window.photoJumpGroup = function(grp) {
+          self.group = grp || '';
+          self.brand = '';
+          self.q = '';
+        };
+      },
+      matches: function(itemGroup, itemBrand, itemSearch) {
+        if (this.group && itemGroup !== this.group) return false;
+        if (this.brand && itemBrand !== this.brand) return false;
+        var qFold = foldText(this.q);
+        if (qFold) {
+          var hay = foldText(itemSearch);
+          var words = qFold.split(' ');
+          for (var i = 0; i < words.length; i++) {
+            if (words[i] && hay.indexOf(words[i]) === -1) return false;
+          }
+        }
+        return true;
+      },
+      matchesIdx: function(idx) {
+        var m = this.meta[idx];
+        if (!m) return true;
+        return this.matches(m.group, m.brand, m.search);
+      },
+      selectCardByIdx: function(idx) {
+        var m = this.meta[idx];
+        if (!m) return;
+        var total = this.calcTotal(m.price, m.isPackage, this.rentalDays);
+        photoSelectCard(m.name, total, m.isPackage, m.unit, this.rentalDays);
+      },
+      get filteredCount() {
+        var count = 0;
+        for (var i = 0; i < this.meta.length; i++) {
+          var m = this.meta[i];
+          if (this.matches(m.group, m.brand, m.search)) count++;
+        }
+        return count;
+      },
+      selectGroup: function(g) {
+        if (this.group === g && !this.brand) {
+          this.group = '';
+        } else {
+          this.group = g;
+          this.brand = '';
+        }
+      },
+      selectBrand: function(g, b) {
+        if (g) this.group = g;
+        this.brand = (this.brand === b) ? '' : b;
+      },
+      clearFilters: function() {
+        this.q = '';
+        this.group = '';
+        this.brand = '';
+      },
+      calcTotal: function(dailyPrice, isPackage, days) {
+        var p = Number(dailyPrice || 0);
+        if (!p || p <= 0) return 0;
+        if (isPackage) return p;
+        var d = Math.max(1, parseInt(days || 1, 10) || 1);
+        var total = 0;
+        for (var idx = 0; idx < d; idx++) {
+          var f = idx < factors.length ? factors[idx] : 0.50;
+          total += p * f;
+        }
+        return Math.round(total / 1000) * 1000;
+      },
+      fmtVnd: function(val) {
+        return String(Math.round(Number(val || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+      },
+      headingText: function() {
+        if (this.q && this.q.trim()) return 'Kết quả tìm: "' + this.q.trim() + '"';
+        if (this.brand && this.group) return this.group + ' · ' + this.brand;
+        if (this.brand) return 'Thương hiệu: ' + this.brand;
+        if (this.group) return 'Danh mục: ' + this.group;
+        return 'Bảng Giá Thiết Bị & Photobooth Niêm Yết';
+      }
+    };
+  };
+</script>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     2. KHO THIẾT BỊ & GÓI PHOTOBOOTH (SIDEBAR + TÌM KIẾM + GIÁ TRỰC TIẾP NHƯ /tai-khoan)
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="thiet-bi" class="scroll-mt-20 py-12 lg:py-16 bg-white border-b border-stone-200/80" x-data="photoStorefront()">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+    <!-- Section Header + Duration Rate Switcher -->
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-8">
+      <div>
+        <span class="text-amber-700 font-bold uppercase text-[11px] tracking-widest block mb-1">{{ page.catalog_kicker }}</span>
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">{{ page.catalog_title }}</h2>
+        <p class="text-xs sm:text-sm text-stone-600 mt-1.5 max-w-2xl">
+          Toàn bộ giá niêm yết theo ngày (24h) đã gồm pin, sạc, thẻ nhớ &amp; túi — xem trực tiếp không cần nhắn tin hỏi giá.
+        </p>
+      </div>
+
+      <!-- Live Multi-day Cost Estimator Control -->
+      <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 p-1.5 rounded-2xl bg-[#FAF8F5] border border-stone-200/90 shrink-0 self-start lg:self-auto">
+        <span class="text-[11px] font-bold text-stone-500 px-2 whitespace-nowrap">Xem giá thuê:</span>
+        <button type="button" @click="rentalDays = 1"
+                :class="rentalDays === 1 ? 'bg-stone-900 text-white shadow-xs' : 'bg-white text-stone-700 hover:bg-stone-100 border border-stone-200'"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+          1 ngày
+        </button>
+        <button type="button" @click="rentalDays = 2"
+                :class="rentalDays === 2 ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-stone-700 hover:bg-emerald-50 border border-stone-200'"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+          2 ngày <span class="opacity-85">(-20% N2)</span>
+        </button>
+        <button type="button" @click="rentalDays = 3"
+                :class="rentalDays === 3 ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-stone-700 hover:bg-emerald-50 border border-stone-200'"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+          3 ngày <span class="opacity-85">(-25% N3)</span>
+        </button>
+        <button type="button" @click="rentalDays = 5"
+                :class="rentalDays === 5 ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-stone-700 hover:bg-emerald-50 border border-stone-200'"
+                class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+          5 ngày <span class="opacity-85">(-35% N5)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Storefront 2-Column Layout (Sidebar + Product Grid, modeled after /tai-khoan) -->
+    <div class="grid lg:grid-cols-12 gap-6 lg:gap-7 items-start">
+
+      <!-- Left Sticky Sidebar: Search + Category Group Tree + Brand Sub-filters -->
+      <aside class="lg:col-span-3 lg:sticky lg:top-24 space-y-4">
+        <div class="rounded-3xl bg-[#FAF8F5] border border-stone-200/90 p-4 shadow-2xs">
+          <div class="text-[11px] font-extrabold uppercase tracking-wider text-stone-500 mb-2.5">
+            Tìm &amp; Lọc Thiết Bị
+          </div>
+
+          <!-- Search Box -->
+          <div class="relative mb-3">
+            <svg class="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text"
+                   x-model="q"
+                   placeholder="Tìm A7IV, R6, 24-70, Booth..."
+                   aria-label="Tìm thiết bị cho thuê hoặc gói Photobooth"
+                   class="w-full pl-9 pr-8 py-2.5 rounded-xl bg-white border border-stone-200 text-xs font-medium text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600">
+            <button type="button" x-show="q" x-cloak @click="q = ''"
+                    aria-label="Xóa từ khóa tìm kiếm"
+                    class="w-5 h-5 rounded-full bg-stone-200 hover:bg-stone-300 text-stone-700 text-[11px] font-bold flex items-center justify-center absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer">
+              ×
+            </button>
+          </div>
+
+          <!-- Category Tree matching /tai-khoan (.sb-item & .sb-sub) -->
+          <nav class="space-y-1" aria-label="Danh mục thiết bị">
+            <button type="button"
+                    @click="clearFilters()"
+                    :class="!group && !brand ? 'bg-stone-900 text-white shadow-xs' : 'text-stone-700 hover:bg-stone-200/60'"
+                    class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer">
+              <span class="truncate">Tất cả sản phẩm</span>
+              <span :class="!group && !brand ? 'bg-white/20 text-white' : 'bg-white text-stone-500 border border-stone-200'"
+                    class="px-2 py-0.5 rounded-full text-[11px] font-extrabold font-mono shrink-0">{{ total_catalog_count }}</span>
+            </button>
+
+            {% for g in photo_tree %}
+            <div>
+              <button type="button"
+                      @click="selectGroup({{ g.name | tojson | forceescape }})"
+                      :class="group === {{ g.name | tojson | forceescape }} && !brand ? 'bg-amber-600 text-white shadow-xs' : (group === {{ g.name | tojson | forceescape }} ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'text-stone-700 hover:bg-stone-200/60')"
+                      class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer">
+                <span :class="group === {{ g.name | tojson | forceescape }} && !brand ? 'bg-white/20 text-white border-transparent' : 'bg-white text-amber-700 border border-stone-200'"
+                      class="w-6 h-6 rounded-lg text-[11px] font-extrabold flex items-center justify-center shrink-0">
+                  {{ g.name[:1] }}
+                </span>
+                <span class="flex-1 text-left truncate">{{ g.name }}</span>
+                <span :class="group === {{ g.name | tojson | forceescape }} && !brand ? 'text-white/90' : 'text-stone-400'"
+                      class="text-[11px] font-mono shrink-0">{{ g.count }}</span>
+              </button>
+
+              {% if g.brands %}
+              <div x-show="group === {{ g.name | tojson | forceescape }}" x-cloak class="mt-1 ml-3.5 pl-2.5 border-l border-stone-200 space-y-0.5">
+                {% for b in g.brands %}
+                <button type="button"
+                        @click="selectBrand({{ g.name | tojson | forceescape }}, {{ b.name | tojson | forceescape }})"
+                        :class="brand === {{ b.name | tojson | forceescape }} ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-200/60 hover:text-stone-900'"
+                        class="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-[11.5px] font-semibold transition-colors cursor-pointer">
+                  <span class="truncate">{{ b.name }}</span>
+                  <span :class="brand === {{ b.name | tojson | forceescape }} ? 'text-white/80' : 'text-stone-400'"
+                        class="font-mono text-[11px] shrink-0">{{ b.count }}</span>
+                </button>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </nav>
+
+          <!-- Transparent Multi-day Rule Summary in Sidebar -->
+          <div class="mt-4 pt-3.5 border-t border-stone-200/80">
+            <div class="text-[10.5px] font-extrabold uppercase tracking-wider text-stone-500 mb-2">
+              Giảm giá thuê nhiều ngày
+            </div>
+            <div class="space-y-1 text-[11px] text-stone-600">
+              <div class="flex justify-between"><span>Ngày 1 (24h)</span><strong class="text-stone-900">100% giá</strong></div>
+              <div class="flex justify-between"><span>Ngày thứ 2</span><strong class="text-emerald-700">-20%</strong></div>
+              <div class="flex justify-between"><span>Ngày thứ 3</span><strong class="text-emerald-700">-25%</strong></div>
+              <div class="flex justify-between"><span>Từ ngày 4+</span><strong class="text-emerald-700">-30% đến -50%</strong></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Storefront Main Grid -->
+      <div class="lg:col-span-9 space-y-4">
+
+        <!-- Quick Brand Pills & Active Filter Chips (matching /tai-khoan .fchips) -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-1">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button type="button"
+                    @click="clearFilters()"
+                    :class="!group && !brand && !q ? 'bg-stone-900 text-white' : 'bg-[#FAF8F5] text-stone-600 border border-stone-200 hover:bg-stone-100'"
+                    class="px-3 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer">
+              Tất cả ({{ total_catalog_count }})
+            </button>
+            {% for b in photo_brands %}
+            {% if b.name not in ('Trọn gói 2h', 'Trọn gói 3h', 'Trọn gói 4h', 'Booth Cao Cấp 3h') %}
+            <button type="button"
+                    @click="brand = (brand === {{ b.name | tojson | forceescape }} ? '' : {{ b.name | tojson | forceescape }}); group = '';"
+                    :class="brand === {{ b.name | tojson | forceescape }} ? 'bg-amber-600 text-white shadow-xs' : 'bg-[#FAF8F5] text-stone-700 border border-stone-200 hover:border-amber-300'"
+                    class="px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer">
+              {{ b.name }} <span class="opacity-70">({{ b.count }})</span>
+            </button>
+            {% endif %}
+            {% endfor %}
+          </div>
+
+          <!-- Active Chip Indicators -->
+          <div class="flex flex-wrap items-center gap-1.5" x-show="group || brand || q" x-cloak>
+            <button type="button" x-show="group" @click="group = ''; brand = ''"
+                    class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold cursor-pointer">
+              <span x-text="group"></span> ×
+            </button>
+            <button type="button" x-show="brand" @click="brand = ''"
+                    class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold cursor-pointer">
+              <span x-text="brand"></span> ×
+            </button>
+            <button type="button" x-show="q" @click="q = ''"
+                    class="px-2.5 py-1 rounded-full bg-stone-200 text-stone-800 text-[11px] font-bold cursor-pointer">
+              "<span x-text="q"></span>" ×
+            </button>
+          </div>
+        </div>
+
+        <!-- Results Header (matching /tai-khoan .section-header) -->
+        <div class="flex items-center justify-between gap-3 py-2 border-b border-stone-100">
+          <h3 class="text-base sm:text-lg font-extrabold text-stone-900" x-text="headingText()">
+            Bảng Giá Thiết Bị &amp; Photobooth Niêm Yết
+          </h3>
+          <span class="px-3 py-1 rounded-full bg-[#FAF8F5] border border-stone-200 text-xs font-bold text-stone-700 shrink-0">
+            <span x-text="filteredCount">{{ items|length }}</span> sản phẩm
+          </span>
+        </div>
+
+        <!-- Product Grid -->
+        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+          {% for item in items %}
+          {% set search_blob = item.name ~ ' ' ~ item.group ~ ' ' ~ item.brand ~ ' ' ~ item.desc %}
+          {% if item.brand == 'Sony' %}
+            {% set brand_cls = 'bg-stone-900 text-amber-300 border-stone-700' %}
+          {% elif item.brand == 'Canon' %}
+            {% set brand_cls = 'bg-rose-700 text-white border-rose-600' %}
+          {% elif item.brand == 'Fujifilm' %}
+            {% set brand_cls = 'bg-emerald-800 text-emerald-100 border-emerald-700' %}
+          {% elif item.brand == 'Sigma' %}
+            {% set brand_cls = 'bg-indigo-700 text-white border-indigo-600' %}
+          {% elif item.brand in ('DJI', 'Godox') %}
+            {% set brand_cls = 'bg-sky-700 text-white border-sky-600' %}
+          {% else %}
+            {% set brand_cls = 'bg-amber-600 text-white border-amber-500' %}
+          {% endif %}
+
+          <article class="photo-card rounded-3xl bg-[#FAF8F5] border border-stone-200/90 overflow-hidden shadow-2xs flex flex-col justify-between hover:border-amber-400 hover:shadow-xl hover:shadow-amber-900/5 transition-all group"
+                   x-show="matchesIdx({{ loop.index0 }})"
+                   data-photo-card
+                   data-group="{{ item.group }}"
+                   data-brand="{{ item.brand }}"
+                   data-price="{{ item.price }}">
+            <div>
+              <!-- Media Header -->
+              <div class="relative aspect-[16/10] overflow-hidden bg-stone-900">
+                <img src="{{ item.img }}"
+                     alt="{{ item.name }}"
+                     loading="lazy"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <div class="absolute inset-0 bg-gradient-to-t from-stone-950/75 via-stone-950/10 to-transparent"></div>
+
+                <!-- Brand Pill Top-Left -->
+                <span class="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full border text-[10px] font-extrabold uppercase tracking-wider shadow-xs {{ brand_cls }}">
+                  {{ item.brand }}
+                </span>
+
+                <!-- Included Tag Bottom-Right -->
+                {% if item.is_package %}
+                <span class="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-stone-900/85 backdrop-blur-sm text-amber-300 border border-white/15 text-[10px] font-bold">
+                  In không giới hạn
+                </span>
+                {% else %}
+                <span class="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-white/95 text-stone-800 text-[10px] font-bold shadow-xs">
+                  Ngày 2: {{ item.day2_fmt }} (-20%)
+                </span>
+                {% endif %}
+              </div>
+
+              <!-- Card Body -->
+              <div class="p-4 flex flex-col space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10.5px] font-bold uppercase tracking-wider text-amber-700 truncate">
+                    {{ item.group }} · {{ item.brand }}
+                  </span>
+                  {% if item.stock and item.stock > 0 %}
+                  <span class="text-[10px] font-semibold text-stone-500 shrink-0">Sẵn {{ item.stock }} bộ</span>
+                  {% endif %}
+                </div>
+
+                <h4 class="text-[15px] font-extrabold text-stone-900 leading-snug line-clamp-2 min-h-[42px]" title="{{ item.name }}">
+                  {{ item.name }}
+                </h4>
+
+                <p class="text-xs text-stone-600 leading-relaxed line-clamp-2">
+                  {{ item.desc }}
+                </p>
+
+                <!-- Quick Included Tags (matching /tai-khoan .pfeatures) -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-stone-500 pt-0.5">
+                  {% if item.is_package %}
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Khung thiết kế riêng
+                  </span>
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    QR + Kỹ thuật trực
+                  </span>
+                  {% elif item.group == 'Ống kính' %}
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Filter UV &amp; Hood zin
+                  </span>
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Thấu kính sạch 100%
+                  </span>
+                  {% elif item.group == 'Đèn & Gimbal' %}
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Đủ pin sạc &amp; Túi
+                  </span>
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Test kỹ khi giao
+                  </span>
+                  {% else %}
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    2 Pin &amp; Thẻ nhớ
+                  </span>
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3 h-3 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Test kỹ khi giao
+                  </span>
+                  {% endif %}
+                </div>
+
+                {% if item.specs %}
+                <div class="px-2.5 py-2 rounded-xl bg-white border border-stone-200/70 text-[11px] text-stone-600 leading-snug">
+                  {{ item.specs[0] }}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Direct Upfront Price Row + Action Footer (matching /tai-khoan .pprice-row & .pfoot-btn-group) -->
+            <div class="px-4 pb-4 pt-1 mt-auto space-y-3">
+              <div class="pt-3 border-t border-stone-200/80 flex items-baseline justify-between gap-2">
+                <div>
+                  <div class="flex items-baseline gap-1">
+                    <strong class="photo-card-price text-lg sm:text-xl font-extrabold text-emerald-700 tracking-tight"
+                            x-text="fmtVnd(calcTotal({{ item.price }}, {{ 'true' if item.is_package else 'false' }}, rentalDays))">
+                      {{ item.price_fmt }}
+                    </strong>
+                    <span class="text-xs font-semibold text-stone-500"
+                          x-text="{{ 'true' if item.is_package else 'false' }} ? '/ {{ item.unit }}' : (rentalDays > 1 ? '/ ' + rentalDays + ' ngày' : '/ {{ item.unit }}')">
+                      / {{ item.unit }}
+                    </span>
+                  </div>
+                  {% if not item.is_package %}
+                  <p class="text-[10.5px] font-medium text-stone-500 mt-0.5" x-show="rentalDays > 1" x-cloak>
+                    Đơn giá ngày 1: {{ item.price_fmt }}/ngày
+                  </p>
+                  {% endif %}
+                </div>
+
+                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 shrink-0">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>{% if item.is_package %}Sẵn lịch{% else %}Sẵn máy{% endif %}</span>
+                </span>
+              </div>
+
+              <!-- CTA Row -->
+              <div class="flex items-center gap-2">
+                <button type="button"
+                        @click="selectCardByIdx({{ loop.index0 }})"
+                        class="flex-1 py-2.5 px-3.5 rounded-xl bg-stone-900 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap">
+                  <span x-text="'Đặt thuê · ' + fmtVnd(calcTotal({{ item.price }}, {{ 'true' if item.is_package else 'false' }}, rentalDays))">
+                    Đặt thuê · {{ item.price_fmt }}
+                  </span>
+                </button>
+                <button type="button"
+                        data-consult="Thuê {{ item.name }} ({{ item.price_fmt }}/{{ item.unit }})"
+                        aria-label="Hỏi lịch trống {{ item.name }}"
+                        title="Hỏi lịch trống qua Live Chat"
+                        class="w-10 h-10 shrink-0 rounded-xl border border-stone-200 bg-white hover:bg-amber-50 hover:border-amber-400 text-stone-700 hover:text-amber-800 inline-flex items-center justify-center transition-colors cursor-pointer">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+
+        <!-- Empty Search State -->
+        <div x-show="filteredCount === 0" x-cloak class="rounded-3xl bg-[#FAF8F5] border border-stone-200 p-10 text-center space-y-3">
+          <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          </div>
+          <h4 class="text-base font-extrabold text-stone-900">Không tìm thấy thiết bị phù hợp</h4>
+          <p class="text-xs text-stone-600">Thử từ khóa ngắn hơn (ví dụ: Sony, Canon, 24-70, Photobooth) hoặc xem toàn bộ bảng giá.</p>
+          <button type="button" @click="clearFilters()"
+                  class="px-5 py-2 rounded-full bg-stone-900 hover:bg-amber-700 text-white text-xs font-bold transition-colors cursor-pointer">
+            Xem tất cả {{ total_catalog_count }} thiết bị &amp; gói
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Interactive Kit Advisor by Purpose (with Exact Calculated VND Combo Estimates) -->
+    <div class="mt-12 rounded-3xl bg-[#FAF8F5] border border-stone-200/90 p-5 sm:p-7">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-stone-200/80">
+        <div>
+          <h3 class="text-base sm:text-lg font-extrabold text-stone-900">Gợi ý Combo Tiết Kiệm Theo Mục Đích Chụp (Kèm Giá Trọn Bộ)</h3>
+          <p class="text-xs text-stone-500 mt-0.5">Ghép sẵn Body + Ống kính + Đèn/Gimbal đúng bối cảnh kèm mức giá niêm yết ưu đãi.</p>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5 sm:gap-2 shrink-0" role="tablist" aria-label="Mục đích sử dụng">
+          <button type="button" @click="activePreset = 'event'"
+                  :class="activePreset === 'event' ? 'bg-stone-900 text-white shadow-xs' : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200'"
+                  class="px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+            Sự kiện
+          </button>
+          <button type="button" @click="activePreset = 'portrait'"
+                  :class="activePreset === 'portrait' ? 'bg-stone-900 text-white shadow-xs' : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200'"
+                  class="px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+            Chân dung &amp; Kỷ yếu
+          </button>
+          <button type="button" @click="activePreset = 'video'"
+                  :class="activePreset === 'video' ? 'bg-stone-900 text-white shadow-xs' : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200'"
+                  class="px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+            Quay video
+          </button>
+          <button type="button" @click="activePreset = 'wedding'"
+                  :class="activePreset === 'wedding' ? 'bg-amber-600 text-white shadow-xs' : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200'"
+                  class="px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap">
+            Combo Cưới + Photobooth
+          </button>
+        </div>
+      </div>
+
+      <!-- Preset Details with Exact Combo Prices -->
+      <div class="pt-5">
+        <!-- Event Preset -->
+        <div x-show="activePreset === 'event'" class="grid md:grid-cols-12 gap-5 items-center">
+          <div class="md:col-span-8 grid sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Thân máy</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sony Alpha A7 IV</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">490.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Ống kính</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sony FE 24–70mm GM II</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">450.000đ (ghép body còn 400k)</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Ánh sáng &amp; Pin</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Flash Godox V1 + 2 Pin</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">120.000đ/ngày</p>
+            </div>
+          </div>
+          <div class="md:col-span-4 rounded-2xl bg-white border border-amber-200 p-4 space-y-2.5 text-center md:text-left">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-xs font-semibold text-stone-500">Trọn bộ Sự Kiện:</span>
+              <strong class="text-lg font-extrabold text-emerald-700">1.010.000đ/ngày</strong>
+            </div>
+            <button type="button" onclick="photoSelectCard('Combo Sự Kiện (Sony A7 IV + 24-70 GM II + Flash V1)', 1010000, false, 'ngày', 1)"
+                    class="w-full py-2.5 px-4 rounded-full bg-stone-900 hover:bg-amber-700 text-white text-xs font-bold transition-colors cursor-pointer">
+              Đặt Combo này · 1.010.000đ/ngày
+            </button>
+          </div>
+        </div>
+
+        <!-- Portrait Preset -->
+        <div x-show="activePreset === 'portrait'" x-cloak class="grid md:grid-cols-12 gap-5 items-center">
+          <div class="md:col-span-8 grid sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Thân máy</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sony A6400 / A7C</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">Từ 250.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Ống xóa phông</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sigma 56mm f/1.4 hoặc 85mm f/1.8</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">150.000đ – 180.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Tiện ích kèm</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">2 Pin + Sạc + Đầu đọc thẻ</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">Miễn phí (0đ)</p>
+            </div>
+          </div>
+          <div class="md:col-span-4 rounded-2xl bg-white border border-amber-200 p-4 space-y-2.5 text-center md:text-left">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-xs font-semibold text-stone-500">Combo Kỷ Yếu:</span>
+              <strong class="text-lg font-extrabold text-emerald-700">400.000đ/ngày</strong>
+            </div>
+            <button type="button" onclick="photoSelectCard('Combo Chân Dung (Sony A6400 + Sigma 56mm f/1.4)', 400000, false, 'ngày', 1)"
+                    class="w-full py-2.5 px-4 rounded-full bg-stone-900 hover:bg-amber-700 text-white text-xs font-bold transition-colors cursor-pointer">
+              Đặt Combo này · 400.000đ/ngày
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Preset -->
+        <div x-show="activePreset === 'video'" x-cloak class="grid md:grid-cols-12 gap-5 items-center">
+          <div class="md:col-span-8 grid sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Body 4K</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sony ZV-E10 hoặc Pocket 3</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">220.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Chống rung</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Gimbal DJI RS3 / RS3 Mini</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">250.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Thu âm chuẩn</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">DJI Mic 2 (2 Mic)</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">150.000đ/ngày</p>
+            </div>
+          </div>
+          <div class="md:col-span-4 rounded-2xl bg-white border border-amber-200 p-4 space-y-2.5 text-center md:text-left">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-xs font-semibold text-stone-500">Combo Quay Reels:</span>
+              <strong class="text-lg font-extrabold text-emerald-700">620.000đ/ngày</strong>
+            </div>
+            <button type="button" onclick="photoSelectCard('Combo Quay Video (Sony ZV-E10 + Gimbal RS3 + DJI Mic 2)', 620000, false, 'ngày', 1)"
+                    class="w-full py-2.5 px-4 rounded-full bg-stone-900 hover:bg-amber-700 text-white text-xs font-bold transition-colors cursor-pointer">
+              Đặt Combo này · 620.000đ/ngày
+            </button>
+          </div>
+        </div>
+
+        <!-- Wedding + Photobooth Preset -->
+        <div x-show="activePreset === 'wedding'" x-cloak class="grid md:grid-cols-12 gap-5 items-center">
+          <div class="md:col-span-8 grid sm:grid-cols-3 gap-3">
+            <div class="p-3.5 rounded-2xl bg-white border border-amber-200">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Quầy Photobooth</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Gói Tiệc Cưới 3 Giờ</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">5.600.000đ (giảm 10% còn 5.040k)</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Máy chụp bàn tiệc</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Sony A7 III + Sigma 24-70 Art</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">640.000đ/ngày</p>
+            </div>
+            <div class="p-3.5 rounded-2xl bg-white border border-stone-200/80">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-amber-700">Tiết kiệm combo</span>
+              <p class="text-xs font-extrabold text-stone-900 mt-1">Tặng kèm Flash + Bàn giao cùng lúc</p>
+              <p class="text-[11px] font-bold text-emerald-700 mt-0.5">Tiết kiệm ~680.000đ</p>
+            </div>
+          </div>
+          <div class="md:col-span-4 rounded-2xl bg-white border-2 border-amber-400 p-4 space-y-2.5 text-center md:text-left">
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="text-xs font-semibold text-stone-500">Combo Cưới + Booth:</span>
+              <strong class="text-lg font-extrabold text-amber-700">5.680.000đ</strong>
+            </div>
+            <button type="button" onclick="photoSelectCard('Combo Tiệc Cưới (Photobooth 3h + Sony A7 III + Sigma 24-70 Art)', 5680000, true, 'combo', 1)"
+                    class="w-full py-2.5 px-4 rounded-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors cursor-pointer">
+              Đặt Combo này · 5.680.000đ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     3. PHOTOBOOTH SỰ KIỆN — INTERACTIVE LAYOUT PREVIEWER
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="photobooth" class="scroll-mt-20 py-14 lg:py-20 bg-[#141519] text-stone-100 border-b border-stone-800 relative overflow-hidden"
+         x-data="{ boothLayout: 'strip', boothTheme: 'wedding' }">
+  <div class="absolute inset-0 pointer-events-none opacity-45">
+    <div class="absolute -top-24 -left-24 w-96 h-96 bg-amber-500/20 rounded-full blur-3xl"></div>
+    <div class="absolute -bottom-24 right-0 w-96 h-96 bg-orange-500/15 rounded-full blur-3xl"></div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <div class="grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+
+      <!-- Left: Interactive Frame & Booth Mockup Previewer -->
+      <div class="lg:col-span-6 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-white/5 border border-white/10 rounded-2xl p-2">
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" @click="boothLayout = 'strip'"
+                    :class="boothLayout === 'strip' ? 'bg-amber-500 text-stone-950 font-extrabold shadow-xs' : 'text-stone-300 hover:text-white hover:bg-white/10 font-semibold'"
+                    class="px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              Photo Strip 2×6
+            </button>
+            <button type="button" @click="boothLayout = 'postcard'"
+                    :class="boothLayout === 'postcard' ? 'bg-amber-500 text-stone-950 font-extrabold shadow-xs' : 'text-stone-300 hover:text-white hover:bg-white/10 font-semibold'"
+                    class="px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              Postcard 4×6
+            </button>
+            <button type="button" @click="boothLayout = 'qr'"
+                    :class="boothLayout === 'qr' ? 'bg-amber-500 text-stone-950 font-extrabold shadow-xs' : 'text-stone-300 hover:text-white hover:bg-white/10 font-semibold'"
+                    class="px-3.5 py-1.5 rounded-xl text-xs transition-all cursor-pointer">
+              QR Ảnh Số
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1.5 px-2">
+            <span class="text-[10px] text-stone-400 font-medium hidden sm:inline">Tone khung:</span>
+            <button type="button" @click="boothTheme = 'wedding'" title="Tiệc Cưới Kem Ấm"
+                    :class="boothTheme === 'wedding' ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#1D1F25]' : 'opacity-65 hover:opacity-100'"
+                    class="w-5 h-5 rounded-full bg-[#F7F1E5] border border-stone-300 cursor-pointer transition-all" aria-label="Tone tiệc cưới kem ấm"></button>
+            <button type="button" @click="boothTheme = 'studio'" title="Studio Tối Giản"
+                    :class="boothTheme === 'studio' ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#1D1F25]' : 'opacity-65 hover:opacity-100'"
+                    class="w-5 h-5 rounded-full bg-white border border-stone-400 cursor-pointer transition-all" aria-label="Tone studio trắng tối giản"></button>
+            <button type="button" @click="boothTheme = 'gala'" title="Gala Doanh Nghiệp Tối"
+                    :class="boothTheme === 'gala' ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-[#1D1F25]' : 'opacity-65 hover:opacity-100'"
+                    class="w-5 h-5 rounded-full bg-stone-900 border border-amber-400 cursor-pointer transition-all" aria-label="Tone gala doanh nghiệp"></button>
+          </div>
+        </div>
+
+        <!-- Visual Stage -->
+        <div class="rounded-3xl bg-[#1D1F26] border border-white/10 p-4 sm:p-6 shadow-2xl relative">
+          <div class="grid sm:grid-cols-12 gap-5 items-center">
+            <div class="sm:col-span-6 relative rounded-2xl overflow-hidden aspect-[4/3] sm:aspect-[3/4] border border-white/10 bg-stone-900">
+              <img src="/static/services/photo/img/photobooth_setup.jpg"
+                   alt="Quầy Photobooth DSLR với đèn ring light tại tiệc cưới và gala"
+                   class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-stone-950/75 via-transparent to-transparent"></div>
+              <div class="absolute bottom-3 left-3 right-3">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-950/80 backdrop-blur-md text-[10px] font-semibold text-amber-300 border border-white/10">
+                  Trọn gói từ 4.200.000đ · In 10 giây
+                </span>
+              </div>
+            </div>
+
+            <div class="sm:col-span-6 flex items-center justify-center min-h-[280px]">
+              <div x-show="boothLayout === 'strip'" x-transition class="w-full max-w-[215px]">
+                <div :class="boothTheme === 'gala' ? 'bg-stone-900 text-amber-300 border-amber-500/40' : (boothTheme === 'wedding' ? 'bg-[#F8F2E8] text-stone-800 border-amber-200/70' : 'bg-white text-stone-900 border-stone-200')"
+                     class="rounded-xl p-3 border shadow-xl transition-colors duration-300 space-y-2">
+                  <div class="aspect-[16/10] rounded-md overflow-hidden bg-stone-800">
+                    <img src="/static/services/photo/img/photobooth_setup.jpg" alt="Khung 1" class="w-full h-full object-cover object-center">
+                  </div>
+                  <div class="aspect-[16/10] rounded-md overflow-hidden bg-stone-800">
+                    <img src="/static/services/photo/img/photobooth_setup.jpg" alt="Khung 2" class="w-full h-full object-cover object-[88%_35%] scale-125">
+                  </div>
+                  <div class="aspect-[16/10] rounded-md overflow-hidden bg-stone-800">
+                    <img src="/static/services/photo/img/gear_cameras_lenses.jpg" alt="Khung 3" class="w-full h-full object-cover object-center">
+                  </div>
+                  <div class="pt-1.5 text-center border-t"
+                       :class="boothTheme === 'gala' ? 'border-amber-500/25' : 'border-stone-300/70'">
+                    <p class="text-[10px] font-extrabold tracking-widest uppercase"
+                       x-text="boothTheme === 'gala' ? 'YEAR END GALA · 2026' : (boothTheme === 'wedding' ? 'MINH & ANH · WEDDING' : 'YOUR EVENT BRAND')">
+                    </p>
+                    <p class="text-[9px] opacity-70 mt-0.5">In lấy liền 10 giây · Giấy 2×6</p>
+                  </div>
+                </div>
+              </div>
+
+              <div x-show="boothLayout === 'postcard'" x-cloak x-transition class="w-full max-w-[260px]">
+                <div :class="boothTheme === 'gala' ? 'bg-stone-900 text-amber-300 border-amber-500/40' : (boothTheme === 'wedding' ? 'bg-[#F8F2E8] text-stone-800 border-amber-200/70' : 'bg-white text-stone-900 border-stone-200')"
+                     class="rounded-xl p-3.5 border shadow-xl transition-colors duration-300 space-y-2.5">
+                  <div class="aspect-[4/3] rounded-lg overflow-hidden bg-stone-800 relative">
+                    <img src="/static/services/photo/img/photobooth_setup.jpg" alt="Postcard 4x6" class="w-full h-full object-cover">
+                    <span class="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">4×6 INCH</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-2 pt-0.5">
+                    <div>
+                      <p class="text-[11px] font-extrabold tracking-wide uppercase"
+                         x-text="boothTheme === 'gala' ? 'GRAND OPENING' : (boothTheme === 'wedding' ? 'SAVE THE DATE' : 'EVENT KEEPSAKE')">
+                      </p>
+                      <p class="text-[9px] opacity-75">Khung thiết kế kèm logo sự kiện</p>
+                    </div>
+                    <div class="w-7 h-7 rounded bg-stone-800/10 flex items-center justify-center shrink-0">
+                      <svg class="w-4 h-4 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                        <path d="M14 14h3v3h-3z"></path>
+                        <path d="M19 19h2v2h-2z"></path>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div x-show="boothLayout === 'qr'" x-cloak x-transition class="w-full max-w-[220px]">
+                <div class="rounded-3xl bg-stone-950 border border-stone-700 p-4 text-center space-y-3 shadow-xl">
+                  <div class="w-10 h-1 rounded-full bg-stone-700 mx-auto"></div>
+                  <div class="bg-white rounded-2xl p-3 text-stone-900 space-y-2">
+                    <div class="w-24 h-24 mx-auto rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center">
+                      <svg class="w-16 h-16 text-stone-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                        <path d="M14 14h2v2h-2zM18 14h3v3h-3zM14 19h4v2h-4zM20 19h1v2h-1z"></path>
+                      </svg>
+                    </div>
+                    <p class="text-[11px] font-extrabold text-stone-900">Quét QR tải ảnh ngay</p>
+                    <p class="text-[10px] text-stone-500 leading-snug">Lưu ảnh HD &amp; file gốc trực tiếp về điện thoại ngay tại quầy.</p>
+                  </div>
+                  <span class="inline-block text-[10px] font-semibold text-amber-400">Kèm link Drive toàn bộ album</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Photobooth Deliverables & Direct Price Summary -->
+      <div class="lg:col-span-6 space-y-6">
+        <div class="space-y-3">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-bold uppercase tracking-wider">
+            Photobooth Trọn Gói Từ 4.200.000đ
+          </span>
+          <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            Chụp Nét Studio · In Ảnh Lấy Liền Trong 10 Giây
+          </h2>
+          <p class="text-xs sm:text-sm text-stone-300 leading-relaxed">
+            Bao trọn gói máy ảnh DSLR, đèn studio, máy in nhiệt không giới hạn lượt in, thiết kế khung riêng, props &amp; kỹ thuật viên trực 100%.
+          </p>
+        </div>
+
+        <!-- Quick Transparent Package Rate Pills -->
+        <div class="grid grid-cols-3 gap-2.5 text-center">
+          <div class="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <span class="text-[10px] text-stone-400 block font-semibold">Gói 2 Giờ</span>
+            <strong class="text-sm sm:text-base font-extrabold text-amber-300">4.200.000đ</strong>
+          </div>
+          <div class="p-3 rounded-2xl bg-amber-500/15 border border-amber-400/50">
+            <span class="text-[10px] text-amber-200 block font-semibold">Gói 3 Giờ (Hot)</span>
+            <strong class="text-sm sm:text-base font-extrabold text-white">5.600.000đ</strong>
+          </div>
+          <div class="p-3 rounded-2xl bg-white/5 border border-white/10">
+            <span class="text-[10px] text-stone-400 block font-semibold">Gói 4 Giờ (+VAT)</span>
+            <strong class="text-sm sm:text-base font-extrabold text-amber-300">6.800.000đ</strong>
+          </div>
+        </div>
+
+        <!-- 6 Compact Deliverables Grid -->
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 font-bold text-xs">01</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-bold text-white">Camera Studio &amp; Đèn Tản Sáng</h3>
+              <p class="text-[11px] text-stone-400 mt-0.5">Ánh sáng mịn đẹp kể cả trong sảnh tiệc tối.</p>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 font-bold text-xs">02</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-bold text-white">In Nhiệt Không Giới Hạn</h3>
+              <p class="text-[11px] text-stone-400 mt-0.5">Giấy in nhiệt DNP sắc nét, chống thấm nước.</p>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 font-bold text-xs">03</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-bold text-white">Thiết Kế Khung Ảnh Riêng</h3>
+              <p class="text-[11px] text-stone-400 mt-0.5">Gắn tên cô dâu chú rể hoặc logo công ty miễn phí.</p>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-start gap-3">
+            <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0 font-bold text-xs">04</span>
+            <div>
+              <h3 class="text-xs sm:text-sm font-bold text-white">QR Tải Ảnh &amp; Album Gốc</h3>
+              <p class="text-[11px] text-stone-400 mt-0.5">Quét mã lấy ảnh ngay tại quầy + link Google Drive.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Priced Action Buttons -->
+        <div class="flex flex-wrap gap-3 pt-1">
+          <button type="button"
+                  onclick="photoSelectCard('Photobooth Tiệc Cưới & Gala · Gói 3 Giờ', 5600000, true, 'gói 3h', 1)"
+                  class="px-6 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 font-extrabold text-xs sm:text-sm shadow-md transition-all cursor-pointer">
+            Đặt Gói 3 Giờ · 5.600.000đ
+          </button>
+          <a href="#bang-gia"
+             class="px-5 py-3 rounded-full bg-white/10 hover:bg-white/15 text-white border border-white/20 font-semibold text-xs sm:text-sm transition-all">
+            Xem tất cả gói từ 4.200.000đ
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     4. BẢNG GIÁ GÓI PHOTOBOOTH & BẢNG GIÁ CHI TIẾT THEO NGÀY
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="bang-gia" class="scroll-mt-20 py-14 lg:py-18 bg-[#FAF8F5] border-b border-stone-200/80" x-data="{ priceTab: 'booth' }">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+    <div class="text-center max-w-2xl mx-auto mb-8">
+      <span class="text-amber-700 font-bold uppercase text-[11px] tracking-widest block mb-1">Chi Phí Niêm Yết 100%</span>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">{{ page.price_title }}</h2>
+      <p class="text-xs sm:text-sm text-stone-600 mt-1.5">{{ page.price_lead }}</p>
+
+      <!-- Dual Switcher -->
+      <div class="inline-flex p-1 rounded-full bg-stone-200/70 border border-stone-300/60 mt-5">
+        <button type="button" @click="priceTab = 'booth'"
+                :class="priceTab === 'booth' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'"
+                class="px-4 sm:px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer">
+          Gói Photobooth Sự Kiện
+        </button>
+        <button type="button" @click="priceTab = 'gear'"
+                :class="priceTab === 'gear' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'"
+                class="px-4 sm:px-5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer">
+          Bảng Giá Máy Ảnh &amp; Lens (1/2/3 Ngày)
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel 1: Photobooth Event Tiers (EXPLICIT PRICES ON EVERY CARD) -->
+    <div x-show="priceTab === 'booth'" class="space-y-6">
+      <div class="grid md:grid-cols-3 gap-5 items-stretch">
+        {% for tier in company.photobooth_tiers %}
+        <div class="rounded-3xl bg-white p-6 flex flex-col justify-between transition-shadow {{ 'border-2 border-amber-500 shadow-lg shadow-amber-900/10' if tier.featured else 'border border-stone-200/90 shadow-2xs hover:shadow-md' }}">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-3 py-1 rounded-full text-[11px] font-extrabold {{ 'bg-amber-100 text-amber-800' if tier.featured else 'bg-stone-100 text-stone-700' }}">
+                {{ tier.badge }}
+              </span>
+              <span class="text-[11px] font-semibold text-stone-500">{{ tier.audience }}</span>
+            </div>
+
+            <div>
+              <h3 class="text-lg font-extrabold text-stone-900">{{ tier.title }}</h3>
+              <p class="text-xs text-stone-500 mt-1">{{ tier.desc }}</p>
+            </div>
+
+            <!-- Explicit Tier VND Price -->
+            <div class="p-3.5 rounded-2xl {{ 'bg-amber-50/80 border border-amber-200/80' if tier.featured else 'bg-[#FAF8F5] border border-stone-200/80' }}">
+              <div class="flex items-baseline gap-1.5">
+                <strong class="text-2xl sm:text-3xl font-extrabold text-emerald-700 tracking-tight">
+                  {{ "{:,}".format(tier.price).replace(",", ".") }}đ
+                </strong>
+                <span class="text-xs font-semibold text-stone-600">{{ tier.unit }}</span>
+              </div>
+              <p class="text-[11px] font-semibold text-amber-800 mt-1">{{ tier.extra_note }}</p>
+            </div>
+
+            <ul class="space-y-2 text-xs text-stone-700 pt-1">
+              {% for feat in tier.features %}
+              <li class="flex items-start gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1.5 shrink-0"></span>
+                <span>{{ feat }}</span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <div class="pt-6 flex gap-2">
+            <button type="button"
+                    onclick="photoSelectCard({{ tier.title | tojson | forceescape }}, {{ tier.price }}, true, {{ tier.unit.lstrip('/ ') | tojson | forceescape }}, 1)"
+                    class="flex-1 py-2.5 px-4 rounded-full text-xs font-extrabold transition-all cursor-pointer {{ 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-sm' if tier.featured else 'bg-stone-900 hover:bg-amber-700 text-white' }}">
+              {{ tier.cta }}
+            </button>
+            <button type="button" data-consult="{{ tier.demand }}" aria-label="Tư vấn {{ tier.title }}"
+                    class="w-10 h-10 shrink-0 rounded-full border border-stone-200 hover:border-amber-400 hover:bg-amber-50 text-stone-700 inline-flex items-center justify-center transition-colors cursor-pointer">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- High-end Booth Options & Add-ons (Direct VND Prices) -->
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {% for addon in company.photobooth_addons %}
+        <div class="rounded-2xl bg-white border border-stone-200/90 p-4 flex flex-col justify-between gap-2 shadow-2xs">
+          <div>
+            <div class="text-xs font-extrabold text-stone-900">{{ addon.name }}</div>
+            <p class="text-[11px] text-stone-500 mt-1 leading-relaxed">{{ addon.desc }}</p>
+          </div>
+          <div class="pt-2 border-t border-stone-100 flex items-baseline justify-between gap-2">
+            <strong class="text-sm font-extrabold text-emerald-700">{{ "{:,}".format(addon.price).replace(",", ".") }}đ</strong>
+            <span class="text-[11px] font-semibold text-stone-500">/ {{ addon.unit }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Panel 2: Full Gear Rental Comparison Table (Dynamic from `items`, 1 / 2 / 3 Days Transparent VND) -->
+    <div x-show="priceTab === 'gear'" x-cloak class="space-y-5">
+      <div class="rounded-3xl bg-white border border-stone-200/90 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-stone-900 text-white text-[11px] font-bold uppercase tracking-wider">
+                <th class="py-3.5 px-4 sm:px-5">Thiết bị cho thuê</th>
+                <th class="py-3.5 px-3">Nhóm · Hãng</th>
+                <th class="py-3.5 px-3 text-right">1 ngày (24h)</th>
+                <th class="py-3.5 px-3 text-right">2 ngày (-20% N2)</th>
+                <th class="py-3.5 px-3 text-right">3 ngày (-25% N3)</th>
+                <th class="py-3.5 px-4 text-right">Giữ máy</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100 text-xs">
+              {% for item in items if not item.is_package %}
+              <tr class="hover:bg-amber-50/40 transition-colors">
+                <td class="py-3 px-4 sm:px-5">
+                  <div class="font-extrabold text-stone-900">{{ item.name }}</div>
+                  <div class="text-[11px] text-stone-500 mt-0.5 line-clamp-1">{{ item.desc }}</div>
+                </td>
+                <td class="py-3 px-3 whitespace-nowrap">
+                  <span class="px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-700 text-[10.5px] font-bold">{{ item.group }} · {{ item.brand }}</span>
+                </td>
+                <td class="py-3 px-3 text-right font-extrabold text-emerald-700 whitespace-nowrap">{{ item.price_fmt }}</td>
+                <td class="py-3 px-3 text-right font-bold text-stone-800 whitespace-nowrap">{{ item.total_2d_fmt }}</td>
+                <td class="py-3 px-3 text-right font-bold text-stone-800 whitespace-nowrap">{{ item.total_3d_fmt }}</td>
+                <td class="py-3 px-4 text-right whitespace-nowrap">
+                  <button type="button"
+                          onclick="photoSelectCard({{ item.name | tojson | forceescape }}, {{ item.price }}, false, {{ item.unit | tojson | forceescape }}, 1)"
+                          class="px-3.5 py-1.5 rounded-full bg-stone-900 hover:bg-amber-700 text-white text-[11px] font-bold transition-colors cursor-pointer">
+                    Đặt thuê
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Transparent Multi-Day Tier Policy Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        {% for row in company.multi_day_policy %}
+        <div class="rounded-2xl bg-white border border-stone-200/80 p-3.5">
+          <div class="text-[11px] font-bold text-stone-500">{{ row.day }}</div>
+          <div class="text-xs sm:text-sm font-extrabold text-emerald-700 mt-0.5">{{ row.discount }}</div>
+          <div class="text-[10.5px] text-stone-500 mt-0.5">{{ row.note }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     5. QUY TRÌNH THUÊ & THỦ TỤC ĐƠN GIẢN
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="quy-trinh" class="scroll-mt-20 py-14 lg:py-16 bg-white border-b border-stone-200/80">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center max-w-2xl mx-auto mb-10">
+      <span class="text-amber-700 font-bold uppercase text-[11px] tracking-widest block mb-1">Nhanh Gọn &amp; Rõ Ràng</span>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">Quy Trình Đặt Lịch &amp; Bàn Giao</h2>
+      <p class="text-xs sm:text-sm text-stone-600 mt-1.5">Chọn thiết bị theo giá niêm yết, xác nhận lịch trống &amp; nhận máy đúng giờ hẹn.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div class="p-5 rounded-3xl bg-[#FAF8F5] border border-stone-200/80 space-y-2.5">
+        <div class="w-9 h-9 rounded-full bg-stone-900 text-white text-xs font-extrabold flex items-center justify-center">01</div>
+        <h3 class="text-sm font-extrabold text-stone-900">Chọn Thiết Bị Từ Bảng Giá</h3>
+        <p class="text-xs text-stone-600 leading-relaxed">Xem đơn giá 1–5 ngày hoặc giá trọn gói Photobooth trực tiếp ở bảng trên rồi bấm <strong>Đặt thuê</strong>.</p>
+      </div>
+
+      <div class="p-5 rounded-3xl bg-[#FAF8F5] border border-stone-200/80 space-y-2.5">
+        <div class="w-9 h-9 rounded-full bg-stone-900 text-white text-xs font-extrabold flex items-center justify-center">02</div>
+        <h3 class="text-sm font-extrabold text-stone-900">Chốt Lịch &amp; Duyệt Khung In</h3>
+        <p class="text-xs text-stone-600 leading-relaxed">Xác nhận ngày nhận máy; với Photobooth, duyệt mẫu khung thiết kế mang tên / logo riêng trước giờ tiệc.</p>
+      </div>
+
+      <div class="p-5 rounded-3xl bg-[#FAF8F5] border border-stone-200/80 space-y-2.5">
+        <div class="w-9 h-9 rounded-full bg-stone-900 text-white text-xs font-extrabold flex items-center justify-center">03</div>
+        <h3 class="text-sm font-extrabold text-stone-900">Kiểm Máy / Setup Tận Nơi</h3>
+        <p class="text-xs text-stone-600 leading-relaxed">Kiểm tra cảm biến, thấu kính &amp; phụ kiện khi nhận. Với Photobooth, KTV setup sớm trước 45–60 phút.</p>
+      </div>
+
+      <div class="p-5 rounded-3xl bg-[#FAF8F5] border border-stone-200/80 space-y-2.5">
+        <div class="w-9 h-9 rounded-full bg-amber-600 text-white text-xs font-extrabold flex items-center justify-center">04</div>
+        <h3 class="text-sm font-extrabold text-stone-900">Thanh Toán &amp; Nhận Full Album</h3>
+        <p class="text-xs text-stone-600 leading-relaxed">Bàn giao lại thiết bị đúng hạn, nhận hoàn cọc ngay; Photobooth nhận đủ link ảnh gốc &amp; hóa đơn VAT.</p>
+      </div>
+    </div>
+
+    <div class="mt-6 grid md:grid-cols-2 gap-4">
+      <div class="p-4 sm:p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-3">
+        <span class="w-8 h-8 rounded-full bg-white border border-amber-200 text-amber-700 flex items-center justify-center shrink-0 mt-0.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        </span>
+        <div>
+          <h4 class="text-xs font-extrabold text-stone-900">Khách hàng cá nhân &amp; Sinh viên</h4>
+          <p class="text-xs text-stone-600 mt-0.5 leading-relaxed">Chỉ cần CCCD gắn chip chính chủ + cọc theo từng thiết bị (từ 2–5,5tr); hỗ trợ giảm 10% hoặc cọc nhẹ với thẻ Sinh viên.</p>
+        </div>
+      </div>
+
+      <div class="p-4 sm:p-5 rounded-2xl bg-stone-50 border border-stone-200/90 flex items-start gap-3">
+        <span class="w-8 h-8 rounded-full bg-white border border-stone-200 text-stone-700 flex items-center justify-center shrink-0 mt-0.5">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        </span>
+        <div>
+          <h4 class="text-xs font-extrabold text-stone-900">Doanh nghiệp &amp; Ban tổ chức sự kiện</h4>
+          <p class="text-xs text-stone-600 mt-0.5 leading-relaxed">Hỗ trợ hợp đồng pháp nhân, biên bản nghiệm thu, công nợ theo hợp đồng và xuất hóa đơn điện tử VAT đầy đủ.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     6. CÂU HỎI THƯỜNG GẶP (FAQ)
+     ═══════════════════════════════════════════════════════════════ -->
+<section id="faq" class="scroll-mt-20 py-14 lg:py-16 bg-[#FAF8F5] border-b border-stone-200/80" x-data="{ activeFaq: 4 }">
+  <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-9">
+      <span class="text-amber-700 font-bold uppercase text-[11px] tracking-widest block mb-1">Giải Đáp Thắc Mắc</span>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">{{ page.faq_title }}</h2>
+    </div>
+
+    <div class="space-y-3">
+      {% for item in faq_items %}
+      {% set faq_idx = loop.index %}
+      <div class="rounded-2xl border transition-all duration-200 overflow-hidden bg-white"
+           :class="activeFaq === {{ faq_idx }} ? 'border-amber-500 shadow-sm' : 'border-stone-200 hover:border-stone-300'">
+        <button type="button" @click="activeFaq = activeFaq === {{ faq_idx }} ? null : {{ faq_idx }}"
+                class="w-full py-4 px-5 text-left flex items-center justify-between gap-3 cursor-pointer">
+          <span class="font-bold text-xs sm:text-sm text-stone-900 flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-800 font-extrabold text-[11px] flex items-center justify-center shrink-0">{{ faq_idx }}</span>
+            <span>{{ item.q }}</span>
+          </span>
+          <svg class="w-4 h-4 text-stone-400 transition-transform duration-200 shrink-0"
+               :class="activeFaq === {{ faq_idx }} ? 'rotate-180 text-amber-600' : ''"
+               viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div x-show="activeFaq === {{ faq_idx }}" x-cloak class="px-5 pb-4 pt-1 text-xs sm:text-[13px] text-stone-600 leading-relaxed border-t border-stone-100">
+          <p>{{ item.a }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     7. ĐẶT LỊCH GIỮ MÁY & GÓI PHOTOBOOTH (HOẠT ĐỘNG VỚI contact-form.js)
+     ═══════════════════════════════════════════════════════════════ -->
+{% set cf = contact_forms.get(contact_variant | default('photo'), {}) %}
+<section id="lien-he" class="scroll-mt-20 py-14 lg:py-18 bg-white border-b border-stone-200/80 relative overflow-hidden">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+    <div class="text-center max-w-2xl mx-auto mb-9">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 mb-2.5">
+        {{ cf.badge or 'Giá Niêm Yết Công Khai · Không Phí Ẩn' }}
+      </span>
+      <h2 class="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight">
+        {{ cf.heading or 'Đặt Lịch Giữ Máy & Chốt Gói Photobooth' }}
+      </h2>
+      <p class="mt-1.5 text-xs sm:text-sm text-stone-600">
+        {{ cf.intro or 'Chọn thiết bị hoặc gói Photobooth từ bảng giá niêm yết ở trên rồi gửi thông tin để giữ máy đúng lịch hẹn.' }}
+      </p>
+    </div>
+
+    <div class="grid lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+      <!-- Left Contact Panel -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="p-5 sm:p-6 rounded-3xl bg-[#FAF8F5] border border-stone-200/90 space-y-4">
+          <h3 class="text-base sm:text-lg font-extrabold text-stone-900">
+            {{ cf.aside_title or 'Cần Giao Máy Gấp? Gọi Hotline Ngay' }}
+          </h3>
+
+          <a href="tel:{{ settings.phone_raw }}" class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-white hover:bg-amber-50 border border-stone-200 hover:border-amber-300 transition-all shadow-2xs">
+            <div class="w-10 h-10 rounded-full bg-stone-900 group-hover:bg-amber-600 text-white flex items-center justify-center shrink-0 transition-colors">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">{{ cf.hotline_label or 'Hotline Studio & Sự Kiện' }}</p>
+              <p class="text-lg font-extrabold text-stone-900 group-hover:text-amber-800 transition-colors">{{ settings.phone }}</p>
+            </div>
+          </a>
+
+          <a href="{{ settings.zalo }}" target="_blank" rel="noopener" class="group flex items-center gap-3.5 p-3.5 rounded-2xl bg-white hover:bg-sky-50 border border-stone-200 hover:border-sky-300 transition-all shadow-2xs">
+            <div class="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            </div>
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Nhắn Zalo Gửi Concept</p>
+              <p class="text-xs sm:text-sm font-bold text-sky-700">Chốt lịch &amp; duyệt khung Photobooth</p>
+            </div>
+          </a>
+
+          <div class="p-4 rounded-2xl bg-white border border-stone-200/80 space-y-1.5 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <strong class="text-stone-900 font-bold">{{ company.company_name }}</strong>
+              <span class="text-amber-700 font-bold text-[11px] shrink-0">Xuất VAT</span>
+            </div>
+            <p class="text-[11px] text-stone-500">MST: <strong class="text-stone-800">{{ company.tax_id }}</strong></p>
+            <p class="text-[11px] text-stone-600 pt-1 border-t border-stone-100 leading-relaxed">{{ company.address }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Booking Form -->
+      <div class="lg:col-span-7">
+        <div class="p-5 sm:p-7 rounded-3xl bg-[#FAF8F5] border border-stone-200/90">
+          <div class="mb-5">
+            <h3 class="text-lg font-extrabold text-stone-900">{{ cf.form_title or 'Thông Tin Đặt Thuê Thiết Bị / Photobooth' }}</h3>
+            <p class="text-xs text-stone-500 mt-0.5">{{ cf.form_lead or 'Kiểm tra lịch trống & giữ thiết bị theo đúng đơn giá niêm yết trên trang.' }}</p>
+          </div>
+
+          <!-- Selected Item & Price Confirmation Highlight (populated when clicking card/tier) -->
+          <div id="selected-booking-banner" class="hidden mb-4 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <span class="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">Đã chọn từ bảng giá niêm yết</span>
+              <p id="selected-booking-text" class="text-xs sm:text-sm font-extrabold text-stone-900 truncate"></p>
+            </div>
+            <button type="button" onclick="photoClearBookingSelection()"
+                    class="px-2.5 py-1 rounded-full bg-white border border-emerald-200 text-[11px] font-bold text-stone-600 hover:text-stone-900 shrink-0 cursor-pointer">
+              Chọn khác
+            </button>
+          </div>
+
+          <form id="contact-form" class="space-y-4" data-contact-form novalidate>
+            <input type="hidden" name="source_page" value="{{ source_page_form or 'photo_landing' }}">
+
+            <div class="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label for="full_name" class="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">Họ &amp; Tên Quý Khách *</label>
+                <input type="text" id="full_name" name="full_name" required placeholder="Ví dụ: Minh Anh"
+                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 text-xs sm:text-sm transition-all">
+              </div>
+
+              <div>
+                <label for="phone" class="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">Số Điện Thoại / Zalo *</label>
+                <input type="tel" id="phone" name="phone" required placeholder="0919 xxx xxx"
+                       class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 text-xs sm:text-sm transition-all">
+              </div>
+            </div>
+
+            <div>
+              <label for="demand" class="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">{{ cf.demand_label or 'Thiết Bị / Gói Photobooth Đã Chọn' }} *</label>
+              <select id="demand" name="demand"
+                      class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-900 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 text-xs sm:text-sm transition-all">
+                {% for item in items %}
+                <option value="{{ item.name }} — {{ item.price_fmt }}/{{ item.unit }}">
+                  {{ item.name }} — {{ item.price_fmt }}/{{ item.unit }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label for="company_name" class="block text-[11px] font-bold uppercase tracking-wider text-stone-700 mb-1.5">Ngày Nhận Máy / Địa Điểm / Tên Công Ty (nếu có)</label>
+              <input type="text" id="company_name" name="company_name" placeholder="VD: Nhận sáng 15/11 tại Vĩnh Yên · Hoặc tên công ty xuất VAT"
+                     class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-900 placeholder-stone-400 focus:outline-none focus:border-amber-600 focus:ring-1 focus:ring-amber-600 text-xs sm:text-sm transition-all">
+            </div>
+
+            <button type="submit" id="contact-submit-btn"
+                    class="w-full py-3.5 px-5 rounded-full bg-stone-900 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <span>{{ cf.submit or 'XÁC NHẬN ĐẶT LỊCH THUÊ NGAY' }}</span>
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     8. KHU VỰC PHỤC VỤ
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="py-10 bg-[#FAF8F5]">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h3 class="text-xs sm:text-sm font-extrabold text-stone-900 uppercase tracking-wider mb-3.5 border-l-2 border-amber-600 pl-2.5">
+      {{ page.area_title }}
+    </h3>
+    <div class="flex flex-wrap gap-2">
+      {% for a in area_links %}
+      <a href="{{ a.url }}" class="px-3.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-stone-700 hover:text-amber-800 border border-stone-200 hover:border-amber-300 text-xs font-medium transition-colors">
+        {{ a.label }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<script>
+  function _fmtPhotoVnd(val) {
+    return String(Math.round(Number(val || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ';
+  }
+
+  function photoSelectCard(itemName, totalPrice, isPackage, unit, days) {
+    var d = Math.max(1, parseInt(days || 1, 10) || 1);
+    var priceStr = _fmtPhotoVnd(totalPrice);
+    var durationText = isPackage ? unit : (d > 1 ? (d + ' ngày') : unit);
+    var fullLabel = itemName + ' — ' + priceStr + ' / ' + durationText;
+
+    var select = document.getElementById('demand');
+    if (select) {
+      var foundIdx = -1;
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === fullLabel) {
+          foundIdx = i;
+          break;
+        }
+      }
+      if (foundIdx === -1) {
+        var customOpt = select.querySelector('option[data-custom-booking="1"]');
+        if (!customOpt) {
+          customOpt = document.createElement('option');
+          customOpt.setAttribute('data-custom-booking', '1');
+          select.insertBefore(customOpt, select.firstChild);
+        }
+        customOpt.value = fullLabel;
+        customOpt.textContent = fullLabel;
+        foundIdx = 0;
+      }
+      select.selectedIndex = foundIdx;
+    }
+
+    var banner = document.getElementById('selected-booking-banner');
+    var bannerText = document.getElementById('selected-booking-text');
+    if (banner && bannerText) {
+      bannerText.textContent = fullLabel;
+      banner.classList.remove('hidden');
+    }
+
+    var target = document.getElementById('lien-he');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(function() {
+      var nameInput = document.getElementById('full_name');
+      if (nameInput) {
+        try { nameInput.focus({ preventScroll: true }); } catch (e) { nameInput.focus(); }
+      }
+    }, 650);
+  }
+
+  function photoClearBookingSelection() {
+    var banner = document.getElementById('selected-booking-banner');
+    if (banner) banner.classList.add('hidden');
+    var select = document.getElementById('demand');
+    if (select) select.focus();
+  }
+</script>
+
+{% endblock %}

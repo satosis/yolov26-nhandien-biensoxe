@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block title %}Chi tiết hồ sơ KYC{% endblock %}
+{% block page_title %}Chi tiết KYC Người dùng{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 font-weight-bold text-dark"><i class="bx bx-user-pin mr-1 text-primary"></i> Thông Tin KYC: {{ target.full_name or 'Người dùng' }}</h6>
+      <a href="/kyc/admin" class="btn btn-sm btn-outline-secondary"><i class="bx bx-arrow-back mr-1"></i> Quay lại danh sách</a>
+    </div>
+    <div class="card-body">
+      {% if target %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="p-3 bg-light rounded">
+            <div><strong>Họ tên:</strong> {{ target.full_name or '—' }}</div>
+            <div class="mt-2"><strong>SĐT:</strong> {{ target.phone or '—' }}</div>
+            <div class="mt-2"><strong>Email:</strong> {{ target.email or '—' }}</div>
+            <div class="mt-2"><strong>Cấp độ KYC:</strong> <span class="badge bg-primary">Cấp {{ target.kyc_level }}</span></div>
+            <div class="mt-4 d-flex gap-2">
+              <form method="post" action="/kyc/admin/{{ target.id }}/approve">
+                <button type="submit" class="btn btn-success btn-sm"><i class="bx bx-check mr-1"></i> Phê duyệt</button>
+              </form>
+              <form method="post" action="/kyc/admin/{{ target.id }}/reject">
+                <button type="submit" class="btn btn-danger btn-sm"><i class="bx bx-x mr-1"></i> Từ chối</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-8">
+          <h6 class="font-weight-bold mb-3">Tài liệu & Hình ảnh khuôn mặt</h6>
+          <div class="row g-2">
+            {% for doc in docs %}
+            <div class="col-md-4 col-sm-6 text-center">
+              <div class="border rounded p-2">
+                <div class="small font-weight-bold mb-1">{{ doc.doc_type }}</div>
+                <img src="/kyc/uploads/{{ target.id }}/{{ doc.file_name or 'front.jpg' }}" class="img-fluid rounded" style="max-height:160px; object-fit:cover;" onerror="this.src='/static/admin-assets/images/user-placeholder.png'">
+              </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-muted">Chưa có tài liệu nào tải lên.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-center py-4 text-muted">Không tìm thấy thông tin người dùng này.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

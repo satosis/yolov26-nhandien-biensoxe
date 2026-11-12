@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block page_title %}Kế Hoạch Từ Khóa & Mẫu Nội Dung Quảng Cáo{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 w-100">
+
+  <!-- Bộ lọc & tìm kiếm -->
+  <div class="card mb-3"><div class="card-body py-2">
+    <form method="get" action="/admin/advertising/keywords">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <select name="set" class="form-control form-control-sm" style="width:auto;" aria-label="Bộ từ khóa" onchange="this.form.group.value=''; this.form.requestSubmit()">
+          {% for key, label, n in kw_sets %}
+          <option value="{{ key }}" {% if key == kw_view %}selected{% endif %}>{{ label }} ({{ n }})</option>
+          {% endfor %}
+        </select>
+        <select name="group" class="form-control form-control-sm" style="width:auto; max-width:320px;" aria-label="Nhóm" onchange="this.form.requestSubmit()">
+          <option value="">Tất cả nhóm</option>
+          {% for g in kw_groups %}
+          <option value="{{ g }}" {% if g == kw_group %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+        <div class="d-flex align-items-center flex-grow-1" style="min-width:240px; max-width:420px;">
+          <div class="input-group input-group-sm">
+            <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Tìm kiếm..." aria-label="Tìm kiếm từ khóa">
+            <div class="input-group-append">
+              <button type="submit" class="btn btn-primary btn-sm font-weight-bold px-3" title="Tìm kiếm"><i class="bx bx-search mr-1"></i>Tìm kiếm</button>
+              {% if q %}<a href="/admin/advertising/keywords?set={{ kw_view }}&group={{ kw_group|urlencode }}" class="btn btn-outline-secondary btn-sm" title="Xóa tìm kiếm"><i class="bx bx-x"></i></a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Danh sách -->
+  <div class="card">
+    <div class="card-header" style="padding:10px 16px;">
+      <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+        <span class="font-weight-bold">{{ 'Danh sách tiêu đề & mô tả' if is_copy_set else 'Danh sách từ khóa' }} ({{ pagination.total }})</span>
+        <div class="d-flex align-items-center" style="gap:6px;">
+          <a href="/admin/advertising" class="btn btn-sm btn-light border font-weight-bold"><i class="bx bx-broadcast mr-1"></i>Quản lý chiến dịch</a>
+          <button type="button" class="btn btn-sm btn-primary font-weight-bold" onclick="copyAll()"><i class="bx bx-copy mr-1"></i>Sao chép tất cả</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive" style="min-height: 250px;">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th style="width:50px;" class="text-center">STT</th>
+            <th>{{ 'Nội dung' if is_copy_set else 'Từ khóa' }}</th>
+            <th style="width:120px;">{{ 'Loại' if is_copy_set else 'Kiểu khớp' }}</th>
+            {% if is_copy_set %}<th style="width:100px;" class="text-center">Ký tự</th>{% endif %}
+            <th>Nhóm</th>
+            <th style="width:110px;" class="text-right">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in keyword_items %}
+          <tr>
+            <td class="text-center text-muted font-weight-medium align-middle">{{ (pagination.page - 1) * pagination.per_page + loop.index }}</td>
+            <td class="align-middle">{{ i.text }}</td>
+            <td class="align-middle">
+              <span class="badge badge-{{ {'Cụm từ': 'primary', 'Chính xác': 'success', 'Phủ định': 'danger', 'Khớp rộng': 'secondary', 'Tiêu đề': 'primary', 'Mô tả': 'info', 'Chú thích': 'warning'}.get(i.match, 'secondary') }}">{{ i.match }}</span>
+            </td>
+            {% if is_copy_set %}
+            <td class="text-center align-middle {% if i.over %}text-danger font-weight-bold{% endif %}">{{ i.length }}/{{ i.limit }}</td>
+            {% endif %}
+            <td class="align-middle text-muted small">{{ i.group }}</td>
+            <td class="text-right text-nowrap align-middle">
+              <button type="button" class="btn btn-sm btn-light border" data-text="{{ i.raw }}" onclick="copyText(this.dataset.text)">Sao chép</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="{{ 6 if is_copy_set else 5 }}" class="text-center py-4 text-muted">Không có mục nào.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+
+<script type="application/json" id="kw-copy-all">{{ copy_text|tojson }}</script>
+<script>
+function copyText(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      window.showNotify("Đã sao chép.", "success");
+    }).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function copyAll() {
+  copyText(JSON.parse(document.getElementById('kw-copy-all').textContent));
+}
+
+function fallbackCopy(text) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+    window.showNotify("Đã sao chép.", "success");
+  } catch (e) {
+    window.showNotify("Không thể sao chép.", "error");
+  }
+  document.body.removeChild(textarea);
+}
+</script>
+{% endblock %}

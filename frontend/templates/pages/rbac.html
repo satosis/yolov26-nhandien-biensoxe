@@ -1,0 +1,146 @@
+{% extends "layout.html" %}
+{% block title %}Phân quyền — Parking Camera{% endblock %}
+{% block page_title %}Phân quyền (RBAC){% endblock %}
+{% block page_actions %}
+<button class="btn btn-primary btn-sm font-weight-bold"
+        onclick="document.getElementById('add-role-form').classList.toggle('d-none')">
+  <i class="bx bx-plus mr-1"></i> Thêm vai trò
+</button>
+{% endblock %}
+
+{% block content %}
+<div>
+
+
+  <div class="card mb-4 d-none" id="add-role-form">
+    <div class="card-body">
+      <h6 class="card-title font-weight-bold mb-3">Tạo vai trò mới</h6>
+      <form method="POST" action="/admin/rbac">
+        <div class="mb-3">
+          <label class="font-weight-medium" style="font-size:13px;">Tên vai trò *</label>
+          <input name="role_name" required class="form-control form-control-sm" style="max-width:280px;" placeholder="VD: operator">
+        </div>
+        <div class="mb-3">
+          <label class="font-weight-medium d-block mb-2" style="font-size:13px;">Menu được phép</label>
+          {% for group_name, items in menu_groups.items() %}
+          <div class="mb-3">
+            <div class="text-uppercase font-weight-bold text-muted mb-2" style="font-size:11px;letter-spacing:.08em;">{{ group_name }}</div>
+            <div class="d-flex flex-wrap" style="gap:6px;">
+              {% for key, label in items.items() %}
+              <label class="d-flex align-items-center border rounded px-2 py-1 cursor-pointer mb-0"
+                     style="font-size:12px;gap:6px;cursor:pointer;background:#f8f9fa;">
+                <input type="checkbox" name="allowed_menus" value="{{ key }}" class="form-check-input mt-0" style="margin:0;">
+                {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="d-flex" style="gap:8px;">
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="document.getElementById('add-role-form').classList.add('d-none')">Hủy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <div data-bulk-list>
+    {% for r in roles %}
+    <div class="card mb-3" id="role-card-{{ r.id }}" data-bulk-item>
+      <div class="card-body">
+
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="d-flex align-items-center" style="gap:10px;">
+            <span class="font-weight-bold" style="font-size:15px;">{{ r.role_name }}</span>
+            {% if r.allowed_menus == '*' %}
+            <span class="badge badge-danger badge-pill font-weight-bold text-uppercase" style="font-size:10px;letter-spacing:.05em;">Full Access</span>
+            {% endif %}
+            {% if r.user_count is defined %}
+            <span class="text-muted" style="font-size:11px;">{{ r.user_count }} người dùng</span>
+            {% endif %}
+          </div>
+          <div class="d-flex" style="gap:6px;">
+            {% if r.allowed_menus != '*' %}
+            <button onclick="toggleEditForm({{ r.id }})"
+                    class="btn btn-sm btn-light" title="Sửa quyền"><i class="bx bx-edit-alt"></i></button>
+            {% endif %}
+            {% if r.role_name not in ['Admin', 'admin'] %}
+            <button type="button" class="btn btn-sm btn-danger" title="Xóa" data-bulk-action="delete" data-bulk-url="/admin/rbac/{{ r.id }}" data-bulk-method="DELETE"
+                    onclick="deleteRole({{ r.id }}, '{{ r.role_name }}')"><i class="bx bx-trash"></i></button>
+            {% endif %}
+          </div>
+        </div>
+
+
+        <div class="d-flex flex-wrap" style="gap:6px;">
+          {% if r.allowed_menus == '*' %}
+          <span class="badge badge-danger" style="font-size:11px;font-weight:normal;">Tất cả menu</span>
+          {% elif r.allowed_menus and r.allowed_menus != 'none' %}
+            {% for m in r.allowed_menus.split(',') %}
+              {% set m_trimmed = m.strip() %}
+              {% if m_trimmed %}
+              <span class="badge badge-primary" style="font-size:11px;font-weight:normal;">{{ all_menus.get(m_trimmed, m_trimmed) }}</span>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+          <span class="text-muted" style="font-size:11px;">Không có quyền</span>
+          {% endif %}
+        </div>
+
+
+        {% if r.allowed_menus != '*' %}
+        <form id="edit-form-{{ r.id }}" method="POST" action="/admin/rbac/{{ r.id }}/edit"
+              class="d-none mt-4 pt-4 border-top">
+          {% set current_menus = (r.allowed_menus or '').split(',') | map('trim') | list %}
+          {% for group_name, items in menu_groups.items() %}
+          <div class="mb-3">
+            <div class="text-uppercase font-weight-bold text-muted mb-2" style="font-size:11px;letter-spacing:.08em;">{{ group_name }}</div>
+            <div class="d-flex flex-wrap" style="gap:6px;">
+              {% for key, label in items.items() %}
+              <label class="d-flex align-items-center border rounded px-2 py-1 mb-0"
+                     style="font-size:12px;gap:6px;cursor:pointer;background:#f8f9fa;">
+                <input type="checkbox" name="allowed_menus" value="{{ key }}" class="form-check-input mt-0" style="margin:0;"
+                       {% if key in current_menus %}checked{% endif %}> {{ label }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          <div class="d-flex mt-3" style="gap:8px;">
+            <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
+            <button type="button" class="btn btn-light btn-sm"
+                    onclick="this.closest('form').classList.add('d-none')">Hủy</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% include "partials/pagination.html" %}
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+function toggleEditForm(roleId) {
+  const form = document.getElementById('edit-form-' + roleId);
+  if (form) form.classList.toggle('d-none');
+}
+
+async function deleteRole(roleId, roleName) {
+  if (!confirm('Xóa vai trò "' + roleName + '"?\nNgười dùng thuộc vai trò này sẽ không thể đăng nhập.')) return;
+  const result = await apiRequest('/admin/rbac/' + roleId, { method: 'DELETE' });
+  if (result.ok) {
+    window.location.href = '/admin/rbac';
+  } else {
+    window.dispatchEvent(new CustomEvent('showToast', {
+      detail: {msg: result.message || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.', type: 'error'}
+    }));
+  }
+}
+</script>
+{% endblock %}
+{% endblock %}

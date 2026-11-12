@@ -1,0 +1,32 @@
+{% macro render_readiness(checks) %}
+{% set issues = checks | rejectattr('level', 'equalto', 'ok') | list %}
+<div class="card">
+  <div class="card-header" style="padding:10px 16px;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <span class="font-weight-bold"><i class="bx bx-check-shield text-primary mr-1"></i>Bảng Sẵn Sàng Chạy Marketing</span>
+      <span class="badge badge-{{ 'warning' if issues else 'success' }} px-2 py-1">{{ checks|length - issues|length }}/{{ checks|length }} mục sẵn sàng</span>
+    </div>
+  </div>
+  {% if issues %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <tbody>
+        {% for item in issues %}
+        <tr>
+          <td class="align-middle" title="{{ item.detail }}">{{ item.label }}</td>
+          <td class="align-middle" style="width:130px;"><span class="badge badge-{{ 'warning' if item.level == 'warn' else 'danger' }}">{{ 'Cần lưu ý' if item.level == 'warn' else 'Chưa cấu hình' }}</span></td>
+          <td class="text-right align-middle" style="width:110px;">
+            {% if item.fix_url %}<a href="{{ item.fix_url }}" class="btn btn-sm btn-light border">Cấu hình</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% if readiness is defined and readiness %}
+  <div class="mb-3">{{ render_readiness(readiness) }}</div>
+{% endif %}

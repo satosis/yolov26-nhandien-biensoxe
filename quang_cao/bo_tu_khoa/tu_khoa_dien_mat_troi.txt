@@ -1,0 +1,42 @@
+# ==============================================================================
+# BỘ TỪ KHÓA QUẢNG CÁO THIẾT BỊ ĐIỆN MẶT TRỜI (PHÚ THỌ, VĨNH PHÚC & KHU VỰC LÂN CẬN)
+# Cú pháp Google Ads:
+#   "từ khóa" : Khớp cụm từ (Phrase Match - Khuyên dùng)
+#   [từ khóa] : Khớp chính xác (Exact Match)
+# ==============================================================================
+
+# --- NHÓM 1: THIẾT BỊ ĐIỆN MẶT TRỜI CHUNG ---
+"thiết bị điện mặt trời"
+[thiết bị điện mặt trời]
+"thiết bị điện năng lượng mặt trời"
+"mua thiết bị điện mặt trời"
+"bán thiết bị điện mặt trời"
+"báo giá thiết bị điện mặt trời"
+"thiết bị điện mặt trời phú thọ"
+"thiết bị điện mặt trời vĩnh phúc"
+
+# --- NHÓM 2: TẤM PIN ---
+"tấm pin năng lượng mặt trời"
+[tấm pin năng lượng mặt trời]
+"mua tấm pin mặt trời"
+"giá tấm pin mặt trời"
+"tấm pin mặt trời phú thọ"
+"tấm pin mặt trời vĩnh phúc"
+
+# --- NHÓM 3: BIẾN TẦN ---
+"biến tần điện mặt trời"
+"inverter điện mặt trời"
+"mua inverter điện mặt trời"
+"giá biến tần năng lượng mặt trời"
+
+# --- NHÓM 4: PIN LƯU TRỮ ---
+"pin lưu trữ điện mặt trời"
+"pin lưu trữ năng lượng"
+"giá pin lưu trữ điện mặt trời"
+"mua pin lưu trữ điện"
+
+# --- NHÓM 5: NHÀ XƯỞNG & DOANH NGHIỆP ---
+"thiết bị điện mặt trời cho nhà xưởng"
+"thiết bị điện mặt trời doanh nghiệp"
+"tấm pin mặt trời cho nhà xưởng"
+"biến tần điện mặt trời nhà xưởng"

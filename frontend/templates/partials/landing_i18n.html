@@ -1,0 +1,267 @@
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.store('i18n', {
+      lang: 'vi',
+      translations: {
+        vi: {
+          // Navigation
+          home: 'Trang chủ', about: 'Giới thiệu', services: 'Dịch vụ', news: 'Tin tức', warehouse: 'Nhà xưởng', cranes: 'Xe cẩu', login: 'Đăng nhập', contact: 'Liên hệ',
+          wh_trungha: 'Xưởng KCN Trung Hà', wh_cotiet: 'Xưởng KCN Cổ Tiết', crane_service: 'Dịch vụ xe cẩu', scale_service: 'Kiểm định cân',
+          contact_now: 'Liên hệ ngay',
+          
+          // Hero
+          hero_badge: 'Industrial Core Excellence',
+          hero_title_1: 'Kết nối giá trị',
+          hero_title_2: 'công nghiệp tương lai',
+          hero_desc: 'Cung cấp giải pháp hạ tầng công nghiệp đột phá, giúp doanh nghiệp bứt phá trong kỷ nguyên sản xuất thông minh 4.0.',
+          btn_explore: 'Khám phá dự án',
+          btn_schedule: 'Hẹn xem xưởng',
+          stat_land: 'm² quỹ đất công nghiệp',
+          stat_fdi: 'Đối tác FDI quốc tế',
+          stat_provinces: 'Tỉnh trong mạng lưới hạ tầng',
+          stat_substation: 'Trạm điện (KVA)',
+          
+          // Ecosystem
+          eco_badge: 'Ecosystem',
+          eco_title: 'Giải pháp hạ tầng toàn diện & đột phá',
+          eco_desc: 'Chúng tôi không chỉ cung cấp diện tích mặt bằng, mà còn cung cấp một hệ sinh thái hỗ trợ doanh nghiệp từ khâu khởi đầu đến lúc vận hành sản xuất ổn định.',
+          trungha_title: 'Nhà xưởng KCN Trung Hà',
+          trungha_desc: 'Nhà xưởng xây sẵn tại Lô E5, KCN Trung Hà. Tiêu chuẩn quốc tế, cao 10.85m, tải trọng 3 tấn/m². Diện tích khai thác 4.032 m² và 2.730 m², sẵn sàng bàn giao ngay.',
+          cotiet_title: 'Nhà xưởng KCN Cổ Tiết',
+          cotiet_desc: 'Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết. Hạ tầng đồng bộ, có PCCC, XLNT, TBA 110KV và phù hợp các ngành sản xuất sạch.',
+          infra_title: 'Hạ tầng & tiện ích',
+          infra_desc: 'Hệ thống hỗ trợ toàn diện: trạm điện 5000 KVA, xử lý nước thải tiêu chuẩn, PCCC tự động, bể ngầm, nhà bảo vệ, nhà để xe và khu văn phòng.',
+          btn_view_detail: 'Xem chi tiết',
+          btn_view_service: 'Xem dịch vụ',
+
+          // Featured Assets
+          featured_badge: 'Featured Assets',
+          key_projects_title: 'Dự án trọng điểm',
+
+          // About
+          about_subtitle: 'Về THÉP SƠN LÂM',
+          about_heading: 'Đối tác hạ tầng công nghiệp tại Phú Thọ',
+          about_p1: 'THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh, đảm bảo khả năng kết nối đa phương thức.',
+          about_p2: 'Với hơn 10 năm kinh nghiệm trong lĩnh vực phát triển khu công nghiệp và cho thuê nhà xưởng, THÉP SƠN LÂM mang đến giải pháp phù hợp cho doanh nghiệp.',
+          legal_label: 'Pháp lý',
+          legal_desc: 'Giấy chứng nhận đầu tư và quyền sử dụng đất đầy đủ.',
+          response_label: 'Phản hồi',
+          response_desc: 'Tư vấn miễn phí và báo giá trong ngày làm việc.',
+          duration_label: 'Thời hạn',
+          duration_desc: 'Thời hạn sử dụng đất còn hơn 45 năm.',
+
+          // Banner CTA
+          cta_banner_title: 'Hệ thống nhà xưởng tại Phú Thọ',
+          cta_banner_desc: 'Hai nhà xưởng tại KCN Trung Hà và KCN Cổ Tiết, tỉnh Phú Thọ. Trang bị đồng bộ: trạm điện 5000 KVA, hệ thống xử lý nước thải, PCCC tự động và bể ngầm.',
+          btn_view_factory: 'Xem nhà xưởng',
+
+          // Strategic Reach
+          strategic_subtitle: 'Strategic Reach',
+          strategic_title: 'Vị trí đắc địa tại các vùng kinh tế trọng điểm',
+          strategic_desc: 'THÉP SƠN LÂM sở hữu quỹ đất lớn tại các tỉnh thành có tốc độ phát triển công nghiệp nhanh, đảm bảo khả năng kết nối đa phương thức.',
+          north_label: 'Vùng kinh tế trọng điểm phía Bắc',
+          north_desc: 'Hà Nội, Hải Phòng, Bắc Ninh, Phú Thọ, Hải Dương.',
+          south_label: 'Vùng kinh tế trọng điểm phía Nam',
+          south_desc: 'TP. Hồ Chí Minh, Bình Dương, Đồng Nai, Long An.',
+
+          // 4 Steps
+          step_subtitle: 'Quy trình',
+          step_heading: '4 bước để sở hữu mặt bằng sản xuất',
+          step_desc: 'Quy trình thuê nhà xưởng đơn giản, nhanh chóng - từ liên hệ đến bàn giao trong khoảng 2 tuần.',
+          step1_title: 'Liên hệ tư vấn',
+          step1_desc: 'Gọi hotline hoặc gửi form, đội ngũ tư vấn sẽ phản hồi trong 24h với đầy đủ thông tin dự án.',
+          step2_title: 'Khảo sát thực tế',
+          step2_desc: 'Hẹn lịch tham quan nhà xưởng trực tiếp, đánh giá hạ tầng điện nước, PCCC và giao thông.',
+          step3_title: 'Thương thảo hợp đồng',
+          step3_desc: 'Đàm phán giá thuê, thời hạn và các điều khoản ưu đãi. Hỗ trợ pháp lý trọn gói.',
+          step4_title: 'Bàn giao & vận hành',
+          step4_desc: 'Ký hợp đồng và bàn giao nhà xưởng. Hỗ trợ kỹ thuật 24/7 trong suốt thời gian thuê.',
+
+          // Suitable Industries
+          ind_subtitle: 'Ngành nghề phù hợp',
+          ind_title: 'Phục vụ đa dạng lĩnh vực sản xuất',
+          ind_desc: 'Nhà xưởng được thiết kế phù hợp cho nhiều ngành công nghiệp sạch, đáp ứng tiêu chuẩn quốc tế.',
+          ind_garment: 'May mặc & Dệt may',
+          ind_electronic: 'Linh kiện điện tử',
+          ind_mechanical: 'Cơ khí chính xác',
+          ind_packaging: 'Đóng gói & Bao bì',
+          ind_clean: 'Công nghiệp sạch & Công nghệ cao',
+          ind_pharma: 'Dược phẩm & Y tế',
+          ind_food: 'Chế biến thực phẩm',
+          ind_logistics: 'Kho vận & Logistics',
+          ind_note_title: 'Lưu ý ngành nghề',
+          ind_note_desc: 'Nhà xưởng tại khu Đồng Dâu, xã Vạn Xuân, KCN Cổ Tiết, tỉnh Phú Thọ không cho thuê đối với các ngành nghề gây ô nhiễm môi trường như hóa chất độc hại, nhuộm, thuộc da.',
+          news_sub: 'Market Insights',
+          news_title: 'Tin tức & báo cáo',
+          news_desc: 'Cập nhật thông tin dự án, thị trường và xu hướng nhà xưởng xây sẵn tại Việt Nam.',
+          gallery_sub: 'Hình ảnh nhà xưởng',
+          gallery_title: 'Thư viện hiện trường',
+          gallery_desc: 'Một vài hình ảnh thực tế từ nhà xưởng — click để phóng to.',
+
+          // Contact Form
+          contact_sec_title: 'Sẵn sàng đưa doanh nghiệp của bạn vươn xa?',
+          form_name_label: 'Họ và tên *',
+          form_name_ph: 'Nguyễn Văn A',
+          form_phone_label: 'Số điện thoại *',
+          form_phone_ph: '090 123 4567',
+          form_demand_label: 'Nhu cầu tư vấn *',
+          demand_opt1: 'Cho thuê nhà xưởng xây sẵn',
+          demand_opt2: 'Tư vấn đầu tư FDI',
+          demand_opt3: 'Thuê kho bãi logistics',
+          demand_opt4: 'Khác',
+          btn_submit_contact: 'Gửi yêu cầu tư vấn',
+
+          // Footer
+          footer_desc: 'THÉP SƠN LÂM Industrial Core — Cung cấp giải pháp cho thuê nhà xưởng xây sẵn và vận tải nâng hạ hàng đầu tại miền Bắc.',
+          footer_quick_links: 'Liên kết nhanh',
+          footer_contact_info: 'Thông tin liên hệ',
+          footer_address: 'Khu Đồng Dâu, KCN Cổ Tiết, Tam Nông, Phú Thọ',
+          footer_rights: 'Toàn quyền bảo lưu.'
+        },
+        zh: {
+          // Navigation
+          home: '首页', about: '关于我们', services: '服务项目', news: '新闻资讯', warehouse: '厂房租赁', cranes: '随车起重机', login: '登录', contact: '联系我们',
+          wh_trungha: '中河工业区厂房', wh_cotiet: '古节工业区厂房', crane_service: '专业随车吊服务', scale_service: '地磅标准砝码',
+          contact_now: '立即咨询',
+
+          // Hero
+          hero_badge: '卓越工业核心 · Industrial Core',
+          hero_title_1: '连接工业未来',
+          hero_title_2: '核心商业价值',
+          hero_desc: '提供突破性工业基础设施与高标准现成厂房，赋能制造业在工业4.0智能制造时代蓬勃发展。',
+          btn_explore: '探索园区项目',
+          btn_schedule: '预约实地考察',
+          stat_land: 'm² 工业用地与厂房储备',
+          stat_fdi: '家国际FDI投资伙伴',
+          stat_provinces: '个重点工业省份网络',
+          stat_substation: '专用变电站容量 (KVA)',
+
+          // Ecosystem
+          eco_badge: '产业生态',
+          eco_title: '全面且突破性的工业基础设施解决方案',
+          eco_desc: '我们不仅提供标准厂房物理空间，更为入驻企业打造涵盖立项审批、电力增容及稳定生产的全链条赋能生态。',
+          trungha_title: '富寿省中河工业区标准厂房',
+          trungha_desc: '位于富寿省中河工业区E5地块国际标准现成厂房。层高10.85米，地面承重3-5吨/m²。现有建筑面积4,032 m²与2,730 m²，设施齐全，随时交付入驻。',
+          cotiet_title: '富寿省古节工业区标准厂房',
+          cotiet_desc: '位于古节工业区核心地块。基础设施完备，配备自动消防系统、集中污水处理、110KV变电站，高度契合电子、精密机械及清洁制造企业。',
+          infra_title: '园区综合基础设施与配套',
+          infra_desc: '全方位工业支撑体系：5000 KVA大容量专用变电站、合规污水处理系统、公安部认证自动喷淋消防、地下蓄水池、24小时巡更安保及现代化办公区。',
+          btn_view_detail: '查看厂房详情',
+          btn_view_service: '查看配套服务',
+
+          // Featured Assets
+          featured_badge: '重点示范项目',
+          key_projects_title: '重点工业园区项目',
+
+          // About
+          about_subtitle: '关于 THÉP SƠN LÂM',
+          about_heading: '越南富寿省值得信赖的工业基础设施伙伴',
+          about_p1: 'THÉP SƠN LÂM 在越南北部工业发展最活跃的各省份拥有充足工业用地储备，具备高速公路、海港及机场多式联运交通优势。',
+          about_p2: '拥有超过10年的工业园区建设与标准厂房出租运营经验，致力于为外资制造企业提供合规、高品质且综合成本最优的落地投产方案。',
+          legal_label: '合法资质',
+          legal_desc: '投资许可证(IRC)、企业登记证(ERC)及土地所有权红字齐全，合规无忧。',
+          response_label: '极速响应',
+          response_desc: '资深双语顾问免费实地带看，并在1个工作日内出具专业定制租金报价单。',
+          duration_label: '土地年限',
+          duration_desc: '工业用地使用年限尚余45年以上，为企业长期稳健经营提供坚实保障。',
+
+          // Banner CTA
+          cta_banner_title: '富寿省现代化高标准工业厂房集群',
+          cta_banner_desc: '中河与古节两大工业园区厂房，全面配备5000 KVA大容量变电站、自动喷淋消防、合规污水处理及大型地下消防蓄水池。',
+          btn_view_factory: '查阅厂房方案',
+
+          // Strategic Reach
+          strategic_subtitle: '战略交通区位',
+          strategic_title: '扼守越南核心经济圈枢纽要道',
+          strategic_desc: '依托越南国家级高速公路走廊，快速直达河内内排国际机场(Noi Bai)及海防国际深水港(Hai Phong)。',
+          north_label: '北部核心经济带',
+          north_desc: '河内直辖市、海防港、北宁电子重镇、富寿省、海阳省。',
+          south_label: '南部重点制造业基地',
+          south_desc: '胡志明市、平阳省、同奈省、隆安省。',
+
+          // 4 Steps
+          step_subtitle: '标准化服务流程',
+          step_heading: '入驻投产四大标准化流程',
+          step_desc: '厂房租赁与交付手续简捷高效——从初次对接到正式验收入驻仅需约2周时间。',
+          step1_title: '1. 需求咨询与对接',
+          step1_desc: '致电专线或在线提交表单，专业投资顾问团队将在24小时内提供完整园区规划及厂房参数。',
+          step2_title: '2. 实地考察与验测',
+          step2_desc: '安排专车前往工业园区实地考察，详细验测厂房净空高度、配电容量、供排水及消防设施。',
+          step3_title: '3. 条款洽谈与签约',
+          step3_desc: '商定租赁价格、递增周期及免租装修期，提供外资FDI执照申请与合规手续全流程协助。',
+          step4_title: '4. 验收入驻与运营',
+          step4_desc: '完成交接签署与钥匙交付，专业工程技术团队提供全天候24/7物业维护与应急支持。',
+
+          // Suitable Industries
+          ind_subtitle: '适配制造产业',
+          ind_title: '支持多元化合规制造业落地',
+          ind_desc: '高规格厂房严格按照国际工业标准设计，高度适配各类环保及清洁生产型产业。',
+          ind_garment: '纺织服装与轻工',
+          ind_electronic: '精密电子元器件',
+          ind_mechanical: '精密机械及装备制造',
+          ind_packaging: '绿色包装与仓储物流',
+          ind_clean: '清洁高新技术产业',
+          ind_pharma: '现代医药与医疗器械',
+          ind_food: '绿色食品加工',
+          ind_logistics: '保税仓储与物流',
+          ind_note_title: '准入产业须知',
+          ind_note_desc: '位于富寿省三农县万春社古节工业区同油区的厂房，暂不承接产生高污染隐患的行业（如危化品、印染、制革等）。',
+          news_sub: '产业市场资讯',
+          news_title: '新闻动态与项目简报',
+          news_desc: '持续更新富寿省工业园区最新建设进展、政策及现成标准厂房租赁市场趋势。',
+          gallery_sub: '园区实地实拍',
+          gallery_title: '厂房现场实景画廊',
+          gallery_desc: '实地拍摄的现成标准厂房高清实景照片 — 点击即可放大查看细节。',
+
+          // Contact Form
+          contact_sec_title: '准备好让您的企业在越南落地腾飞了吗？',
+          form_name_label: '姓名 / 企业代表 *',
+          form_name_ph: '例如：王经理 / Mr. David',
+          form_phone_label: '联系电话 / WhatsApp *',
+          form_phone_ph: '手机号或附带国区号 (+86 / +84)',
+          form_demand_label: '咨询需求 *',
+          demand_opt1: '标准建设厂房租赁',
+          demand_opt2: '外商直接投资 (FDI) 准入与建厂',
+          demand_opt3: '现代化仓储与物流中转',
+          demand_opt4: '其他工程起重与定制需求',
+          btn_submit_contact: '提交咨询需求',
+
+          // Footer
+          footer_desc: 'THÉP SƠN LÂM 工业核心 — 越南北部领先的标准厂房出租与重型起重工程综合解决方案服务商。',
+          footer_quick_links: '快速链接',
+          footer_contact_info: '联系方式',
+          footer_address: '富寿省三农县古节工业区同油区',
+          footer_rights: '保留所有权利。'
+        }
+      },
+      init() {
+        let saved = '';
+        try {
+          saved = localStorage.getItem('sl_lang') || '';
+        } catch(e) {}
+        if (!saved) {
+          const m = document.cookie.match(/lang_pref=([^;]+)/);
+          if (m && m[1]) saved = m[1];
+        }
+        if (!saved) {
+          const browserLang = (navigator.language || '').toLowerCase();
+          saved = browserLang.startsWith('zh') ? 'zh' : 'vi';
+        }
+        this.lang = (saved === 'zh') ? 'zh' : 'vi';
+      },
+      setLang(l) {
+        this.lang = (l === 'zh') ? 'zh' : 'vi';
+        try {
+          localStorage.setItem('sl_lang', this.lang);
+        } catch(e) {}
+        document.cookie = 'lang_pref=' + this.lang + '; path=/; max-age=31536000; SameSite=Lax';
+        window.dispatchEvent(new CustomEvent('sl-lang-changed', { detail: { lang: this.lang } }));
+      },
+      t(key) {
+        if (!this.translations[this.lang]) return key;
+        return this.translations[this.lang][key] || (this.translations['vi'][key] || key);
+      }
+    });
+    Alpine.store('i18n').init();
+  });
+</script>

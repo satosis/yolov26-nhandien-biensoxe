@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>{{ "PHIẾU THU" if is_receipt else "PHIẾU CHI" }} - {{ voucher_no }}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #f1f5f9;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 13pt;
+      line-height: 1.35;
+      color: #000;
+    }
+    .no-print {
+      background: #1e293b;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    .btn-print {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 8px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .btn-print:hover {
+      background: #1d4ed8;
+    }
+    .voucher-page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 20px auto;
+      padding: 15mm;
+      background: #ffffff;
+      box-shadow: 0 0 12px rgba(0,0,0,0.1);
+    }
+    @media print {
+      body {
+        background: #ffffff;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .voucher-page {
+        width: 100%;
+        min-height: auto;
+        margin: 0;
+        padding: 15mm;
+        box-shadow: none;
+      }
+    }
+
+    /* Header 2 cột */
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    .header-table td {
+      vertical-align: top;
+      border: none;
+    }
+    .company-info {
+      width: 58%;
+      text-align: left;
+    }
+    .form-info {
+      width: 42%;
+      text-align: center;
+    }
+    .form-info .form-code {
+      font-weight: bold;
+      font-size: 13pt;
+    }
+    .form-info .form-sub {
+      font-style: italic;
+      font-size: 11pt;
+      margin-top: 2px;
+      line-height: 1.25;
+    }
+
+    /* Title & Voucher metadata block */
+    .title-block {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: 10px;
+      margin-bottom: 16px;
+    }
+    .title-spacer {
+      width: 140px;
+    }
+    .title-center {
+      flex: 1;
+      text-align: center;
+    }
+    .voucher-title {
+      font-size: 16pt;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .voucher-date {
+      font-style: italic;
+      margin-top: 4px;
+    }
+    .voucher-meta {
+      min-width: 140px;
+      text-align: left;
+      font-size: 12pt;
+      line-height: 1.35;
+    }
+
+    /* Content lines */
+    .content-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      margin-bottom: 12px;
+    }
+    .content-table td {
+      padding: 4px 0;
+      vertical-align: top;
+      border: none;
+    }
+    .content-table td.label-cell {
+      white-space: nowrap;
+      width: 1%;
+      padding-right: 6px;
+    }
+    .content-table td.value-cell {
+      word-break: break-word;
+    }
+    .content-table td.colon-cell,
+    .voucher-meta td.colon-cell {
+      width: 1%;
+      padding: 0 6px 0 2px;
+    }
+    table.voucher-meta {
+      border-collapse: collapse;
+    }
+    table.voucher-meta td {
+      padding: 0;
+      white-space: nowrap;
+    }
+
+    /* Date line for signature */
+    .sig-date {
+      text-align: right;
+      font-style: italic;
+      margin-top: 10px;
+      margin-bottom: 8px;
+    }
+
+    /* Signature table */
+    .sig-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      margin-top: 4px;
+    }
+    .sig-table td, .sig-table th {
+      border: none;
+      vertical-align: top;
+      width: 20%;
+      padding: 2px 4px;
+    }
+    .sig-table th {
+      font-weight: bold;
+      font-size: 11pt;
+      white-space: nowrap;
+    }
+    .sig-sub {
+      font-style: italic;
+      font-size: 10pt;
+      line-height: 1.2;
+    }
+    .sig-space {
+      height: 25mm;
+    }
+    .sig-name {
+      vertical-align: bottom;
+      font-weight: bold;
+      font-size: 11pt;
+      white-space: nowrap;
+    }
+
+    /* Footer text */
+    .voucher-footer {
+      margin-top: 18px;
+      font-size: 12pt;
+      line-height: 1.5;
+    }
+    .stamp-note {
+      font-style: italic;
+      font-size: 11pt;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <button type="button" class="btn-print" onclick="window.print()">
+      <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+        <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+      </svg>
+      In phiếu
+    </button>
+  </div>
+
+  <div class="voucher-page">
+    <!-- Header 2 cột -->
+    <table class="header-table">
+      <tr>
+        <td class="company-info">
+          <div>Đơn vị: <strong>{{ company.name or '' }}</strong></div>
+          <div>Địa chỉ: {{ company.address or '' }}</div>
+        </td>
+        <td class="form-info">
+          <div class="form-code">{% if is_receipt %}Mẫu số 01 - TT{% else %}Mẫu số 02 - TT{% endif %}</div>
+          <div class="form-sub">(Ban hành theo Thông tư số 133/2016/TT-BTC<br>ngày 26/08/2016 của Bộ Tài chính)</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Tiêu đề & Khối Nợ/Có -->
+    <div class="title-block">
+      <div class="title-spacer"></div>
+      <div class="title-center">
+        <div class="voucher-title">{% if is_receipt %}PHIẾU THU{% else %}PHIẾU CHI{% endif %}</div>
+        <div class="voucher-date">Ngày {{ day if day else '.....' }} tháng {{ month if month else '.....' }} năm {{ year if year else '......' }}</div>
+      </div>
+      <table class="voucher-meta">
+        <tr><td>Quyển số</td><td class="colon-cell">:</td><td>......</td></tr>
+        <tr><td>Số</td><td class="colon-cell">:</td><td>{{ voucher_no }}</td></tr>
+        <tr><td>Nợ</td><td class="colon-cell">:</td><td>{{ debit_acc }}</td></tr>
+        <tr><td>Có</td><td class="colon-cell">:</td><td>{{ credit_acc }}</td></tr>
+      </table>
+    </div>
+
+    <!-- Các dòng nội dung -->
+    <table class="content-table">
+      <tr>
+        <td class="label-cell">Họ và tên người {% if is_receipt %}nộp{% else %}nhận{% endif %} tiền</td><td class="colon-cell">:</td>
+        <td class="value-cell">{{ partner_name if partner_name else '....................................................................................................' }}</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Địa chỉ</td><td class="colon-cell">:</td>
+        <td class="value-cell">{{ partner_address if partner_address else '....................................................................................................' }}</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Lý do {% if is_receipt %}nộp{% else %}chi{% endif %}</td><td class="colon-cell">:</td>
+        <td class="value-cell">{{ description if description else '....................................................................................................' }}</td>
+      </tr>
+      <tr>
+        <td class="label-cell">Số tiền</td><td class="colon-cell">:</td>
+        <td class="value-cell"><strong>{{ amount }} đ</strong></td>
+      </tr>
+      <tr>
+        <td class="label-cell">(Viết bằng chữ)</td><td class="colon-cell">:</td>
+        <td class="value-cell"><em>{{ amount_words if amount_words else '....................................................................................................' }}</em></td>
+      </tr>
+      <tr>
+        <td class="label-cell">Kèm theo</td><td class="colon-cell">:</td><td class="value-cell">............ Chứng từ gốc.</td>
+      </tr>
+    </table>
+
+    <!-- Dòng ngày để ký -->
+    <div class="sig-date">Ngày ..... tháng ..... năm ......</div>
+
+    <!-- Bảng chữ ký 5 cột -->
+    <table class="sig-table">
+      {% if is_receipt %}
+      <tr>
+        <th>GIÁM ĐỐC</th>
+        <th>KẾ TOÁN TRƯỞNG</th>
+        <th>NGƯỜI NỘP TIỀN</th>
+        <th>NGƯỜI LẬP PHIẾU</th>
+        <th>THỦ QUỸ</th>
+      </tr>
+      <tr>
+        <td class="sig-sub">(Ký, họ tên, đóng dấu)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+      </tr>
+      <tr>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+      </tr>
+      <tr>
+        <td class="sig-name">{{ company.director_name or '' }}</td>
+        <td class="sig-name"></td>
+        <td class="sig-name">{{ partner_name or '' }}</td>
+        <td class="sig-name"></td>
+        <td class="sig-name"></td>
+      </tr>
+      {% else %}
+      <tr>
+        <th>GIÁM ĐỐC</th>
+        <th>KẾ TOÁN TRƯỞNG</th>
+        <th>THỦ QUỸ</th>
+        <th>NGƯỜI LẬP PHIẾU</th>
+        <th>NGƯỜI NHẬN TIỀN</th>
+      </tr>
+      <tr>
+        <td class="sig-sub">(Ký, họ tên, đóng dấu)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+        <td class="sig-sub">(Ký, họ tên)</td>
+      </tr>
+      <tr>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+        <td class="sig-space"></td>
+      </tr>
+      <tr>
+        <td class="sig-name">{{ company.director_name or '' }}</td>
+        <td class="sig-name"></td>
+        <td class="sig-name"></td>
+        <td class="sig-name"></td>
+        <td class="sig-name"></td>
+      </tr>
+      {% endif %}
+    </table>
+
+    <!-- Cuối phiếu -->
+    <div class="voucher-footer">
+      <div>Đã nhận đủ số tiền (viết bằng chữ): ....................................................................................................</div>
+      <div>+ Tỷ giá ngoại tệ (vàng bạc, đá quý): ....................................................................................................</div>
+      <div>+ Số tiền quy đổi: ....................................................................................................</div>
+      <div class="stamp-note">(Liên gửi ra ngoài phải đóng dấu)</div>
+    </div>
+  </div>
+</body>
+</html>

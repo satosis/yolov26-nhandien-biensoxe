@@ -1,0 +1,629 @@
+{% extends "layout.html" %}
+{% block title %}Camera — Parking Camera{% endblock %}
+{% block page_title %}Quản lý Camera{% endblock %}
+{% block page_actions %}
+<div class="d-flex" style="gap:8px;">
+  <a href="/admin/providers" class="btn btn-light btn-sm font-weight-bold">
+    <i class="bx bx-server mr-1"></i> NCC Camera
+  </a>
+  <button onclick="discoverCameras()" id="discover-btn" class="btn btn-secondary btn-sm font-weight-bold">
+    <i class="bx bx-search mr-1" id="discover-icon"></i> <span id="discover-text">Dò tìm Camera</span>
+  </button>
+  <button class="btn btn-primary btn-sm font-weight-bold"
+          onclick="document.getElementById('add-cam-form').classList.toggle('hidden')">
+    <i class="bx bx-plus mr-1"></i> Thêm Camera
+  </button>
+</div>
+{% endblock %}
+{% block head %}
+<style>
+
+  .ts-wrapper.form-control,
+  .ts-wrapper.form-control-sm {
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .ts-wrapper .ts-control {
+    background: #fff !important;
+    border: 1px solid #ced4da !important;
+    border-radius: 4px !important;
+    padding: 3px 8px !important;
+    color: #495057 !important;
+    min-height: 28px !important;
+    font-size: 11.5px !important;
+  }
+  .ts-wrapper .ts-control input {
+    color: #495057 !important;
+    background: transparent !important;
+    font-size: 11.5px !important;
+  }
+  .ts-wrapper .ts-control input::placeholder {
+    color: #adb5bd !important;
+    font-size: 11.5px !important;
+  }
+  .ts-wrapper.focus .ts-control {
+    border-color: #80bdff !important;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25) !important;
+  }
+  .ts-dropdown {
+    background: #fff !important;
+    border: 1px solid rgba(0,0,0,0.15) !important;
+    border-radius: 4px !important;
+    margin-top: 2px !important;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.175) !important;
+  }
+  .ts-dropdown .option { padding: 6px 12px !important; color: #495057 !important; font-size: 11.5px; }
+  .ts-dropdown .active { background: #007bff !important; color: #fff !important; }
+  .ts-wrapper.multi .ts-control > div {
+    background: #e3f2fd !important;
+    color: #1565c0 !important;
+    border: 1px solid #bbdefb !important;
+    border-radius: 3px !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    padding: 1px 6px !important;
+    margin: 1px 3px 1px 0 !important;
+  }
+  .ts-wrapper.multi .ts-control > div .remove { color: #1565c0 !important; }
+  .ts-wrapper .ts-control > .ts-input-fake { display: none; }
+
+  tr.edit-row-bg td { background-color: #f8f9fa; }
+</style>
+{% endblock %}
+{% block content %}
+<div x-data="{
+  showDiscoveryModal: false,
+  showDetails: false,
+  discoveredDevices: [],
+  scannedNetworks: [],
+  async init() {},
+  selectDiscovered(dev) {
+    document.getElementById('add-cam-form').classList.remove('hidden');
+    document.getElementById('add-camera-name').value = dev.name || '';
+    const cleanId = (dev.serial || '').toUpperCase();
+    document.getElementById('add-camera-device-id').value = cleanId;
+    document.getElementById('add-camera-ip').value = dev.ip || '';
+    const typeSelect = document.getElementById('add-camera-type');
+    if (dev.type && typeSelect) {
+        setAdminSelectValue(typeSelect, dev.type);
+    }
+    if (typeof autoFillRtsp === 'function') {
+        autoFillRtsp(document.getElementById('add-cam-form'));
+    }
+    this.showDiscoveryModal = false;
+    document.getElementById('add-cam-form').scrollIntoView({ behavior: 'smooth' });
+  },
+  async autoAddDevice(dev, skipReload = false) {
+    const payload = {...dev};
+    if (dev.rtsp_url_onvif) {
+        payload.rtsp_url_onvif = dev.rtsp_sub_onvif || dev.rtsp_url_onvif;
+    }
+    const result = await apiRequest('/admin/cameras/auto-add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    if (result.ok) {
+        dev._added = true;
+        if (!skipReload) setTimeout(() => window.location.reload(), 600);
+    } else if (!skipReload) {
+        window.dispatchEvent(new CustomEvent('showToast', {
+            detail: { msg: result.message, type: 'error' }
+        }));
+    }
+    return result;
+  }
+}" @show-discovery.window="discoveredDevices = $event.detail.devices || []; scannedNetworks = $event.detail.networks || []; showDiscoveryModal = true; showDetails = false;">
+
+
+  <form id="add-cam-form" class="hidden card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Tên camera *</label>
+          <input name="camera_name" id="add-camera-name" required class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Nhà cung cấp</label>
+          <select name="camera_type" id="add-camera-type" class="form-control form-control-sm">
+            {% for p in providers %}
+            <option value="{{ p.provider_key }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">IP / Host *</label>
+          <input name="camera_ip" id="add-camera-ip" class="form-control form-control-sm" placeholder="Nhập IP camera (VD: 192.168.1.50)">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Port</label>
+          <input name="camera_port" id="add-camera-port" type="number" value="554" required class="form-control form-control-sm">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Thiết bị ID (Cloud)</label>
+          <input name="imou_device_id" id="add-camera-device-id" class="form-control form-control-sm" placeholder="5552ABJPSFFB063">
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Mã an toàn / Password</label>
+          <div class="input-group input-group-sm">
+            <input name="imou_mk" id="add-camera-pass" type="password" value="{{ global_mk or '' }}"
+              class="form-control form-control-sm"
+             >
+            <div class="input-group-append">
+              <button type="button" onclick="togglePassword(this)" class="btn btn-outline-secondary btn-sm" title="Hiện/ẩn mật khẩu">
+                <svg class="w-4 h-4 eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                <svg class="w-4 h-4 eye-on" style="display:none;width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 mb-3">
+          <label class="font-weight-bold" style="font-size:13px;">Địa điểm (Sites)</label>
+          <select name="site_ids" multiple id="add-sites-select" class="w-100">
+            {% for s in sites %}
+            <option value="{{ s.id }}">{{ s.site_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 mb-3">
+          <p class="text-muted mb-0" style="font-size:11px;font-style:italic;">Để trống MK nếu dùng cấu hình chung trong "NCC Camera"</p>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="font-weight-bold" style="font-size:13px;">RTSP URL <span class="text-muted font-weight-normal">(tự tạo từ thông tin trên)</span></label>
+        <input name="rtsp_url" readonly class="form-control form-control-sm text-primary"
+         >
+      </div>
+      <div class="d-flex" style="gap:8px;">
+        <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
+        <button type="button" class="btn btn-light btn-sm"
+          onclick="this.closest('form').classList.add('hidden')">Hủy</button>
+      </div>
+    </div>
+  </form>
+
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th style="width:50px;" class="text-center">STT</th>
+              <th class="text-center" style="width:60px;">TT</th>
+              <th style="width:180px;">TÊN CAMERA</th>
+              <th style="width:130px;">NHÀ CUNG CẤP</th>
+              <th style="width:140px;">ĐỊA ĐIỂM</th>
+              <th style="width:120px;">ĐỊA CHỈ IP</th>
+              <th style="width:170px;">DEVICE ID</th>
+              <th>RTSP URL</th>
+              <th style="width:100px;">CẬP NHẬT</th>
+              <th style="width:110px;" class="text-right">HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cam in cameras %}
+            <tr class="{% if not cam.is_active %}text-muted{% endif %}" id="cam-row-{{ cam.id }}">
+              <td class="text-center text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
+              <td class="text-center" style="font-size:14px;">
+                {% set health = camera_status.get(cam.id|string, {}) %}
+                {% set status = health.get('status', '') %}
+                {% if not cam.is_active %}
+                  <span title="Dừng hoạt động">⚫</span>
+                {% elif status == 'stream_up' %}
+                  <span class="badge badge-pill badge-success" title="Online" style="width:10px;height:10px;padding:0;border-radius:50%;display:inline-block;"></span>
+                {% elif status in ('stream_down', 'circuit_open', 'crashed') %}
+                  <span class="badge badge-pill badge-danger" title="{{ status }}" style="width:10px;height:10px;padding:0;border-radius:50%;display:inline-block;"></span>
+                {% else %}
+                  <span title="Chưa có dữ liệu">🟢</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="font-weight-bold" style="font-size:13px;">{{ cam.camera_name }}</div>
+              </td>
+              <td>
+                <span class="badge badge-pill badge-primary" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;">
+                  {{ cam.camera_type }}
+                </span>
+              </td>
+              <td>
+                <div class="d-flex flex-wrap" style="gap:4px;">
+                  {% for s in (cam.site_names or []) %}
+                  <span class="badge badge-secondary" style="font-size:10px;font-weight:500;">{{ s }}</span>
+                  {% endfor %}
+                  {% if not cam.site_names %}—{% endif %}
+                </div>
+              </td>
+              <td class="" style="font-size:12px;">
+                {% if cam.camera_ip %}
+                <span>{{ cam.camera_ip }}</span>
+                {% else %}
+                <span class="text-warning" style="font-size:10px;">Chưa có IP</span>
+                {% endif %}
+              </td>
+              <td class="text-muted " style="font-size:11px;">
+                {{ cam.imou_device_id or '—' }}
+              </td>
+              <td>
+                <div class="text-muted " style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ cam.rtsp_url or '' }}">
+                  {{ cam.rtsp_url or '—' }}
+                </div>
+              </td>
+              <td class="text-muted" style="font-size:11px;">
+                {{ cam.updated_at.strftime('%d/%m %H:%M') if cam.updated_at else '—' }}
+              </td>
+              <td class="text-right">
+                <div class="d-flex justify-content-end" style="gap:6px;">
+                  <button onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.toggle('hidden')"
+                    class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
+                  <button type="button" class="btn btn-sm btn-danger" data-bulk-action="delete" data-bulk-url="/admin/cameras/{{ cam.id }}" data-bulk-method="DELETE"
+                          @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa camera',
+                              message: 'Bạn chắc chắn muốn xóa camera {{ cam.camera_name }}?',
+                              confirmText: 'Xác nhận xóa',
+                              confirmUrl: '/admin/cameras/{{ cam.id }}',
+                              confirmMethod: 'DELETE',
+                              reload: true
+                            }
+                          }))" title="Xóa"><i class="bx bx-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+
+
+            <tr id="edit-cam-form-{{ cam.id }}" class="hidden">
+              <td colspan="9" class="p-4" style="background:#f8f9fa;border-bottom:1px solid #dee2e6;">
+                <form method="POST" action="/admin/cameras/{{ cam.id }}/edit">
+                  <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Tên camera *</label>
+                      <input name="camera_name" value="{{ cam.camera_name }}" required class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Nhà cung cấp</label>
+                      <select name="camera_type" class="form-control form-control-sm">
+                        {% for p in providers %}
+                        <option value="{{ p.provider_key }}" {% if cam.camera_type==p.provider_key %}selected{% endif %}>{{ p.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Device ID</label>
+                      <input name="imou_device_id" value="{{ cam.imou_device_id or '' }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa điểm</label>
+                      <select name="site_ids" multiple id="edit-sites-{{ cam.id }}" class="w-100">
+                        {% for s in sites %}
+                        <option value="{{ s.id }}" {% if cam.site_ids and s.id in cam.site_ids %}selected{% endif %}>{{ s.site_name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Địa chỉ IP *</label>
+                      <input name="camera_ip" value="{{ cam.camera_ip or '' }}" placeholder="Nhập IP camera (VD: 192.168.1.50)" class="form-control form-control-sm">
+                      {% if not cam.camera_ip %}
+                      <small class="text-danger d-block mt-1" style="font-size:10px;">⚠️ Chưa có IP. Vui lòng click vào đây và nhập IP của camera.</small>
+                      {% else %}
+                      {% endif %}
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Mã an toàn (MK) / Password</label>
+                      <div class="input-group input-group-sm">
+                        <input name="imou_mk" type="password" value="{{ cam.provider_keys.get('mk', '') if cam.provider_keys and cam.provider_keys is mapping else '' }}"
+                          placeholder="Mã an toàn của camera" class="form-control form-control-sm">
+                        <div class="input-group-append">
+                          <button type="button" onclick="togglePassword(this)" class="btn btn-outline-secondary btn-sm" title="Hiện/ẩn mật khẩu">
+                            <svg class="eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"/></svg>
+                            <svg class="eye-on" style="display:none;width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">Cổng RTSP</label>
+                      <input name="camera_port" type="number" value="{{ cam.camera_port or 554 }}" class="form-control form-control-sm">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3 d-flex align-items-end">
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="font-weight-bold" style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;">RTSP URL <span class="font-weight-normal text-muted" style="text-transform:none;">(tự tạo)</span></label>
+                    <div class="input-group input-group-sm">
+                      <input name="rtsp_url" value="{{ cam.rtsp_url or '' }}" readonly
+                        class="form-control form-control-sm text-primary"
+                        placeholder="rtsp://...">
+                      <div class="input-group-append">
+                        <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold" onclick="autoFillRtsp(this.closest('form'))" title="Tự tạo lại link RTSP">⚡ Tạo URL</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex" style="gap:8px;">
+                    <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
+                    <button type="button" class="btn btn-light btn-sm"
+                      onclick="document.getElementById('edit-cam-form-{{ cam.id }}').classList.add('hidden')">Hủy</button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+
+            {% if not cameras %}
+            <tr>
+              <td colspan="10" class="text-center py-5">
+                <div class="d-flex flex-column align-items-center" style="gap:10px;">
+                  <span style="font-size:40px;opacity:.2;">📽️</span>
+                  <div>
+                    <div class="font-weight-bold text-muted">Chưa có camera nào được tìm thấy</div>
+                    {% if active_site_id and active_site_id > 0 %}
+                    <div class="text-muted" style="font-size:12px;">Đang lọc theo địa điểm hiện tại. Hãy thử chọn <b>"Tất cả địa điểm"</b>.</div>
+                    {% else %}
+                    <div class="text-muted" style="font-size:12px;">Nhấn nút <b>"+ Thêm Camera"</b> ở trên để bắt đầu.</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+
+  <template x-if="showDiscoveryModal">
+    <div style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:1050;display:flex;align-items:center;justify-content:center;padding:16px;"
+         @click.self="showDiscoveryModal = false">
+
+      <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.55);" @click="showDiscoveryModal = false"></div>
+
+      <div class="card shadow-lg w-100"
+           style="position:relative;z-index:1051;max-width:860px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">
+
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div>
+            <h6 class="mb-0 font-weight-bold">Camera trong mạng nội bộ</h6>
+            <div class="text-muted" style="font-size:12px;" x-text="discoveredDevices.length + ' thiết bị · ' + scannedNetworks.join(', ')"></div>
+          </div>
+          <button @click="showDiscoveryModal = false" class="btn btn-light btn-sm" style="line-height:1;">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div style="overflow-y:auto;flex:1;">
+          <template x-if="discoveredDevices.length > 0">
+            <div class="p-3">
+              <div class="cx-overflow-x-auto">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="thead-light">
+                    <tr>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;width:40px;" class="text-center">STT</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Thiết bị</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">Hãng · Model</th>
+                      <th style="font-size:10px;text-transform:uppercase;letter-spacing:.6px;">IP</th>
+                      <th style="width:110px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="(dev, idx) in discoveredDevices" :key="dev.ip">
+                      <tr :class="dev._added ? 'table-success' : ''">
+                        <td class="text-center text-muted align-middle" style="font-size:11px;" x-text="idx + 1"></td>
+                        <td>
+                          <div class="font-weight-bold" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;" x-text="dev.name || '—'"></div>
+                          <span class="badge badge-pill" style="font-size:8px;text-transform:uppercase;letter-spacing:.5px;"
+                                :class="dev.source === 'onvif' ? 'badge-success' : (dev.source === 'dahua_udp' ? 'badge-warning' : 'badge-secondary')"
+                                x-text="dev.source === 'onvif' ? 'ONVIF' : (dev.source === 'dahua_udp' ? 'Dahua' : 'RTSP')"></span>
+                          <template x-if="dev.has_ptz">
+                            <span class="badge badge-secondary" style="font-size:8px;">PTZ</span>
+                          </template>
+                        </td>
+                        <td>
+                          <div style="font-size:11px;" x-text="[dev.manufacturer, dev.model].filter(Boolean).join(' · ') || '—'"></div>
+                          <div class="text-muted" style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;" x-text="dev.rtsp_url_onvif || ''"></div>
+                        </td>
+                        <td class="align-middle">
+                          <span class="font-weight-bold" style="font-size:12px;" x-text="dev.ip"></span>
+                        </td>
+                        <td class="text-right align-middle">
+                          <template x-if="dev._exists">
+                            <span class="badge badge-light" style="font-size:9px;">Đã có</span>
+                          </template>
+                          <template x-if="!dev._exists && dev._added">
+                            <span class="text-success">✅</span>
+                          </template>
+                          <template x-if="!dev._exists && !dev._added">
+                            <div class="d-flex justify-content-end" style="gap:4px;">
+                              <button @click="autoAddDevice(dev)" class="btn btn-primary btn-sm" style="font-size:10px;font-weight:700;padding:2px 8px;">+ Thêm</button>
+                              <button @click="selectDiscovered(dev)" class="btn btn-light btn-sm" style="font-size:10px;padding:2px 6px;" title="Tùy chỉnh">✏️</button>
+                            </div>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
+          <div x-show="discoveredDevices.length === 0" class="text-center py-5">
+            <div class="d-flex flex-column align-items-center" style="gap:8px;">
+              <span style="font-size:32px;opacity:.2;">📡</span>
+              <p class="text-muted mb-0" style="font-size:12px;">Không có camera nào trả lời</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-footer d-flex justify-content-end align-items-center" style="gap:8px;">
+          <button @click="showDiscoveryModal = false" class="btn btn-light btn-sm font-weight-bold">Đóng</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const PROVIDER_TEMPLATES = {{ provider_templates | tojson }};
+const GLOBAL_MK = {{ (global_mk or '') | tojson }};
+
+function togglePassword(btn) {
+    const input = btn.closest('.input-group').querySelector('input');
+    const eyeOff = btn.querySelector('.eye-off');
+    const eyeOn = btn.querySelector('.eye-on');
+    if (input.type === 'password') {
+        input.type = 'text';
+        eyeOff.style.display = 'none';
+        eyeOn.style.display = '';
+    } else {
+        input.type = 'password';
+        eyeOff.style.display = '';
+        eyeOn.style.display = 'none';
+    }
+}
+
+
+function autoFillRtsp(form) {
+    if (!form) return;
+    const type = form.querySelector('[name="camera_type"]')?.value || 'imou';
+    const ipInput = form.querySelector('[name="camera_ip"]');
+    const ip = (ipInput?.value || '').trim();
+    const port = (form.querySelector('[name="camera_port"]')?.value || '554').trim();
+    const rtspInput = form.querySelector('[name="rtsp_url"]');
+    let mk = (form.querySelector('[name="imou_mk"]')?.value || '').trim();
+
+    if (!mk) mk = GLOBAL_MK;
+
+    if (!rtspInput) return;
+
+    if (!ip) {
+        rtspInput.value = '';
+        return;
+    }
+    if (!mk) {
+        return;
+    }
+
+    let template = PROVIDER_TEMPLATES[type];
+    if (!template) template = 'rtsp://{user}:{password}@{ip}:{port}/stream';
+
+    rtspInput.value = template
+        .replace('{user}', 'admin')
+        .replace('{password}', encodeURIComponent(mk))
+        .replace('{ip}', ip)
+        .replace('{port}', port || '554')
+        .replace('{channel}', '1')
+        .replace('{subtype}', type === 'imou' ? '1' : '0');
+}
+
+
+async function discoverCameras() {
+    const btn = document.getElementById('discover-btn');
+    const icon = document.getElementById('discover-icon');
+    const text = document.getElementById('discover-text');
+
+    btn.disabled = true;
+    btn.classList.add('disabled');
+    icon.classList.add('animate-spin');
+    text.innerText = "Đang quét mạng...";
+
+    const data = await apiRequest('/admin/cameras/discover', { method: 'POST' });
+
+    if (!data.ok) {
+        window.dispatchEvent(new CustomEvent('show-confirm', {
+            detail: { title: 'Lỗi dò tìm', message: data.message, confirmText: 'Đóng', isAlert: true }
+        }));
+    } else {
+        window.dispatchEvent(new CustomEvent('show-discovery', {
+            detail: { devices: data.devices || [], networks: data.networks || [] }
+        }));
+    }
+
+    btn.disabled = false;
+    btn.classList.remove('disabled');
+    icon.classList.remove('animate-spin');
+    text.innerText = "Dò tìm Camera";
+}
+
+['input', 'change', 'keyup', 'paste'].forEach(evt => {
+    document.addEventListener(evt, (e) => {
+        const form = e.target.closest('form');
+        if (!form) return;
+        const isCamForm = (form.id && form.id.includes('cam')) ||
+                          (form.action && (form.action.includes('edit') || form.action.includes('cameras')));
+        if (!isCamForm) return;
+
+        const relevantNames = ['camera_ip', 'camera_port', 'imou_mk', 'camera_type'];
+        if (relevantNames.includes(e.target.name)) {
+            autoFillRtsp(form);
+        }
+    });
+});
+
+document.getElementById('add-cam-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Đang lưu...'; }
+    const result = await apiRequest('/admin/cameras', {
+        method: 'POST',
+        body: new FormData(e.target),
+        headers: { Accept: 'application/json' },
+    });
+    if (result.ok) {
+        window.location.reload();
+        return;
+    }
+    window.dispatchEvent(new CustomEvent('show-confirm', {
+        detail: {
+            title: 'Lỗi thêm camera',
+            message: result.message,
+            confirmText: 'Đóng',
+            isAlert: true
+        }
+    }));
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Lưu'; }
+});
+
+document.addEventListener('change', (e) => {
+    if (e.target.name === 'imou_device_id') {
+        e.target.value = e.target.value.trim();
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const addSites = document.getElementById('add-sites-select');
+    if (addSites) {
+        new TomSelect(addSites, {
+            plugins: ['remove_button'],
+            placeholder: '— Chọn địa điểm —',
+            maxItems: null,
+        });
+    }
+    document.querySelectorAll('[id^="edit-sites-"]').forEach(el => {
+        new TomSelect(el, {
+            plugins: ['remove_button'],
+            placeholder: '— Chọn địa điểm —',
+            maxItems: null,
+        });
+    });
+
+    const addForm = document.getElementById('add-cam-form');
+    if (addForm) autoFillRtsp(addForm);
+
+    document.querySelectorAll('[id^="edit-cam-form-"]').forEach(form => {
+        const f = form.querySelector('form');
+        if (f) autoFillRtsp(f);
+    });
+});
+</script>
+{% endblock %}

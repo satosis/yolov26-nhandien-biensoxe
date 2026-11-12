@@ -1,0 +1,199 @@
+{% extends "layout.html" %}
+{% block title %}{% if item %}Sửa tin tức{% else %}Thêm tin tức mới{% endif %}{% endblock %}
+
+{% block content %}
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('newsEditor', () => ({
+      imageUrl: {{ (item.image if item else "") | tojson }},
+      isPublished: {{ 'true' if item and item.is_published else 'false' }},
+      uploading: false,
+      uploadError: '',
+      previewImageError() {
+        if (!this.imageUrl) return;
+        console.error('CMS news preview image failed to load');
+        this.uploadError = 'Không thể hiển thị ảnh xem trước.';
+      },
+      async uploadImage(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.uploading = true;
+        this.uploadError = '';
+        const fd = new FormData();
+        fd.append('file', file);
+        const data = await apiRequest('/admin/cms/upload-image', { method: 'POST', body: fd });
+        if (data.ok) {
+          if (typeof data.url === 'string' && data.url) this.imageUrl = data.url;
+          else {
+            console.error('CMS image upload response missing URL');
+            this.uploadError = 'Phản hồi tải ảnh không hợp lệ.';
+          }
+        } else { this.uploadError = data.message || 'Lỗi tải ảnh'; }
+        this.uploading = false;
+      }
+    }));
+  });
+</script>
+
+<div class="max-w-4xl mx-auto" x-data="newsEditor">
+
+
+  <div class="d-flex align-items-center mb-4" style="gap:8px;">
+    <a href="/admin/cms" class="btn btn-light btn-sm">
+      <i class="fas fa-arrow-left mr-1"></i> Quay lại
+    </a>
+    <span class="text-muted">/</span>
+    <h5 class="mb-0 font-weight-bold">
+      {% if item %}Sửa: {{ item.title }}{% else %}Thêm tin tức mới{% endif %}
+    </h5>
+  </div>
+
+
+  <form action="/admin/cms/news/save" method="POST">
+    <input type="hidden" name="news_id" value="{{ item.id if item else '' }}">
+
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-12 col-md-8 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Tiêu đề *</label>
+            <input type="text" name="title" required
+                   value="{{ item.title if item else '' }}"
+                   placeholder="Nhập tiêu đề tin tức..."
+                   class="form-control">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="font-weight-bold small text-muted text-uppercase">Danh mục *</label>
+            <input type="text" name="category" required list="category-list"
+                   value="{{ item.category if item else '' }}"
+                   placeholder="Tin tức..."
+                   class="form-control">
+            <datalist id="category-list">
+              <option value="Tin tức">
+              <option value="Thị trường">
+              <option value="Dịch vụ">
+              <option value="Sự kiện">
+            </datalist>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0 font-weight-bold">Ảnh đại diện</h6>
+      </div>
+      <div class="card-body">
+        <input type="hidden" name="image" x-model="imageUrl">
+        <div class="d-flex align-items-start" style="gap:16px;">
+          <div class="flex-fill">
+            <label class="btn btn-light w-100 text-left"
+                   :class="uploading ? 'disabled' : ''" translate="no">
+              <i class="fas fa-upload mr-2 text-muted"></i>
+              <span x-text="uploading ? 'Đang tải lên...' : 'Chọn ảnh từ máy'"></span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="d-none"
+                     @change="uploadImage($event)">
+            </label>
+            <p x-show="uploadError" x-text="uploadError" class="text-danger small mt-1 mb-0"></p>
+            <p x-show="imageUrl && !uploading" class="text-muted small mt-1 mb-0 text-truncate" x-text="imageUrl"></p>
+          </div>
+          <div class="rounded border bg-light d-flex align-items-center justify-content-center overflow-hidden"
+               style="width:128px;height:80px;flex-shrink:0;">
+            <img :src="imageUrl" x-show="imageUrl && !uploading" class="w-100 h-100" style="object-fit:cover;" @error="previewImageError(); $el.style.display='none'">
+            <span x-show="uploading" class="text-muted small">Đang tải...</span>
+            <span x-show="!imageUrl && !uploading" class="text-muted small">Xem trước</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0 font-weight-bold">Tóm tắt</h6>
+      </div>
+      <div class="card-body">
+        <textarea name="summary" rows="3"
+                  placeholder="Mô tả ngắn gọn hiển thị ở trang danh sách..."
+                  class="form-control">{{ item.summary if item else '' }}</textarea>
+      </div>
+    </div>
+
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <h6 class="mb-0 font-weight-bold">Nội dung bài viết</h6>
+      </div>
+      <div class="card-body p-0">
+        <textarea name="content" id="editor">{{ item.content if item else '' }}</textarea>
+        <p id="editor-status" class="text-danger small px-3 pt-2 d-none" role="alert"></p>
+      </div>
+    </div>
+
+
+    <div class="card">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between" style="gap:12px;">
+        <label class="d-flex align-items-center mb-0 cursor-pointer" style="gap:10px;">
+          <div style="position:relative;">
+            <input type="checkbox" name="is_published" value="true"
+                   x-model="isPublished"
+                   class="sr-only peer">
+            <div style="width:44px;height:24px;border-radius:12px;transition:background .2s;"
+                 :style="isPublished ? 'background:#6366f1;' : 'background:#dee2e6;'"></div>
+            <div style="position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;"
+                 :style="isPublished ? 'transform:translateX(20px);' : 'transform:translateX(0);'"></div>
+          </div>
+          <span class="font-weight-medium">Xuất bản ngay</span>
+          <span class="text-muted small" x-text="isPublished ? '(sẽ hiển thị trên landing)' : '(lưu nháp)'"></span>
+        </label>
+
+        <div class="d-flex" style="gap:8px;">
+          <a href="/admin/cms" class="btn btn-light">Hủy</a>
+          <button type="submit" @click="isPublished = false" class="btn btn-secondary">
+            Lưu nháp
+          </button>
+          <button type="submit" @click="isPublished = true" class="btn btn-primary">
+            Lưu &amp; Xuất bản
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </form>
+
+</div>
+
+
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/classic/ckeditor.js"></script>
+<script>
+  function showEditorFailure(code) {
+    console.error('CKEditor init failed:', code);
+    const status = document.getElementById('editor-status');
+    status.textContent = 'Không tải được trình soạn thảo.';
+    status.classList.remove('d-none');
+  }
+  if (!window.ClassicEditor) {
+    showEditorFailure('ScriptUnavailable');
+  } else {
+    ClassicEditor.create(document.querySelector('#editor'), {
+    toolbar: [
+      'heading', '|',
+      'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
+      'blockQuote', 'insertTable', '|',
+      'imageUpload', 'mediaEmbed', '|',
+      'undo', 'redo'
+    ],
+    language: 'vi'
+    }).then(null, (error) => showEditorFailure(error && error.name || 'UnknownError'));
+  }
+</script>
+
+
+<style>
+  .ck-editor__editable {
+    min-height: 320px;
+  }
+</style>
+{% endblock %}

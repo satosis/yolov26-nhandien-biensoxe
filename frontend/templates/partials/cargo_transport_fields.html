@@ -1,0 +1,163 @@
+{% set cargo_detail = trip if trip is defined else {} %}
+{% set selected_cargo_type = cargo_detail.get('cargo_description') or suggested_cargo_type or '' %}
+<section class="cargo-fuel-section mb-3" aria-label="Chi tiết vận tải" x-data="{
+  tripNote: {{ trip_note_value|tojson|forceescape }},
+  existingTrip: {{ 'true' if trip is defined else 'false' }},
+  inferredTripNote: '',
+  tripNoteManual: {{ 'true' if trip is defined and trip_note_value else 'false' }},
+  parsingTripNote: false,
+  provinces: {{ administrative_provinces|tojson|forceescape }},
+  cargoTypes: {{ cargo_types|tojson|forceescape }},
+  normalizeWorkText(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  },
+  provinceFromWorkText(value) {
+    const text = ' ' + this.normalizeWorkText(value) + ' ';
+    const matches = this.provinces.filter(item => {
+      const name = this.normalizeWorkText(item.name);
+      const shortName = name.replace(/^(tinh|thanh pho) /, '');
+      return text.includes(' ' + name + ' ') || text.includes(' ' + shortName + ' ');
+    });
+    return matches.sort((a, b) => this.normalizeWorkText(b.name).length - this.normalizeWorkText(a.name).length)[0]?.name || '';
+  },
+  setCatalogValue(id, value) {
+    const select = document.getElementById(id);
+    if (!select || !value || !Array.from(select.options).some(option => option.value === value)) return;
+    if (select.tomselect) select.tomselect.setValue(value, true);
+    else select.value = value;
+    if (id === 'cargo-service') this.serviceName = value;
+  },
+  parseTripNote(noteValue = this.tripNote) {
+    const note = String(noteValue || '').trim();
+    if (!note) return;
+    this.tripNote = note;
+    const normalized = this.normalizeWorkText(note);
+    const cargo = [...this.cargoTypes]
+      .sort((a, b) => this.normalizeWorkText(b).length - this.normalizeWorkText(a).length)
+      .find(item => (' ' + normalized + ' ').includes(' ' + this.normalizeWorkText(item) + ' '));
+    const serviceSelect = document.getElementById('cargo-service');
+    const services = serviceSelect ? Array.from(serviceSelect.options).map(option => option.value).filter(Boolean) : [];
+    const beforeRoute = this.normalizeWorkText(note.split(/\s+(?:từ)\s+/i)[0]);
+    let service = [...services].sort((a, b) => this.normalizeWorkText(b).length - this.normalizeWorkText(a).length)
+      .find(item => beforeRoute.includes(this.normalizeWorkText(item)) || beforeRoute.includes(this.normalizeWorkText(item).replace(/^cuoc /, '')));
+    if (!service && /\bvan chuyen\b/.test(beforeRoute)) {
+      const transport = services.filter(item => /\bvan chuyen\b/.test(this.normalizeWorkText(item)));
+      if (transport.length === 1) service = transport[0];
+    }
+    const route = note.match(/\b(?:từ)\s+(.+?)\s+(?:đến|đi|tới|->|→)\s+(.+)$/i);
+    const originProvince = route ? this.provinceFromWorkText(route[1]) : '';
+    const destinationProvince = route ? this.provinceFromWorkText(route[2]) : '';
+    const originChanged = originProvince && this.provinceName(this.origin) !== originProvince;
+    const destinationChanged = destinationProvince && this.provinceName(this.destination) !== destinationProvince;
+    const routeChanged = originChanged || destinationChanged;
+    this.parsingTripNote = true;
+    if (service) this.setCatalogValue('cargo-service', service);
+    if (cargo) this.setCatalogValue('cargo-description', cargo);
+    if (originChanged) {
+      this.origin = originProvince;
+      this.originFollowsCompany = false;
+    }
+    if (destinationChanged) this.destination = destinationProvince;
+    if (originProvince && destinationProvince && (routeChanged || this.distance_km === '' || this.distance_km === null)) {
+      this.distanceSeq++;
+      this.lastDistanceKey = '';
+      this.originCoords = null;
+      this.destCoords = null;
+      this.mapMatch = null;
+      if (routeChanged) this.distance_km = '';
+      if ((routeChanged && !this.fuelLitersUserEdited)
+          || this.fuelLiters === null || this.fuelLiters === '' || Number(this.fuelLiters) === 0) {
+        this.fuelLitersTouched = false;
+      }
+      this.scheduleDistanceCalculation();
+    }
+    this.$nextTick(() => { this.parsingTripNote = false; });
+  },
+  provinceName(addr) {
+    if (!addr || /^https?:\/\//i.test(addr.trim())) return '';
+    const normalize = text => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/^(tinh|thanh pho|tp\.?|tp)\s+/, '').trim();
+    const parts = addr.replace(/,?\s*Việt Nam\s*$/i, '').split(',').map(part => part.trim()).filter(Boolean).reverse();
+    for (const part of parts) {
+      const match = this.provinces.find(item => normalize(item.name) === normalize(part));
+      if (match) return match.name;
+    }
+    return '';
+  },
+  buildNote() {
+    const svc = (this.serviceName || '').trim();
+    const cargo = (() => {
+      const sel = document.getElementById('cargo-description');
+      return sel ? (sel.value || '').trim() : '';
+    })();
+    const o = this.provinceName((this.origin || '').trim());
+    const d = this.provinceName((this.destination || '').trim());
+    let note = svc;
+    const suffix = [...this.cargoTypes]
+      .filter(type => type && svc.toLocaleLowerCase('vi').endsWith(' ' + type.toLocaleLowerCase('vi')))
+      .sort((a, b) => b.length - a.length)[0];
+    if (suffix) note = svc.slice(0, -suffix.length).trim();
+    if (cargo) {
+      note = note ? `${note} ${cargo.toLocaleLowerCase('vi')}` : cargo;
+    }
+    if (o) note += ' từ ' + o;
+    if (d) note += ' đến ' + d;
+    return note.trim();
+  },
+  updateNote(force = false) {
+    if (this.parsingTripNote) return;
+    if (this.tripNoteManual) return;
+    const next = this.buildNote();
+    if (next) {
+      this.tripNote = next;
+      this.inferredTripNote = next;
+    }
+  },
+  init() {
+    this.inferredTripNote = this.buildNote();
+    const noteBase = this.inferredTripNote.split(/\s+từ\s+|\s+đến\s+/i)[0].toLocaleLowerCase('vi');
+    const existingNote = (this.tripNote || '').trim().toLocaleLowerCase('vi');
+    const generatedNote = noteBase && (existingNote.startsWith(noteBase + ' từ ') || existingNote.startsWith(noteBase + ' đến '));
+    if (!this.existingTrip && (!this.tripNote || this.tripNote.trim() === (this.serviceName || '').trim() || generatedNote)) {
+      this.tripNote = this.inferredTripNote;
+    }
+    this.$watch('serviceName', () => this.updateNote());
+    this.$watch('origin', () => { if (!this.parsingTripNote) this.updateNote(true); });
+    this.$watch('destination', () => { if (!this.parsingTripNote) this.updateNote(true); });
+    window.addEventListener('cargoLocationChanged', () => { if (!this.parsingTripNote) this.updateNote(true); });
+    const sel = document.getElementById('cargo-description');
+    if (sel) sel.addEventListener('change', () => this.updateNote(true));
+  }
+}">
+  <div class="row">
+    <div class="col-12 col-md-4 mb-2">
+      <label for="cargo-description">Loại hàng hóa</label>
+      <select id="cargo-description" name="cargo_description" class="form-control">
+        <option value="">— Chọn loại hàng hóa —</option>
+        {% if selected_cargo_type and selected_cargo_type not in cargo_types %}<option value="{{ selected_cargo_type }}" selected>{{ selected_cargo_type }}</option>{% endif %}
+        {% for cargo_type in cargo_types %}<option value="{{ cargo_type }}" {% if selected_cargo_type == cargo_type %}selected{% endif %}>{{ cargo_type }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 mb-2">
+      <label for="cargo-weight">Khối lượng (tấn)</label>
+      <input id="cargo-weight" name="cargo_weight_tons" type="number" min="0" step="0.001" class="form-control" value="{{ cargo_detail.get('cargo_weight_tons') if cargo_detail.get('cargo_weight_tons') is not none else '' }}">
+    </div>
+    <div class="col-12 mb-2">
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <label for="cargo-trip-note" class="mb-0">Nội dung công việc · đoạn 1</label>
+        <button type="button"
+                class="btn btn-link p-0 font-size-11 text-muted"
+                style="font-size:11px;"
+                x-show="tripNoteManual"
+                @click="tripNoteManual = false; updateNote()"
+                title="Đặt lại tự động theo dịch vụ và địa điểm">↺ Tự động</button>
+      </div>
+      <textarea id="cargo-trip-note" name="trip_note" rows="2" maxlength="4000"
+                :required="extraSegments.length > 0"
+                class="form-control cargo-long-text" x-model="tripNote"
+                @input="tripNoteManual = true"
+                @mouseleave="if (tripNoteManual) parseTripNote($el.value)"
+                @blur="parseTripNote($el.value)">{{ trip_note_value }}</textarea>
+    </div>
+  </div>
+</section>

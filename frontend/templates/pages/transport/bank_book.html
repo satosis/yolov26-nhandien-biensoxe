@@ -1,0 +1,2265 @@
+{% extends "layout.html" %}
+
+{% block title %}Sổ tiền gửi ngân hàng (Mẫu S05a-DNN) | Đại Lộ Xanh{% endblock %}
+
+{% block content %}
+<style>
+  .bb-stat-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: transform 0.15s ease;
+  }
+  .bb-stat-card:hover { transform: translateY(-2px); }
+  .table-responsive-bb {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .bb-table {
+    --bb-fs: 13px;
+    --bb-fs-th: 12px;
+    --bb-fs-btn: 11px;
+    --bb-fs-money: 15px;
+    --bb-fs-partner: 12px;
+    width: 100% !important;
+    table-layout: fixed;
+    margin-bottom: 0;
+  }
+  .bb-table col.bb-ca, .bb-table col.bb-cc { width: 86px; }
+  .bb-table col.bb-cb { width: 88px; }
+  .bb-table col.bb-cd { width: 124px; }
+  .bb-table col.bb-cg { width: 54px; }
+  .bb-table col.bb-c1, .bb-table col.bb-c2 { width: 116px; }
+  .bb-table col.bb-c3 { width: 124px; }
+  .bb-table col.bb-ch { width: 80px; }
+  @media (min-width: 1650px) {
+    .bb-table col.bb-ce { width: clamp(220px, 15vw, 340px); }
+  }
+  @media (min-width: 1800px) {
+    .bb-table { --bb-fs-money: 16px; }
+    .bb-table col.bb-c1, .bb-table col.bb-c2 { width: 126px; }
+    .bb-table col.bb-c3 { width: 134px; }
+  }
+  @media (max-width: 1499px) {
+    .bb-table { --bb-fs: 12px; --bb-fs-th: 11px; --bb-fs-btn: 10.5px; --bb-fs-money: 12px; --bb-fs-partner: 11.5px; }
+    .bb-table col.bb-ca, .bb-table col.bb-cc { width: 78px; }
+    .bb-table col.bb-cb { width: 80px; }
+    .bb-table col.bb-cd { width: 112px; }
+    .bb-table col.bb-cg { width: 48px; }
+    .bb-table col.bb-c1, .bb-table col.bb-c2 { width: 90px; }
+    .bb-table col.bb-c3 { width: 96px; }
+    .bb-table col.bb-ch { width: 74px; }
+  }
+  @media (max-width: 1199px) {
+    .bb-table { --bb-fs: 11px; --bb-fs-th: 10.5px; --bb-fs-btn: 10px; --bb-fs-money: 11px; --bb-fs-partner: 11px; }
+    .bb-table col.bb-ca, .bb-table col.bb-cc { width: 72px; }
+    .bb-table col.bb-cb { width: 76px; }
+    .bb-table col.bb-cd { width: 102px; }
+    .bb-table col.bb-cg { width: 46px; }
+    .bb-table col.bb-c1, .bb-table col.bb-c2 { width: 84px; }
+    .bb-table col.bb-c3 { width: 88px; }
+    .bb-table col.bb-ch { width: 70px; }
+  }
+  .bb-table th {
+    background: #0f172a !important;
+    color: #ffffff !important;
+    font-size: var(--bb-fs-th);
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #334155 !important;
+    padding: 4px 2px;
+    line-height: 1.2;
+    letter-spacing: -0.2px;
+    white-space: nowrap !important;
+  }
+  .bb-table td {
+    font-size: var(--bb-fs);
+    vertical-align: middle;
+    border: 1px solid #e2e8f0;
+    padding: 2px 3px !important;
+    line-height: 1.2;
+  }
+  /* Quy tắc chung của bảng (.table tbody td: đệm 10px, chữ 12.5px) làm cột bị tràn đè chữ; ép lại cỡ gọn của sổ */
+  .table.bb-table tbody td, .table.bb-table tfoot td {
+    font-size: var(--bb-fs) !important;
+    padding: 3px 4px !important;
+    line-height: 1.25 !important;
+  }
+  .table.bb-table td.bb-money { padding-right: 4px !important; font-size: var(--bb-fs-money) !important; }
+  .table.bb-table td.bb-partner { font-size: var(--bb-fs-partner) !important; }
+  .table.bb-table thead th { padding: 4px 2px !important; white-space: normal !important; }
+  .table.bb-table .bb-btn-action {
+    font-size: var(--bb-fs-btn) !important;
+    padding: 1px 5px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    line-height: 1.2 !important;
+    gap: 2px !important;
+  }
+  .bb-table td.bb-nowrap {
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bb-table td.bb-wrap {
+    word-break: break-word;
+    white-space: normal;
+  }
+  .bb-table tr:hover td {
+    background-color: #f8fafc;
+  }
+  .bb-money {
+    text-align: right;
+    font-family: 'Consolas', 'Roboto Mono', monospace;
+    font-size: var(--bb-fs);
+    white-space: nowrap !important;
+    padding-right: 4px !important;
+    letter-spacing: -0.3px;
+  }
+  .bb-clip-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  .bb-btn-action {
+    font-size: 10px;
+    padding: 1px 4px;
+    line-height: 1.2;
+  }
+  @media print {
+    #page-topbar, #sidebar-menu, .vertical-menu, .bb-stat-card, #bbFilterForm, .btn, .bb-btn-action { display: none !important; }
+    .table-responsive-bb { overflow: visible !important; }
+    .bb-table { width: 100% !important; font-size: 9.5px; }
+    .bb-table th, .bb-table td { padding: 2px 1px !important; }
+  }
+</style>
+
+<div class="container-fluid px-3 py-3">
+  <!-- BREADCRUMB & HEADER -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3" style="gap:10px 16px;">
+    <div style="min-width:0;">
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <span class="badge badge-primary px-2 py-1 font-size-11">THÔNG TƯ 133/2016/TT-BTC</span>
+        <span class="badge badge-info px-2 py-1 font-size-11">MẪU SỐ S05a-DNN</span>
+        <span class="badge badge-success px-2 py-1 font-size-11"><i class="bx bx-check-double mr-1"></i>TK 112 (TIỀN GỬI NGÂN HÀNG)</span>
+      </div>
+      <h4 class="mb-0 mt-1 font-weight-bold text-dark" style="letter-spacing:-0.3px;">
+        <i class="bx bx-credit-card text-primary mr-1"></i>SỔ TIỀN GỬI NGÂN HÀNG
+      </h4>
+      <p class="text-muted font-size-12 mb-0">
+        {{ bank_data.company_name }} &bull; Số TK: <strong class="text-primary font-monospace">{{ bank_data.bank_account_no }}</strong> tại <strong>{{ bank_data.bank_name }}</strong>
+      </p>
+    </div>
+    <div class="d-flex flex-wrap align-items-center justify-content-end ml-auto" style="gap:6px;">
+      <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm font-weight-bold" id="btn-renumber-vouchers" onclick="renumberVouchers(this, 'bank')">
+        <i class="bx bx-list-ol mr-1"></i>Đánh lại số chứng từ
+      </button>
+      <a href="/admin/transport/bank-book/template" class="btn btn-sm btn-outline-secondary shadow-sm font-weight-bold">
+        <i class="bx bx-file mr-1"></i>Tải mẫu Excel
+      </a>
+      <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm font-weight-bold" data-toggle="modal" data-target="#importBankExcelModal">
+        <i class="bx bx-upload mr-1"></i>Nhập từ Excel
+      </button>
+      <a href="/admin/transport/bank-book/export?year={{ selected_year }}&period={{ active_period }}&date_from={{ date_from }}&date_to={{ date_to }}&account_no={{ selected_account_no }}"
+         class="btn btn-sm btn-outline-success shadow-sm font-weight-bold">
+        <i class="bx bx-download mr-1"></i>Xuất Excel S05a-DNN
+      </a>
+      <div class="dropdown">
+        <button type="button" class="btn btn-sm btn-outline-primary shadow-sm font-weight-bold dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <i class="bx bx-list-ul mr-1"></i>Nghiệp vụ
+        </button>
+        <div class="dropdown-menu dropdown-menu-right">
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#taxPayModal"><i class="bx bx-building-house mr-2"></i>Nộp thuế</button>
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#insPayModal"><i class="bx bx-shield-quarter mr-2"></i>Nộp bảo hiểm</button>
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#salPayModal"><i class="bx bx-money mr-2"></i>Trả lương</button>
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#rentPayModal"><i class="bx bx-home mr-2"></i>Thuê nhà văn phòng</button>
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#bankInterestModal"><i class="bx bx-coin mr-2"></i>Lãi tiền gửi</button>
+          <button type="button" class="dropdown-item" data-toggle="modal" data-target="#cashTransferModal"><i class="bx bx-transfer mr-2"></i>Nộp / Rút tiền mặt</button>
+        </div>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary shadow-sm font-weight-bold" data-toggle="modal" data-target="#addBankVoucherModal">
+        <i class="bx bx-plus-circle mr-1"></i>Ghi nhận Giao dịch Ngân hàng
+      </button>
+    </div>
+  </div>
+
+  <!-- BỘ LỌC KỲ BÁO CÁO SỔ TIỀN GỬI NGÂN HÀNG -->
+  <div class="card mb-3 border-0 shadow-sm" style="background:#f8fafc; border:1px solid #e2e8f0 !important; border-radius:8px;">
+    <form id="bbFilterForm" method="GET" action="/admin/transport/bank-book" class="card-body py-2 px-3">
+      <div class="row align-items-center">
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-weight-bold text-secondary font-size-12">
+            <i class="bx bx-calendar mr-1 text-primary"></i>Năm:
+          </span>
+          <select name="year" id="bbYearSelect" class="form-control form-control-sm font-weight-bold" onchange="document.getElementById('bbFilterForm').submit()" style="width:105px; height:32px;">
+            {% for y in available_years %}
+              <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>Năm {{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-weight-bold text-secondary font-size-12">
+            <i class="bx bx-calendar-event mr-1 text-primary"></i>Chọn theo kỳ:
+          </span>
+          <select name="period" id="bbPeriodSelect" class="form-control form-control-sm font-weight-bold" onchange="handlePeriodChange(this.value)" style="min-width:165px; height:32px;">
+            <option value="today" {% if active_period == 'today' %}selected{% endif %}>📅 Đến hiện tại (Hôm nay)</option>
+            <option value="all" {% if active_period == 'all' or active_period == 'year' %}selected{% endif %}>📆 Cả năm {{ selected_year }}</option>
+            <option value="q1" {% if active_period == 'q1' %}selected{% endif %}>Quý 1 (01/01 - 31/03)</option>
+            <option value="q2" {% if active_period == 'q2' %}selected{% endif %}>Quý 2 (01/04 - 30/06)</option>
+            <option value="q3" {% if active_period == 'q3' %}selected{% endif %}>Quý 3 (01/07 - 30/09)</option>
+            <option value="q4" {% if active_period == 'q4' %}selected{% endif %}>Quý 4 (01/10 - 31/12)</option>
+            <option value="m1" {% if active_period == 'm1' %}selected{% endif %}>Tháng 1</option>
+            <option value="m2" {% if active_period == 'm2' %}selected{% endif %}>Tháng 2</option>
+            <option value="m3" {% if active_period == 'm3' %}selected{% endif %}>Tháng 3</option>
+            <option value="m4" {% if active_period == 'm4' %}selected{% endif %}>Tháng 4</option>
+            <option value="m5" {% if active_period == 'm5' %}selected{% endif %}>Tháng 5</option>
+            <option value="m6" {% if active_period == 'm6' %}selected{% endif %}>Tháng 6</option>
+            <option value="m7" {% if active_period == 'm7' %}selected{% endif %}>Tháng 7</option>
+            <option value="m8" {% if active_period == 'm8' %}selected{% endif %}>Tháng 8</option>
+            <option value="m9" {% if active_period == 'm9' %}selected{% endif %}>Tháng 9</option>
+            <option value="m10" {% if active_period == 'm10' %}selected{% endif %}>Tháng 10</option>
+            <option value="m11" {% if active_period == 'm11' %}selected{% endif %}>Tháng 11</option>
+            <option value="m12" {% if active_period == 'm12' %}selected{% endif %}>Tháng 12</option>
+            <option value="custom" {% if active_period == 'custom' %}selected{% endif %}>Tùy chọn ngày...</option>
+          </select>
+        </div>
+
+        <div class="col-auto d-flex align-items-center" style="gap:6px;">
+          <span class="font-size-11 text-muted">Từ</span>
+          <input type="date" name="date_from" id="bbDateFrom" value="{{ date_from }}" class="form-control form-control-sm font-weight-bold" style="width:135px; height:32px;">
+          <span class="font-size-11 text-muted">đến</span>
+          <input type="date" name="date_to" id="bbDateTo" value="{{ date_to }}" class="form-control form-control-sm font-weight-bold" style="width:135px; height:32px;">
+          <button type="submit" class="btn btn-sm btn-primary py-1 px-3 shadow-sm font-weight-bold" style="height:32px;">
+            <i class="bx bx-filter-alt mr-1"></i>Lọc sổ
+          </button>
+        </div>
+        <div class="col text-right font-size-12 text-muted">
+          Kỳ hiển thị: <strong class="text-primary font-monospace">{{ date_from_display }} &rarr; {{ date_to_display }}</strong>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- 4 THẺ THỐNG KÊ TỒN NGÂN HÀNG -->
+  <div class="row mb-3" style="margin-left:-6px; margin-right:-6px;">
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="bb-stat-card border-left border-primary" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">1. Số dư đầu kỳ</div>
+        <div class="h5 font-weight-bold text-primary mb-0 mt-1">{{ bank_data.opening_balance|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="bb-stat-card border-left border-success" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">2. Tổng Gửi vào / Báo Có (Nợ 112)</div>
+        <div class="h5 font-weight-bold text-success mb-0 mt-1">+{{ bank_data.total_deposit|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="bb-stat-card border-left border-danger" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">3. Tổng Rút ra / Báo Nợ (Có 112)</div>
+        <div class="h5 font-weight-bold text-danger mb-0 mt-1">-{{ bank_data.total_withdraw|format_currency }}</div>
+      </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2 px-2">
+      <div class="bb-stat-card border-left border-info" style="border-left-width:4px !important;">
+        <div class="text-muted font-size-11 font-weight-bold text-uppercase">4. Số dư cuối kỳ (Còn lại)</div>
+        <div class="h5 font-weight-bold text-info mb-0 mt-1">{{ bank_data.closing_balance|format_currency }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BẢNG SỔ TIỀN GỬI NGÂN HÀNG (CHUẨN FORM MẪU S05a-DNN) -->
+  <div class="card border-0 shadow-sm mb-4" style="border:1px solid #e2e8f0 !important; border-radius:8px; overflow:hidden;">
+    <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+      <strong class="font-size-13 text-dark">
+        <i class="bx bx-buildings mr-1 text-primary"></i>Sổ tiền gửi ngân hàng chi tiết (Mẫu S05a-DNN)
+      </strong>
+      <span class="badge badge-light border text-muted">Tổng cộng: {{ bank_data.entries|length }} giao dịch</span>
+    </div>
+
+    <div class="table-responsive table-responsive-bb">
+      <table class="table table-sm table-hover mb-0 bb-table">
+        <colgroup>
+          <col class="bb-ca">   <!-- A: Ngày ghi -->
+          <col class="bb-cb">   <!-- B: Số hiệu CT -->
+          <col class="bb-cc">   <!-- C: Ngày CT -->
+          <col class="bb-cd">   <!-- D: Mã khách -->
+          <col class="bb-ce">   <!-- E: Tên khách -->
+          <col>                 <!-- F: Diễn giải -->
+          <col class="bb-cg">   <!-- G: TK đối -->
+          <col class="bb-c1">   <!-- 1: Gửi vào (Thu) -->
+          <col class="bb-c2">   <!-- 2: Rút ra (Chi) -->
+          <col class="bb-c3">   <!-- 3: Còn lại (Tồn) -->
+          <col class="bb-ch">   <!-- H: Thao tác -->
+        </colgroup>
+        <thead>
+          <tr>
+            <th rowspan="2">Ngày ghi</th>
+            <th colspan="2">Chứng từ</th>
+            <th rowspan="2">Mã khách</th>
+            <th rowspan="2">Tên khách</th>
+            <th rowspan="2">Diễn giải</th>
+            <th rowspan="2">TK đối</th>
+            <th colspan="3">Số tiền (VNĐ)</th>
+            <th rowspan="2">Thao tác</th>
+          </tr>
+          <tr>
+            <th>Số hiệu</th>
+            <th>Ngày CT</th>
+            <th>Gửi vào (Thu)</th>
+            <th>Rút ra (Chi)</th>
+            <th>Còn lại (Tồn)</th>
+          </tr>
+          <tr style="background:#f8fafc; font-size:10px; color:#64748b; font-weight:bold;">
+            <th>A</th>
+            <th>B</th>
+            <th>C</th>
+            <th>D</th>
+            <th>E</th>
+            <th>F</th>
+            <th>G</th>
+            <th>1</th>
+            <th>2</th>
+            <th>3</th>
+            <th>H</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Dòng Số dư đầu kỳ -->
+          <tr class="font-weight-bold" style="background:#fefce8;">
+            <td class="text-center text-muted bb-nowrap">—</td>
+            <td class="text-center text-muted bb-nowrap">—</td>
+            <td class="text-center text-muted bb-nowrap">—</td>
+            <td class="text-center text-muted bb-nowrap">—</td>
+            <td class="text-center text-muted bb-wrap">—</td>
+            <td class="text-center font-weight-bold text-dark bb-wrap">
+              <i class="bx bx-bookmark-alt mr-1 text-warning"></i>Số dư đầu kỳ
+            </td>
+            <td class="text-center text-muted bb-nowrap">—</td>
+            <td class="bb-money text-muted bb-nowrap">—</td>
+            <td class="bb-money text-muted bb-nowrap">—</td>
+            <td class="bb-money font-weight-bold text-primary bb-nowrap">{{ bank_data.opening_balance|format_number }}</td>
+            <td class="text-center bb-nowrap px-1">
+              <button type="button" class="btn btn-xs btn-outline-info bb-btn-action" title="Chỉnh sửa hoặc xóa số dư đầu kỳ về 0" onclick="openEditOpeningModal('bank', {{ bank_data.initial_opening }})">Sửa</button>
+            </td>
+          </tr>
+
+          {% for e in bank_data.entries %}
+          <tr>
+            <td class="text-center font-weight-medium text-dark bb-nowrap">{{ e.entry_date }}</td>
+            <td class="text-center font-weight-bold font-monospace bb-nowrap {{ 'text-success' if e.voucher_type == 'receipt' else 'text-danger' }}">{{ e.voucher_no }}</td>
+            <td class="text-center text-secondary bb-nowrap">{{ e.voucher_date }}</td>
+            <td class="text-center font-monospace font-weight-bold text-dark bb-nowrap">{{ e.partner_code or '—' }}</td>
+            <td class="text-left font-weight-medium text-dark bb-wrap bb-partner" title="{{ e.partner_name or '' }}">
+              <div class="bb-clip-2">{{ e.partner_name or '—' }}</div>
+            </td>
+            <td class="text-left text-dark bb-wrap" title="{{ e.description or '' }}">
+              <div class="bb-clip-2">{{ e.description }}</div>
+            </td>
+            <td class="text-center font-weight-bold text-secondary font-monospace bb-nowrap">{{ e.offset_account }}</td>
+            <td class="bb-money font-weight-bold text-success bb-nowrap">
+              {{ e.deposit_amount|format_number if e.deposit_amount > 0 else '—' }}
+            </td>
+            <td class="bb-money font-weight-bold text-danger bb-nowrap">
+              {{ e.withdraw_amount|format_number if e.withdraw_amount > 0 else '—' }}
+            </td>
+            <td class="bb-money font-weight-bold text-primary bb-nowrap">
+              {{ e.balance|format_number }}
+            </td>
+            <td class="text-center bb-nowrap px-1">
+              <div class="d-inline-flex align-items-center justify-content-center" style="gap:2px;">
+                <button type="button" class="btn btn-xs btn-outline-primary bb-btn-action" title="Sửa giao dịch" onclick="openEditBankModal({{ e.id }})">Sửa</button>
+                <button type="button" class="btn btn-xs btn-outline-danger bb-btn-action" title="Xóa giao dịch" onclick="deleteBankEntry({{ e.id }}, '{{ e.voucher_no }}')">
+                  <i class="bx bx-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="11" class="text-center py-4 text-muted">Không có phát sinh giao dịch ngân hàng trong kỳ này.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <!-- Dòng Cộng số phát sinh -->
+          <tr class="font-weight-bold" style="background:#fffbeb;">
+            <td colspan="7" class="text-left text-uppercase text-dark font-weight-bold pl-2">
+              <i class="bx bx-calculator mr-1 text-warning"></i>Cộng số phát sinh trong kỳ
+            </td>
+            <td class="bb-money text-success font-weight-bold bb-nowrap">{{ bank_data.total_deposit|format_number }}</td>
+            <td class="bb-money text-danger font-weight-bold bb-nowrap">{{ bank_data.total_withdraw|format_number }}</td>
+            <td class="bb-money text-muted bb-nowrap">—</td>
+            <td class="bb-nowrap"></td>
+          </tr>
+          <!-- Dòng Số dư cuối kỳ -->
+          <tr class="font-weight-bold" style="background:#eff6ff; font-size:12.5px;">
+            <td colspan="7" class="text-left text-uppercase text-primary font-weight-bold pl-2">
+              <i class="bx bx-check-circle mr-1 text-primary"></i>Số dư cuối kỳ
+            </td>
+            <td class="bb-money text-muted bb-nowrap">—</td>
+            <td class="bb-money text-muted bb-nowrap">—</td>
+            <td class="bb-money text-primary font-weight-bold bb-nowrap">{{ bank_data.closing_balance|format_number }}</td>
+            <td class="bb-nowrap"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NỘP THUẾ -->
+<div class="modal fade" id="taxPayModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-building-house mr-1"></i>Nộp thuế qua Ngân hàng
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="taxPayCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày nộp <span class="text-danger">*</span></label>
+            <input type="date" id="taxPayDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="taxPayVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Kỳ thuế</label>
+            <input type="hidden" id="taxPayPeriod">
+            <div class="d-flex" style="gap:6px;">
+              <select id="taxPayPeriodPart" data-no-search class="form-control form-control-sm font-weight-bold" style="flex:1 1 55%; min-width:0;" aria-label="Kỳ thuế" onchange="taxPayPeriodSync()">
+                <option value="">Kỳ</option>
+                <optgroup label="Theo tháng">
+                  {% for m in range(1, 13) %}<option value="{{ '%02d'|format(m) }}">Tháng {{ m }}</option>{% endfor %}
+                </optgroup>
+                <optgroup label="Theo quý">
+                  {% for q in range(1, 5) %}<option value="Q{{ q }}">Quý {{ q }}</option>{% endfor %}
+                </optgroup>
+              </select>
+              <select id="taxPayPeriodYear" data-no-search class="form-control form-control-sm font-weight-bold" style="flex:1 1 45%; min-width:0;" aria-label="Năm" onchange="taxPayPeriodSync()">
+                <option value="">Năm</option>
+                {% for y in range(today.year + 2, today.year - 9, -1) %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Cơ quan nhận</label>
+            <input type="text" id="taxPayPartnerName" placeholder="Kho bạc Nhà nước / Cơ quan Thuế" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="card p-2 mb-2 bg-light border-0">
+          <span class="font-size-12 font-weight-bold text-secondary mb-2"><i class="bx bx-list-check mr-1"></i>Các khoản thuế nộp</span>
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thuế GTGT (33311)</label>
+              <input type="text" id="taxPayItem_gtgt" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thuế TNDN (3334)</label>
+              <input type="text" id="taxPayItem_tndn" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thuế TNCN (3335)</label>
+              <input type="text" id="taxPayItem_tncn" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thuế môn bài (3338)</label>
+              <input type="text" id="taxPayItem_monbai" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Lệ phí trước bạ (3339)</label>
+              <input type="text" id="taxPayItem_truocba" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Thuế/phí/lệ phí khác (3339)</label>
+              <input type="text" id="taxPayItem_khac" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); taxPayUpdateTotal();">
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-info py-2 px-3 mb-2 font-weight-bold font-size-13 d-flex justify-content-between align-items-center">
+          <span>Tổng:</span>
+          <span id="taxPayTotalText" class="text-danger font-monospace font-size-14 font-weight-bold">0 đ</span>
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="taxPayNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitTaxPay" onclick="taxPaySubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu nộp thuế
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NỘP BẢO HIỂM -->
+<div class="modal fade" id="insPayModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-shield-quarter mr-1"></i>Nộp bảo hiểm qua Ngân hàng
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="insPayCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày nộp <span class="text-danger">*</span></label>
+            <input type="date" id="insPayDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" onchange="insPayOnDateChange()" required>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="insPayVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Kỳ nộp bảo hiểm</label>
+            <input type="month" data-vi-month id="insPayPeriod" value="{% if today.month == 1 %}{{ today.year - 1 }}-12{% else %}{{ today.year }}-{{ '%02d'|format(today.month - 1) }}{% endif %}" class="form-control form-control-sm font-weight-bold" onchange="insPayOnPeriodChange()">
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Cơ quan nhận</label>
+            <input type="text" id="insPayPartnerName" placeholder="Cơ quan Bảo hiểm xã hội" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="card p-2 mb-2 bg-light border-0">
+          <span class="font-size-12 font-weight-bold text-secondary mb-2"><i class="bx bx-list-check mr-1"></i>Các khoản bảo hiểm</span>
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">BHXH (3383)</label>
+              <input type="text" id="insPayItem_bhxh" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); insPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">BHYT (3384)</label>
+              <input type="text" id="insPayItem_bhyt" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); insPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">BHTN (3385)</label>
+              <input type="text" id="insPayItem_bhtn" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); insPayUpdateTotal();">
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">KPCĐ (3382, tuỳ chọn)</label>
+              <input type="text" id="insPayItem_kpcd" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this); insPayUpdateTotal();">
+            </div>
+          </div>
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Số tiền theo thông báo / bảng C12 (tùy chọn)</label>
+          <input type="text" id="insPayNoticeTotal" placeholder="VD: 15.000.000" class="form-control form-control-sm font-monospace font-weight-bold" oninput="formatCurrencyInput(this); insPaySplitNotice(); insPayUpdateTotal();">
+        </div>
+        <div id="insPaySuggestion" class="text-muted font-size-11 mb-2 font-italic">
+          <i class="bx bx-info-circle mr-1"></i>Gợi ý theo bảng lương tháng: <span id="insPaySuggestionVal" class="font-weight-bold text-primary">0 đ</span>
+        </div>
+        <div class="alert alert-info py-2 px-3 mb-2 font-weight-bold font-size-13 d-flex justify-content-between align-items-center">
+          <span>Tổng các khoản:</span>
+          <span id="insPayTotalText" class="text-primary font-monospace font-size-14 font-weight-bold">0 đ</span>
+        </div>
+        <div id="insPayDiffAlert" class="alert alert-warning py-1 px-3 mb-2 font-size-12 font-weight-bold text-danger d-none">
+          <i class="bx bx-error mr-1"></i>Lệch so với thông báo: <span id="insPayDiffVal">0 đ</span>
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="insPayNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitInsPay" onclick="insPaySubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu nộp bảo hiểm
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL TRẢ LƯƠNG -->
+<div class="modal fade" id="salPayModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-money mr-1"></i>Trả lương qua Ngân hàng
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="salPayCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="row">
+          <div class="col-md-4 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày chi <span class="text-danger">*</span></label>
+            <input type="date" id="salPayDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-4 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="salPayVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+          <div class="col-md-4 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Kỳ lương</label>
+            <div class="input-group input-group-sm">
+              <input type="month" data-vi-month id="salPayPeriod" value="{% if today.month == 1 %}{{ today.year - 1 }}-12{% else %}{{ today.year }}-{{ '%02d'|format(today.month - 1) }}{% endif %}" class="form-control form-control-sm font-weight-bold" onchange="salPayFetchPayroll()">
+              <div class="input-group-append">
+                <button type="button" class="btn btn-outline-info font-weight-bold" onclick="salPayFetchPayroll()" title="Lấy lại danh sách nhân viên">
+                  <i class="bx bx-refresh"></i> Lấy bảng lương
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-2 mb-2 bg-light border-0">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="font-size-12 font-weight-bold text-secondary">
+              <i class="bx bx-user-check mr-1"></i>Danh sách nhân viên nhận lương
+            </span>
+          </div>
+          <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+            <table class="table table-sm table-bordered bg-white mb-0 font-size-12">
+              <thead class="thead-light">
+                <tr>
+                  <th style="width: 40px;" class="text-center">Chọn</th>
+                  <th>Họ và tên</th>
+                  <th style="width: 180px;" class="text-right">Lương thực nhận (VNĐ)</th>
+                </tr>
+              </thead>
+              <tbody id="salPayTableBody">
+                <tr>
+                  <td colspan="3" class="text-center py-2 text-muted">Đang chuẩn bị...</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="bg-light">
+                  <td class="text-center align-middle font-weight-bold">+</td>
+                  <td class="align-middle">
+                    <input type="text" id="salPayOtherName" placeholder="Người nhận khác (tùy chọn)" class="form-control form-control-sm">
+                  </td>
+                  <td class="align-middle">
+                    <input type="text" id="salPayOtherAmount" placeholder="0" class="form-control form-control-sm text-right font-monospace font-weight-bold text-primary" oninput="formatCurrencyInput(this); salPayUpdateTotal();">
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div id="salPayEmptyNote" class="alert alert-warning py-1 px-2 mt-2 mb-0 font-size-11 d-none">
+            <i class="bx bx-info-circle mr-1"></i>Chưa có bảng lương tháng này — nhập tay ở dòng Người nhận khác.
+          </div>
+        </div>
+
+        <div class="alert alert-info py-2 px-3 mb-2 font-weight-bold font-size-13 d-flex justify-content-between align-items-center">
+          <span>Tổng:</span>
+          <span id="salPayTotalText" class="text-success font-monospace font-size-14 font-weight-bold">0 đ</span>
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="salPayNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitSalPay" onclick="salPaySubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu trả lương
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL THUÊ NHÀ VĂN PHÒNG -->
+<div class="modal fade" id="rentPayModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-home mr-1"></i>Chi phí thuê nhà văn phòng
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="rentPayCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày chi <span class="text-danger">*</span></label>
+            <input type="date" id="rentPayDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="rentPayVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Tháng thuê</label>
+            <input type="month" data-vi-month id="rentPayPeriod" value="{{ today.strftime('%Y-%m') }}" class="form-control form-control-sm font-weight-bold">
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Chủ nhà</label>
+            <input type="text" id="rentPayLandlord" value="{{ rent_landlord_default or '' }}" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Số tiền <span class="text-danger">*</span></label>
+          <input type="text" id="rentPayAmount" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="rentPayNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Đóng</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitRentPay" onclick="rentPaySubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LÃI TIỀN GỬI NGÂN HÀNG -->
+<div class="modal fade" id="bankInterestModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-coin mr-1"></i>Lãi tiền gửi ngân hàng
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="bankInterestCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày nhận lãi <span class="text-danger">*</span></label>
+            <input type="date" id="bankInterestDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="bankInterestVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Kỳ</label>
+          <input type="month" data-vi-month id="bankInterestPeriod" value="{{ today.strftime('%Y-%m') }}" class="form-control form-control-sm font-weight-bold">
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Số tiền lãi <span class="text-danger">*</span></label>
+          <input type="text" id="bankInterestAmount" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="bankInterestNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Đóng</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitBankInterest" onclick="bankInterestSubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NỘP / RÚT TIỀN MẶT -->
+<div class="modal fade" id="cashTransferModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-transfer mr-1"></i>Nộp / Rút tiền mặt
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <div class="modal-body p-3">
+        <input type="hidden" id="cashTransferCompanyId" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark d-block mb-1">Loại giao dịch</label>
+          <div class="custom-control custom-radio custom-control-inline">
+            <input type="radio" id="cashTransferDirDeposit" name="cashTransferDirection" class="custom-control-input" value="deposit" checked onchange="cashTransferOnDirectionChange()">
+            <label class="custom-control-label font-size-12 font-weight-bold" for="cashTransferDirDeposit">Nộp tiền mặt vào tài khoản (Nợ 112 / Có 111)</label>
+          </div>
+          <div class="custom-control custom-radio custom-control-inline">
+            <input type="radio" id="cashTransferDirWithdraw" name="cashTransferDirection" class="custom-control-input" value="withdraw" onchange="cashTransferOnDirectionChange()">
+            <label class="custom-control-label font-size-12 font-weight-bold" for="cashTransferDirWithdraw">Rút tiền gửi về quỹ (Nợ 111 / Có 112)</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Ngày chứng từ <span class="text-danger">*</span></label>
+            <input type="date" id="cashTransferDate" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-md-6 form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số chứng từ</label>
+            <input type="text" id="cashTransferVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+          </div>
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Số tiền <span class="text-danger">*</span></label>
+          <input type="text" id="cashTransferAmount" class="form-control form-control-sm font-weight-bold text-primary font-monospace" placeholder="0" oninput="formatCurrencyInput(this)">
+        </div>
+        <div class="form-group mb-2">
+          <label class="font-size-12 font-weight-bold text-dark">Diễn giải</label>
+          <input type="text" id="cashTransferDescription" class="form-control form-control-sm" value="Nộp tiền TK" oninput="cashTransferOnDescInput()">
+        </div>
+        <div class="form-group mb-0">
+          <label class="font-size-12 font-weight-bold text-dark">Ghi chú</label>
+          <input type="text" id="cashTransferNote" class="form-control form-control-sm">
+        </div>
+      </div>
+      <div class="modal-footer py-2 bg-light">
+        <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+        <button type="button" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitCashTransfer" onclick="cashTransferSubmit()">
+          <i class="bx bx-save mr-1"></i>Lưu
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GHI NHẬN GIAO DỊCH NGÂN HÀNG -->
+<div class="modal fade" id="addBankVoucherModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white">
+          <i class="bx bx-credit-card mr-1"></i>Ghi nhận Giao dịch Ngân hàng (VietinBank)
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="bankVoucherForm" onsubmit="submitBankVoucher(event)">
+        <input type="hidden" name="book_type" value="bank">
+        <input type="hidden" name="company_id" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <input type="hidden" name="bank_account_no" value="{{ bank_data.bank_account_no }}">
+        <div class="modal-body p-3">
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Loại giao dịch <span class="text-danger">*</span></label>
+            <div class="d-flex" style="gap:15px;">
+              <div class="custom-control custom-radio">
+                <input type="radio" id="bvtReceipt" name="voucher_type" value="receipt" class="custom-control-input" checked>
+                <label class="custom-control-label font-weight-bold text-success" for="bvtReceipt">Báo Có (Gửi vào / Thu Nợ 112)</label>
+              </div>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="bvtPayment" name="voucher_type" value="payment" class="custom-control-input">
+                <label class="custom-control-label font-weight-bold text-danger" for="bvtPayment">Báo Nợ / UNC (Rút ra / Chi Có 112)</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ngày giao dịch</label>
+              <input type="date" name="voucher_date" value="{{ today.strftime('%Y-%m-%d') }}" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số hiệu chứng từ / UNC</label>
+              <input type="text" name="voucher_no" placeholder="VD: UNC-0012, BC-0045" class="form-control form-control-sm font-monospace font-weight-bold">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số tiền (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="amount" id="addBankAmount" placeholder="VD: 50.000.000" class="form-control form-control-sm font-weight-bold text-primary font-monospace" oninput="formatCurrencyInput(this)" autocomplete="off" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Tài khoản đối ứng</label>
+              <input type="text" name="offset_account" value="131" placeholder="131, 331, 111, 154" class="form-control form-control-sm font-weight-bold">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-5 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Mã khách / MST</label>
+              <input type="text" name="partner_code" id="addBankPartnerCode" list="bankCompanyTaxList" placeholder="VD: 0101439643" class="form-control form-control-sm font-monospace font-weight-bold" autocomplete="off">
+            </div>
+            <div class="col-md-7 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Khách hàng / Đối tác / Nhà cung cấp</label>
+              <input type="text" name="partner_name" id="addBankPartnerName" list="bankCompanyNameList" placeholder="Tên đơn vị chuyển khoản hoặc thụ hưởng" class="form-control form-control-sm" autocomplete="off">
+            </div>
+          </div>
+          <div id="addBankOpenInv" class="mb-2" style="display:none"></div>
+
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Diễn giải nội dung <span class="text-danger">*</span></label>
+            <input type="text" name="description" placeholder="VD: KH chuyển khoản thanh toán cước, UNC thanh toán tiền dầu..." class="form-control form-control-sm" required>
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="font-size-12 font-weight-bold text-dark">Ghi chú kèm theo</label>
+            <input type="text" name="note" placeholder="Mã giao dịch ngân hàng, số HĐ kèm theo..." class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitBankVoucher">
+            <i class="bx bx-save mr-1"></i>Lưu vào Sổ ngân hàng
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SỬA GIAO DỊCH NGÂN HÀNG -->
+<div class="modal fade" id="editBankVoucherModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-warning text-dark py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold">
+          <i class="bx bx-edit mr-1"></i>Sửa Giao dịch Ngân hàng (VietinBank)
+        </h5>
+        <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="editBankVoucherForm" onsubmit="submitEditBankVoucher(event)">
+        <input type="hidden" name="entry_id" id="editBankId">
+        <input type="hidden" name="company_id" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="modal-body p-3">
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Loại giao dịch <span class="text-danger">*</span></label>
+            <div class="d-flex" style="gap:15px;">
+              <div class="custom-control custom-radio">
+                <input type="radio" id="editBvtReceipt" name="voucher_type" value="receipt" class="custom-control-input">
+                <label class="custom-control-label font-weight-bold text-success" for="editBvtReceipt">Báo Có (Gửi vào / Thu Nợ 112)</label>
+              </div>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="editBvtPayment" name="voucher_type" value="payment" class="custom-control-input">
+                <label class="custom-control-label font-weight-bold text-danger" for="editBvtPayment">Báo Nợ / UNC (Rút ra / Chi Có 112)</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Ngày giao dịch</label>
+              <input type="date" name="voucher_date" id="editBankVoucherDate" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số hiệu chứng từ / UNC</label>
+              <input type="text" name="voucher_no" id="editBankVoucherNo" class="form-control form-control-sm font-monospace font-weight-bold">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Số tiền (VNĐ) <span class="text-danger">*</span></label>
+              <input type="text" name="amount" id="editBankAmount" placeholder="VD: 50.000.000" class="form-control form-control-sm font-weight-bold text-primary font-monospace" oninput="formatCurrencyInput(this)" autocomplete="off" required>
+            </div>
+            <div class="col-md-6 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Tài khoản đối ứng</label>
+              <input type="text" name="offset_account" id="editBankOffsetAccount" placeholder="131, 331, 111, 154" class="form-control form-control-sm font-weight-bold">
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-5 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Mã khách / MST</label>
+              <input type="text" name="partner_code" id="editBankPartnerCode" list="bankCompanyTaxList" placeholder="VD: 0101439643" class="form-control form-control-sm font-monospace font-weight-bold" autocomplete="off">
+            </div>
+            <div class="col-md-7 form-group mb-2">
+              <label class="font-size-12 font-weight-bold text-dark">Khách hàng / Đối tác / NCC</label>
+              <input type="text" name="partner_name" id="editBankPartnerName" list="bankCompanyNameList" class="form-control form-control-sm" autocomplete="off">
+            </div>
+          </div>
+          <div id="editBankOpenInv" class="mb-2" style="display:none"></div>
+
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Diễn giải nội dung <span class="text-danger">*</span></label>
+            <input type="text" name="description" id="editBankDescription" class="form-control form-control-sm" required>
+          </div>
+
+          <div class="form-group mb-0">
+            <label class="font-size-12 font-weight-bold text-dark">Ghi chú kèm theo</label>
+            <input type="text" name="note" id="editBankNote" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-warning font-weight-bold text-dark" id="btnSubmitEditBankVoucher">
+            <i class="bx bx-check mr-1"></i>Lưu thay đổi
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- MODAL IMPORT EXCEL GIAO DỊCH NGÂN HÀNG -->
+<div class="modal fade" id="importBankExcelModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-warning text-dark py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold">
+          <i class="bx bx-upload mr-1"></i>Nhập Giao dịch Ngân hàng hàng loạt từ Excel
+        </h5>
+        <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="importBankExcelForm" onsubmit="submitImportBankExcel(event)">
+        <input type="hidden" name="company_id" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="modal-body p-3">
+          <div class="alert alert-info py-2 px-3 mb-3 font-size-12">
+            <i class="bx bx-info-circle mr-1 font-size-14"></i>
+            Tải file mẫu Excel chuẩn để điền dữ liệu giao dịch: 
+            <a href="/admin/transport/bank-book/template" class="font-weight-bold text-primary ml-1" download>
+              <i class="bx bx-download"></i> Tải file mẫu (.xlsx)
+            </a>
+          </div>
+
+          <div class="form-group mb-3">
+            <label class="font-size-12 font-weight-bold text-dark">Chọn file Excel dữ liệu (.xlsx, .xls) <span class="text-danger">*</span></label>
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="bankExcelFile" name="file" accept=".xlsx,.xls" required onchange="updateFileName(this, 'bankExcelFileName')">
+              <label class="custom-file-label font-size-12 text-truncate" id="bankExcelFileName" for="bankExcelFile">Chọn file Excel...</label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-warning font-weight-bold text-dark" id="btnSubmitImportBank">
+            <i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SỬA SỐ DƯ ĐẦU KỲ -->
+<div class="modal fade" id="editOpeningModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm" role="document">
+    <div class="modal-content shadow-lg border-0">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-size-14 font-weight-bold text-white" id="editOpeningModalTitle">
+          <i class="bx bx-edit mr-1"></i>Sửa Số dư đầu kỳ
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+      </div>
+      <form id="editOpeningForm" onsubmit="submitEditOpening(event)">
+        <input type="hidden" name="book_type" id="editOpeningBookType" value="bank">
+        <input type="hidden" name="company_id" value="{{ current_company.id if current_company else (selected_company_id or '') }}">
+        <div class="modal-body p-3">
+          <div class="form-group mb-2">
+            <label class="font-size-12 font-weight-bold text-dark">Số dư đầu kỳ (VNĐ)</label>
+            <input type="text" name="amount" id="editOpeningAmount" class="form-control form-control-sm font-weight-bold text-primary font-monospace" oninput="formatCurrencyInput(this)" placeholder="0" autocomplete="off" required>
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <span class="font-size-11 text-muted">Muốn xóa số dư?</span>
+              <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2" onclick="setOpeningToZero()">
+                <i class="bx bx-trash"></i> Đặt về 0 đ
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer py-2 bg-light">
+          <button type="button" class="btn btn-sm btn-secondary font-weight-bold" data-dismiss="modal">Hủy</button>
+          <button type="submit" class="btn btn-sm btn-primary font-weight-bold" id="btnSubmitOpening">
+            <i class="bx bx-save mr-1"></i>Lưu số dư
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/admin-assets/js/report-period.js?v=20261104-1"></script>
+<script src="/static/admin-assets/js/cash-bank-book.js?v=20261104-2"></script>
+<script src="/static/admin-assets/js/admin-inputs.js?v=20261104-1"></script>
+<script>
+function handlePeriodChange(val) {
+  applyReportPeriod(val, {year: 'bbYearSelect', from: 'bbDateFrom', to: 'bbDateTo', form: 'bbFilterForm',
+    defaultYear: '{{ selected_year }}', today: '{{ today.strftime("%Y-%m-%d") }}'});
+}
+
+async function submitBankVoucher(e) {
+  e.preventDefault();
+  const form = document.getElementById('bankVoucherForm');
+  const formData = new FormData(form);
+  const btn = document.getElementById('btnSubmitBankVoucher');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+
+  try {
+    const res = await fetch('/admin/transport/api/cash-bank/entry', {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : `Máy chủ phản hồi lỗi (${res.status}): ${text.slice(0, 150)}`);
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu vào Sổ ngân hàng';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu vào Sổ ngân hàng';
+  }
+}
+
+async function openEditBankModal(id) {
+  try {
+    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}`);
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    if (!data.ok || !data.entry) {
+      alert(data.message || 'Không tìm thấy chứng từ.');
+      return;
+    }
+    const e = data.entry;
+    document.getElementById('editBankId').value = e.id;
+    if (e.voucher_type === 'receipt') {
+      document.getElementById('editBvtReceipt').checked = true;
+    } else {
+      document.getElementById('editBvtPayment').checked = true;
+    }
+    document.getElementById('editBankVoucherDate').value = e.voucher_date || '';
+    document.getElementById('editBankVoucherNo').value = e.voucher_no || '';
+    const amtEl = document.getElementById('editBankAmount');
+    amtEl.value = e.amount ? new Intl.NumberFormat('vi-VN').format(e.amount) : '';
+    document.getElementById('editBankOffsetAccount').value = e.offset_account || '';
+    document.getElementById('editBankPartnerCode').value = e.partner_code || '';
+    document.getElementById('editBankPartnerName').value = e.partner_name || '';
+    document.getElementById('editBankDescription').value = e.description || '';
+    document.getElementById('editBankNote').value = e.note || '';
+    $('#editBankVoucherModal').modal('show');
+  } catch (err) {
+    alert('Lỗi tải dữ liệu chứng từ: ' + err.message);
+  }
+}
+
+async function submitEditBankVoucher(e) {
+  e.preventDefault();
+  const id = document.getElementById('editBankId').value;
+  const form = document.getElementById('editBankVoucherForm');
+  const formData = new FormData(form);
+  const btn = document.getElementById('btnSubmitEditBankVoucher');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
+
+  try {
+    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}/update`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : `Máy chủ phản hồi lỗi (${res.status}): ${text.slice(0, 150)}`);
+    }
+    if (data.ok) {
+      alert(data.message || 'Cập nhật thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể cập nhật'));
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu thay đổi';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu thay đổi';
+  }
+}
+
+async function deleteBankEntry(id, voucherNo) {
+  const name = voucherNo ? `số hiệu "${voucherNo}"` : `này`;
+  if (!confirm(`Bạn có chắc chắn muốn xóa giao dịch ${name} khỏi sổ tiền gửi ngân hàng không?`)) {
+    return;
+  }
+  try {
+    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}/delete`, {
+      method: 'POST',
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    if (data.ok) {
+      alert(data.message || 'Đã xóa giao dịch thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể xóa'));
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+  }
+}
+
+function setOpeningToZero() {
+  document.getElementById('editOpeningAmount').value = '0';
+}
+
+async function submitImportBankExcel(e) {
+  e.preventDefault();
+  const form = document.getElementById('importBankExcelForm');
+  const formData = new FormData(form);
+  const btn = document.getElementById('btnSubmitImportBank');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang nạp file Excel...';
+
+  try {
+    const res = await fetch('/admin/transport/bank-book/import-excel', {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    if (data.ok) {
+      alert(data.message || 'Nạp dữ liệu từ file Excel thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi nạp Excel: ' + (data.message || 'Không thể nạp dữ liệu'));
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ';
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ';
+  }
+}
+</script>
+
+<script>
+function taxPayParseInt(val) {
+  var digits = String(val || '').replace(/\D/g, '');
+  return parseInt(digits, 10) || 0;
+}
+
+function taxPayFormatVND(val) {
+  return new Intl.NumberFormat('vi-VN').format(val) + ' đ';
+}
+
+function taxPayPeriodSync() {
+  var part = document.getElementById('taxPayPeriodPart');
+  var year = document.getElementById('taxPayPeriodYear');
+  var now = new Date();
+  if (part.value && !year.value) year.value = String(now.getFullYear());
+  if (year.value && !part.value) part.value = String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById('taxPayPeriod').value = part.value && year.value ? year.value + '-' + part.value : '';
+}
+
+function taxPayUpdateTotal() {
+  var keys = ['gtgt', 'tndn', 'tncn', 'monbai', 'truocba', 'khac'];
+  var total = 0;
+  keys.forEach(function(k) {
+    var el = document.getElementById('taxPayItem_' + k);
+    if (el) {
+      total += taxPayParseInt(el.value);
+    }
+  });
+  var txt = document.getElementById('taxPayTotalText');
+  if (txt) {
+    txt.textContent = taxPayFormatVND(total);
+  }
+}
+
+async function taxPaySubmit() {
+  var btn = document.getElementById('btnSubmitTaxPay');
+  var origHtml = btn.innerHTML;
+  var keys = ['gtgt', 'tndn', 'tncn', 'monbai', 'truocba', 'khac'];
+  var items = {};
+  var count = 0;
+  keys.forEach(function(k) {
+    var el = document.getElementById('taxPayItem_' + k);
+    var amt = el ? taxPayParseInt(el.value) : 0;
+    if (amt > 0) {
+      items[k] = amt.toString();
+      count++;
+    }
+  });
+
+  if (count === 0) {
+    alert('Vui lòng nhập ít nhất một khoản thuế.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+
+  try {
+    var fd = new FormData();
+    fd.append('kind', 'tax');
+    fd.append('book_type', 'bank');
+    fd.append('company_id', (document.getElementById('taxPayCompanyId') && document.getElementById('taxPayCompanyId').value) || '');
+    fd.append('voucher_date', (document.getElementById('taxPayDate') && document.getElementById('taxPayDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('taxPayVoucherNo') && document.getElementById('taxPayVoucherNo').value) || '');
+    fd.append('period', (document.getElementById('taxPayPeriod') && document.getElementById('taxPayPeriod').value) || '');
+    fd.append('partner_name', (document.getElementById('taxPayPartnerName') && document.getElementById('taxPayPartnerName').value) || '');
+    fd.append('note', (document.getElementById('taxPayNote') && document.getElementById('taxPayNote').value) || '');
+    fd.append('notice_total', '');
+    fd.append('items_json', JSON.stringify(items));
+
+    var res = await fetch('/admin/transport/api/cash-bank/special-payment', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+
+// Chia số tiền nộp theo thông báo thành BHXH / BHYT / BHTN theo tỷ lệ quy định (người sử dụng lao động + người lao động):
+// BHXH 17,5% + 8% = 25,5%, BHYT 3% + 1,5% = 4,5%, BHTN 1% + 1% = 2%  =>  25,5 : 4,5 : 2 trên tổng 32
+function insPaySplitNotice() {
+  var noticeEl = document.getElementById('insPayNoticeTotal');
+  var total = noticeEl ? taxPayParseInt(noticeEl.value) : 0;
+  if (!(total > 0)) return;
+  var bhxh = Math.round(total * 255 / 320);
+  var bhyt = Math.round(total * 45 / 320);
+  var bhtn = total - bhxh - bhyt;
+  var fmt = new Intl.NumberFormat('vi-VN');
+  [['bhxh', bhxh], ['bhyt', bhyt], ['bhtn', bhtn]].forEach(function(pair) {
+    var el = document.getElementById('insPayItem_' + pair[0]);
+    if (el) el.value = fmt.format(pair[1]);
+  });
+}
+
+function insPayUpdateTotal() {
+  var keys = ['bhxh', 'bhyt', 'bhtn', 'kpcd'];
+  var total = 0;
+  keys.forEach(function(k) {
+    var el = document.getElementById('insPayItem_' + k);
+    if (el) {
+      total += taxPayParseInt(el.value);
+    }
+  });
+  var txt = document.getElementById('insPayTotalText');
+  if (txt) {
+    txt.textContent = taxPayFormatVND(total);
+  }
+
+  var noticeEl = document.getElementById('insPayNoticeTotal');
+  var hasNotice = noticeEl && noticeEl.value.trim().length > 0;
+  var noticeVal = noticeEl ? taxPayParseInt(noticeEl.value) : 0;
+  var diffAlert = document.getElementById('insPayDiffAlert');
+  var diffVal = document.getElementById('insPayDiffVal');
+
+  if (hasNotice && total !== noticeVal) {
+    if (diffAlert) diffAlert.classList.remove('d-none');
+    var diff = Math.abs(total - noticeVal);
+    if (diffVal) {
+      diffVal.textContent = taxPayFormatVND(diff) + (total > noticeVal ? ' (thừa)' : ' (thiếu)');
+    }
+  } else {
+    if (diffAlert) diffAlert.classList.add('d-none');
+  }
+}
+
+function insPayOnDateChange() {
+  var date = document.getElementById('insPayDate').value;
+  if (!/^(20\d{2})-\d{2}-\d{2}$/.test(date)) return;
+  document.getElementById('insPayPeriod').value = date.slice(0, 7);
+  insPayOnPeriodChange();
+}
+
+async function insPayOnPeriodChange() {
+  var period = document.getElementById('insPayPeriod') ? document.getElementById('insPayPeriod').value : '';
+  var cid = document.getElementById('insPayCompanyId') ? document.getElementById('insPayCompanyId').value : '';
+  var sugEl = document.getElementById('insPaySuggestionVal');
+  if (!sugEl) return;
+  try {
+    var res = await fetch('/admin/transport/api/cash-bank/payroll-preview?month=' + encodeURIComponent(period) + '&company_id=' + encodeURIComponent(cid));
+    if (res.ok) {
+      var data = await res.json();
+      var insTot = (data && data.insurance_total) || 0;
+      sugEl.textContent = taxPayFormatVND(insTot);
+    } else {
+      sugEl.textContent = '0 đ';
+    }
+  } catch (err) {
+    sugEl.textContent = '0 đ';
+  }
+}
+
+async function insPaySubmit() {
+  var btn = document.getElementById('btnSubmitInsPay');
+  var origHtml = btn.innerHTML;
+  var keys = ['bhxh', 'bhyt', 'bhtn', 'kpcd'];
+  var items = {};
+  var count = 0;
+  var total = 0;
+  keys.forEach(function(k) {
+    var el = document.getElementById('insPayItem_' + k);
+    var amt = el ? taxPayParseInt(el.value) : 0;
+    if (amt > 0) {
+      items[k] = amt.toString();
+      count++;
+      total += amt;
+    }
+  });
+
+  if (count === 0) {
+    alert('Vui lòng nhập ít nhất một khoản bảo hiểm.');
+    return;
+  }
+
+  var noticeEl = document.getElementById('insPayNoticeTotal');
+  var hasNotice = noticeEl && noticeEl.value.trim().length > 0;
+  var noticeVal = noticeEl ? taxPayParseInt(noticeEl.value) : 0;
+  if (hasNotice && total !== noticeVal) {
+    if (!confirm('Tổng các khoản khác số tiền theo thông báo. Vẫn lưu?')) {
+      return;
+    }
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+
+  try {
+    var fd = new FormData();
+    fd.append('kind', 'insurance');
+    fd.append('book_type', 'bank');
+    fd.append('company_id', (document.getElementById('insPayCompanyId') && document.getElementById('insPayCompanyId').value) || '');
+    fd.append('voucher_date', (document.getElementById('insPayDate') && document.getElementById('insPayDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('insPayVoucherNo') && document.getElementById('insPayVoucherNo').value) || '');
+    fd.append('period', (document.getElementById('insPayPeriod') && document.getElementById('insPayPeriod').value) || '');
+    fd.append('partner_name', (document.getElementById('insPayPartnerName') && document.getElementById('insPayPartnerName').value) || '');
+    fd.append('note', (document.getElementById('insPayNote') && document.getElementById('insPayNote').value) || '');
+    if (hasNotice) {
+      fd.append('notice_total', noticeEl.value.trim());
+    } else {
+      fd.append('notice_total', '');
+    }
+    fd.append('items_json', JSON.stringify(items));
+
+    var res = await fetch('/admin/transport/api/cash-bank/special-payment', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+
+function salPayUpdateTotal() {
+  var total = 0;
+  var rows = document.querySelectorAll('#salPayTableBody tr');
+  rows.forEach(function(tr) {
+    var chk = tr.querySelector('.salPay-row-chk');
+    var amtInput = tr.querySelector('.salPay-row-amt');
+    if (chk && chk.checked && amtInput) {
+      total += taxPayParseInt(amtInput.value);
+    }
+  });
+
+  var otherAmt = taxPayParseInt(document.getElementById('salPayOtherAmount') ? document.getElementById('salPayOtherAmount').value : 0);
+  total += otherAmt;
+
+  var txt = document.getElementById('salPayTotalText');
+  if (txt) {
+    txt.textContent = taxPayFormatVND(total);
+  }
+}
+
+async function salPayFetchPayroll() {
+  var period = document.getElementById('salPayPeriod') ? document.getElementById('salPayPeriod').value : '';
+  var cid = document.getElementById('salPayCompanyId') ? document.getElementById('salPayCompanyId').value : '';
+  var container = document.getElementById('salPayTableBody');
+  var emptyNote = document.getElementById('salPayEmptyNote');
+  if (!container) return;
+
+  container.innerHTML = '<tr><td colspan="3" class="text-center py-2 text-muted"><span class="spinner-border spinner-border-sm mr-1"></span>Đang tải bảng lương...</td></tr>';
+  if (emptyNote) emptyNote.classList.add('d-none');
+
+  try {
+    var res = await fetch('/admin/transport/api/cash-bank/payroll-preview?month=' + encodeURIComponent(period) + '&company_id=' + encodeURIComponent(cid));
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var data = await res.json();
+    container.innerHTML = '';
+    var rows = (data && data.rows) || [];
+    if (rows.length === 0) {
+      if (emptyNote) emptyNote.classList.remove('d-none');
+    } else {
+      if (emptyNote) emptyNote.classList.add('d-none');
+      rows.forEach(function(r) {
+        var tr = document.createElement('tr');
+
+        var tdChk = document.createElement('td');
+        tdChk.className = 'text-center align-middle';
+        var chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = true;
+        chk.className = 'salPay-row-chk';
+        chk.onchange = salPayUpdateTotal;
+        tdChk.appendChild(chk);
+
+        var tdName = document.createElement('td');
+        tdName.className = 'align-middle font-weight-bold text-dark salPay-row-name';
+        tdName.textContent = r.full_name || ('Nhân viên ' + (r.user_id || ''));
+
+        var tdAmt = document.createElement('td');
+        tdAmt.className = 'align-middle';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm text-right font-monospace font-weight-bold text-primary salPay-row-amt';
+        input.value = new Intl.NumberFormat('vi-VN').format(r.net_pay || 0);
+        input.oninput = function() {
+          formatCurrencyInput(this);
+          salPayUpdateTotal();
+        };
+        tdAmt.appendChild(input);
+
+        tr.appendChild(tdChk);
+        tr.appendChild(tdName);
+        tr.appendChild(tdAmt);
+        container.appendChild(tr);
+      });
+    }
+    salPayUpdateTotal();
+  } catch (err) {
+    container.innerHTML = '';
+    if (emptyNote) emptyNote.classList.remove('d-none');
+    salPayUpdateTotal();
+  }
+}
+
+async function salPaySubmit() {
+  var btn = document.getElementById('btnSubmitSalPay');
+  var origHtml = btn.innerHTML;
+  var items = [];
+
+  var rows = document.querySelectorAll('#salPayTableBody tr');
+  rows.forEach(function(tr) {
+    var chk = tr.querySelector('.salPay-row-chk');
+    var nameEl = tr.querySelector('.salPay-row-name');
+    var amtInput = tr.querySelector('.salPay-row-amt');
+    if (chk && chk.checked && amtInput) {
+      var amt = taxPayParseInt(amtInput.value);
+      if (amt > 0) {
+        items.push({
+          name: nameEl ? nameEl.textContent.trim() : '',
+          amount: amt.toString(),
+        });
+      }
+    }
+  });
+
+  var otherName = document.getElementById('salPayOtherName') ? document.getElementById('salPayOtherName').value.trim() : '';
+  var otherAmt = taxPayParseInt(document.getElementById('salPayOtherAmount') ? document.getElementById('salPayOtherAmount').value : 0);
+  if (otherAmt > 0) {
+    items.push({
+      name: otherName,
+      amount: otherAmt.toString(),
+    });
+  }
+
+  if (items.length === 0) {
+    alert('Vui lòng chọn hoặc nhập ít nhất một khoản lương > 0.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+
+  try {
+    var fd = new FormData();
+    fd.append('kind', 'salary');
+    fd.append('book_type', 'bank');
+    fd.append('company_id', (document.getElementById('salPayCompanyId') && document.getElementById('salPayCompanyId').value) || '');
+    fd.append('voucher_date', (document.getElementById('salPayDate') && document.getElementById('salPayDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('salPayVoucherNo') && document.getElementById('salPayVoucherNo').value) || '');
+    fd.append('period', (document.getElementById('salPayPeriod') && document.getElementById('salPayPeriod').value) || '');
+    fd.append('partner_name', '');
+    fd.append('note', (document.getElementById('salPayNote') && document.getElementById('salPayNote').value) || '');
+    fd.append('notice_total', '');
+    fd.append('items_json', JSON.stringify(items));
+
+    var res = await fetch('/admin/transport/api/cash-bank/special-payment', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+  }
+}
+
+async function rentPaySubmit() {
+  var amountEl = document.getElementById('rentPayAmount');
+  var amt = amountEl ? taxPayParseInt(amountEl.value) : 0;
+  if (amt <= 0) {
+    alert('Vui lòng nhập số tiền thuê nhà.');
+    return;
+  }
+
+  var btn = document.getElementById('btnSubmitRentPay');
+  var origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+  }
+
+  try {
+    var fd = new FormData();
+    fd.append('kind', 'rent');
+    fd.append('book_type', 'bank');
+    fd.append('company_id', (document.getElementById('rentPayCompanyId') && document.getElementById('rentPayCompanyId').value) || '');
+    fd.append('voucher_date', (document.getElementById('rentPayDate') && document.getElementById('rentPayDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('rentPayVoucherNo') && document.getElementById('rentPayVoucherNo').value) || '');
+    fd.append('period', (document.getElementById('rentPayPeriod') && document.getElementById('rentPayPeriod').value) || '');
+    fd.append('partner_name', (document.getElementById('rentPayLandlord') && document.getElementById('rentPayLandlord').value) || '');
+    fd.append('note', (document.getElementById('rentPayNote') && document.getElementById('rentPayNote').value) || '');
+    fd.append('notice_total', '');
+    fd.append('items_json', JSON.stringify({amount: amt.toString()}));
+
+    var res = await fetch('/admin/transport/api/cash-bank/special-payment', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+
+async function bankInterestSubmit() {
+  var amountEl = document.getElementById('bankInterestAmount');
+  var amt = amountEl ? taxPayParseInt(amountEl.value) : 0;
+  if (amt <= 0) {
+    alert('Vui lòng nhập số tiền lãi.');
+    return;
+  }
+
+  var btn = document.getElementById('btnSubmitBankInterest');
+  var origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+  }
+
+  try {
+    var fd = new FormData();
+    fd.append('company_id', (document.getElementById('bankInterestCompanyId') && document.getElementById('bankInterestCompanyId').value) || '');
+    fd.append('voucher_date', (document.getElementById('bankInterestDate') && document.getElementById('bankInterestDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('bankInterestVoucherNo') && document.getElementById('bankInterestVoucherNo').value) || '');
+    fd.append('period', (document.getElementById('bankInterestPeriod') && document.getElementById('bankInterestPeriod').value) || '');
+    fd.append('amount', amt.toString());
+    fd.append('note', (document.getElementById('bankInterestNote') && document.getElementById('bankInterestNote').value) || '');
+
+    var res = await fetch('/admin/transport/api/cash-bank/bank-interest', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ ngân hàng thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+
+var cashTransferDescUserEdited = false;
+function cashTransferOnDescInput() {
+  cashTransferDescUserEdited = true;
+}
+function cashTransferOnDirectionChange() {
+  var descEl = document.getElementById('cashTransferDescription');
+  if (descEl) {
+    var isWithdraw = document.getElementById('cashTransferDirWithdraw') && document.getElementById('cashTransferDirWithdraw').checked;
+    var defDeposit = 'Nộp tiền TK';
+    var defWithdraw = 'Rút tiền nhập quỹ';
+    if (!cashTransferDescUserEdited || descEl.value === defDeposit || descEl.value === defWithdraw || !descEl.value.trim()) {
+      descEl.value = isWithdraw ? defWithdraw : defDeposit;
+      cashTransferDescUserEdited = false;
+    }
+  }
+}
+
+async function cashTransferSubmit() {
+  var amountEl = document.getElementById('cashTransferAmount');
+  var amt = amountEl ? taxPayParseInt(amountEl.value) : 0;
+  if (amt <= 0) {
+    alert('Vui lòng nhập số tiền.');
+    return;
+  }
+
+  var btn = document.getElementById('btnSubmitCashTransfer');
+  var origHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
+  }
+
+  try {
+    var isWithdraw = document.getElementById('cashTransferDirWithdraw') && document.getElementById('cashTransferDirWithdraw').checked;
+    var direction = isWithdraw ? 'withdraw' : 'deposit';
+
+    var fd = new FormData();
+    fd.append('company_id', (document.getElementById('cashTransferCompanyId') && document.getElementById('cashTransferCompanyId').value) || '');
+    fd.append('direction', direction);
+    fd.append('voucher_date', (document.getElementById('cashTransferDate') && document.getElementById('cashTransferDate').value) || '');
+    fd.append('voucher_no', (document.getElementById('cashTransferVoucherNo') && document.getElementById('cashTransferVoucherNo').value) || '');
+    fd.append('amount', amt.toString());
+    fd.append('description', (document.getElementById('cashTransferDescription') && document.getElementById('cashTransferDescription').value) || '');
+    fd.append('note', (document.getElementById('cashTransferNote') && document.getElementById('cashTransferNote').value) || '');
+
+    var res = await fetch('/admin/transport/api/cash-bank/cash-transfer', {
+      method: 'POST',
+      body: fd,
+    });
+    if (res.status === 401 || res.redirected) {
+      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
+      window.location.href = '/login';
+      return;
+    }
+    var text = await res.text();
+    var data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
+    }
+    if (data.ok) {
+      alert(data.message || 'Đã ghi sổ thành công!');
+      window.location.reload();
+    } else {
+      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  } catch (err) {
+    alert('Lỗi kết nối máy chủ: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof $ !== 'undefined') {
+    $('#salPayModal').on('shown.bs.modal', function() {
+      salPayFetchPayroll();
+    });
+    $('#insPayModal').on('shown.bs.modal', function() {
+      insPayOnPeriodChange();
+    });
+  }
+});
+</script>
+
+<datalist id="bankCompanyNameList">
+  {% for c in companies %}
+  <option value="{{ c.name }}">{{ c.tax_code }}</option>
+  {% endfor %}
+</datalist>
+<datalist id="bankCompanyTaxList">
+  {% for c in companies %}
+  {% if c.tax_code %}
+  <option value="{{ c.tax_code }}">{{ c.name }}</option>
+  {% endif %}
+  {% endfor %}
+</datalist>
+
+<script>
+function bankCompanyAutoDesc(name) {
+  const shortName = bookShortCompanyName(name);
+  return shortName ? 'Cty ' + shortName : '';
+}
+
+function bankBuildDesc(cur, name, num) {
+  const n = String(num != null ? num : '').trim();
+  const tag = n ? 'tt HĐ' + n : '';
+  const auto = bankCompanyAutoDesc(name);
+  const c = String(cur || '').trim();
+  const matchRegex = /tt\s*H[ĐD]\s*\d+/i;
+
+  if (matchRegex.test(c)) {
+    const rest = c.replace(matchRegex, '').trim();
+    if (bookIsGenericDesc(rest)) {
+      return (auto + ' ' + tag).trim();
+    }
+    return c.replace(matchRegex, tag).trim();
+  }
+
+  const base = bookIsGenericDesc(c) ? auto : c;
+  return (base + ' ' + tag).trim();
+}
+
+function bankAutoDescOnPick(prefix, name, payDesc) {
+  let descEl = null;
+  if (prefix === 'add') {
+    descEl = document.querySelector('#bankVoucherForm input[name="description"]');
+  } else if (prefix === 'edit') {
+    descEl = document.getElementById('editBankDescription');
+  }
+  if (!descEl) return;
+  const cur = descEl.value || '';
+  if (bookIsGenericDesc(cur) || (descEl.dataset && cur === descEl.dataset.autoDesc)) {
+    const auto = payDesc || bankCompanyAutoDesc(name);
+    descEl.value = auto;
+    if (descEl.dataset) {
+      descEl.dataset.autoDesc = auto;
+    }
+  }
+}
+
+const bankOpenInvSeq = { add: 0, edit: 0 };
+const bankOpenInvTimers = { add: null, edit: null };
+
+function bankOpenInvDebounce(prefix, delay) {
+  const d = typeof delay === 'number' ? delay : 300;
+  clearTimeout(bankOpenInvTimers[prefix]);
+  bankOpenInvTimers[prefix] = setTimeout(function() {
+    bankOpenInvRefresh(prefix);
+  }, d);
+}
+
+async function bankOpenInvRefresh(prefix) {
+  const box = document.getElementById(prefix + 'BankOpenInv');
+  if (!box) return;
+
+  let isReceipt = false;
+  let voucherDate = '';
+  let partnerCode = '';
+  let partnerName = '';
+  let excludeId = '';
+
+  if (prefix === 'add') {
+    const rcptEl = document.getElementById('bvtReceipt');
+    isReceipt = rcptEl ? rcptEl.checked : false;
+    const dateEl = document.querySelector('#bankVoucherForm input[name="voucher_date"]');
+    voucherDate = dateEl ? dateEl.value.trim() : '';
+    const codeEl = document.getElementById('addBankPartnerCode');
+    partnerCode = codeEl ? codeEl.value.trim() : '';
+    const nameEl = document.getElementById('addBankPartnerName');
+    partnerName = nameEl ? nameEl.value.trim() : '';
+  } else {
+    const rcptEl = document.getElementById('editBvtReceipt');
+    isReceipt = rcptEl ? rcptEl.checked : false;
+    const dateEl = document.getElementById('editBankVoucherDate');
+    voucherDate = dateEl ? dateEl.value.trim() : '';
+    const codeEl = document.getElementById('editBankPartnerCode');
+    partnerCode = codeEl ? codeEl.value.trim() : '';
+    const nameEl = document.getElementById('editBankPartnerName');
+    partnerName = nameEl ? nameEl.value.trim() : '';
+    const idEl = document.getElementById('editBankId');
+    excludeId = idEl ? idEl.value.trim() : '';
+  }
+
+  if (!partnerCode && !partnerName) {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+
+  const seq = ++bankOpenInvSeq[prefix];
+  const params = new URLSearchParams();
+  if (partnerCode) params.set('partner_code', partnerCode);
+  if (partnerName) params.set('partner_name', partnerName);
+  if (voucherDate) params.set('as_of', voucherDate);
+  if (prefix === 'edit' && excludeId) params.set('exclude_entry_id', excludeId);
+
+  const kind = isReceipt ? 'receivable' : 'payable';
+  const url = isReceipt
+    ? '/admin/transport/api/cash-bank/open-invoices?' + params.toString()
+    : '/admin/transport/api/cash-bank/open-payables?' + params.toString();
+
+  try {
+    const res = await fetch(url);
+    if (seq !== bankOpenInvSeq[prefix]) return;
+    if (res.status === 401 || !res.ok) {
+      box.style.display = 'none';
+      return;
+    }
+    const data = await res.json();
+    if (seq !== bankOpenInvSeq[prefix]) return;
+    if (!data.ok) {
+      box.style.display = 'none';
+      return;
+    }
+    bankOpenInvRender(prefix, box, data, kind);
+  } catch (err) {
+    if (seq === bankOpenInvSeq[prefix]) {
+      box.style.display = 'none';
+    }
+  }
+}
+
+function bankOpenInvRender(prefix, box, data, kind) {
+  const invoices = data.invoices || [];
+  if (invoices.length === 0) {
+    box.innerHTML = '<div class="text-muted font-size-12 py-1">Không còn hóa đơn nợ</div>';
+    box.style.display = 'block';
+    return;
+  }
+
+  let asOfStr = data.as_of || '';
+  if (asOfStr.indexOf('-') !== -1) {
+    const parts = asOfStr.split('-');
+    if (parts.length === 3) {
+      asOfStr = parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+  }
+
+  const fmtTotal = new Intl.NumberFormat('vi-VN').format(data.total || 0);
+
+  const titlePrefix = (kind === 'payable') ? 'Hóa đơn còn nợ NCC tại ngày ' : 'Hóa đơn còn nợ tại ngày ';
+  let html = '<div class="font-size-12 font-weight-bold text-dark mb-1">' + titlePrefix +
+    bookEscapeHtml(asOfStr) + ' — tổng ' + bookEscapeHtml(fmtTotal) + ' đ</div>';
+
+  html += '<div style="max-height:130px; overflow:auto; border:1px solid #e9ecef; border-radius:4px;">';
+  html += '<table class="table table-sm mb-0 font-size-12">';
+  html += '<thead><tr class="bg-light text-muted"><th>Số HĐ</th><th>Ngày</th><th class="text-right">Còn nợ</th><th class="text-center" style="width:60px;"></th></tr></thead>';
+  html += '<tbody>';
+
+  for (let i = 0; i < invoices.length; i++) {
+    const item = invoices[i];
+    const fmtOwed = new Intl.NumberFormat('vi-VN').format(item.owed || 0);
+    html += '<tr>';
+    if (item.opening) {
+      html += '<td class="font-weight-bold text-secondary">Số dư đầu kỳ</td>';
+      html += '<td></td>';
+      html += '<td class="text-right font-monospace font-weight-bold">' + bookEscapeHtml(fmtOwed) + '</td>';
+      html += '<td></td>';
+    } else {
+      html += '<td class="font-monospace font-weight-bold">' + bookEscapeHtml(item.number || '') + '</td>';
+      html += '<td>' + bookEscapeHtml(item.date || '') + '</td>';
+      html += '<td class="text-right font-monospace font-weight-bold text-danger">' + bookEscapeHtml(fmtOwed) + '</td>';
+      html += '<td class="text-center"><button type="button" class="btn btn-xs btn-outline-primary bank-open-inv-select" data-prefix="' +
+        bookEscapeHtml(prefix) + '" data-number="' + bookEscapeHtml(item.number || '') + '" data-owed="' +
+        bookEscapeHtml(Math.round(item.owed || 0)) + '" data-desc="' + bookEscapeHtml(item.payment_desc || '') + '">Chọn</button></td>';
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
+function bankOpenInvOnSelect(prefix, num, owedVal, payDesc) {
+  let descEl = null;
+  let amtEl = null;
+  let nameEl = null;
+
+  if (prefix === 'add') {
+    descEl = document.querySelector('#bankVoucherForm input[name="description"]');
+    amtEl = document.getElementById('addBankAmount');
+    nameEl = document.getElementById('addBankPartnerName');
+  } else {
+    descEl = document.getElementById('editBankDescription');
+    amtEl = document.getElementById('editBankAmount');
+    nameEl = document.getElementById('editBankPartnerName');
+  }
+
+  if (descEl) {
+    const partnerName = nameEl ? nameEl.value : '';
+    descEl.value = payDesc || bankBuildDesc(descEl.value, partnerName, num);
+  }
+
+  if (amtEl && !amtEl.value.trim() && owedVal > 0) {
+    amtEl.value = new Intl.NumberFormat('vi-VN').format(owedVal);
+  }
+
+  bankOpenInvRefresh(prefix);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  window.companiesData = [
+    {% for c in companies %}
+    { name: {{ c.name|tojson }}, tax_code: {{ (c.tax_code or '')|tojson }}, pay_desc: {{ (partner_pay_descs.get(c.tax_code) or '')|tojson }} },
+    {% endfor %}
+  ];
+
+  bindPartnerSync('addBankPartnerCode', 'addBankPartnerName', function(found) {
+    bankAutoDescOnPick('add', found ? found.name : '', found ? found.pay_desc : '');
+  });
+  bindPartnerSync('editBankPartnerCode', 'editBankPartnerName', function(found) {
+    bankAutoDescOnPick('edit', found ? found.name : '', found ? found.pay_desc : '');
+  });
+
+  const bankInterestDateEl = document.getElementById('bankInterestDate');
+  const bankInterestPeriodEl = document.getElementById('bankInterestPeriod');
+  if (bankInterestDateEl && bankInterestPeriodEl) {
+    function syncBankInterestDateToPeriod() {
+      const val = (bankInterestDateEl.value || '').trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        const period = val.slice(0, 7);
+        if (bankInterestPeriodEl.value !== period) {
+          bankInterestPeriodEl.value = period;
+        }
+      }
+    }
+    bankInterestDateEl.addEventListener('change', syncBankInterestDateToPeriod);
+    bankInterestDateEl.addEventListener('input', syncBankInterestDateToPeriod);
+
+    bankInterestPeriodEl.addEventListener('change', function() {
+      const val = (bankInterestPeriodEl.value || '').trim();
+      if (/^\d{4}-\d{2}$/.test(val)) {
+        const parts = val.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const lastDay = new Date(y, m, 0).getDate();
+        const dateStr = parts[0] + '-' + parts[1] + '-' + (lastDay < 10 ? '0' : '') + lastDay;
+        if (bankInterestDateEl.value !== dateStr) {
+          bankInterestDateEl.value = dateStr;
+        }
+      }
+    });
+  }
+
+  const addBox = document.getElementById('addBankOpenInv');
+  if (addBox) {
+    addBox.addEventListener('click', function(ev) {
+      const btn = ev.target.closest('.bank-open-inv-select');
+      if (!btn) return;
+      const num = btn.getAttribute('data-number') || '';
+      const owed = Number(btn.getAttribute('data-owed') || 0);
+      const payDesc = btn.getAttribute('data-desc') || '';
+      bankOpenInvOnSelect('add', num, owed, payDesc);
+    });
+  }
+
+  const editBox = document.getElementById('editBankOpenInv');
+  if (editBox) {
+    editBox.addEventListener('click', function(ev) {
+      const btn = ev.target.closest('.bank-open-inv-select');
+      if (!btn) return;
+      const num = btn.getAttribute('data-number') || '';
+      const owed = Number(btn.getAttribute('data-owed') || 0);
+      const payDesc = btn.getAttribute('data-desc') || '';
+      bankOpenInvOnSelect('edit', num, owed, payDesc);
+    });
+  }
+
+  // Báo Nợ / UNC điền sẵn TK đối ứng 331, Báo Có điền 131; số đã gõ khác thì giữ nguyên
+  function bankDefaultOffset(form, voucherType) {
+    const acc = form.querySelector('input[name="offset_account"]');
+    if (!acc) return;
+    const cur = acc.value.trim();
+    if (cur === '' || cur === '131' || cur === '331') acc.value = voucherType === 'payment' ? '331' : '131';
+  }
+
+  const addForm = document.getElementById('bankVoucherForm');
+  if (addForm) {
+    const addTypeRadios = addForm.querySelectorAll('input[name="voucher_type"]');
+    addTypeRadios.forEach(function(r) {
+      r.addEventListener('change', function() { bankDefaultOffset(addForm, r.value); bankOpenInvDebounce('add', 0); });
+    });
+    const addDateEl = addForm.querySelector('input[name="voucher_date"]');
+    if (addDateEl) {
+      addDateEl.addEventListener('input', function() { bankOpenInvDebounce('add'); });
+      addDateEl.addEventListener('change', function() { bankOpenInvDebounce('add'); });
+    }
+  }
+  const addCodeEl = document.getElementById('addBankPartnerCode');
+  if (addCodeEl) {
+    addCodeEl.addEventListener('input', function() { bankOpenInvDebounce('add'); });
+    addCodeEl.addEventListener('change', function() { bankOpenInvDebounce('add'); });
+  }
+  const addNameEl = document.getElementById('addBankPartnerName');
+  if (addNameEl) {
+    addNameEl.addEventListener('input', function() { bankOpenInvDebounce('add'); });
+    addNameEl.addEventListener('change', function() { bankOpenInvDebounce('add'); });
+  }
+  if (typeof $ !== 'undefined') {
+    $('#addBankVoucherModal').on('shown.bs.modal', function() {
+      bankOpenInvDebounce('add', 0);
+    });
+  }
+
+  const editForm = document.getElementById('editBankVoucherForm');
+  if (editForm) {
+    const editTypeRadios = editForm.querySelectorAll('input[name="voucher_type"]');
+    editTypeRadios.forEach(function(r) {
+      r.addEventListener('change', function() { bankDefaultOffset(editForm, r.value); bankOpenInvDebounce('edit', 0); });
+    });
+    const editDateEl = document.getElementById('editBankVoucherDate');
+    if (editDateEl) {
+      editDateEl.addEventListener('input', function() { bankOpenInvDebounce('edit'); });
+      editDateEl.addEventListener('change', function() { bankOpenInvDebounce('edit'); });
+    }
+  }
+  const editCodeEl = document.getElementById('editBankPartnerCode');
+  if (editCodeEl) {
+    editCodeEl.addEventListener('input', function() { bankOpenInvDebounce('edit'); });
+    editCodeEl.addEventListener('change', function() { bankOpenInvDebounce('edit'); });
+  }
+  const editNameEl = document.getElementById('editBankPartnerName');
+  if (editNameEl) {
+    editNameEl.addEventListener('input', function() { bankOpenInvDebounce('edit'); });
+    editNameEl.addEventListener('change', function() { bankOpenInvDebounce('edit'); });
+  }
+  if (typeof $ !== 'undefined') {
+    $('#editBankVoucherModal').on('shown.bs.modal', function() {
+      bankOpenInvDebounce('edit', 0);
+    });
+  }
+});
+</script>
+{% endblock %}

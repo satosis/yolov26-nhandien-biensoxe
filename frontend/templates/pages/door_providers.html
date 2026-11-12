@@ -1,0 +1,190 @@
+{% extends "layout.html" %}
+{% block title %}NCC Cửa cuốn — Parking Camera{% endblock %}
+{% block page_title %}Nhà cung cấp Cửa cuốn{% endblock %}
+{% block page_actions %}
+<button class="btn btn-primary btn-sm font-weight-bold"
+        onclick="var f=document.getElementById('add-door-form'); f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';">
+  <i class="bx bx-plus mr-1"></i> Thêm NCC
+</button>
+{% endblock %}
+{% block content %}
+<div class="container-fluid">
+
+
+  <div id="add-door-form" class="card mb-4" style="display:none;">
+    <div class="card-body">
+      <form method="POST" action="/admin/door_providers">
+        <div class="row">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Provider Key *</label>
+            <input name="provider_key" required class="form-control" placeholder="tuya_local">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên *</label>
+            <input name="name" required class="form-control">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Logo URL (Local Asset Path)</label>
+            <input name="logo_url" class="form-control" placeholder="/static/assets/providers/door_generic.png">
+          </div>
+          <div class="col-12 col-md-4 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Loại kết nối</label>
+            <select name="connection_type" class="form-control">
+              <option value="gpio">🔌 GPIO</option>
+              <option value="http">🌐 HTTP API</option>
+              <option value="tuya_local">☁️ Local SDK</option>
+              <option value="mqtt">📡 MQTT</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Cấu hình Template (JSON/URL)</label>
+            <input name="config_template" class="form-control" placeholder='{"pin": 18, "invert": true}'>
+          </div>
+          <div class="col-12 col-md-6 mb-3">
+            <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">API Doc URL</label>
+            <input name="api_doc_url" class="form-control">
+          </div>
+        </div>
+        <div class="d-flex" style="gap:8px;">
+          <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Lưu</button>
+          <button type="button" class="btn btn-light btn-sm"
+                  onclick="document.getElementById('add-door-form').style.display='none'">Hủy</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="cx-overflow-x-auto">
+        <table class="table-cinema">
+          <thead>
+            <tr>
+              <th style="width:50px;text-align:center;">STT</th>
+              <th style="width:60px;text-align:center;">AVATAR</th>
+              <th style="width:200px;">TÊN NCC</th>
+              <th style="width:140px;">LOẠI</th>
+              <th>MÔ TẢ</th>
+              <th style="width:120px;text-align:center;">KÍCH HOẠT</th>
+              <th style="width:100px;text-align:right;">HÀNH ĐỘNG</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set conn_badges = {'gpio':('🔌 GPIO','success'),'http':('🌐 HTTP','info'),'tuya_local':('☁️ Local SDK','warning'),'mqtt':('📡 MQTT','primary')} %}
+            {% for p in providers %}
+            {% set badge = conn_badges.get(p.connection_type, ('🔧 '+p.connection_type, 'secondary')) %}
+            <tr>
+              <td style="text-align:center;" class="text-muted font-weight-medium align-middle">
+                {{ (page - 1) * per_page + loop.index if page and per_page else ( (page - 1) * 20 + loop.index if page else loop.index ) }}
+              </td>
+              <td style="text-align:center;">
+                {% if p.logo_url %}
+                  <div class="rounded-circle border d-flex align-items-center justify-content-center mx-auto overflow-hidden p-1" style="width:40px;height:40px;background:#f8f9fa;">
+                    <img src="{{ p.logo_url }}" alt="{{ p.name }}" style="max-height:28px;max-width:80%;width:auto;" class="object-contain">
+                  </div>
+                {% else %}
+                  <div class="rounded-circle border d-flex align-items-center justify-content-center mx-auto" style="width:40px;height:40px;background:#f8f9fa;font-size:18px;">🚪</div>
+                {% endif %}
+              </td>
+              <td>
+                <div class="font-weight-bold" style="font-size:13px;">{{ p.name }}</div>
+                <code class="text-muted" style="font-size:11px;">{{ p.provider_key }}</code>
+              </td>
+              <td>
+                <span class="badge badge-pill badge-{{ badge[1] }}" style="font-size:10px;letter-spacing:1px;">
+                  {{ badge[0] }}
+                </span>
+              </td>
+              <td class="text-muted" style="font-size:12px;">
+                {{ p.notes or '—' }}
+              </td>
+              <td style="text-align:center;">
+                <form method="POST" action="/admin/door_providers/{{ p.provider_key }}/toggle" class="d-inline">
+                  <button type="submit" class="btn btn-sm {% if p.is_active %}btn-success{% else %}btn-secondary{% endif %}" style="font-size:11px;">
+                    {{ 'Bật' if p.is_active else 'Tắt' }}
+                  </button>
+                </form>
+              </td>
+              <td style="text-align:right;">
+                <div class="d-flex justify-content-end" style="gap:6px;">
+                  <button onclick="document.getElementById('edit-door-form-{{ p.provider_key }}').style.display = document.getElementById('edit-door-form-{{ p.provider_key }}').style.display === 'none' ? 'table-row' : 'none'"
+                          class="btn btn-sm btn-light" title="Sửa"><i class="bx bx-edit-alt"></i></button>
+                  <button data-bulk-action="delete" data-bulk-url="/admin/door_providers/{{ p.provider_key }}" data-bulk-method="DELETE" @click="window.dispatchEvent(new CustomEvent('show-confirm', {
+                            detail: {
+                              title: 'Xóa nhà cung cấp',
+                              message: 'Bạn chắc chắn muốn xóa nhà cung cấp {{ p.name }}?',
+                              confirmText: 'Xác nhận xóa',
+                              confirmUrl: '/admin/door_providers/{{ p.provider_key }}',
+                              confirmMethod: 'DELETE',
+                              reload: true
+                            }
+                          }))"
+                          class="btn btn-sm btn-danger" title="Xóa"><i class="bx bx-trash"></i></button>
+                </div>
+              </td>
+            </tr>
+
+
+            <tr id="edit-door-form-{{ p.provider_key }}" style="display:none;">
+              <td colspan="7" class="p-4" style="background:#f8f9fa;">
+                <form method="POST" action="/admin/door_providers" class="d-flex flex-column" style="gap:12px;">
+                  <input type="hidden" name="provider_key" value="{{ p.provider_key }}">
+                  <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Tên nhà cung cấp *</label>
+                      <input name="name" value="{{ p.name }}" required class="form-control">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Loại kết nối</label>
+                      <select name="connection_type" class="form-control">
+                        <option value="gpio" {% if p.connection_type == 'gpio' %}selected{% endif %}>🔌 GPIO</option>
+                        <option value="http" {% if p.connection_type == 'http' %}selected{% endif %}>🌐 HTTP API</option>
+                        <option value="tuya_local" {% if p.connection_type == 'tuya_local' %}selected{% endif %}>☁️ Local SDK</option>
+                        <option value="mqtt" {% if p.connection_type == 'mqtt' %}selected{% endif %}>📡 MQTT</option>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Logo URL (Local Path)</label>
+                      <input name="logo_url" value="{{ p.logo_url or '' }}" class="form-control" placeholder="/static/assets/providers/door_generic.png">
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Cấu hình Template</label>
+                      <input name="config_template" value="{{ p.config_template or '' }}" class="form-control">
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                      <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">API Doc URL</label>
+                      <input name="api_doc_url" value="{{ p.api_doc_url or '' }}" class="form-control">
+                    </div>
+                  </div>
+                  <div class="mb-3">
+                    <label class="text-muted font-weight-bold text-uppercase mb-1" style="font-size:11px;letter-spacing:1px;">Ghi chú</label>
+                    <textarea name="notes" rows="2" class="form-control">{{ p.notes or '' }}</textarea>
+                  </div>
+                  <div class="d-flex" style="gap:8px;">
+                    <button type="submit" class="btn btn-primary btn-sm font-weight-bold"><i class="bx bx-save mr-1"></i> Cập nhật</button>
+                    <button type="button" class="btn btn-light btn-sm"
+                            onclick="document.getElementById('edit-door-form-{{ p.provider_key }}').style.display='none'">Hủy</button>
+                  </div>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not providers %}
+            <tr>
+              <td colspan="7" class="py-5 text-center text-muted" style="font-size:13px;">Chưa có nhà cung cấp nào.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% include "partials/pagination.html" %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,243 @@
+
+{% set group_icons = {
+  "📊 Theo dõi & AI": "bx-tachometer",
+  "Theo dõi & AI": "bx-tachometer",
+  "🅿️ Bãi xe": "bx-car",
+  "Bãi xe": "bx-car",
+  "🛠 Quản lý": "bx-wrench",
+  "Quản lý": "bx-wrench",
+  "💼 Phương Nam": "bx-credit-card-front",
+  "Phương Nam": "bx-credit-card-front",
+  "💼 Công nợ & Đối tác": "bx-credit-card-front",
+  "Công nợ & Đối tác": "bx-credit-card-front",
+  "🏢 Doanh nghiệp": "bx-briefcase-alt-2",
+  "Doanh nghiệp": "bx-briefcase-alt-2",
+  "🚚 Vận chuyển": "bxs-truck",
+  "Vận chuyển": "bxs-truck",
+  "📢 Quảng cáo": "bx-broadcast",
+  "🛒 Bán hàng": "bx-store",
+  "Quảng cáo": "bx-broadcast",
+  "⚙️ Hệ thống": "bx-cog",
+  "Hệ thống": "bx-cog"
+} %}
+{% set item_icons = {
+  "enterprise": "bx-building-house",
+  "departments": "bx-sitemap",
+  "attendance": "bx-calendar-check",
+  "advances": "bx-wallet",
+  "assets": "bx-package",
+  "companies": "bx-buildings",
+  "staff": "bx-user-pin",
+  "payroll": "bx-money",
+  "debts": "bx-receipt",
+  "sales": "bx-receipt",
+  "inventory": "bx-package",
+  "suppliers": "bx-cart",
+  "detection": "bx-scan",
+  "recordings": "bx-video",
+  "parking_dashboard": "bx-bar-chart-square",
+  "parking_logs": "bx-list-check",
+  "parking_analytics": "bx-line-chart",
+  "sites": "bx-buildings",
+  "cameras": "bx-cctv",
+  "providers": "bx-server",
+  "door_providers": "bx-store-alt",
+  "rolling_doors": "bx-door-open",
+  "vehicles": "bx-id-card",
+  "strangers": "bx-user-x",
+  "pending_plates": "bx-time-five",
+  "inquiries": "bx-envelope",
+  "administrative_divisions": "bx-map",
+  "cms": "bx-globe",
+  "users": "bx-user",
+  "rbac": "bx-lock-alt",
+  "telegram": "bx-paper-plane",
+  "zalo_inbox": "bx-message-square-detail",
+  "service_accounts": "bx-globe",
+  "api_keys": "bx-key",
+  "advertising": "bx-broadcast",
+  "advertising_keywords": "bx-key",
+  "facebook_page": "bxl-facebook-circle",
+  "listings": "bx-list-check",
+  "project_news": "bx-news",
+  "prospects": "bx-target-lock",
+  "partners": "bx-group",
+  "account_products": "bx-package",
+  "account_orders": "bx-receipt",
+  "account_live_chat": "bx-message-rounded-dots"
+} %}
+{% set transport_path = request.url.path %}
+{% set transport_active = 'contracts' if transport_path.startswith('/admin/transport/contracts') else
+  'tax_checklist' if transport_path.startswith('/admin/enterprise/tax-checklist') else
+  'depreciation' if transport_path.startswith('/admin/transport/depreciation') else
+  'income_statement' if transport_path.startswith('/admin/transport/trial-balance/income-statement') else
+  'trial_balance' if transport_path.startswith('/admin/transport/trial-balance') else
+  'catalog_' ~ (request.query_params.get('tab', 'service')) if transport_path.startswith('/admin/transport/catalog') or transport_path.startswith('/admin/vehicles/catalog') else
+  'staff_payroll' if transport_path.startswith('/admin/transport/payroll') else
+  'cash_book' if transport_path.startswith('/admin/transport/cash-book') else
+  'bank_book' if transport_path.startswith('/admin/transport/bank-book') else
+  'other_vouchers' if transport_path.startswith('/admin/transport/other-vouchers') else
+  'debt_offsets' if transport_path.startswith('/admin/transport/debt-offsets') else
+  'prepaid_expenses' if transport_path.startswith('/admin/transport/prepaid-expenses') else
+  'input_invoices' if transport_path.startswith('/admin/transport/input-invoices') else
+  'tax_report' if transport_path.startswith('/admin/transport/tax-report') else
+  'cargo' if transport_path.startswith('/admin/vehicles/cargo') or '/cargo' in transport_path else
+  'vehicles' %}
+
+<div class="vertical-menu">
+  <div data-simplebar class="h-100">
+
+
+    {% if sites is defined %}
+    <div class="px-2 pt-2 pb-1">
+      <select name="site_id"
+              class="form-control form-control-sm"
+              hx-post="/set-site" hx-trigger="change" hx-swap="none"
+              hx-on::after-request="window.location.reload()">
+        <option value="0" {% if active_site_id == 0 %}selected{% endif %}>🌐 Tất cả địa điểm</option>
+        {% for site in sites %}
+        <option value="{{ site.id }}" {% if active_site_id == site.id %}selected{% endif %}>📍 {{ site.site_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div id="sidebar-menu">
+      <ul class="metismenu list-unstyled" id="side-menu">
+        <li class="menu-search-item px-2 pt-2 pb-1">
+          <input type="search" id="sidebar-menu-search" class="form-control form-control-sm"
+                 placeholder="🔍 Tìm menu..." autocomplete="off" aria-label="Tìm kiếm menu">
+        </li>
+
+        {% for group_name, items in menu_groups.items() %}
+        {% set ns = namespace(active=false) %}
+        {% for key in items %}{% if current_menu == key %}{% set ns.active = true %}{% endif %}{% endfor %}
+        {% set g_clean = group_name.split(' ', 1)[1] if ' ' in group_name else group_name %}
+        <li class="{% if ns.active %}mm-active{% endif %}">
+          <a href="javascript:void(0);" class="has-arrow waves-effect" {% if ns.active %}aria-expanded="true"{% endif %}>
+            <i class="bx {{ group_icons.get(group_name, 'bx-folder') }}"></i>
+            <span>{{ g_clean }}</span>
+          </a>
+          <ul class="sub-menu mm-collapse {% if ns.active %}mm-show{% endif %}" {% if ns.active %}aria-expanded="true"{% endif %}>
+            {% for key, label in items.items() %}
+            {% if group_name == '🚚 Vận chuyển' %}
+            {% if loop.first %}
+            {% for menu_key, menu_label, menu_icon, menu_url in [
+              ('vehicles', 'Danh sách xe', 'bx-car', '/admin/vehicles'),
+              ('catalog_service', 'Danh mục dịch vụ', 'bx-list-ul', '/admin/transport/catalog?tab=service'),
+              ('catalog_cargo_type', 'Danh mục hàng hóa', 'bx-box', '/admin/transport/catalog?tab=cargo_type'),
+              ('catalog_companies', 'Danh mục khách hàng (Đại Lộ Xanh)', 'bx-buildings', '/admin/transport/catalog?tab=companies'),
+              ('tax_checklist', 'Checklist Kế toán & Thuế', 'bx-check-double', '/admin/enterprise/tax-checklist'),
+              ('cargo', 'Chuyến hàng (HĐ đầu ra)', 'bx-package', '/admin/vehicles/cargo'),
+              ('input_invoices', 'HĐ đầu vào', 'bx-receipt', '/admin/transport/input-invoices'),
+              ('tax_report', 'Bảng kê khai thuế', 'bx-file-find', '/admin/transport/tax-report'),
+              ('cash_book', 'Sổ quỹ tiền mặt (S04a)', 'bx-wallet', '/admin/transport/cash-book'),
+              ('bank_book', 'Sổ tiền gửi NH (S05a)', 'bx-credit-card', '/admin/transport/bank-book'),
+              ('debt_offsets', 'Bù trừ công nợ', 'bx-transfer', '/admin/transport/debt-offsets'),
+              ('other_vouchers', 'Chứng từ nghiệp vụ khác', 'bx-notepad', '/admin/transport/other-vouchers'),
+              ('prepaid_expenses', 'Công cụ dụng cụ', 'bx-layer', '/admin/transport/prepaid-expenses'),
+              ('depreciation', 'Tài sản cố định', 'bx-spreadsheet', '/admin/transport/depreciation'),
+              ('trial_balance', 'Bảng cân đối tài khoản (F01)', 'bx-git-merge', '/admin/transport/trial-balance'),
+              ('balance_sheet', 'Báo cáo tình hình TC (B01)', 'bx-bar-chart-alt-2', '/admin/transport/trial-balance/balance-sheet'),
+              ('income_statement', 'Báo cáo KQHĐKD (B02)', 'bx-line-chart', '/admin/transport/trial-balance/income-statement'),
+              ('financial_notes', 'Thuyết minh BCTC (B09)', 'bx-notepad', '/admin/transport/trial-balance/financial-notes')
+            ] %}
+            <li class="{% if transport_active == menu_key %}mm-active{% endif %}">
+              <a href="{{ menu_url }}" class="{% if transport_active == menu_key %}active{% endif %}"><i class="bx {{ menu_icon }}"></i> {{ menu_label }}</a>
+            </li>
+            {% endfor %}
+            {% endif %}
+            {% else %}
+            {% set parts = label.split(' ', 1) %}
+            {% set l_clean = parts[1] if parts|length > 1 and parts[0]|length <= 2 else label %}
+            {% set target_url =
+              '/admin/administrative-divisions' if key == 'administrative_divisions' else
+              '/admin/service-accounts' if key == 'service_accounts' else
+              '/admin/api-keys' if key == 'api_keys' else
+              '/admin/transport/payroll' if key == 'payroll' else
+              '/admin/enterprise/departments' if key == 'departments' else
+              '/admin/enterprise/attendance' if key == 'attendance' else
+              '/admin/enterprise/advances' if key == 'advances' else
+              '/admin/enterprise/assets' if key == 'assets' else
+              '/admin/enterprise/debts' if key == 'debts' else
+              '/admin/enterprise/tax-checklist' if key == 'tax_checklist' else
+              '/admin/enterprise/sales' if key == 'sales' else
+              '/admin/enterprise/inventory' if key == 'inventory' else
+              '/admin/enterprise/suppliers' if key == 'suppliers' else
+              '/admin/advertising/listings' if key == 'listings' else
+              '/admin/advertising/keywords' if key == 'advertising_keywords' else
+              '/admin/advertising/project-news' if key == 'project_news' else
+              '/admin/advertising/partners' if key == 'partners' else
+              '/admin/advertising/prospects' if key == 'prospects' else
+              '/admin/account-sales/products' if key == 'account_products' else
+              '/admin/account-sales/orders' if key == 'account_orders' else
+              '/admin/account-sales/live-chat' if key == 'account_live_chat' else
+              '/admin/advertising/facebook' if key == 'facebook_page' else
+              '/admin/advertising' if key == 'advertising' else
+              '/admin/' ~ key %}
+            <li class="{% if current_menu == key %}mm-active{% endif %}">
+              <a href="{{ target_url }}" class="{% if current_menu == key %}active{% endif %}">
+                <i class="bx {{ item_icons.get(key, 'bx-chevron-right') }}"></i> {{ l_clean }}
+              </a>
+            </li>
+            {% endif %}
+            {% endfor %}
+          </ul>
+        </li>
+        {% endfor %}
+
+      </ul>
+    </div>
+  </div>
+</div>
+<style>
+  body.vertical-collpsed .menu-search-item { display: none !important; }
+</style>
+<script>
+(function () {
+  var input = document.getElementById('sidebar-menu-search');
+  var menu = document.getElementById('side-menu');
+  if (!input || !menu) return;
+  function norm(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/đ/g, 'd').replace(/\s+/g, ' ').trim();
+  }
+  var groups = Array.prototype.filter.call(menu.children, function (li) {
+    return li.querySelector(':scope > ul.sub-menu');
+  });
+  function apply() {
+    var q = norm(input.value);
+    groups.forEach(function (g) {
+      var sub = g.querySelector(':scope > ul.sub-menu');
+      var items = sub.querySelectorAll(':scope > li');
+      if (!q) {
+        g.style.display = '';
+        sub.style.display = '';
+        sub.style.height = '';
+        items.forEach(function (it) { it.style.display = ''; });
+        return;
+      }
+      var groupHit = norm(g.querySelector(':scope > a').textContent).indexOf(q) !== -1;
+      var any = false;
+      items.forEach(function (it) {
+        var hit = groupHit || norm(it.textContent).indexOf(q) !== -1;
+        it.style.display = hit ? '' : 'none';
+        if (hit) any = true;
+      });
+      g.style.display = any ? '' : 'none';
+      sub.style.display = any ? 'block' : '';
+      sub.style.height = any ? 'auto' : '';
+    });
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { input.value = ''; apply(); }
+    if (e.key === 'Enter') {
+      var first = Array.prototype.find.call(menu.querySelectorAll('ul.sub-menu > li'), function (li) {
+        return li.offsetParent !== null;
+      });
+      if (first && input.value.trim()) { var a = first.querySelector('a'); if (a) window.location.href = a.href; }
+    }
+  });
+})();
+</script>
