@@ -51,7 +51,7 @@ PHOTO_ITEMS = [
         "price": 490000,
         "stock": 3,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Mirrorless Full-frame 33MP thế hệ mới, lấy nét mắt AI cực nhanh, quay 4K 60fps 10-bit S-Log3.",
         "specs": [
             "Kèm 2 pin NP-FZ100, sạc, thẻ SD V60 128GB & túi",
@@ -67,7 +67,7 @@ PHOTO_ITEMS = [
         "price": 380000,
         "stock": 4,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Body Full-frame 24MP quốc dân cho chụp sự kiện, phóng sự cưới, kỷ yếu & quay 4K thiếu sáng.",
         "specs": [
             "Kèm 2 pin NP-FZ100, sạc đôi, thẻ 128GB & dây đeo",
@@ -83,7 +83,7 @@ PHOTO_ITEMS = [
         "price": 390000,
         "stock": 2,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Full-frame nhỏ gọn có màn hình xoay lật cảm ứng, tối ưu du lịch, vlog và gắn gimbal RS3.",
         "specs": [
             "Kèm 2 pin NP-FZ100, thẻ nhớ 128GB & túi đeo chéo",
@@ -99,7 +99,7 @@ PHOTO_ITEMS = [
         "price": 250000,
         "stock": 4,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Gọn nhẹ dễ dùng, Real-time Eye AF bắt nét cực nhạy cho du lịch, vlog, chụp áo dài & kỷ yếu.",
         "specs": [
             "Kèm 2 pin, sạc, thẻ SD 64GB & đầu đọc thẻ nhanh",
@@ -115,7 +115,7 @@ PHOTO_ITEMS = [
         "price": 220000,
         "stock": 3,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Quay video 4K sắc nét, micro định hướng kèm lọc gió, cắm cáp livestream trực tiếp không cần card.",
         "specs": [
             "Kèm 2 pin, lọc gió Deadcat, thẻ 64GB & cáp Type-C",
@@ -131,7 +131,7 @@ PHOTO_ITEMS = [
         "price": 550000,
         "stock": 2,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Flagship chụp tiệc cưới & sân khấu tốc độ cao 40fps, quay 4K 60p không crop, màu da nịnh mắt.",
         "specs": [
             "Kèm 2 pin LP-E6NH zin, sạc, thẻ UHS-II 128GB",
@@ -147,7 +147,7 @@ PHOTO_ITEMS = [
         "price": 400000,
         "stock": 3,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Full-frame 24.2MP siêu nhẹ hệ RF, thừa hưởng AF thông minh từ R6 II, tông da hồng hào chuẩn Canon.",
         "specs": [
             "Kèm 3 pin LP-E17, sạc đôi, thẻ 128GB & túi đựng",
@@ -163,7 +163,7 @@ PHOTO_ITEMS = [
         "price": 250000,
         "stock": 4,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Combo sẵn sàng chụp cho người mới, du lịch, kỷ yếu & review — chụp đẹp ngay file JPEG không cần hậu kỳ.",
         "specs": [
             "Trọn bộ Body + Kit + 2 pin + thẻ 64GB + túi đeo",
@@ -179,7 +179,7 @@ PHOTO_ITEMS = [
         "price": 380000,
         "stock": 2,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Thiết kế cổ điển kèm chống rung 5 trục IBIS, 18 giả lập màu phim Classic Neg / Eterna chụp ăn ngay.",
         "specs": [
             "Kèm 2 pin NP-W235, sạc đôi, thẻ 128GB & dây da",
@@ -195,7 +195,7 @@ PHOTO_ITEMS = [
         "price": 550000,
         "stock": 2,
         "icon": "photo_camera",
-        "img": "/static/services/photo/img/gear_cameras_lenses.jpg",
+        "img": "/upload/services/photo/img/gear_cameras_lenses.jpg",
         "desc": "Siêu phẩm compact du lịch & lifestyle 40MP chống rung IBIS, ống kính 23mm f/2 & 20 màu phim Kodak/Fuji.",
         "specs": [
             "Kèm filter UV bảo vệ, hood vuông, 2 pin & thẻ 128GB",
@@ -211,7 +211,7 @@ PHOTO_ITEMS = [
         "price": 220000,
         "stock": 3,
         "icon": "videocam",
-        "img": "/static/services/photo/img/gear_lighting_tripod.jpg",
+        "img": "/upload/services/photo/img/gear_lighting_tripod.jpg",
         "desc": "Camera gimbal bỏ túi cảm biến 1 inch quay 4K 120fps siêu mượt, kèm sẵn micro không dây DJI Mic 2.",
         "specs": [
             "Full Creator Combo: DJI Mic 2, pin nối dài, lens góc rộng",
@@ -231,7 +231,7 @@ PHOTO_ITEMS = [
         "price": 450000,
         "stock": 2,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Ống kính zoom chuẩn mực cao cấp nhất cho sự kiện, hội nghị, phóng sự cưới & TVC quảng cáo.",
         "specs": [
             "Kèm filter B+W UV, hood zin hoa sen & túi chống sốc",
@@ -247,7 +247,7 @@ PHOTO_ITEMS = [
         "price": 480000,
         "stock": 2,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Tele khẩu f/2.8 siêu nhẹ cho chụp sân khấu, gala, thể thao & chân dung xóa phông bokeh mượt mà.",
         "specs": [
             "Kèm collar tripod, filter UV 77mm, hood & hộp chống sốc",
@@ -263,7 +263,7 @@ PHOTO_ITEMS = [
         "price": 180000,
         "stock": 4,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Tiêu cự vàng chân dung Full-frame: gọn nhẹ, bokeh tròn mịn và lấy nét mắt siêu êm.",
         "specs": [
             "Đủ hood zin, filter bảo vệ UV, nắp trước sau",
@@ -279,7 +279,7 @@ PHOTO_ITEMS = [
         "price": 260000,
         "stock": 3,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Zoom đa dụng khẩu f/2.8 sắc nét tiệm cận GM với mức chi phí thuê tối ưu cho chụp tiệc & du lịch.",
         "specs": [
             "Kèm filter UV 82mm, hood khóa & túi Sigma zin",
@@ -295,7 +295,7 @@ PHOTO_ITEMS = [
         "price": 150000,
         "stock": 4,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Bộ ống fix khẩu lớn f/1.4 cho Sony A6400/ZV-E10 hoặc Fujifilm X: góc rộng 16mm hoặc chân dung 56mm.",
         "specs": [
             "Xóa phông mượt, thu sáng tốt trong quán café & tiệc tối",
@@ -311,7 +311,7 @@ PHOTO_ITEMS = [
         "price": 480000,
         "stock": 2,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Ống kính L-Series cao cấp chống rung quang học 5-stop cho Canon R5 / R6 / R8, cực nét cả quay và chụp.",
         "specs": [
             "Filter UV 82mm, hood Canon zin & túi da đựng lens",
@@ -327,7 +327,7 @@ PHOTO_ITEMS = [
         "price": 300000,
         "stock": 3,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Huyền thoại sự kiện & phóng sự của Canon, dùng trực tiếp trên 5D4/6D2 hoặc R6/R8 qua ngàm chuyển.",
         "specs": [
             "Cho mượn kèm ngàm EF–EOS R miễn phí nếu dùng body EOS R",
@@ -343,7 +343,7 @@ PHOTO_ITEMS = [
         "price": 250000,
         "stock": 2,
         "icon": "camera",
-        "img": "/static/services/photo/img/gear_lenses_closeup.jpg",
+        "img": "/upload/services/photo/img/gear_lenses_closeup.jpg",
         "desc": "Ống zoom Red Badge tương đương 24-84mm f/2.8 toàn dải cho máy Fujifilm X-T4 / X-S20 / X-T5.",
         "specs": [
             "Filter UV 77mm, hood kim loại & nắp trước sau",
@@ -363,7 +363,7 @@ PHOTO_ITEMS = [
         "price": 250000,
         "stock": 4,
         "icon": "flash_on",
-        "img": "/static/services/photo/img/gear_lighting_tripod.jpg",
+        "img": "/upload/services/photo/img/gear_lighting_tripod.jpg",
         "desc": "Chống rung 3 trục khóa tự động, tải tới 3kg, chuyển quay dọc Reels/TikTok nhanh trong 10 giây.",
         "specs": [
             "Full hộp: tay cầm vali, đế tháo nhanh, đủ cáp điều khiển",
@@ -379,7 +379,7 @@ PHOTO_ITEMS = [
         "price": 120000,
         "stock": 5,
         "icon": "flash_on",
-        "img": "/static/services/photo/img/gear_lighting_tripod.jpg",
+        "img": "/upload/services/photo/img/gear_lighting_tripod.jpg",
         "desc": "Flash TTL pin Lithium hồi đèn 1.5s, đánh 500+ phát; đầu tròn V1 cho ánh sáng tản đều rất mịn.",
         "specs": [
             "Kèm 1 pin VB26, bộ sạc, chân vịt & dome tản sáng nam châm",
@@ -395,7 +395,7 @@ PHOTO_ITEMS = [
         "price": 300000,
         "stock": 3,
         "icon": "flash_on",
-        "img": "/static/services/photo/img/gear_lighting_tripod.jpg",
+        "img": "/upload/services/photo/img/gear_lighting_tripod.jpg",
         "desc": "Combo 2 đèn LED ánh sáng liên tục CRI 96+ quay phỏng vấn, livestream & chụp ảnh sản phẩm chuyên nghiệp.",
         "specs": [
             "2 thân đèn 150W siêu êm + 2 chân đèn inox 2.8m",
@@ -411,7 +411,7 @@ PHOTO_ITEMS = [
         "price": 150000,
         "stock": 4,
         "icon": "mic",
-        "img": "/static/services/photo/img/gear_lighting_tripod.jpg",
+        "img": "/upload/services/photo/img/gear_lighting_tripod.jpg",
         "desc": "2 micro cài áo không dây ghi âm 32-bit float chống vỡ tiếng, lọc ồn AI — gắn được cho máy ảnh & iPhone.",
         "specs": [
             "Hộp sạc 18h + 2 bông lọc gió + đầu nối Type-C/Lightning/3.5mm",
@@ -431,7 +431,7 @@ PHOTO_ITEMS = [
         "price": 4200000,
         "stock": 3,
         "icon": "add_a_photo",
-        "img": "/static/services/photo/img/photobooth_setup.jpg",
+        "img": "/upload/services/photo/img/photobooth_setup.jpg",
         "desc": "Gói trọn gói cho tiệc sinh nhật, thôi nôi, tiệc trà, workshop 50–120 khách. In lấy liền không giới hạn 2h.",
         "specs": [
             "Máy ảnh DSLR + Đèn studio + Máy in nhiệt DNP (10s/ảnh)",
@@ -448,7 +448,7 @@ PHOTO_ITEMS = [
         "price": 5600000,
         "stock": 3,
         "icon": "add_a_photo",
-        "img": "/static/services/photo/img/photobooth_setup.jpg",
+        "img": "/upload/services/photo/img/photobooth_setup.jpg",
         "desc": "Gói phổ biến nhất cho tiệc cưới & Gala Dinner (120–350 khách). Setup sớm 60 phút, in lấy liền + quét QR.",
         "specs": [
             "In ảnh nhiệt không giới hạn 3 giờ + Thiết kế 2–3 mẫu khung",
@@ -465,7 +465,7 @@ PHOTO_ITEMS = [
         "price": 6800000,
         "stock": 2,
         "icon": "add_a_photo",
-        "img": "/static/services/photo/img/photobooth_setup.jpg",
+        "img": "/upload/services/photo/img/photobooth_setup.jpg",
         "desc": "Tối ưu cho khai trương, hội nghị khách hàng & Year-End Party doanh nghiệp. Xuất hợp đồng & hóa đơn VAT đủ.",
         "specs": [
             "In không giới hạn 4 giờ + Tùy biến giao diện màn hình theo Brand",
@@ -481,7 +481,7 @@ PHOTO_ITEMS = [
         "price": 8500000,
         "stock": 2,
         "icon": "add_a_photo",
-        "img": "/static/services/photo/img/photobooth_setup.jpg",
+        "img": "/upload/services/photo/img/photobooth_setup.jpg",
         "desc": "Trải nghiệm quay slow-motion 360° ghép nhạc viral hoặc Gương Thần cảm ứng toàn thân sang trọng cho VIP event.",
         "specs": [
             "Bục 360 đường kính 110cm hoặc Gương cảm ứng Full HD in lấy liền",
@@ -592,7 +592,7 @@ PAGE = {
     "cta": "GỌI GIỮ LỊCH NGAY",
     "hero_caption": "Cho Thuê Máy Ảnh Studio & Dịch Vụ Photobooth Sự Kiện",
     "hero_icon": "photo_camera",
-    "hero_image": "/static/services/photo/img/hero_studio.jpg",
+    "hero_image": "/upload/services/photo/img/hero_studio.jpg",
     "catalog_kicker": "Bảng Giá Niêm Yết Trực Tiếp",
     "catalog_title": "Chọn Thiết Bị Hoặc Gói Photobooth (Hiện Giá Ngay)",
     "price_title": "Bảng Giá Gói Photobooth & Bảng Giá Thuê Máy Theo Ngày",
@@ -633,7 +633,7 @@ def get_photo_settings() -> dict:
             "photobooth tiệc cưới, thuê máy ảnh Vĩnh Phúc, thuê máy ảnh Phú Thọ, "
             f"{company_name}"
         ),
-        "og_image": "/static/services/photo/img/hero_studio.jpg",
+        "og_image": "/upload/services/photo/img/hero_studio.jpg",
     }
     return {
         **info,

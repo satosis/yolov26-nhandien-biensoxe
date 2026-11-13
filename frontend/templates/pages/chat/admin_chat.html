@@ -1896,19 +1896,17 @@
   }
 
   function syncUrlState(pushHistory) {
-    try {
-      var target = buildBrowserUrl(currentSessionId);
-      if (window.location.pathname + window.location.search === target) return;
-      var payload = {
-        sessionId: currentSessionId,
-        q: state.q
-      };
-      if (pushHistory) {
-        window.history.pushState(payload, '', target);
-      } else {
-        window.history.replaceState(payload, '', target);
-      }
-    } catch (e) { /* ignore history errors */ }
+    var target = buildBrowserUrl(currentSessionId);
+    if (window.location.pathname + window.location.search === target) return;
+    var payload = {
+      sessionId: currentSessionId,
+      q: state.q
+    };
+    if (pushHistory) {
+      window.history.pushState(payload, '', target);
+    } else {
+      window.history.replaceState(payload, '', target);
+    }
   }
 
   function createSessionElement(s, index) {
@@ -2053,13 +2051,11 @@
       offset: offset
     });
 
-    return fetch('/admin/account-sales/live-chat/sessions?' + params.toString(), {
-      credentials: 'same-origin',
+    return apiRequest('/admin/account-sales/live-chat/sessions?' + params.toString(), {
       cache: 'no-store'
     })
-      .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (res) {
-        if (!res || !res.ok) return null;
+        if (!res.ok) return null;
         if (append) {
           var existingIds = {};
           state.sessions.forEach(function (item) { existingIds[item.id] = true; });
@@ -2084,8 +2080,7 @@
           }
         }
         return res;
-      })
-      .catch(function () { return null; });
+      });
   }
 
   function loadMoreSessions() {
@@ -2425,13 +2420,11 @@
   }
 
   function syncActiveMessagesOnly(sessionId) {
-    return fetch('/admin/account-sales/live-chat/' + sessionId + '/detail', {
-      credentials: 'same-origin',
+    return apiRequest('/admin/account-sales/live-chat/' + sessionId + '/detail', {
       cache: 'no-store'
     })
-      .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (res) {
-        if (!res || !res.ok || !res.data || Number(res.data.id) !== Number(currentSessionId)) return;
+        if (!res.ok || !res.data || Number(res.data.id) !== Number(currentSessionId)) return;
         var detail = res.data;
         state.activeSession = detail;
         var msgs = Array.isArray(detail.messages) ? detail.messages : [];
@@ -2459,8 +2452,7 @@
           waitCue.classList.toggle('is-hidden', !(detail.status === 'open' && detail.last_message_sender === 'customer'));
         }
         if (appended) scrollChatToBottom();
-      })
-      .catch(function () {});
+      });
   }
 
   function selectSession(sessionId, opts) {
@@ -2481,20 +2473,15 @@
       syncUrlState(true);
     }
 
-    fetch('/admin/account-sales/live-chat/' + sessionId + '/detail', {
-      credentials: 'same-origin',
+    apiRequest('/admin/account-sales/live-chat/' + sessionId + '/detail', {
       cache: 'no-store'
     })
-      .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (res) {
         if (mySeq !== switchSeq) return;
-        if (res && res.ok && res.data) {
+        if (res.ok && res.data) {
           populateActiveSession(res.data);
           fetchSessionsList({ preserveScroll: true });
         }
-      })
-      .catch(function (err) {
-        console.error('Switch session error:', err);
       });
   }
 
@@ -2554,11 +2541,10 @@
     if (!sessionId) return;
     var fd = new FormData();
     fd.append('status', status);
-    fetch('/admin/account-sales/live-chat/' + sessionId + '/status', {
+    apiRequest('/admin/account-sales/live-chat/' + sessionId + '/status', {
       method: 'POST',
       body: fd
     })
-      .then(function (r) { return r.json(); })
       .then(function (res) {
         if (res.ok) {
           if (state.activeSession && Number(state.activeSession.id) === Number(sessionId)) {
@@ -2575,9 +2561,9 @@
           var waitCue = document.getElementById('mainWaitingCue');
           if (waitCue && status !== 'open') waitCue.classList.add('is-hidden');
           fetchSessionsList({ preserveScroll: true });
-          if (window.toastr) {
-            toastr.success('Đã cập nhật trạng thái phiên trò chuyện!');
-          }
+          window.showNotify('Đã cập nhật trạng thái phiên trò chuyện!', 'success');
+        } else {
+          window.showNotify(res.message, 'error');
         }
       });
   }
@@ -2610,11 +2596,10 @@
     fd.append('message', text);
     files.forEach(function (file) { fd.append('files', file, file.name); });
 
-    fetch('/admin/account-sales/live-chat/' + targetSessionId + '/reply', {
+    apiRequest('/admin/account-sales/live-chat/' + targetSessionId + '/reply', {
       method: 'POST',
       body: fd
     })
-      .then(function (r) { return r.json(); })
       .then(function (res) {
         if (btn) btn.disabled = false;
         if (res.ok) {
@@ -2646,12 +2631,8 @@
           renderSessionList(true);
           fetchSessionsList({ preserveScroll: true });
         } else {
-          alert(res.error || 'Lỗi gửi tin nhắn.');
+          window.showNotify(res.message || 'Lỗi gửi tin nhắn.', 'error');
         }
-      })
-      .catch(function (err) {
-        if (btn) btn.disabled = false;
-        console.error(err);
       });
   }
 
@@ -2685,7 +2666,7 @@
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () {
-        if (window.toastr) toastr.success(successMsg || 'Đã sao chép vào bộ nhớ đệm!');
+        window.showNotify(successMsg || 'Đã sao chép vào bộ nhớ đệm!', 'success');
       });
     } else {
       var ta = document.createElement('textarea');
@@ -2694,7 +2675,7 @@
       ta.select();
       document.execCommand('copy');
       document.body.removeChild(ta);
-      if (window.toastr) toastr.success(successMsg || 'Đã sao chép!');
+      window.showNotify(successMsg || 'Đã sao chép!', 'success');
     }
   }
 
@@ -2801,28 +2782,25 @@
                   var waitCue = document.getElementById('mainWaitingCue');
                   if (waitCue) waitCue.classList.remove('is-hidden');
                   if (!document.hidden) {
-                    fetch('/admin/account-sales/live-chat/' + currentSessionId + '/detail', { credentials: 'same-origin' })
-                      .then(function () { fetchSessionsList({ preserveScroll: true }); })
-                      .catch(function () {});
+                    apiRequest('/admin/account-sales/live-chat/' + currentSessionId + '/detail')
+                      .then(function () { fetchSessionsList({ preserveScroll: true }); });
                   } else {
                     refreshLiveChat(false);
                   }
                 }
               } else {
                 refreshLiveChat(false);
-                if (window.toastr) {
-                  toastr.options.escapeHtml = true;
-                  toastr.info(
-                    data.message || data.preview || 'Tin nhắn mới',
-                    '💬 ' + (data.customer_name || 'Khách') + ' (' + (data.service_name || 'Dịch vụ') + ')',
-                    {
-                      timeOut: 6000,
-                      onclick: function () {
-                        selectSession(data.session_id, { pushHistory: true });
-                      }
+                toastr.options.escapeHtml = true;
+                toastr.info(
+                  data.message || data.preview || 'Tin nhắn mới',
+                  '💬 ' + (data.customer_name || 'Khách') + ' (' + (data.service_name || 'Dịch vụ') + ')',
+                  {
+                    timeOut: 6000,
+                    onclick: function () {
+                      selectSession(data.session_id, { pushHistory: true });
                     }
-                  );
-                }
+                  }
+                );
               }
             }
           } catch (e) {

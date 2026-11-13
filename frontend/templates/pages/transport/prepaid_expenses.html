@@ -1206,25 +1206,18 @@ async function submitCcdc(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await res.json();
-    if (data.ok) {
-      alert(data.message || 'Đã lưu CCDC thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể lưu CCDC'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu CCDC';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu CCDC';
+  const data = await apiRequest(url, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    window.showNotify(data.message || 'Đã lưu CCDC thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
   }
+  window.showNotify(data.message || 'Không thể lưu CCDC', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu CCDC';
 }
 
 async function deleteCcdc(btn) {
@@ -1233,20 +1226,15 @@ async function deleteCcdc(btn) {
   const id = row.id;
   if (!confirm(`Xoá CCDC "${name}"?`)) return;
 
-  try {
-    const res = await fetch(`/admin/transport/prepaid-expenses/api/${id}/delete`, {
-      method: 'POST',
-    });
-    const data = await res.json();
-    if (data.ok) {
-      alert(data.message || 'Đã xóa thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể xóa'));
-    }
-  } catch (err) {
-    alert('Lỗi kết nối: ' + err.message);
+  const data = await apiRequest(`/admin/transport/prepaid-expenses/api/${id}/delete`, {
+    method: 'POST',
+  });
+  if (data.ok) {
+    window.showNotify(data.message || 'Đã xóa thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
   }
+  window.showNotify(data.message || 'Không thể xóa', 'error');
 }
 
 function openCcdcFromInvoice(btn) {

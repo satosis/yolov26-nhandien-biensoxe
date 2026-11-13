@@ -3,7 +3,7 @@
 // trang hỏi lại chậm hơn chứ không dừng theo dõi.
 (() => {
   const root = document.getElementById('cc-chat');
-  if (!root || typeof window.apiRequest !== 'function') return;
+  if (!root) return;
 
   const API = root.dataset.api;
   const fab = root.querySelector('.cc-fab');
@@ -41,13 +41,11 @@
 
   const store = {
     get(key) {
-      try { return window.localStorage.getItem(key); } catch (error) { return null; }
+      return window.localStorage.getItem(key);
     },
     set(key, value) {
-      try {
-        if (value) window.localStorage.setItem(key, value);
-        else window.localStorage.removeItem(key);
-      } catch (error) { /* trình duyệt chặn lưu trữ: chỉ mất phần ghi nhớ */ }
+      if (value) window.localStorage.setItem(key, value);
+      else window.localStorage.removeItem(key);
     },
   };
 
@@ -211,12 +209,7 @@
   }
 
   function toast(message) {
-    if (window.toastr) {
-      toastr.options.escapeHtml = true;
-      toastr.error(message);
-    } else {
-      window.alert(message);
-    }
+    window.showNotify(message, 'error');
   }
 
   function setNotice(text) {
@@ -598,9 +591,7 @@
       input.focus();
     });
     if (!runs.size) start();
-    else if (window.appConfirm) {
-      window.appConfirm('Claude sẽ không nhớ các tin nhắn trước.', { title: 'Cuộc trò chuyện mới', confirmText: 'Bắt đầu', confirmClass: 'btn-primary' }, start);
-    } else if (window.confirm('Bắt đầu cuộc trò chuyện mới?')) start();
+    else window.appConfirm('Claude sẽ không nhớ các tin nhắn trước.', { title: 'Cuộc trò chuyện mới', confirmText: 'Bắt đầu', confirmClass: 'btn-primary' }, start);
   });
 
   input.value = store.get(STORE_DRAFT) || '';

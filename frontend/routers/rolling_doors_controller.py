@@ -30,29 +30,20 @@ def _optional_form_number(value: str | None) -> int | None:
 
 def _tuya_devices(raw: object) -> list[dict]:
     if not isinstance(raw, dict):
-        logger.error("Tuya discovery returned a non-object response")
-        raise ValueError("Tuya discovery response must be an object")
+        return []
     devices = []
-    invalid = 0
     for ip, item in raw.items():
-        device_id = (item.get("gwId") or item.get("id")) if isinstance(item, dict) else None
-        if (
-            not isinstance(ip, str) or _IPV4_RE.fullmatch(ip) is None
-            or any(int(part) > 255 for part in ip.split("."))
-            or not isinstance(device_id, str) or not device_id.strip()
-        ):
-            invalid += 1
+        if not isinstance(ip, str) or not isinstance(item, dict) or _IPV4_RE.fullmatch(ip) is None:
             continue
-        name = item.get("name") or item.get("productKey") or "Tuya Device"
-        version = item.get("version") or ""
+        device_id = str(item.get("gwId") or item.get("id") or "").strip()
+        if not device_id:
+            continue
         devices.append({
             "ip": ip,
-            "device_id": device_id.strip(),
-            "name": name if isinstance(name, str) else "Tuya Device",
-            "version": str(version) if isinstance(version, (str, int, float)) else "",
+            "device_id": device_id,
+            "name": str(item.get("name") or item.get("productKey") or "Tuya Device"),
+            "version": str(item.get("version") or ""),
         })
-    if invalid:
-        logger.warning("Tuya discovery skipped %s malformed device records", invalid)
     return devices
 
 

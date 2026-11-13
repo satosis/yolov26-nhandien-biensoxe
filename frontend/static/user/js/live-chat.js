@@ -573,10 +573,8 @@
     clearUnread();
     syncQuickChipsState();
     requestAnimationFrame(scrollDown);
-    if (typeof pollMessages === 'function') {
-      pollMessages();
-      scheduleNextPoll();
-    }
+    pollMessages();
+    scheduleNextPoll();
     if (input) {
       setTimeout(function() { input.focus(); }, 120);
     }
@@ -588,9 +586,7 @@
     if (backdrop) backdrop.classList.remove('open');
     rootEl.classList.remove('sl-drawer-active');
     trigger.setAttribute('aria-expanded', 'false');
-    if (typeof scheduleNextPoll === 'function') {
-      scheduleNextPoll();
-    }
+    scheduleNextPoll();
   }
 
   if (backdrop) {

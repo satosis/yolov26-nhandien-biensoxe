@@ -4,7 +4,8 @@ import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import { createAiRunner, parseAiCommand, splitForZalo } from './ai_commands.js';
 
-function fakeSpawn(output, calls, delayMs = 0) {
+// fakeSpawn giả lập agy_direct.py: in plain text ra stdout, thoát code 0.
+function fakeSpawn(text, calls, delayMs = 0) {
   return (bin, args) => {
     const child = new EventEmitter();
     child.stdin = new PassThrough();
@@ -16,7 +17,7 @@ function fakeSpawn(output, calls, delayMs = 0) {
     child.stdin.on('finish', () => {
       calls.push({ bin, args, prompt });
       setTimeout(() => {
-        child.stdout.end(JSON.stringify(output));
+        child.stdout.end(text);
         child.exitCode = 0;
         child.emit('close', 0);
       }, delayMs);
@@ -28,7 +29,7 @@ function fakeSpawn(output, calls, delayMs = 0) {
 function runner(calls, sent, options = {}) {
   return createAiRunner({
     project: '.', gatherMs: 0, sendText: async text => { sent.push(text); },
-    spawnFn: fakeSpawn({ result: 'Đã sửa file x.py', session_id: 'abc', is_error: false }, calls, options.delayMs),
+    spawnFn: fakeSpawn('Đã sửa file x.py', calls, options.delayMs),
     ...options,
   });
 }
@@ -51,7 +52,7 @@ test('long replies are split under the Zalo limit', () => {
   assert.ok(chunks.every(chunk => chunk.length <= 1800));
 });
 
-test('run sends prompt via stdin, replies with result and resumes the session', async () => {
+test('run sends prompt via stdin, replies with result', async () => {
   const calls = [];
   const sent = [];
   const ai = runner(calls, sent);
@@ -64,11 +65,8 @@ test('run sends prompt via stdin, replies with result and resumes the session', 
 
   await ai.handle('tiếp tục', 'Hung');
   await ai.whenIdle();
-  assert.deepEqual(calls[1].args.slice(-2), ['--resume', 'abc']);
-  await ai.handle('new', 'Hung');
-  await ai.handle('lần nữa', 'Hung');
-  await ai.whenIdle();
-  assert.ok(!calls[2].args.includes('--resume'));
+  assert.equal(calls.length, 2);
+  assert.ok(calls[1].prompt.includes('tiếp tục'));
 });
 
 test('the prompt asks for the content of the change only', async () => {
@@ -148,7 +146,7 @@ test('busy marker remains active until the final reply has been sent', async () 
   let busy = false;
   const ai = createAiRunner({
     project: '.', gatherMs: 0,
-    spawnFn: fakeSpawn({ result: 'Đã hoàn tất', session_id: 'abc', is_error: false }, calls),
+    spawnFn: fakeSpawn('Đã hoàn tất', calls),
     onBusyChange: async value => { busy = value; states.push(value); },
     sendText: async text => { replies.push({ text, busy }); },
   });

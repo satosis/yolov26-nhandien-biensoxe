@@ -340,7 +340,7 @@ async def save_entry(
     except ValueError as e:
         return _error_redirect(str(e))
 
-    user_id = user.get("id") if isinstance(user, dict) else None
+    user_id = user.get("id")
 
     entry_data = {
         "entry_date": parsed_date,

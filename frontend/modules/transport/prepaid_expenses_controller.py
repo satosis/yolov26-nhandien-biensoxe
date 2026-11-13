@@ -56,8 +56,8 @@ async def prepaid_expenses_page(
         kind=kind,
     )
 
-    available_years = [selected_year, selected_year - 1, 2026, 2025, 2024, 2023, 2022, 2021, 2020]
-    available_years = sorted(list(set(available_years)), reverse=True)
+    last_alloc_year = max((it["start_date_raw"].year + (it["start_date_raw"].month - 1 + it["total_months"]) // 12 for it in pe_data["items"]), default=selected_year)
+    available_years = sorted({selected_year, selected_year - 1, *range(2020, max(2026, last_alloc_year) + 1)}, reverse=True)
 
     valid_tabs = (
         "register",

@@ -49,13 +49,6 @@ def list_items_page(kind: str, *, limit: int = 20, offset: int = 0) -> list[dict
     ) or []
 
 
-def get_item(item_id: int) -> dict | None:
-    return db._execute_query(
-        "SELECT id, kind, name FROM public.cargo_catalog_items WHERE id = %s",
-        (item_id,), fetch=True, commit=False,
-    )
-
-
 def save_item(kind: str, name: str, item_id: int | None = None) -> dict:
     if kind not in KINDS:
         raise ValueError("Danh mục không hợp lệ.")

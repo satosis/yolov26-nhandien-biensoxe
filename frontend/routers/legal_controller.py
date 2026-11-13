@@ -112,10 +112,7 @@ def _get_deletion_request(confirmation_code: str) -> Optional[dict]:
         row = queries.get_deletion_request_run_sql(confirmation_code)
         if row:
             created_at_val = row.get("created_at")
-            if hasattr(created_at_val, "strftime"):
-                created_str = created_at_val.strftime("%d/%m/%Y %H:%M:%S")
-            else:
-                created_str = str(created_at_val or datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+            created_str = created_at_val.strftime("%d/%m/%Y %H:%M:%S") if created_at_val else datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             res = {
                 "confirmation_code": row["confirmation_code"],
                 "user_id": row.get("user_id", ""),

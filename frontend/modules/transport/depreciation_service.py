@@ -592,10 +592,10 @@ def parse_fixed_asset_form(form: dict) -> tuple[dict | None, str | None]:
     raw_months = str(form.get("usage_months") or "").strip()
     try:
         months = int(raw_months)
-        if not (1 <= months <= 600):
-            return None, "Thời gian sử dụng phải từ 1 đến 600 tháng."
-    except Exception:
-        return None, "Thời gian sử dụng phải từ 1 đến 600 tháng."
+        if months < 1:
+            return None, "Thời gian sử dụng phải là số tháng lớn hơn 0."
+    except ValueError:
+        return None, "Thời gian sử dụng phải là số tháng lớn hơn 0."
 
     account_cost = str(form.get("account_cost") or "").strip() or DEFAULT_ACCOUNT_COST
     account_depreciation = str(form.get("account_depreciation") or "").strip() or DEFAULT_ACCOUNT_DEPRECIATION

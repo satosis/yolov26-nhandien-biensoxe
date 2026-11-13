@@ -288,9 +288,7 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const requestId = line.normalizationRequestId = (line.normalizationRequestId || 0) + 1;
       const parsed = parseInvoiceDescription(line.description, serviceNames, cargoNames);
       if (!parsed.origin && parsed.amount === null) {
-        if (notify) window.dispatchEvent(new CustomEvent('showToast', {
-          detail: {msg: 'Nhập tuyến đường hoặc cước để điền thông tin.', type: 'warning'}
-        }));
+        if (notify) window.showNotify('Nhập tuyến đường hoặc cước để điền thông tin.', 'warning');
         return;
       }
       let locations = null;
@@ -369,12 +367,12 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
         this.calculateDistance(line);
       }
       this.refreshDebtPlaceholder();
-      if (notify) window.dispatchEvent(new CustomEvent('showToast', {
-        detail: {msg: locationLookupFailed ? 'Không kiểm tra được danh mục địa danh.' :
-          parsed.includesVat ? 'Giá đã gồm VAT; nhập cước trước VAT để lưu.' :
-          'Đã điền thông tin xác định được. Kiểm tra lại trước khi lưu.',
-          type: locationLookupFailed || parsed.includesVat ? 'warning' : 'success'}
-      }));
+      if (notify) window.showNotify(
+        locationLookupFailed ? 'Không kiểm tra được danh mục địa danh.' :
+        parsed.includesVat ? 'Giá đã gồm VAT; nhập cước trước VAT để lưu.' :
+        'Đã điền thông tin xác định được. Kiểm tra lại trước khi lưu.',
+        locationLookupFailed || parsed.includesVat ? 'warning' : 'success'
+      );
     },
     moneyInput(event) {
       const digits = event.target.value.replace(/\D/g, '');
@@ -477,6 +475,15 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const routeKey = JSON.stringify([origin, destination, via]);
       line.routeMatch = '';
       if (!origin || !destination) return;
+      if (samePlace(origin, destination)) {
+        line.distanceRequestId += 1;
+        line._distanceController?.abort();
+        line.calculating = false;
+        if (line.distance_km === line._autoDistanceValue) line.distance_km = '';
+        line._autoDistanceValue = null;
+        this.autoFuel(line);
+        return;
+      }
       line._distanceController?.abort();
       const requestId = ++line.distanceRequestId;
       const controller = new AbortController();
@@ -517,22 +524,20 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
       const date = document.getElementById('invoice-date')?.value;
       if (!date) return;
       const requestId = ++this.priceRequestId;
-      try {
-        const response = await fetch('/admin/vehicles/api/fuel-price?target_date=' + encodeURIComponent(date),
-          {credentials: 'same-origin'});
-        const result = await response.json();
-        if (requestId !== this.priceRequestId || document.getElementById('invoice-date')?.value !== date) return;
-        if (response.ok && result.ok && Number(result.price) > 0) {
-          const formatted = Math.round(Number(result.price)).toLocaleString('vi-VN');
-          const previous = this.defaultFuelPrice;
-          this.defaultFuelPrice = formatted;
-          this.lines.forEach(line => {
-            if (!line.fuel_price_per_liter || line.fuel_price_per_liter === previous) {
-              line.fuel_price_per_liter = formatted;
-            }
-          });
-        }
-      } catch (_) { /* Keep the entered price when the lookup is unavailable. */ }
+      const response = await fetch('/admin/vehicles/api/fuel-price?target_date=' + encodeURIComponent(date),
+        {credentials: 'same-origin'});
+      const result = await response.json();
+      if (requestId !== this.priceRequestId || document.getElementById('invoice-date')?.value !== date) return;
+      if (response.ok && result.ok && Number(result.price) > 0) {
+        const formatted = Math.round(Number(result.price)).toLocaleString('vi-VN');
+        const previous = this.defaultFuelPrice;
+        this.defaultFuelPrice = formatted;
+        this.lines.forEach(line => {
+          if (!line.fuel_price_per_liter || line.fuel_price_per_liter === previous) {
+            line.fuel_price_per_liter = formatted;
+          }
+        });
+      }
     },
     prepareSubmit(event) {
       this.revenueAccount = String(this.revenueAccount).trim();
@@ -567,7 +572,14 @@ function invoiceEditor(initialLines, vehicles, defaultVehicleId, initialPaymentS
   };
 }
 
-if (typeof module !== 'undefined') module.exports = {parseInvoiceDescription, invoiceEditor};
+// Điểm đi trùng điểm đến (bỏ dấu, hoa thường, dấu câu) là ca cẩu: không có quãng đường, không tính dầu.
+function samePlace(origin, destination) {
+  const key = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return key(origin) !== '' && key(origin) === key(destination);
+}
+
+if (typeof module !== 'undefined') module.exports = {parseInvoiceDescription, invoiceEditor, samePlace};
 
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
   // Auto-fill next invoice number & serial if fields are empty
@@ -587,8 +599,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
             serInput.value = res.invoice_serial;
           }
         }
-      })
-      .catch(() => {});
+      });
   }
 
   const companySelect = document.getElementById('invoice-company');
@@ -623,28 +634,26 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
       }
     });
 
-    try {
-      const resp = await fetch('/admin/vehicles/api/normalize-invoice-locations', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({origin: rawAddress, destination: '', via_points: []})
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json.ok && json.origin) {
-          const norm = json.origin;
-          data.lines.forEach(line => {
-            if (line.origin === clientClean || !line.origin || !line.origin.trim()) {
-              line.origin = norm;
-              if (line.destination && data.calculateDistance) {
-                data.calculateDistance(line);
-              }
+    const resp = await fetch('/admin/vehicles/api/normalize-invoice-locations', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({origin: rawAddress, destination: '', via_points: []})
+    });
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json.ok && json.origin) {
+        const norm = json.origin;
+        data.lines.forEach(line => {
+          if (line.origin === clientClean || !line.origin || !line.origin.trim()) {
+            line.origin = norm;
+            if (line.destination && data.calculateDistance) {
+              data.calculateDistance(line);
             }
-          });
-        }
+          }
+        });
       }
-    } catch (_) {}
+    }
   }
 
   function normalizeTaxCode(tc) {
@@ -717,8 +726,12 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     address: (o.dataset.address || '').trim()
   }));
 
+  const onCompanyChanged = (value) => {
+    if (!syncingFromTax) syncTaxCodeFromCompany(value);
+    fillOriginFromCompany(value);
+  };
   let ts = companySelect.tomselect;
-  if (!ts && typeof TomSelect !== 'undefined') {
+  if (!ts) {
     ts = new TomSelect(companySelect, {
       options: companyOptions,
       create: false,
@@ -737,27 +750,10 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
           return '<div class="text-truncate">' + escape(data.text) + '</div>';
         }
       },
-      onChange(value) {
-        if (!syncingFromTax) {
-          syncTaxCodeFromCompany(value);
-        }
-        fillOriginFromCompany(value);
-      }
-    });
-  } else if (ts) {
-    ts.on('change', function(value) {
-      if (!syncingFromTax) {
-        syncTaxCodeFromCompany(value);
-      }
-      fillOriginFromCompany(value);
+      onChange: onCompanyChanged,
     });
   } else {
-    companySelect.addEventListener('change', function() {
-      if (!syncingFromTax) {
-        syncTaxCodeFromCompany(this.value);
-      }
-      fillOriginFromCompany(this.value);
-    });
+    ts.on('change', onCompanyChanged);
   }
 
   // Pre-fill on page load if a company is already selected or tax code is provided

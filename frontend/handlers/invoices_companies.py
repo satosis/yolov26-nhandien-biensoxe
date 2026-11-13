@@ -9,7 +9,7 @@ async def companies_management_page(
     request: Request,
     back: str = Query('/admin/companies'),
     page: int = Query(1, ge=1),
-    q: str = Query('', max_length=200),
+    q: str = Query(''),
     debt: bool = Query(False),
     message: str = Query(''),
     error: str = Query(''),

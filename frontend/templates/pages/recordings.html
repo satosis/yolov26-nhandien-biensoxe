@@ -9,13 +9,11 @@
         if(confirm('Bạn có chắc muốn xóa đoạn ghi hình này?')) {
             apiRequest('/admin/recordings/' + id, { method: 'DELETE' })
             .then(data => {
-                if (data.ok && data.success) {
+                if (data.ok) {
                     window.location.reload();
                     return;
                 }
-                window.dispatchEvent(new CustomEvent('showToast', {
-                    detail: { msg: data.message || 'Không thể xóa bản ghi hình.', type: 'error' }
-                }));
+                window.showNotify(data.message, 'error');
             });
         }
     }

@@ -238,8 +238,7 @@ def refresh(now: datetime | None = None, max_age_days: int = 3, fetcher: Callabl
                     "query": q,
                     "status": "new",
                 }
-                if isinstance(row, dict):
-                    item_record.update(row)
+                item_record.update(row)
                 new_rows.append(item_record)
 
     return {"new": new_rows, "errors": errors}
@@ -361,11 +360,8 @@ def _discard(ids: list[int]) -> None:
 
 
 def _admin_link() -> str:
-    try:
-        from backend.services import facebook_autopost
-        base = (facebook_autopost._site_url() or "http://127.0.0.1:8001").replace("://localhost", "://127.0.0.1")
-    except Exception:
-        base = "http://127.0.0.1:8001"
+    from backend.services import facebook_autopost
+    base = (facebook_autopost._site_url() or "http://127.0.0.1:8001").replace("://localhost", "://127.0.0.1")
     return f"{base}/admin/advertising/project-news"
 
 

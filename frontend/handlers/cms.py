@@ -20,7 +20,7 @@ async def add_project(
     height: str = Form(...),
     bays: str = Form(...),
     load_capacity: str = Form(...),
-    image: str = Form('/static/brain/wh_real1.jpg'),
+    image: str = Form('/upload/brain/wh_real1.jpg'),
 ):
     return await controller.add_project(name=name, location=location, area=area, height=height, bays=bays, load_capacity=load_capacity, image=image)
 
@@ -39,7 +39,7 @@ async def news_save(
     category: str = Form(...),
     summary: str = Form(''),
     content: str = Form(''),
-    image: str = Form('/static/brain/news1.jpg'),
+    image: str = Form('/upload/brain/news1.jpg'),
     is_published: str = Form('false'),
 ):
     return await controller.news_save(news_id=news_id, title=title, category=category, summary=summary, content=content, image=image, is_published=is_published)
@@ -61,7 +61,7 @@ async def update_project(
     height: str = Form(''),
     bays: str = Form(''),
     load_capacity: str = Form(''),
-    image: str = Form('/static/brain/wh_real1.jpg'),
+    image: str = Form('/upload/brain/wh_real1.jpg'),
 ):
     return await controller.update_project(project_id=project_id, name=name, location=location, area=area, height=height, bays=bays, load_capacity=load_capacity, image=image)
 

@@ -50,23 +50,21 @@ async def cargo_catalog_page(
 
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "vehicles"
-    tab_str = tab if isinstance(tab, str) else "service"
-    current_tab = tab_str if tab_str in (*CATALOG_KINDS, "companies") else "service"
+    current_tab = tab if tab in (*CATALOG_KINDS, "companies") else "service"
     ctx["tab"] = current_tab
-    subtab_str = subtab if isinstance(subtab, str) else "list"
-    ctx["subtab"] = subtab_str if subtab_str in ("list", "131", "331") else "list"
-    ctx["partner_type"] = partner_type if isinstance(partner_type, str) else "all"
-    ctx["role_filter"] = role_filter if isinstance(role_filter, str) else "all"
-    back_str = back if isinstance(back, str) else "/admin/vehicles"
-    ctx["back_url"] = _catalog_back_url(back_str)
-    ctx["message"] = message if isinstance(message, str) else ""
-    ctx["error"] = error if isinstance(error, str) else ""
-    clean_q = q if isinstance(q, str) else ""
+    subtab_str = subtab if subtab in ("list", "131", "331") else "list"
+    ctx["subtab"] = subtab_str
+    ctx["partner_type"] = partner_type or "all"
+    ctx["role_filter"] = role_filter or "all"
+    ctx["back_url"] = _catalog_back_url(back or "/admin/vehicles")
+    ctx["message"] = message or ""
+    ctx["error"] = error or ""
+    clean_q = q or ""
     ctx["q"] = clean_q
-    debt_str = debt.strip().lower() if isinstance(debt, str) else ""
+    debt_str = (debt or "").strip().lower()
     ctx["debt_filter"] = "any" if debt_str == "true" else (debt_str if debt_str in ("any", "dr", "cr") else "")
     ctx["debt_only"] = bool(ctx["debt_filter"])
-    page_num = page if isinstance(page, int) else 1
+    page_num = page or 1
     if current_tab == "companies":
         if ctx["subtab"] == "131":
             ctx["ledger_131"] = get_ledger_131_sheet2(year=2026, q=clean_q, balance=ctx["debt_filter"])

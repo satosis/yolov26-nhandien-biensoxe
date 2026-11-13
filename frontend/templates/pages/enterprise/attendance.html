@@ -349,24 +349,16 @@ async function saveAttendanceRow(userId, month) {
   formData.append('overtime_hours', ot);
   formData.append('note', note);
 
-  try {
-    const res = await fetch('/admin/enterprise/attendance/save-row', {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify(data.message || 'Đã lưu ngày công.', 'success');
-      btn.innerHTML = '<i class="bx bx-check text-success"></i>';
-      setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 1500);
-    } else {
-      showNotify('Lỗi lưu ngày công.', 'error');
-      btn.innerHTML = origText;
-      btn.disabled = false;
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối: ' + err.message, 'error');
+  const data = await apiRequest('/admin/enterprise/attendance/save-row', {
+    method: 'POST',
+    body: formData
+  });
+  if (data.ok) {
+    showNotify(data.message || 'Đã lưu ngày công.', 'success');
+    btn.innerHTML = '<i class="bx bx-check text-success"></i>';
+    setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 1500);
+  } else {
+    showNotify(data.message || 'Lỗi lưu ngày công.', 'error');
     btn.innerHTML = origText;
     btn.disabled = false;
   }

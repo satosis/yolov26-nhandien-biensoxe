@@ -1923,13 +1923,15 @@ async def update_cargo_service(trip_id: int, vehicle_id: Optional[int], service_
     return {"ok": True}
 
 
-async def push_cargo_invoice_to_bkav(trip_id: int, request: Request, user: dict):
-    headers = getattr(request, "headers", None) or {}
-    is_ajax = bool(
-        hasattr(headers, "get")
-        and (headers.get("X-Requested-With") == "XMLHttpRequest"
-             or "application/json" in headers.get("Accept", ""))
+def _is_ajax_request(request: Request) -> bool:
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in request.headers.get("Accept", "")
     )
+
+
+async def push_cargo_invoice_to_bkav(trip_id: int, request: Request, user: dict):
+    is_ajax = _is_ajax_request(request)
 
     def respond_error(message: str, status_code: int = 400):
         if is_ajax:
@@ -2118,7 +2120,7 @@ async def export_cargo_contract(
 
 
 def _handle_word_download(docx_bytes: bytes, contract_no: str, prefix: str, req_format: Any) -> Response:
-    fmt = str(req_format.default if hasattr(req_format, "default") else (req_format or "doc")).lower()
+    fmt = str(req_format or "doc").lower()
     from frontend.modules.transport.contract import _remove_accents
     safe_no = re.sub(r"[^A-Za-z0-9_-]", "_", _remove_accents(contract_no))
     if fmt == "docx":
@@ -2490,8 +2492,7 @@ async def add_invoice_page(request: Request, user: dict):
 
 async def create_invoice(request: Request, user: dict):
     form = dict(await request.form())
-    headers = getattr(request, "headers", None) or {}
-    accept = headers.get("Accept", "") if hasattr(headers, "get") else ""
+    accept = request.headers.get("Accept", "")
     if form.get("action") == "export" or "application/vnd.openxmlformats" in accept:
         try:
             payload = await _invoice_payload_from_form(form, request, user)
@@ -2524,19 +2525,11 @@ async def save_invoice_to_db(request: Request, invoice_guid: Optional[UUID] = No
     existing_guid = str(invoice_guid or form.get("invoice_guid") or "").strip()
     try:
         saved = save_sales_invoice(payload, guid=existing_guid or str(uuid4()), edit=bool(existing_guid),
-                                   created_by=user.get("id") if isinstance(user, dict) else None)
+                                   created_by=user.get("id"))
     except InvoiceNumberTaken as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=409)
     guid = saved.guid
-    headers = getattr(request, "headers", None) or {}
-    is_ajax = bool(
-        hasattr(headers, "get")
-        and (
-            headers.get("X-Requested-With") == "XMLHttpRequest"
-            or "application/json" in headers.get("Accept", "")
-        )
-    )
-    if is_ajax:
+    if _is_ajax_request(request):
         return JSONResponse({"ok": True, "invoice_guid": guid,
                              "redirect": f"/admin/vehicles/cargo/invoices/{guid}/edit?saved=1"})
     return RedirectResponse(f"/admin/vehicles/cargo/invoices/{guid}/edit?saved=1", status_code=303)
@@ -2546,14 +2539,7 @@ async def push_invoice_form_to_bkav(request: Request, user: dict):
     form = dict(await request.form())
     guid_str = str(form.get("invoice_guid") or "").strip()
     is_new = not bool(guid_str)
-    headers = getattr(request, "headers", None) or {}
-    is_ajax = bool(
-        hasattr(headers, "get")
-        and (
-            headers.get("X-Requested-With") == "XMLHttpRequest"
-            or "application/json" in headers.get("Accept", "")
-        )
-    )
+    is_ajax = _is_ajax_request(request)
     target_guid: UUID | None = UUID(guid_str) if guid_str else None
 
     if target_guid:
@@ -2600,14 +2586,7 @@ async def push_saved_invoice_to_bkav_endpoint(
     buyer = get_company(invoice["buyer_company_id"]) if invoice.get("buyer_company_id") else None
     seller = get_company(invoice["seller_company_id"])
     back_url = f"/admin/vehicles/cargo/invoices/{invoice_guid}/edit"
-    headers = getattr(request, "headers", None) or {}
-    is_ajax = bool(
-        hasattr(headers, "get")
-        and (
-            headers.get("X-Requested-With") == "XMLHttpRequest"
-            or "application/json" in headers.get("Accept", "")
-        )
-    )
+    is_ajax = _is_ajax_request(request)
     if not seller:
         raise ValueError("Không tìm thấy thông tin đơn vị bên bán/phát hành hóa đơn.")
     if not buyer:

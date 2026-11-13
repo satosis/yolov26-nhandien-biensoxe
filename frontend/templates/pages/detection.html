@@ -121,7 +121,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
 
 
           <div x-show="tab==='rtsp'" class="w-100 h-100 position-relative d-flex align-items-center justify-content-center">
-            <video id="rtsp-feed" autoplay playsinline muted class="cam-media-element d-none"></video>
             <img id="rtsp-feed-img" class="cam-media-element d-none" alt="Camera Feed">
             <canvas id="rtsp-overlay" class="cam-overlay-canvas d-none"></canvas>
 
@@ -174,8 +173,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
                   <i class="bx bx-stop-circle" aria-hidden="true"></i>
                 </button>
               </div>
-              <div id="video-job-message" role="status" aria-live="polite"></div>
-              <progress id="video-job-progress" value="0" max="100" aria-label="Tiến độ phân tích video"></progress>
+              <div id="video-message" role="status" aria-live="polite"></div>
               <div id="video-preview-warning" class="video-preview-warning d-none" role="status"></div>
             </div>
 
@@ -267,7 +265,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
 <style>
 :root {
   --cam-bg: #ffffff;
-  --cam-hud-glass: rgba(15, 23, 42, 0.88);
 }
 
 .footer { display: none !important; }
@@ -299,9 +296,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
 .video-cancel-btn { padding: 0; border: 0; background: transparent; color: #cbd5e1; line-height: 1; font-size: 20px; cursor: pointer; pointer-events: auto; }
 .video-cancel-btn:hover { color: #fff; }
 .video-cancel-btn:disabled { opacity: .5; cursor: default; }
-#video-job-message.has-error { color: #fca5a5; }
+#video-message.has-error { color: #fca5a5; }
 .video-preview-warning { margin-top: 4px; color: #fcd34d; }
-#video-job-progress { display: block; width: 100%; height: 3px; margin-top: 5px; accent-color: #3b82f6; }
 .video-event-card { align-items: flex-start; }
 .video-event-crop { width: 112px; height: 76px; flex-shrink: 0; object-fit: contain; background: #f1f5f9; border-radius: 6px; cursor: zoom-in; }
 .video-crop-dialog { width: min(1200px, 96vw); max-height: 92vh; overflow: auto; border: 0; border-radius: 12px; padding: 20px; color: #334155; }
@@ -516,6 +512,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     min-height: auto;
     max-height: none;
   }
+  /* Lưới cao tự động thì khung cao 100% sẽ co về 0: cho khung camera chiều cao riêng */
+  .cam-monitor-card {
+    height: 62vh;
+    min-height: 320px;
+  }
 }
 
 
@@ -529,36 +530,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-
-.cam-osd-hud-top {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
-}
-.cam-hud-item {
-  background: var(--cam-hud-glass);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f8fafc;
-  padding: 3px 9px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-}
-.cam-hud-clock {
-  color: #cbd5e1;
-  font-size: 11px;
 }
 
 
@@ -799,10 +770,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
   font-weight: 600;
   margin-bottom: 4px;
 }
-.cam-empty-hint {
-  color: #94a3b8;
-  font-size: 11.5px;
-}
 
 
 .cam-event-card {
@@ -816,24 +783,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
   box-shadow: 0 1px 2px rgba(0,0,0,0.02);
   transition: transform 0.12s ease;
 }
-.cam-event-card.animate-in {
-  animation: slide-in-down 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.cam-event-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  flex-shrink: 0;
-}
-.cam-event-avatar.known { background: rgba(6, 182, 212, 0.12); color: #0891b2; }
-.cam-event-avatar.stranger { background: rgba(239, 68, 68, 0.12); color: #dc2626; }
-.cam-event-avatar.whitelist { background: rgba(16, 185, 129, 0.12); color: #059669; }
-.cam-event-avatar.unknown { background: rgba(245, 158, 11, 0.12); color: #d97706; }
-.cam-event-avatar.person { background: rgba(139, 92, 246, 0.12); color: #7c3aed; }
 
 .cam-event-body {
   flex-grow: 1;
@@ -859,20 +808,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
   flex-shrink: 0;
 }
 .cam-event-badge.known { background: #ecfeff; color: #0891b2; }
-.cam-event-badge.stranger { background: #fef2f2; color: #dc2626; }
 .cam-event-badge.whitelist { background: #ecfdf5; color: #059669; }
-.cam-event-badge.unknown { background: #fffbeb; color: #d97706; }
-.cam-event-badge.person { background: #f5f3ff; color: #7c3aed; }
 
-@keyframes radar-ping {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.4); opacity: 0; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-@keyframes slide-in-down {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 @keyframes spin-kf { to { transform: rotate(360deg); } }
 .spin-anim { animation: spin-kf 1s linear infinite; }
 </style>
@@ -895,21 +832,19 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     const videoPlaceholder = document.getElementById('video-placeholder');
     const videoAnalysisStatus = document.getElementById('video-analysis-status');
     const videoCancelBtn = document.getElementById('video-cancel-btn');
-    const videoJobMessage = document.getElementById('video-job-message');
-    const videoJobProgress = document.getElementById('video-job-progress');
+    const videoMessage = document.getElementById('video-message');
     const videoFileName = document.getElementById('video-file-name');
     const videoPreviewWarning = document.getElementById('video-preview-warning');
-    let selectedVideoFile = null;
     let videoObjectUrl = null;
-    let videoJobId = null;
-    let videoJobEpoch = 0;
-    let videoJobBusy = false;
-    let videoCancellationRequested = false;
-    let videoPollTimer = null;
+    // Thẻ sự kiện: một cách ghi nhận và hiển thị cho cả bốn tab. Tab Video giữ danh sách của video đang mở
+    // để còn nguyên khi quay lại; Camera, Webcam và Ảnh làm lại danh sách mỗi lần mở tab.
     let videoEvents = [];
-    let videoRenderedKey = null;
-    let videoEventNodes = new Map();
-    let videoResumePending = false;
+    const liveEvents = [];
+    const tabEvents = () => detectionActiveTab === 'video' ? videoEvents : liveEvents;
+    const MAX_EVENTS = 150;
+    const EVENT_STATUS_RANK = { unreadable: 0, uncertain: 1, recognized: 2 };
+    let eventsRenderedKey = null;
+    let eventNodes = new Map();
     let videoDetectionFrames = [];
     let videoSyncActive = false;
     let videoSyncBusy = false;
@@ -919,24 +854,21 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     let videoSyncViewEpoch = 0;
     let videoSyncTimer = null;
     let videoSyncStreamId = '';
-    let videoEventRevision = 0;
+    let eventRevision = 0;
     const videoFrameCanvas = document.createElement('canvas');
     let detectionActiveTab = localStorage.getItem('detection_tab') || 'rtsp';
     const resultsDiv = document.getElementById('detection-results');
 
     const rtspCamera = document.getElementById('rtsp-camera');
     const rtspPlaceholder = document.getElementById('rtsp-placeholder');
-    const rtspFeed = document.getElementById('rtsp-feed');
     const rtspFeedImg = document.getElementById('rtsp-feed-img');
     const rtspOverlay = document.getElementById('rtsp-overlay');
-    const hudCamName = document.getElementById('hud-cam-name');
+    const DOOR_LINES = {{ door_lines | tojson }};
     const statusIndicator = document.getElementById('cam-status-indicator');
     const dockBtnPower = document.getElementById('dock-btn-power');
 
     const statPersonCount = document.getElementById('stat-person-count');
     const statPlateCount = document.getElementById('stat-plate-count');
-    // Ô đếm khuôn mặt đã bỏ khỏi giao diện; giữ biến (null) để các chỗ `if (statFaceCount)` không ném ReferenceError.
-    const statFaceCount = document.getElementById('stat-face-count');
     const statAlertCount = document.getElementById('stat-alert-count');
 
     let stream = null;
@@ -955,27 +887,34 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     let rtspStreamId = '';
     let rtspFrameSize = [640, 360];
 
-    function captureLiveFrame(source, canvas) {
+    // Một cách gửi khung cho mọi nguồn (webcam, ảnh, video): độ phân giải gốc, cạnh dài tối đa
+    // FRAME_MAX_SIDE, nén JPEG một lần với FRAME_JPEG_QUALITY.
+    const FRAME_MAX_SIDE = 3840;
+    const FRAME_JPEG_QUALITY = 0.95;
+
+    function captureFrame(source, canvas, maxSide = FRAME_MAX_SIDE) {
       const width = source.naturalWidth || source.videoWidth || source.width;
       const height = source.naturalHeight || source.videoHeight || source.height;
       if (!width || !height) return null;
-      const scale = Math.min(1, 1280 / Math.max(width, height));
+      const scale = Math.min(1, maxSide / Math.max(width, height));
       canvas.width = Math.max(1, Math.round(width * scale));
       canvas.height = Math.max(1, Math.round(height * scale));
       canvas.getContext('2d', { alpha: false }).drawImage(source, 0, 0, canvas.width, canvas.height);
       return [canvas.width, canvas.height];
     }
 
-    function updateHudCamName() {
-      if (rtspCamera && hudCamName) {
-        const selected = rtspCamera.options[rtspCamera.selectedIndex];
-        if (selected) hudCamName.textContent = selected.text || 'Camera';
-      }
+    // Webcam gửi liên tục qua mạng điện thoại: nén nhẹ hơn để mỗi khung upload nhanh hơn (~2 lần nhỏ hơn 0.95).
+    const WEBCAM_JPEG_QUALITY = 0.85;
+    // Cạnh dài khung webcam gửi lên: 720x1280 nặng 400–570 KB, mất ~1 giây upload qua 4G (log 13/11);
+    // 960 nhẹ gần một nửa, biển cầm gần điện thoại vẫn đủ nét để đọc.
+    const WEBCAM_MAX_SIDE = 960;
+
+    function frameBlob(canvas, quality = FRAME_JPEG_QUALITY) {
+      return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
     }
+
     if (rtspCamera) {
-      updateHudCamName();
       rtspCamera.addEventListener('change', () => {
-        updateHudCamName();
         localStorage.setItem('selected_rtsp_camera', rtspCamera.value);
         if (rtspActive) {
           window.toggleRtsp().then(() => window.toggleRtsp());
@@ -984,7 +923,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       const savedCam = localStorage.getItem('selected_rtsp_camera');
       if (savedCam && Array.from(rtspCamera.options).some(o => o.value === savedCam)) {
         rtspCamera.value = savedCam;
-        updateHudCamName();
       }
     }
 
@@ -1046,7 +984,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       let activeSource = null;
       const currentTab = localStorage.getItem('detection_tab') || 'rtsp';
       if (currentTab === 'rtsp' && rtspActive) {
-        activeSource = (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) ? rtspFeedImg : rtspFeed;
+        activeSource = rtspFeedImg;
       } else if (currentTab === 'webcam' && stream) {
         activeSource = video;
       } else if (currentTab === 'upload' && !uploadCanvas.classList.contains('d-none')) {
@@ -1086,6 +1024,33 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       });
       for (const key of Array.from(store.keys())) if (!seen.has(key)) store.delete(key);
       return out;
+    }
+
+    function drawDoorLine(canvas, ratio) {
+      const ctx = canvas.getContext('2d');
+      const uiScale = Math.max(1, canvas.width / 960);
+      const y = Math.round(canvas.height * ratio);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(249, 115, 22, 0.45)';
+      ctx.lineWidth = 1.5 * uiScale;
+      ctx.setLineDash([12 * uiScale, 8 * uiScale]);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const fontSize = Math.max(12, Math.round(12 * uiScale));
+      ctx.font = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      const text = 'Vạch đếm người';
+      const padX = 6 * uiScale;
+      const w = ctx.measureText(text).width + padX * 2;
+      const h = fontSize + 8 * uiScale;
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.45)';
+      ctx.fillRect(6 * uiScale, y - h, w, h);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 6 * uiScale + padX, y - h / 2);
+      ctx.restore();
     }
 
     function drawBoxes(canvas, img, results, srcW, srcH) {
@@ -1199,236 +1164,24 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       }
     }
 
-    // Bộ nhớ tích lũy các biển số và sự kiện đã phát hiện (không xóa biển cũ)
-    const detectedHistory = [];
-    const MAX_HISTORY_EVENTS = 50;
-
-    function createCardElement(r) {
-      const card = document.createElement('div');
-      card.id = `card-${r.key}`;
-      if (r.trackId) card.dataset.trackId = r.trackId;
-      card.className = 'cam-event-card animate-in';
-
-      let avatarClass = 'known';
-      let avatarIcon = '🚗';
-      let title = r.text || '';
-      let badgeClass = 'known';
-      let badgeText = `${Math.round(r.confidence)}%`;
-
-      if (r.type === 'face') {
-        avatarIcon = '👤';
-        if (r.status === 'known') {
-          avatarClass = 'known';
-          badgeClass = 'known';
-          title = r.text;
-          badgeText = `${Math.round(r.confidence)}%`;
-        } else {
-          avatarClass = 'stranger';
-          badgeClass = 'stranger';
-          title = 'Người lạ';
-          badgeText = 'Cảnh báo';
-        }
-      } else if (r.type === 'plate') {
-        avatarIcon = '🚗';
-        if (r.status === 'whitelist') {
-          avatarClass = 'whitelist';
-          badgeClass = 'whitelist';
-          title = r.owner_name && r.owner_name !== 'unknown' ? `${r.text} • ${r.owner_name}` : r.text;
-          badgeText = 'Whitelist';
-        } else {
-          avatarClass = r.is_recognized ? 'known' : 'unknown';
-          badgeClass = r.is_recognized ? 'known' : 'unknown';
-          title = (!r.is_recognized || r.text === '(BIỂN SỐ ?)') ? 'Chưa rõ biển' : r.text;
-          badgeText = r.is_recognized ? 'Xe lạ' : 'Đang quét';
-        }
-      }
-
-      card.innerHTML = `
-        <div class="cam-event-avatar ${avatarClass}">
-          ${avatarIcon}
-        </div>
-        <div class="cam-event-body">
-          <div class="cam-event-title" style="font-weight:700;letter-spacing:0.3px;">${title}</div>
-          <div class="cam-event-meta">${r.timeStr}</div>
-        </div>
-        <span class="cam-event-badge ${badgeClass}">${badgeText}</span>
-      `;
-      return card;
+    function clockTime(seconds) {
+      const time = new Date(seconds * 1000);
+      return [time.getHours(), time.getMinutes(), time.getSeconds()].map(part => String(part).padStart(2, '0')).join(':');
     }
 
-    function renderResults(data) {
-      if (data.error) {
-        console.warn("Detection response warning:", data.error);
-        return;
-      }
-
-      if (!Array.isArray(data.results) || data.results.length === 0) return;
-
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-      let hasNewEvent = false;
-
-      data.results.forEach(r => {
-        const isPlate = r.type === 'plate';
-        const rawText = (r.text || '').trim();
-        const isRecognizedPlate = isPlate && rawText && rawText !== '(BIỂN SỐ ?)' && rawText.length >= 3;
-
-        if (isRecognizedPlate) {
-          const cleanKey = 'plate_' + rawText.replace(/[^A-Z0-9]/g, '');
-          let existingCard = null;
-          if (r.track_id) {
-            existingCard = resultsDiv.querySelector(`.cam-event-card[data-track-id="${r.track_id}"]`);
-          }
-          if (!existingCard) {
-            existingCard = document.getElementById('card-' + cleanKey);
-          }
-
-          if (existingCard) {
-            // Gắn track_id nếu trước đó chưa có
-            if (r.track_id) existingCard.dataset.trackId = r.track_id;
-            // Nếu biển số được tinh chỉnh chính xác hơn ở các frame tiếp theo:
-            const titleEl = existingCard.querySelector('.cam-event-title');
-            const expectedTitle = (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown'))
-              ? `${rawText} • ${r.owner_name}`
-              : rawText;
-            if (titleEl && titleEl.textContent !== expectedTitle) {
-              titleEl.textContent = expectedTitle;
-              existingCard.id = 'card-' + cleanKey;
-              const hItem = detectedHistory.find(item => (r.track_id && item.trackId === r.track_id) || item.key === cleanKey);
-              if (hItem) {
-                hItem.text = rawText;
-                hItem.key = cleanKey;
-                hItem.owner_name = r.owner_name;
-                hItem.status = r.status;
-              }
-            }
-            // Cập nhật trạng thái whitelist nếu có
-            if (r.status === 'whitelist' || (r.owner_name && r.owner_name !== 'unknown')) {
-              const badge = existingCard.querySelector('.cam-event-badge');
-              if (badge && !badge.classList.contains('whitelist')) {
-                badge.className = 'cam-event-badge whitelist';
-                badge.textContent = 'Whitelist';
-                const avatar = existingCard.querySelector('.cam-event-avatar');
-                if (avatar) avatar.className = 'cam-event-avatar whitelist';
-                hasNewEvent = true;
-              }
-            }
-          } else {
-            // Biển MỚI: Thêm vào đầu feed, giữ nguyên toàn bộ biển cũ
-            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
-            if (emptyEl) emptyEl.remove();
-
-            const unresEl = document.getElementById('card-plate_unresolved');
-            if (unresEl) {
-              unresEl.remove();
-              const unresIdx = detectedHistory.findIndex(item => item.key === 'plate_unresolved');
-              if (unresIdx !== -1) detectedHistory.splice(unresIdx, 1);
-            }
-
-            const newCard = createCardElement({
-              key: cleanKey,
-              trackId: r.track_id,
-              type: 'plate',
-              text: rawText,
-              confidence: r.confidence || 0,
-              status: r.status || 'unknown',
-              owner_name: r.owner_name,
-              timeStr: timeStr,
-              is_recognized: true,
-            });
-            if (r.track_id) newCard.dataset.trackId = r.track_id;
-
-            resultsDiv.prepend(newCard);
-            detectedHistory.unshift({
-              key: cleanKey,
-              trackId: r.track_id || null,
-              type: 'plate',
-              text: rawText,
-              confidence: r.confidence || 0,
-              status: r.status || 'unknown',
-              owner_name: r.owner_name,
-              timeStr: timeStr,
-              is_recognized: true,
-            });
-            hasNewEvent = true;
-          }
-        } else if (r.type === 'face') {
-          const faceKey = 'face_' + rawText.replace(/[^A-Za-z0-9]/g, '');
-          const existingCard = document.getElementById('card-' + faceKey);
-
-          if (!existingCard) {
-            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
-            if (emptyEl) emptyEl.remove();
-
-            const newCard = createCardElement({
-              key: faceKey,
-              type: 'face',
-              text: rawText,
-              confidence: r.confidence || 0,
-              status: r.status || 'stranger',
-              timeStr: timeStr,
-              is_recognized: true,
-            });
-
-            resultsDiv.prepend(newCard);
-            detectedHistory.unshift({
-              key: faceKey,
-              type: 'face',
-              text: rawText,
-              confidence: r.confidence || 0,
-              status: r.status || 'stranger',
-              timeStr: timeStr,
-              is_recognized: true,
-            });
-            hasNewEvent = true;
-          }
-        } else if (isPlate && !isRecognizedPlate) {
-          // Chưa đọc được chữ trên biển: Chỉ hiển thị thẻ tạm thời nếu chưa có bất kỳ thẻ nào
-          if (detectedHistory.length === 0 && !document.getElementById('card-plate_unresolved')) {
-            const emptyEl = resultsDiv.querySelector('.cam-empty-feed, .text-primary');
-            if (emptyEl) emptyEl.remove();
-
-            const newCard = createCardElement({
-              key: 'plate_unresolved',
-              type: 'plate',
-              text: '(BIỂN SỐ ?)',
-              confidence: r.confidence || 0,
-              status: 'unknown',
-              timeStr: timeStr,
-              is_recognized: false,
-            });
-            resultsDiv.prepend(newCard);
-          }
-        }
-      });
-
-      // Giới hạn số lượng thẻ hiển thị
-      while (resultsDiv.children.length > MAX_HISTORY_EVENTS) {
-        resultsDiv.removeChild(resultsDiv.lastElementChild);
-      }
-      if (detectedHistory.length > MAX_HISTORY_EVENTS) {
-        detectedHistory.length = MAX_HISTORY_EVENTS;
-      }
-
-      // Cập nhật số liệu thống kê khi có sự kiện mới
-      if (hasNewEvent) {
-        let countFaces = 0, countPlates = 0, countAlerts = 0;
-        detectedHistory.forEach(item => {
-          if (item.type === 'plate' && item.is_recognized) {
-            countPlates++;
-            if (item.status === 'unknown') countAlerts++;
-          } else if (item.type === 'face') {
-            countFaces++;
-            if (item.status === 'stranger') countAlerts++;
-          }
-        });
-
-        if (statFaceCount) statFaceCount.textContent = countFaces;
-        if (statPlateCount) statPlateCount.textContent = countPlates;
-        if (statAlertCount) statAlertCount.textContent = countAlerts;
-      }
+    // Một cửa nhận kết quả cho cả bốn tab: cập nhật thẻ sự kiện của tab đang mở rồi trả về các đối tượng có mặt
+    // trong khung vừa gửi để vẽ khung. Track đã kết thúc vẫn về để chốt thẻ, kèm visible = false.
+    // moment: thời điểm của khung — giây trong video với tab Video, giờ đồng hồ (giây) với các tab còn lại.
+    function showDetections(data, moment, streamId) {
+      if (data.error) console.warn('Detection response warning:', data.error);
+      const results = data.error || !Array.isArray(data.results) ? []
+        : data.results.filter(result => result.type === 'plate' || result.type === 'person');
+      const events = tabEvents();
+      results.forEach((result, index) => updateEvent(events, result, moment, index, streamId));
+      if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS);
+      eventsRenderedKey = null;
+      renderEvents();
+      return results.filter(result => result.visible !== false);
     }
 
     async function sendFrame(blob, source = 'webcam', fields = {}) {
@@ -1480,7 +1233,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         stream = null;
         placeholder.classList.remove('d-none');
         video.classList.add('d-none');
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:camera.message,type:'error'}}));
+        window.showNotify(camera.message, 'error');
         return;
       }
       stream = camera.stream;
@@ -1494,27 +1247,37 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       let isProcessing = false;
       let lastResults = [];
       const webcamSmoothBoxes = new Map();
+      let frameNo = 0;
+      let lastRoundTripMs = 0;
+      const device = (navigator.userAgent.match(/iPhone|iPad|Android[^;)]*|Windows|Macintosh/) || ['?'])[0];
 
       const runDetection = async () => {
         if (!stream || !webcamInterval || isProcessing) return;
         if (!video.videoWidth || video.readyState < 2) return;
 
         isProcessing = true;
-        webcamFrameSize = captureLiveFrame(video, captureCanvas) || webcamFrameSize;
+        const encodeStart = performance.now();
+        webcamFrameSize = captureFrame(video, captureCanvas, WEBCAM_MAX_SIDE) || webcamFrameSize;
 
-        captureCanvas.toBlob(async (blob) => {
-          if (!webcamInterval) { isProcessing = false; return; }
-          const data = await sendFrame(blob, 'webcam', { stream_id: webcamStreamId });
-          isProcessing = false;
-          if (!webcamInterval) return;
-          if (data.error) {
-            renderResults(data);
-            window.stopWebcam();
-            return;
-          }
-          lastResults = data.results;
-          renderResults(data);
-        }, 'image/jpeg', 0.88);
+        const blob = await frameBlob(captureCanvas, WEBCAM_JPEG_QUALITY);
+        const encodeMs = Math.round(performance.now() - encodeStart);
+        if (!webcamInterval) { isProcessing = false; return; }
+        frameNo += 1;
+        // Số liệu phía điện thoại ghi vào data/logs/webcam_debug.log: rtt = khứ hồi của khung trước (upload + máy chủ + tải về)
+        const clientInfo = `n=${frameNo} rtt_prev=${lastRoundTripMs}ms encode=${encodeMs}ms video=${video.videoWidth}x${video.videoHeight} dev=${device}`;
+        const sendStart = performance.now();
+        const data = await sendFrame(blob, 'webcam', { stream_id: webcamStreamId, client_info: clientInfo });
+        lastRoundTripMs = Math.round(performance.now() - sendStart);
+        isProcessing = false;
+        if (!webcamInterval) return;
+        if (data.error) {
+          showDetections(data);
+          window.stopWebcam();
+          return;
+        }
+        lastResults = showDetections(data, Date.now() / 1000, webcamStreamId);
+        // Gửi khung kế tiếp ngay, không đợi nhịp 250ms của vòng lặp
+        setTimeout(runDetection, 0);
       };
 
       const drawOverlay = () => {
@@ -1543,16 +1306,9 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       };
     };
 
-    const getActiveRtspEl = () => {
-      if (rtspFeedImg && !rtspFeedImg.classList.contains('d-none')) return rtspFeedImg;
-      return rtspFeed;
-    };
-
     const runRtspDetection = async () => {
       if (!rtspActive || rtspProcessing) return;
-      const el = getActiveRtspEl();
-      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0 && el.complete) : (el.videoWidth > 0 && el.readyState >= 2);
-      if (!hasContent) return;
+      if (!(rtspFeedImg.naturalWidth > 0 && rtspFeedImg.complete)) return;
 
       if (!rtspHasLiveFeed) {
         rtspHasLiveFeed = true;
@@ -1567,12 +1323,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         });
         if (!rtspActive) return;
         if (data.error) {
-          renderResults(data);
+          showDetections(data);
           return;
         }
         if (Array.isArray(data.frame_size)) rtspFrameSize = data.frame_size;
-        rtspLastResults = data.results;
-        renderResults(data);
+        rtspLastResults = showDetections(data, Date.now() / 1000, rtspStreamId);
       } finally {
         rtspProcessing = false;
       }
@@ -1580,13 +1335,18 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
 
     const drawRtspOverlay = () => {
       if (!rtspActive) return;
-      const el = getActiveRtspEl();
-      const hasContent = (el.tagName === 'IMG') ? (el.naturalWidth > 0) : (el.videoWidth > 0);
-      if (hasContent && rtspLastResults.length > 0) {
+      const hasContent = rtspFeedImg.naturalWidth > 0;
+      const doorLine = DOOR_LINES[rtspCamera?.value] || 0;
+      if (hasContent && (rtspLastResults.length > 0 || doorLine)) {
         rtspOverlay.classList.remove('d-none');
-        rtspOverlay.width = el.clientWidth;
-        rtspOverlay.height = el.clientHeight;
-        drawBoxes(rtspOverlay, el, smoothBoxes(rtspSmoothBoxes, rtspLastResults), rtspFrameSize[0], rtspFrameSize[1]);
+        rtspOverlay.width = rtspFeedImg.clientWidth;
+        rtspOverlay.height = rtspFeedImg.clientHeight;
+        if (rtspLastResults.length > 0) {
+          drawBoxes(rtspOverlay, rtspFeedImg, smoothBoxes(rtspSmoothBoxes, rtspLastResults), rtspFrameSize[0], rtspFrameSize[1]);
+        } else {
+          rtspSmoothBoxes.clear();
+        }
+        if (doorLine) drawDoorLine(rtspOverlay, doorLine);
       } else {
         rtspOverlay.getContext('2d').clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
         rtspSmoothBoxes.clear();
@@ -1621,7 +1381,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         rtspFeedImg.src = '';
         rtspFeedImg.classList.add('d-none');
       }
-      rtspFeed.classList.add('d-none');
       rtspOverlay.classList.add('d-none');
       const ctx = rtspOverlay.getContext('2d');
       ctx.clearRect(0, 0, rtspOverlay.width, rtspOverlay.height);
@@ -1635,7 +1394,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     }
 
     function connectMJPEG(camId) {
-      rtspFeed.classList.add('d-none');
       rtspHasLiveFeed = false;
 
       if (rtspWatchdogTimer) clearTimeout(rtspWatchdogTimer);
@@ -1686,22 +1444,17 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         if (Date.now() - streamStartedAt < 10000) {
           return;
         }
-        try {
-          const res = await fetch(`/admin/cameras/${camId}/stream/status`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.ok && data.streaming === false) {
-              offlineStreak++;
-              if (offlineStreak >= 3) {
-                console.warn('Backend stream status: camera stopped.');
-                showCameraOffline('Camera đang tắt hoặc mất kết nối.');
-              }
-            } else {
-              offlineStreak = 0;
+        const data = await apiRequest(`/admin/cameras/${camId}/stream/status`);
+        if (data.ok) {
+          if (data.streaming === false) {
+            offlineStreak++;
+            if (offlineStreak >= 3) {
+              console.warn('Backend stream status: camera stopped.');
+              showCameraOffline('Camera đang tắt hoặc mất kết nối.');
             }
+          } else {
+            offlineStreak = 0;
           }
-        } catch (e) {
-          // ignore network glitch
         }
       }, 2500);
     }
@@ -1757,17 +1510,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
     window.addEventListener('pagehide', stopActiveRtspStream);
 
     window.clearResults = function (options) {
-      detectedHistory.length = 0;
-      fetch('/admin/detection/api/reset-tracker', { method: 'POST' }).catch(() => {});
-      if (statFaceCount) statFaceCount.textContent = '0';
-      if (statPersonCount) statPersonCount.textContent = '0';
-      if (statPlateCount) statPlateCount.textContent = '0';
-      if (statAlertCount) statAlertCount.textContent = '0';
-      resultsDiv.innerHTML = `
-        <div class="cam-empty-feed">
-          <div class="cam-empty-radar-icon"><i class="bx bx-radar"></i></div>
-          <div class="cam-empty-title">Chưa có sự kiện</div>
-        </div>`;
+      liveEvents.length = 0;
+      fetch('/admin/detection/api/reset-tracker', { method: 'POST' });
       if (overlay) {
         const ctx = overlay.getContext('2d');
         ctx.clearRect(0, 0, overlay.width, overlay.height);
@@ -1792,29 +1536,27 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       if (videoPlayer && !(options && options.preserveVideo === true)) {
         resetVideoSelection();
       }
+      eventsRenderedKey = null;
+      renderEvents();
     };
     if (btnClear) btnClear.addEventListener('click', window.clearResults);
 
     window.onDetectionTabChanged = function (tab) {
       detectionActiveTab = tab;
       window.clearResults({ preserveVideo: true });
-      if (tab === 'video') {
-        videoRenderedKey = null;
-        renderVideoEvents();
-        scheduleVideoFrame(true);
-      }
+      if (tab === 'video') scheduleVideoFrame(true);
     };
 
     if (btnDevice) {
       btnDevice.addEventListener('click', async () => {
         const result = await cameraDevicesRequest();
         if (!result.ok) {
-          window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:result.message,type:'error'}}));
+          window.showNotify(result.message, 'error');
           return;
         }
         const vd = result.devices;
         if (!vd.length) {
-          window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Không tìm thấy camera.',type:'warning'}}));
+          window.showNotify('Không tìm thấy camera.', 'warning');
           return;
         }
         const names = vd.map((d, i) => `${i + 1}. ${d.label || 'Camera ' + (i + 1)}`).join('\n');
@@ -1851,35 +1593,17 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
               <span style="font-size:12.5px;">Đang phân tích...</span>
             </div>`;
 
-          const MAX_UPLOAD = 3840;
-          let sendW = img.naturalWidth;
-          let sendH = img.naturalHeight;
-          if (sendW > MAX_UPLOAD || sendH > MAX_UPLOAD) {
-            const ratio = Math.min(MAX_UPLOAD / sendW, MAX_UPLOAD / sendH);
-            sendW = Math.round(sendW * ratio);
-            sendH = Math.round(sendH * ratio);
-          }
-
           const detectCanvas = document.createElement('canvas');
-          detectCanvas.width = sendW;
-          detectCanvas.height = sendH;
-          detectCanvas.getContext('2d', { alpha: false }).drawImage(img, 0, 0, sendW, sendH);
-
-          detectCanvas.toBlob(async (blob) => {
-            const data = await sendFrame(blob, 'upload');
-            if (data.error) {
-              renderResults(data);
-              drawBoxes(uploadCanvas, img, [], sendW, sendH);
-            } else {
-              renderResults(data);
-              drawBoxes(uploadCanvas, img, data.results || [], sendW, sendH);
-            }
-            URL.revokeObjectURL(img.src);
-          }, 'image/jpeg', 0.90);
+          const [sendW, sendH] = captureFrame(img, detectCanvas);
+          // Một ảnh là một luồng chỉ có một khung đứng yên, như video đang tạm dừng.
+          const streamId = `${liveClientId}:upload:${Date.now()}`;
+          const data = await sendFrame(await frameBlob(detectCanvas), 'upload', { stream_id: streamId, finish_tracks: true });
+          drawBoxes(uploadCanvas, img, showDetections(data, Date.now() / 1000, streamId), sendW, sendH);
+          URL.revokeObjectURL(img.src);
         };
         img.onerror = () => {
           console.error('Detection upload image failed to load');
-          renderResults({ error: 'Không thể đọc ảnh đã chọn.', results: [] });
+          showDetections({ error: 'Không thể đọc ảnh đã chọn.' });
           URL.revokeObjectURL(img.src);
         };
         img.src = URL.createObjectURL(file);
@@ -1909,33 +1633,14 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       videoSyncActive = true;
       videoSyncLastTime = -Infinity;
       videoSyncStreamId = `${liveClientId}:video:${Date.now()}`;
-      videoJobProgress.classList.add('d-none');
       setVideoMessage('');
       updateVideoControls();
-      renderVideoEvents();
+      renderEvents();
       scheduleVideoFrame(true);
       videoSyncTimer = setInterval(() => scheduleVideoFrame(), 120);
     }
 
-    function cropVideoFrame(box) {
-      if (!Array.isArray(box) || box.length !== 4) return '';
-      const [x1, y1, x2, y2] = box.map(Number);
-      if (![x1, y1, x2, y2].every(Number.isFinite)) return '';
-      const padX = Math.max(2, (x2 - x1) * .1);
-      const padY = Math.max(2, (y2 - y1) * .12);
-      const left = Math.max(0, Math.floor(x1 - padX));
-      const top = Math.max(0, Math.floor(y1 - padY));
-      const width = Math.min(videoFrameCanvas.width - left, Math.ceil(x2 + padX) - left);
-      const height = Math.min(videoFrameCanvas.height - top, Math.ceil(y2 + padY) - top);
-      if (width < 1 || height < 1) return '';
-      const crop = document.createElement('canvas');
-      crop.width = width;
-      crop.height = height;
-      crop.getContext('2d').drawImage(videoFrameCanvas, left, top, width, height, 0, 0, width, height);
-      return crop.toDataURL('image/jpeg', .9);
-    }
-
-    function plateBoxSimilarity(first, second) {
+    function boxSimilarity(first, second) {
       if (!Array.isArray(first) || !Array.isArray(second) || first.length !== 4 || second.length !== 4) return 0;
       const [ax1, ay1, ax2, ay2] = first.map(Number);
       const [bx1, by1, bx2, by2] = second.map(Number);
@@ -1953,66 +1658,66 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         ? .25 - centerDistance / (plateDiagonal * 10) : 0;
     }
 
-    function updateVideoPlateEvent(result, timestamp, index) {
-      const candidateText = result.valid_format === true
+    // Thẻ của một đối tượng. Biển số theo track của máy chủ; track mới đọc ra đúng chuỗi của một thẻ đã có thì
+    // dùng lại thẻ đó (cùng một xe). Người không có track: nối theo vị trí với thẻ vừa thấy gần đây.
+    function updateEvent(events, result, moment, index, streamId) {
+      const text = result.type === 'plate' && result.valid_format === true
         ? (typeof result.ocr_text === 'string' ? result.ocr_text.trim()
           : typeof result.text === 'string' ? result.text.trim() : '') : '';
-      const trackKey = result.track_id != null
-        ? `${result.stream_id || videoSyncStreamId}:${result.track_id}` : '';
-      let event = trackKey
-        ? videoEvents.find(item => item.type === 'plate' && item.track_key === trackKey)
-        : videoEvents
-          .filter(item => item.type === 'plate' && timestamp >= Number(item.end_time)
-            && timestamp - Number(item.end_time) <= 8)
-          .map(item => ({ item, score: plateBoxSimilarity(item.bbox, result.bbox) }))
+      const trackKey = result.track_id != null ? `${result.stream_id || streamId}:${result.track_id}` : '';
+      let event = trackKey ? events.find(item => item.track_key === trackKey) : null;
+      const sameText = text ? events.find(item => item !== event && item.type === 'plate' && item.text === text) : null;
+      if (sameText) {
+        if (event) events.splice(events.indexOf(event), 1);
+        event = sameText;
+        event.track_key = trackKey;
+      }
+      if (!event && !trackKey) {
+        event = events
+          .filter(item => item.type === result.type && !item.track_key && moment >= item.end_time && moment - item.end_time <= 8)
+          .map(item => ({ item, score: boxSimilarity(item.bbox, result.bbox) }))
           .filter(match => match.score > 0)
           .sort((a, b) => b.score - a.score)[0]?.item;
-      if (!event) {
-        event = { id: trackKey || `sync-${timestamp.toFixed(1)}-${index}`, track_key: trackKey,
-          type: 'plate', text: '', status: 'unreadable',
-          ocr_confidence: 0, bbox: result.bbox, start_time: timestamp, end_time: timestamp,
-          crop_time: timestamp, crop_data: '', original_crop_data: '', best_sharpness: -1,
-          observations: 0 };
-        videoEvents.push(event);
       }
-      event.revision = ++videoEventRevision;
-      event.bbox = result.bbox;
-      const sourceStart = Number(result.start_time);
-      const sourceEnd = Number(result.end_time);
-      if (Number.isFinite(sourceStart)) event.start_time = Math.min(Number(event.start_time), sourceStart);
-      if (Number.isFinite(sourceEnd)) event.end_time = Math.max(Number(event.end_time), sourceEnd);
-      event.observations = Math.max(Number(event.observations) || 0, Number(result.observations) || 0);
+      if (!event) {
+        event = { id: trackKey || `${result.type}-${moment.toFixed(1)}-${index}`, track_key: trackKey, type: result.type,
+          text: '', status: 'unreadable', ocr_confidence: 0, owner_name: '', bbox: result.bbox,
+          start_time: moment, end_time: moment, crop_time: moment, crop_data: '', original_crop_data: '' };
+        events.push(event);
+      }
+      event.revision = ++eventRevision;
+      if (result.visible !== false) {
+        event.bbox = result.bbox;
+        event.start_time = Math.min(event.start_time, moment);
+        event.end_time = Math.max(event.end_time, moment);
+      }
 
-      // The server owns temporal voting. Count observations there once per
-      // source frame; never vote again on repeated active-track snapshots here.
-      event.text = candidateText;
-      event.ocr_confidence = Number(result.ocr_confidence) || 0;
-      event.status = result.recognition_status || (candidateText ? 'uncertain' : 'unreadable');
+      // Máy chủ bỏ phiếu theo thời gian; ở đây chỉ ghi lại kết quả của track. Cùng một chuỗi thì giữ mức
+      // chắc chắn cao nhất đã đạt; chuỗi khác là track đã đổi kết quả đọc.
+      const status = result.type === 'person' ? 'recognized'
+        : result.recognition_status || (text ? 'uncertain' : 'unreadable');
+      if (text !== event.text || EVENT_STATUS_RANK[status] >= EVENT_STATUS_RANK[event.status]) {
+        event.text = text;
+        event.status = status;
+        event.ocr_confidence = Number(result.ocr_confidence) || 0;
+      }
+      if (result.status === 'whitelist') event.owner_name = result.owner_name || '';
 
-      if (result.crop_preview || result.crop_original) {
-        event.crop_time = Number.isFinite(Number(result.best_crop_time)) ? Number(result.best_crop_time) : timestamp;
-        event.crop_data = result.crop_preview || result.crop_original;
-        event.original_crop_data = result.crop_original || result.crop_preview;
-        event.best_sharpness = Number(result.quality?.sharpness) || 0;
+      if (result.crop_preview) {
+        event.crop_time = Number.isFinite(Number(result.best_crop_time)) ? Number(result.best_crop_time) : moment;
+        event.crop_data = result.crop_preview;
+        event.original_crop_data = result.crop_original;
       }
     }
 
     async function analyzeVideoFrame(timestamp, epoch, viewEpoch) {
       try {
         const streamId = videoSyncStreamId;
-        videoFrameCanvas.width = videoPlayer.videoWidth;
-        videoFrameCanvas.height = videoPlayer.videoHeight;
-        videoFrameCanvas.getContext('2d', { alpha: false }).drawImage(videoPlayer, 0, 0);
-        const blob = await new Promise(resolve => videoFrameCanvas.toBlob(resolve, 'image/jpeg', .95));
+        captureFrame(videoPlayer, videoFrameCanvas);
+        const blob = await frameBlob(videoFrameCanvas);
         if (!videoSyncActive || epoch !== videoSyncEpoch || viewEpoch !== videoSyncViewEpoch) return;
-        // Search the full frame every time so vehicles near either edge are
-        // not missed by a center-only pass.
-        const previewView = 'full';
-        // Use bounded reads during playback and flush the full track pipeline
-        // when paused.
-        const previewOcr = videoPlayer.paused ? 'full' : 'quick';
+        // Pausing flushes the tracks still being followed.
         const data = await sendFrame(blob, 'video_preview', {
-          preview_view: previewView, preview_ocr: previewOcr,
           stream_id: streamId, video_time: timestamp,
           finish_tracks: videoPlayer.paused,
         });
@@ -2024,31 +1729,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
           setVideoMessage(data.error, true);
           return;
         }
-        const results = Array.isArray(data.results) ? data.results : [];
-        videoDetectionFrames.push({ time: timestamp, boxes: results, width: videoFrameCanvas.width, height: videoFrameCanvas.height });
+        const boxes = showDetections(data, timestamp, streamId);
+        videoDetectionFrames.push({ time: timestamp, boxes, width: videoFrameCanvas.width, height: videoFrameCanvas.height });
         if (videoDetectionFrames.length > 120) videoDetectionFrames.shift();
         drawVideoDetections();
-        results.forEach((result, index) => {
-          if (result.type !== 'plate' && result.type !== 'person') return;
-          if (result.type === 'plate') {
-            updateVideoPlateEvent(result, timestamp, index);
-            return;
-          }
-          const validText = result.valid_format === true;
-          const status = result.type === 'person' ? 'recognized' :
-            validText ? result.recognition_status : 'unreadable';
-          const id = `sync-${timestamp.toFixed(1)}-${index}`;
-          videoEvents = videoEvents.filter(event => event.id !== id);
-          videoEvents.push({ id, revision: ++videoEventRevision, type: result.type, text: validText ? result.text : '',
-            status, ocr_confidence: result.ocr_confidence, bbox: result.bbox,
-            start_time: timestamp, end_time: timestamp,
-            crop_data: result.crop_preview || cropVideoFrame(result.bbox),
-            original_crop_data: cropVideoFrame(result.bbox) });
-        });
-        if (videoEvents.length > 150) videoEvents.splice(0, videoEvents.length - 150);
-        videoRenderedKey = null;
-        renderVideoEvents();
-        setVideoMessage(`Đã đọc khung ${formatVideoTime(timestamp)} · ${results.length} phát hiện.`);
+        setVideoMessage(`Đã đọc khung ${formatVideoTime(timestamp)} · ${data.results.length} phát hiện.`);
       } catch (error) {
         if (videoSyncActive && epoch === videoSyncEpoch && viewEpoch === videoSyncViewEpoch) setVideoMessage('Không thể phân tích khung hình đang xem.', true);
       } finally {
@@ -2078,77 +1763,22 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       analyzeVideoFrame(timestamp, videoSyncEpoch, videoSyncViewEpoch);
     }
 
-    function uploadVideoFile(form, epoch) {
-      // XHR exposes real upload byte progress; keep the response for safe late cancellation.
-      return new Promise(resolve => {
-        const upload = new XMLHttpRequest();
-        upload.open('POST', '/admin/detection/api/videos');
-        upload.responseType = 'json';
-        upload.upload.onprogress = event => {
-          if (epoch !== videoJobEpoch || !videoJobBusy || !event.lengthComputable) return;
-          const ratio = Math.min(1, event.loaded / Math.max(1, event.total));
-          videoJobProgress.value = ratio * 100;
-          setVideoMessage(ratio >= 1 ? 'Đang chuẩn bị nhận diện…' : `Đang tải video · ${Math.floor(ratio * 100)}%`);
-        };
-        upload.onload = () => {
-          const body = upload.response;
-          let loginRequired = false;
-          try { loginRequired = new URL(upload.responseURL).pathname === '/login'; } catch (_) {}
-          if (loginRequired) {
-            resolve({ ok: false, status: 401, message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.' });
-            return;
-          }
-          if (!body || typeof body !== 'object' || Array.isArray(body)) {
-            resolve({ ok: false, status: upload.status, message: 'Máy chủ không trả về kết quả tải video hợp lệ.' });
-            return;
-          }
-          const apiStatus = typeof body.status === 'string' ? body.status : undefined;
-          const hasError = body.error !== undefined && body.error !== null && body.error !== false && body.error !== '';
-          const message = [body.message, body.msg, body.detail, body.error].find(value => typeof value === 'string' && value.trim()) || '';
-          const ok = upload.status >= 200 && upload.status < 300 && (body.ok === undefined || body.ok === true) && !hasError && apiStatus !== 'error';
-          resolve({ ...body, ok, api_status: apiStatus, status: upload.status, message: message || (ok ? '' : 'Không thể tải video. Hãy thử lại.') });
-        };
-        upload.onerror = () => resolve({ ok: false, status: 0, message: 'Mất kết nối khi tải video. Hãy kiểm tra mạng rồi thử lại.' });
-        upload.onabort = () => resolve({ ok: false, status: 0, message: 'Yêu cầu tải video đã dừng.' });
-        upload.send(form);
-      });
-    }
-
     function setVideoMessage(message, isError = false) {
-      videoJobMessage.textContent = message;
-      videoJobMessage.classList.toggle('has-error', isError);
+      videoMessage.textContent = message;
+      videoMessage.classList.toggle('has-error', isError);
     }
 
     function updateVideoControls() {
-      videoCancelBtn.disabled = !(videoJobBusy || videoSyncActive) || videoCancellationRequested;
-      videoCancelBtn.classList.toggle('d-none', !(videoJobBusy || videoSyncActive));
-    }
-
-    function clearVideoPoll() {
-      if (videoPollTimer !== null) clearTimeout(videoPollTimer);
-      videoPollTimer = null;
-    }
-
-    function cancelVideoJobRequest(jobId) {
-      return apiRequest(`/admin/detection/api/videos/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+      videoCancelBtn.disabled = !videoSyncActive;
+      videoCancelBtn.classList.toggle('d-none', !videoSyncActive);
     }
 
     function resetVideoSelection() {
       stopVideoSync();
-      const oldJobId = videoJobId;
-      const wasBusy = videoJobBusy;
-      videoJobEpoch++;
-      clearVideoPoll();
-      videoJobId = null;
-      videoJobBusy = false;
-      videoCancellationRequested = false;
       videoEvents = [];
       videoDetectionFrames = [];
-      videoRenderedKey = null;
-      videoEventNodes.clear();
-      selectedVideoFile = null;
-      // A response to an older upload also cancels its job once its ID arrives.
-      if (oldJobId && wasBusy) cancelVideoJobRequest(oldJobId);
+      eventsRenderedKey = null;
+      eventNodes.clear();
       if (videoPlayer) {
         videoPlayer.pause();
         videoPlayer.removeAttribute('src');
@@ -2161,72 +1791,65 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       if (videoUploadInput) videoUploadInput.value = '';
       videoPreviewWarning.classList.add('d-none');
       videoFileName.textContent = '';
-      videoJobProgress.value = 0;
       videoAnalysisStatus.classList.add('d-none');
       setVideoMessage('');
       updateVideoControls();
     }
 
-    function videoAssetUrl(value) {
-      if (typeof value !== 'string' || !value) return '';
-      try {
-        const url = new URL(value, window.location.href);
-        return url.origin === window.location.origin ? url.href : '';
-      } catch (_) { return ''; }
-    }
-
-    function renderVideoEvents() {
-      if (detectionActiveTab !== 'video') return;
-      if (statPersonCount) statPersonCount.textContent = String(videoEvents.filter(event => event.type === 'person').length);
-      if (statPlateCount) statPlateCount.textContent = String(videoEvents.filter(event => event.type !== 'person').length);
-      if (statAlertCount) statAlertCount.textContent = String(videoEvents.filter(event => event.type !== 'person' && event.status !== 'recognized').length);
-      const signature = event => JSON.stringify([event.id, event.track_id, event.text, event.status, event.ocr_confidence,
-        event.start_time, event.end_time, event.crop_url, event.snapshot_url, event.revision]);
-      const renderKey = `${videoEvents.length ? '' : videoJobBusy}:` + videoEvents.map(signature).join('|');
-      if (renderKey === videoRenderedKey) return;
-      videoRenderedKey = renderKey;
+    // Danh sách thẻ của tab đang mở, mới nhất ở trên; cùng một kiểu thẻ cho cả bốn tab.
+    function renderEvents() {
+      const events = tabEvents();
+      const onVideo = detectionActiveTab === 'video';
+      const plates = events.filter(event => event.type !== 'person');
+      if (statPersonCount) statPersonCount.textContent = String(events.length - plates.length);
+      if (statPlateCount) statPlateCount.textContent = String(plates.length);
+      // Cảnh báo: biển đã đọc được mà không có trong whitelist.
+      if (statAlertCount) statAlertCount.textContent = String(plates.filter(event => event.status === 'recognized' && !event.owner_name).length);
+      const signature = event => JSON.stringify([event.id, event.text, event.status, event.ocr_confidence,
+        event.owner_name, event.start_time, event.end_time, event.revision]);
+      const renderKey = `${detectionActiveTab}:${events.length ? '' : videoSyncActive}:` + events.map(signature).join('|');
+      if (renderKey === eventsRenderedKey) return;
+      eventsRenderedKey = renderKey;
       const fragment = document.createDocumentFragment();
       const activeKeys = new Set();
-      if (!videoEvents.length) {
+      if (!events.length) {
         const empty = document.createElement('div');
         empty.className = 'cam-empty-feed';
         const title = document.createElement('div');
         title.className = 'cam-empty-title';
-        title.textContent = videoJobBusy || videoSyncActive ? 'Đang tìm người và biển số…' : 'Chưa có sự kiện';
-        const hint = document.createElement('div');
-        hint.className = 'cam-empty-hint';
-        hint.textContent = '';
-        empty.append(title, hint);
+        title.textContent = onVideo && videoSyncActive ? 'Đang tìm người và biển số…' : 'Chưa có sự kiện';
+        const icon = document.createElement('div');
+        icon.className = 'cam-empty-icon';
+        icon.innerHTML = '<i class="bx bx-camera-off"></i>';
+        empty.append(icon, title);
         fragment.append(empty);
       }
-      videoEvents.forEach((event, index) => {
+      events.slice().reverse().forEach((event, index) => {
         const key = String(event.id || `track-${event.track_id ?? index}`);
         const eventSignature = signature(event);
         activeKeys.add(key);
-        const cached = videoEventNodes.get(key);
+        const cached = eventNodes.get(key);
         if (cached && cached.signature === eventSignature) {
           fragment.append(cached.node);
           return;
         }
         const card = document.createElement('div');
         card.className = 'cam-event-card video-event-card';
-        const cropUrl = typeof event.crop_data === 'string' && event.crop_data.startsWith('data:image/jpeg;base64,')
-          ? event.crop_data : videoAssetUrl(event.crop_url || event.snapshot_url);
-        if (cropUrl) {
+        if (event.crop_data) {
           const crop = document.createElement('img');
           crop.className = 'video-event-crop';
-          crop.src = cropUrl;
+          crop.src = event.crop_data;
           crop.alt = event.type === 'person' ? 'Ảnh người được phát hiện' : 'Ảnh biển số rõ nhất của sự kiện';
           crop.loading = 'lazy';
           if (event.type === 'plate') {
             crop.title = 'Xem ảnh gốc và ảnh đã xử lý';
             crop.tabIndex = 0;
             crop.setAttribute('role', 'button');
-            crop.addEventListener('click', () => showVideoCropPreview(event));
+            crop.addEventListener('click', () => showCropPreview(event));
             crop.addEventListener('keydown', key => {
               if (key.key === 'Enter' || key.key === ' ') {
                 key.preventDefault();
-                showVideoCropPreview(event);
+                showCropPreview(event);
               }
             });
           }
@@ -2236,7 +1859,8 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         body.className = 'cam-event-body';
         const title = document.createElement('div');
         title.className = 'cam-event-title';
-        title.textContent = event.type === 'person' ? 'Người' : event.text || 'Phát hiện biển số';
+        title.textContent = event.type === 'person' ? 'Người'
+          : !event.text ? 'Phát hiện biển số' : event.owner_name ? `${event.text} • ${event.owner_name}` : event.text;
         const status = document.createElement('span');
         const eventStatus = ['recognized', 'uncertain', 'unreadable'].includes(event.status) ? event.status : 'unreadable';
         status.className = `video-event-status ${event.type === 'person' ? 'recognized' : eventStatus}`;
@@ -2247,35 +1871,43 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         }
         const meta = document.createElement('div');
         meta.className = 'cam-event-meta';
-        const seek = document.createElement('button');
-        seek.type = 'button';
-        seek.className = 'video-event-seek';
-        const seekTime = Number(event.crop_time ?? event.start_time) || 0;
-        seek.textContent = `Xem ${formatVideoTime(event.start_time)} – ${formatVideoTime(event.end_time ?? event.start_time)}`;
-        seek.addEventListener('click', () => {
-          if (!videoPlayer || !videoPlayer.videoWidth || videoPlayer.error) {
-            videoPreviewWarning.textContent = 'Trình duyệt chưa thể xem video này.';
-            videoPreviewWarning.classList.remove('d-none');
-            return;
-          }
-          videoPlayer.currentTime = Math.max(0, seekTime);
-          videoPlayer.pause();
-        });
-        meta.append(seek);
+        if (onVideo) {
+          const seek = document.createElement('button');
+          seek.type = 'button';
+          seek.className = 'video-event-seek';
+          const seekTime = Number(event.crop_time ?? event.start_time) || 0;
+          seek.textContent = `Xem ${formatVideoTime(event.start_time)} – ${formatVideoTime(event.end_time ?? event.start_time)}`;
+          seek.addEventListener('click', () => {
+            if (!videoPlayer || !videoPlayer.videoWidth || videoPlayer.error) {
+              videoPreviewWarning.textContent = 'Trình duyệt chưa thể xem video này.';
+              videoPreviewWarning.classList.remove('d-none');
+              return;
+            }
+            videoPlayer.currentTime = Math.max(0, seekTime);
+            videoPlayer.pause();
+          });
+          meta.append(seek);
+        } else meta.textContent = clockTime(event.start_time);
         body.append(title, status, meta);
         card.append(body);
-        videoEventNodes.set(key, { signature: eventSignature, node: card });
+        if (event.type !== 'person' && eventStatus === 'recognized') {
+          const badge = document.createElement('span');
+          badge.className = `cam-event-badge ${event.owner_name ? 'whitelist' : 'known'}`;
+          badge.textContent = event.owner_name ? 'Whitelist' : 'Xe lạ';
+          card.append(badge);
+        }
+        eventNodes.set(key, { signature: eventSignature, node: card });
         fragment.append(card);
       });
-      for (const key of videoEventNodes.keys()) if (!activeKeys.has(key)) videoEventNodes.delete(key);
+      for (const key of eventNodes.keys()) if (!activeKeys.has(key)) eventNodes.delete(key);
       resultsDiv.replaceChildren(fragment);
     }
 
-    function showVideoCropPreview(event) {
+    function showCropPreview(event) {
       const dialog = document.createElement('dialog');
       dialog.className = 'video-crop-dialog';
       const title = document.createElement('strong');
-      title.textContent = `Ảnh biển số tại ${formatVideoTime(event.start_time)}`;
+      title.textContent = `Ảnh biển số tại ${detectionActiveTab === 'video' ? formatVideoTime(event.start_time) : clockTime(event.start_time)}`;
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'btn btn-sm btn-outline-secondary float-end';
@@ -2283,11 +1915,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       close.addEventListener('click', () => dialog.close());
       const comparison = document.createElement('div');
       comparison.className = 'video-crop-comparison';
-      const processedCrop = typeof event.crop_data === 'string' && event.crop_data.startsWith('data:image/jpeg;base64,')
-        ? event.crop_data : videoAssetUrl(event.crop_url);
-      [['Ảnh gốc', event.original_crop_data], ['Ảnh đã xử lý', processedCrop]].forEach(([label, source]) => {
-        const imageSource = typeof source === 'string' && source.startsWith('data:image/jpeg;base64,')
-          ? source : videoAssetUrl(source);
+      [['Ảnh gốc', event.original_crop_data], ['Ảnh đã xử lý', event.crop_data]].forEach(([label, imageSource]) => {
         if (!imageSource) return;
         const figure = document.createElement('figure');
         const caption = document.createElement('figcaption');
@@ -2304,177 +1932,6 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       document.body.append(dialog);
       dialog.addEventListener('close', () => dialog.remove(), { once: true });
       dialog.showModal();
-    }
-
-    function updateVideoJob(data) {
-      // apiRequest keeps the server's status in api_status and uses status for HTTP.
-      const status = data.api_status || (typeof data.status === 'string' ? data.status : 'running');
-      const terminal = ['completed', 'cancelled', 'failed'].includes(status);
-      const progress = data.progress || {};
-      const metadata = data.metadata || {};
-      const processed = Number(progress.processed_frames) || 0;
-      const total = Number(progress.total_frames) || 0;
-      const duration = Number(progress.duration || metadata.duration) || 0;
-      const current = Number(progress.current_time) || 0;
-      const detectionTime = Number(progress.detection_time);
-      if (Array.isArray(progress.detections) && Number.isFinite(detectionTime)) {
-        if (!videoDetectionFrames.length || videoDetectionFrames[videoDetectionFrames.length - 1].time !== detectionTime) {
-          videoDetectionFrames.push({ time: detectionTime, boxes: progress.detections, width: metadata.width, height: metadata.height });
-          if (videoDetectionFrames.length > 600) videoDetectionFrames.shift();
-        }
-        drawVideoDetections();
-      }
-      const ratio = total > 0 ? processed / total : duration > 0 ? current / duration : 0;
-      videoJobProgress.value = status === 'completed' ? 100 : Math.min(99, Math.max(0, ratio * 100));
-      if (Array.isArray(data.events)) {
-        if (data.events_complete === false) {
-          const merged = new Map(videoEvents.map(event => [event.id, event]));
-          data.events.forEach(event => merged.set(event.id, event));
-          videoEvents = Array.from(merged.values());
-        } else videoEvents = data.events;
-      }
-      if (terminal) {
-        videoJobBusy = false;
-        videoCancellationRequested = false;
-        clearVideoPoll();
-        const fallback = {
-          completed: `Hoàn tất · ${videoEvents.length} sự kiện.`,
-          cancelled: 'Đã hủy phân tích.',
-          failed: 'Không thể phân tích video.'
-        }[status];
-        setVideoMessage(data.error || data.message || fallback, status === 'failed');
-      } else {
-        const label = videoCancellationRequested ? 'Đang dừng sau bước xử lý hiện tại'
-          : status === 'queued' ? 'Đang chờ phân tích'
-          : processed === 0 ? (data.message || 'Đang chuẩn bị phân tích video')
-          : ratio >= 1 ? 'Đang tổng hợp kết quả' : 'Đang phân tích';
-        setVideoMessage(`${label} · ${Math.floor(videoJobProgress.value)}% · ${formatVideoTime(current)}${duration ? ` / ${formatVideoTime(duration)}` : ''}`);
-      }
-      updateVideoControls();
-      renderVideoEvents();
-      return terminal;
-    }
-
-    async function pollVideoJob(jobId, epoch, retries = 0) {
-      if (epoch !== videoJobEpoch || jobId !== videoJobId || !videoJobBusy) return;
-      const lastEventId = videoEvents.length ? videoEvents[videoEvents.length - 1].id : '';
-      const cursor = typeof lastEventId === 'string' && /^[0-9a-f]{32}$/.test(lastEventId) ? `?after=${encodeURIComponent(lastEventId)}` : '';
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      let data;
-      try {
-        data = await apiRequest(`/admin/detection/api/videos/${encodeURIComponent(jobId)}${cursor}`, { signal: controller.signal });
-      } finally { clearTimeout(timeout); }
-      if (epoch !== videoJobEpoch || jobId !== videoJobId || !videoJobBusy) return;
-      const serverStatus = data.api_status || data.status;
-      if (!data.ok && serverStatus !== 'failed') {
-        if ([400, 401, 403, 404].includes(data.status)) {
-          videoJobBusy = false;
-          updateVideoControls();
-          setVideoMessage(data.message || 'Không thể truy cập tác vụ video.', true);
-          return;
-        }
-        setVideoMessage(`${data.message || 'Không thể lấy tiến độ.'} Đang thử kết nối lại…`, true);
-        videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch, retries + 1), Math.min(10000, 1500 * (retries + 1)));
-        return;
-      }
-      if (!updateVideoJob(data)) videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), document.hidden ? 5000 : 350);
-    }
-
-    async function resumeCurrentVideoAnalysis() {
-      if (videoResumePending || videoJobId || selectedVideoFile) return;
-      videoResumePending = true;
-      const epoch = videoJobEpoch;
-      try {
-        const data = await apiRequest('/admin/detection/api/videos/latest');
-        if (epoch !== videoJobEpoch || videoJobId || selectedVideoFile || (!data.ok && data.api_status !== 'failed') || !data.job_id) return;
-        videoJobId = data.job_id;
-        videoJobBusy = !['completed', 'cancelled', 'failed'].includes(data.api_status || data.status);
-        videoCancellationRequested = false;
-        videoRenderedKey = null;
-        videoAnalysisStatus.classList.remove('d-none');
-        videoFileName.textContent = videoJobBusy ? 'Video đang phân tích từ lần trước' : 'Kết quả video gần nhất';
-        videoPreviewWarning.textContent = 'Đã khôi phục tác vụ.';
-        videoPreviewWarning.classList.remove('d-none');
-        if (!updateVideoJob(data)) pollVideoJob(videoJobId, epoch);
-      } finally { videoResumePending = false; }
-    }
-
-    async function startVideoAnalysis() {
-      if (!selectedVideoFile || videoJobBusy) return;
-      stopVideoSync();
-      videoJobProgress.classList.remove('d-none');
-      if (!selectedVideoFile.size || selectedVideoFile.size > 512 * 1024 * 1024) {
-        setVideoMessage('Chọn video có dữ liệu và dung lượng tối đa 512 MB.', true);
-        return;
-      }
-      const epoch = ++videoJobEpoch;
-      clearVideoPoll();
-      videoJobId = null;
-      videoEvents = [];
-      videoDetectionFrames = [];
-      videoRenderedKey = null;
-      videoEventNodes.clear();
-      videoJobBusy = true;
-      videoCancellationRequested = false;
-      updateVideoControls();
-      renderVideoEvents();
-      videoJobProgress.removeAttribute('value');
-      setVideoMessage('Đang tải video để tự động nhận diện…');
-      const form = new FormData();
-      form.append('file', selectedVideoFile, selectedVideoFile.name);
-      form.append('mode', 'fast');
-      const data = await uploadVideoFile(form, epoch);
-      if (epoch !== videoJobEpoch) {
-        if (data.job_id) cancelVideoJobRequest(data.job_id);
-        return;
-      }
-      if (!data.ok || !data.job_id) {
-        videoJobBusy = false;
-        videoJobProgress.value = 0;
-        updateVideoControls();
-        setVideoMessage(data.message || 'Máy chủ không trả về mã tác vụ video.', true);
-        renderVideoEvents();
-        return;
-      }
-      videoJobId = data.job_id;
-      videoJobProgress.value = 0;
-      setVideoMessage(data.message || 'Đã nhận video, đang chờ phân tích…');
-      pollVideoJob(videoJobId, epoch);
-    }
-
-    async function cancelCurrentVideoAnalysis() {
-      if (videoSyncActive) {
-        stopVideoSync();
-        setVideoMessage('Đã dừng phân tích theo video.');
-        updateVideoControls();
-        return;
-      }
-      if (!videoJobBusy || videoCancellationRequested) return;
-      const jobId = videoJobId;
-      const epoch = ++videoJobEpoch;
-      clearVideoPoll();
-      if (!videoJobProgress.hasAttribute('value')) videoJobProgress.value = 0;
-      if (!jobId) {
-        videoJobBusy = false;
-        videoCancellationRequested = false;
-        updateVideoControls();
-        setVideoMessage('Đã hủy yêu cầu.');
-        return;
-      }
-      videoCancellationRequested = true;
-      updateVideoControls();
-      setVideoMessage('Đang yêu cầu hủy…');
-      const data = await cancelVideoJobRequest(jobId);
-      if (epoch !== videoJobEpoch) return;
-      if (data.ok || data.api_status === 'failed') {
-        if (!updateVideoJob(data)) videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), 1200);
-      } else {
-        videoCancellationRequested = false;
-        updateVideoControls();
-        setVideoMessage(data.message || 'Không thể hủy tác vụ trên máy chủ. Bạn có thể thử hủy lại.', true);
-        videoPollTimer = setTimeout(() => pollVideoJob(jobId, epoch), 2500);
-      }
     }
 
     window.stopVideo = function () {
@@ -2496,7 +1953,11 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
       drawBoxes(videoOverlay, videoPlayer, frame.boxes, frame.width, frame.height);
     }
 
-    if (videoCancelBtn) videoCancelBtn.addEventListener('click', cancelCurrentVideoAnalysis);
+    if (videoCancelBtn) videoCancelBtn.addEventListener('click', () => {
+      stopVideoSync();
+      setVideoMessage('Đã dừng phân tích theo video.');
+      updateVideoControls();
+    });
     if (videoUploadInput && videoPlayer) {
       videoPlayer.addEventListener('timeupdate', () => { drawVideoDetections(); scheduleVideoFrame(); });
       videoPlayer.addEventListener('seeking', () => {
@@ -2521,11 +1982,7 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         const file = event.target.files && event.target.files[0];
         if (!file) return;
         window.stopVideo();
-        if (window.clearResults) window.clearResults();
-        if (videoPlayer.src && videoPlayer.src.startsWith('blob:')) {
-          URL.revokeObjectURL(videoPlayer.src);
-        }
-        selectedVideoFile = file;
+        window.clearResults();
         if (videoFileName) videoFileName.textContent = file.name;
         videoObjectUrl = URL.createObjectURL(file);
         videoPlayer.src = videoObjectUrl;
@@ -2534,17 +1991,16 @@ x-effect="localStorage.setItem('detection_tab', tab); if(window.onDetectionTabCh
         videoAnalysisStatus.classList.remove('d-none');
         // Analyze native video frames at the time being viewed.
         startVideoSync();
-        videoPlayer.play().catch(() => {});
+        videoPlayer.play();
       });
       videoPlayer.addEventListener('error', () => {
-        if (!selectedVideoFile) return;
+        if (!videoObjectUrl) return;
         videoPreviewWarning.textContent = 'Trình duyệt không xem được video này.';
         videoPreviewWarning.classList.remove('d-none');
       });
     }
 
     window.addEventListener('pagehide', event => {
-      clearVideoPoll();
       if (!event.persisted && videoObjectUrl) URL.revokeObjectURL(videoObjectUrl);
     });
     window.addEventListener('pageshow', event => {

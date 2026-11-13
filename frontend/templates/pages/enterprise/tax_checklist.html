@@ -873,14 +873,15 @@
     formData.append('period', period);
     formData.append('item_key', itemKey);
 
-    fetch('/admin/enterprise/tax-checklist/cycle-status', {
+    apiRequest('/admin/enterprise/tax-checklist/cycle-status', {
       method: 'POST',
       body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
+    }).then(data => {
       btn.style.opacity = '1';
-      if (!data.ok) return;
+      if (!data.ok) {
+        if (data.message) window.showNotify(data.message, 'error');
+        return;
+      }
 
       // Update button visual
       btn.className = `cell-status-btn st-${data.new_status}`;
@@ -903,10 +904,6 @@
 
       const barPct = document.getElementById(`bar-pct-${clientId}`);
       if (barPct) barPct.style.width = `${data.percentage}%`;
-    })
-    .catch(err => {
-      btn.style.opacity = '1';
-      console.error(err);
     });
   }
 
@@ -921,15 +918,16 @@
     formData.append('period', period);
     formData.append('group_id', groupId);
 
-    fetch('/admin/enterprise/tax-checklist/cycle-group-status', {
+    apiRequest('/admin/enterprise/tax-checklist/cycle-group-status', {
       method: 'POST',
       body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
+    }).then(data => {
       badgeEl.style.opacity = '1';
       badgeEl.style.transform = 'none';
-      if (!data.ok) return;
+      if (!data.ok) {
+        if (data.message) window.showNotify(data.message, 'error');
+        return;
+      }
 
       badgeEl.className = `badge badge-pill badge-${data.badge_type} px-2 py-1`;
       let icon = '';
@@ -946,11 +944,6 @@
         barEl.style.width = `${data.percentage}%`;
         barEl.className = `progress-bar client-progress-bar-${clientId} ${data.percentage >= 80 ? 'bg-success' : (data.percentage >= 40 ? 'bg-primary' : 'bg-danger')}`;
       }
-    })
-    .catch(err => {
-      badgeEl.style.opacity = '1';
-      badgeEl.style.transform = 'none';
-      console.error(err);
     });
   }
 
@@ -961,10 +954,10 @@
     formData.append('period', period);
     formData.append('note', noteVal);
 
-    fetch('/admin/enterprise/tax-checklist/update-note', {
+    apiRequest('/admin/enterprise/tax-checklist/update-note', {
       method: 'POST',
       body: formData
-    }).catch(console.error);
+    });
   }
 
   // Đánh dấu hoàn thành việc cần xử lý
@@ -972,12 +965,10 @@
     const formData = new FormData();
     formData.append('task_id', taskId);
 
-    fetch('/admin/enterprise/tax-checklist/task/toggle', {
+    apiRequest('/admin/enterprise/tax-checklist/task/toggle', {
       method: 'POST',
       body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
+    }).then(data => {
       if (data.ok) {
         const row = document.getElementById(`task-row-${taskId}`);
         if (row) {
@@ -987,6 +978,8 @@
             tdTitle.style.textDecoration = tdTitle.style.textDecoration === 'line-through' ? '' : 'line-through';
           }
         }
+      } else if (data.message) {
+        window.showNotify(data.message, 'error');
       }
     });
   }

@@ -42,16 +42,88 @@ def format_vnd_rounded(value) -> str:
         return "0 đ"
 
 
-# "2,5 triệu", "3tr", "2 triệu 800 ngàn": a price written with "triệu", optionally followed by thousands;
-# "500k", "800 nghìn": a price under a million
-MILLION_PRICE = re.compile(
-    r"(\d+(?:[.,]\d+)?)\s*(?:triệu|tr\b)(?:\s*(\d{1,3})\s*(?:ngàn|nghìn|ngan|nghin|k)\b)?"
-    r"|\b(\d{2,4})\s*(?:ngàn|nghìn|ngan|nghin|k)\b", re.I)
+# Money as people say it: a number and its unit ("2,5 triệu", "3tr", "800 nghìn", "500k", "3.500.000đ"), parts
+# added up ("2 triệu 800 ngàn"), a bare number after a unit giving that unit's next digits ("3 triệu 5", "3tr5"),
+# "rưỡi" half the unit. With no unit, only an amount written with thousand separators ("3.500.000").
+_MONEY_UNITS = {"tỷ": 10 ** 9, "tỉ": 10 ** 9, "triệu": 10 ** 6, "trieu": 10 ** 6, "tr": 10 ** 6,
+                "nghìn": 10 ** 3, "ngàn": 10 ** 3, "nghin": 10 ** 3, "ngan": 10 ** 3, "k": 10 ** 3,
+                "đồng": 1, "dong": 1, "vnđ": 1, "vnd": 1, "đ": 1}
+# A number before one of these words counts things or measures, it is not money ("1.500 kg", "5 triệu 2 xe")
+_COUNTED = ("kg", "tấn", "tan", "km", "m2", "m3", "lít", "lit", "cái", "cai", "chiếc", "chiec",
+            "xe", "chuyến", "chuyen", "cont", "container", "người", "nguoi", "ngày", "ngay")
+_UNIT_WORDS = "|".join(sorted(map(re.escape, _MONEY_UNITS), key=len, reverse=True))
+_MONEY_PART = re.compile(rf"(?<![\w.,])(\d+(?:[.,]\d+)*)(?:\s*({_UNIT_WORDS}))?(?![^\W\d_])", re.I)
+# the next part of the same amount, right after the previous one ("3 triệu| 800 ngàn", "3tr|5")
+_NEXT_PART = re.compile(rf"\s*(\d+(?:[.,]\d+)*)(?:\s*({_UNIT_WORDS}))?(?![^\W\d_])", re.I)
+_COUNTED_AFTER = re.compile(r"\s*(?:" + "|".join(_COUNTED) + r")\b", re.I)
+_HALF_AFTER = re.compile(r"\s*(?:rưỡi|ruoi)\b", re.I)
 
 
-def million_price(found: re.Match) -> int:
-    """The đồng amount of a MILLION_PRICE match: "2 triệu 800 ngàn" -> 2_800_000, "500k" -> 500_000."""
-    if found.group(3):
-        return int(found.group(3)) * 1_000
-    return round(float(found.group(1).replace(",", ".")) * 1_000_000) + int(found.group(2) or 0) * 1_000
+class _Money:
+    """One amount found in a text: where it is written (start/end/group, like a regex match) and its đồng value."""
+
+    def __init__(self, text: str, start: int, end: int, amount: int):
+        self._text, self._start, self._end, self.amount = text, start, end, amount
+
+    def start(self) -> int:
+        return self._start
+
+    def end(self) -> int:
+        return self._end
+
+    def group(self, *_args) -> str:
+        return self._text[self._start:self._end]
+
+
+def _unit_of(part: re.Match) -> int | None:
+    return _MONEY_UNITS.get((part.group(2) or "").lower())
+
+
+def _amounts(text: str):
+    position = 0
+    while part := _MONEY_PART.search(text, position):
+        position = part.end()
+        unit = _unit_of(part)
+        if unit is None:
+            if _GROUPED.fullmatch(part.group(1)) and not _COUNTED_AFTER.match(text, part.end()):
+                yield _Money(text, part.start(), part.end(), int(parse_vnd(part.group(1))))
+            continue
+        amount, end, last_unit = parse_vnd(part.group(1)) * unit, part.end(), unit
+        while following := _NEXT_PART.match(text, end):
+            following_unit = _unit_of(following)
+            if following_unit is None:
+                digits = following.group(1)
+                if digits.isdigit() and len(digits) <= 3 and last_unit >= 1000 \
+                        and not _COUNTED_AFTER.match(text, following.end()):
+                    amount += int(digits.ljust(3, "0")) * last_unit // 1000
+                    end = following.end()
+                break
+            if following_unit >= last_unit:
+                break
+            amount += parse_vnd(following.group(1)) * following_unit
+            end, last_unit = following.end(), following_unit
+        half = _HALF_AFTER.match(text, end)
+        if half and last_unit >= 1000:
+            amount += last_unit // 2
+            end = half.end()
+        position = end
+        yield _Money(text, part.start(), end, int(round(amount)))
+
+
+class _MoneyReader:
+    """search/finditer like a compiled pattern, so callers read every way of writing an amount the same way."""
+
+    def search(self, text: str):
+        return next(_amounts(str(text or "")), None)
+
+    def finditer(self, text: str):
+        return _amounts(str(text or ""))
+
+
+MILLION_PRICE = _MoneyReader()
+
+
+def million_price(found: _Money) -> int:
+    """The đồng amount of a MILLION_PRICE result."""
+    return found.amount
 

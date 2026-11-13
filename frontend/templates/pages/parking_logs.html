@@ -130,16 +130,16 @@ document.getElementById('parkingLogEditForm').addEventListener('submit', async f
   const button = this.querySelector('[type="submit"]');
   button.disabled = true;
   try {
-    const response = await fetch('/admin/parking/logs/' + editingParkingLogId, {
-      method: 'PUT', credentials: 'same-origin',
+    const data = await apiRequest('/admin/parking/logs/' + editingParkingLogId, {
+      method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({plate: document.getElementById('parkingLogPlate').value})
     });
-    const data = await response.json();
-    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể sửa bản ghi.');
+    if (!data.ok) {
+      window.showNotify(data.message || 'Không thể sửa bản ghi.', 'error');
+      return;
+    }
     window.location.reload();
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
   } finally {
     button.disabled = false;
   }
@@ -147,15 +147,13 @@ document.getElementById('parkingLogEditForm').addEventListener('submit', async f
 async function deleteParkingLog(button) {
   if (!window.confirm('Xóa bản ghi này?')) return;
   button.disabled = true;
-  try {
-    const response = await fetch(button.dataset.bulkUrl, {method: 'DELETE', credentials: 'same-origin'});
-    const data = await response.json();
-    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể xóa bản ghi.');
-    window.location.reload();
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
+  const data = await apiRequest(button.dataset.bulkUrl, {method: 'DELETE'});
+  if (!data.ok) {
+    window.showNotify(data.message || 'Không thể xóa bản ghi.', 'error');
     button.disabled = false;
+    return;
   }
+  window.location.reload();
 }
 </script>
 {% endblock %}

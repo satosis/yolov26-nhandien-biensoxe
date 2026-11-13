@@ -424,20 +424,16 @@ var itemActionUrl = '/admin/enterprise/inventory/items';
 var movementActionUrl = '/admin/enterprise/inventory/movements';
 
 function reloadPreservingScroll() {
-  try {
-    sessionStorage.setItem('inventory_scroll_y', String(window.scrollY));
-  } catch (e) {}
+  sessionStorage.setItem('inventory_scroll_y', String(window.scrollY));
   window.location.reload();
 }
 
 window.addEventListener('DOMContentLoaded', function() {
-  try {
-    var y = sessionStorage.getItem('inventory_scroll_y');
-    if (y !== null) {
-      sessionStorage.removeItem('inventory_scroll_y');
-      window.scrollTo(0, parseInt(y, 10));
-    }
-  } catch (e) {}
+  var y = sessionStorage.getItem('inventory_scroll_y');
+  if (y !== null) {
+    sessionStorage.removeItem('inventory_scroll_y');
+    window.scrollTo(0, parseInt(y, 10));
+  }
 
   [['inventoryWarehouseFilter', 'warehouse'], ['inventoryKindFilter', 'kind']].forEach(function (pair) {
     var sel = document.getElementById(pair[0]);
@@ -479,10 +475,8 @@ window.addEventListener('DOMContentLoaded', function() {
 
     if (searchInput.value) {
       searchInput.focus();
-      try {
-        var len = searchInput.value.length;
-        searchInput.setSelectionRange(len, len);
-      } catch (err) {}
+      var len = searchInput.value.length;
+      searchInput.setSelectionRange(len, len);
     }
   }
 });
@@ -532,22 +526,17 @@ function mergeFromEditModal(targetId, targetName) {
   var srcName = source ? source.name : (document.getElementById('item-name').value || '');
   if (!confirm('Gộp ' + srcName + ' vào ' + targetName + '?')) return;
 
-  fetch('/admin/enterprise/inventory/items/' + editingItemId + '/merge', {
+  apiRequest('/admin/enterprise/inventory/items/' + editingItemId + '/merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target_id: targetId })
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(res) {
+  }).then(function(res) {
     if (res.ok) {
       $('#itemModal').modal('hide');
       reloadPreservingScroll();
     } else {
-      alert(res.message || 'Lỗi gộp mặt hàng.');
+      window.showNotify(res.message || 'Lỗi gộp mặt hàng.', 'error');
     }
-  })
-  .catch(function(err) {
-    alert('Lỗi kết nối: ' + err);
   });
 }
 
@@ -594,28 +583,23 @@ function submitMergeModal() {
   var targetId = Number(sel.value);
   var target = INVENTORY_ITEMS.find(function(it) { return it.id === targetId; });
   if (!target) {
-    alert('Vui lòng chọn mặt hàng đích.');
+    window.showNotify('Vui lòng chọn mặt hàng đích.', 'warning');
     return;
   }
   var srcName = source ? source.name : '';
   if (!confirm('Gộp ' + srcName + ' vào ' + target.name + '?')) return;
 
-  fetch('/admin/enterprise/inventory/items/' + mergingSourceId + '/merge', {
+  apiRequest('/admin/enterprise/inventory/items/' + mergingSourceId + '/merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target_id: targetId })
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(res) {
+  }).then(function(res) {
     if (res.ok) {
       $('#mergeModal').modal('hide');
       reloadPreservingScroll();
     } else {
-      alert(res.message || 'Lỗi gộp mặt hàng.');
+      window.showNotify(res.message || 'Lỗi gộp mặt hàng.', 'error');
     }
-  })
-  .catch(function(err) {
-    alert('Lỗi kết nối: ' + err);
   });
 }
 
@@ -660,38 +644,29 @@ function submitItemForm(e) {
     note: formData.get('note') || ''
   };
 
-  fetch(itemActionUrl, {
+  apiRequest(itemActionUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(res) {
+  }).then(function(res) {
     if (res.ok) {
       $('#itemModal').modal('hide');
       reloadPreservingScroll();
     } else {
-      alert(res.message || 'Lỗi lưu mặt hàng.');
+      window.showNotify(res.message || 'Lỗi lưu mặt hàng.', 'error');
     }
-  })
-  .catch(function(err) {
-    alert('Lỗi kết nối: ' + err);
   });
 }
 
 function deleteItem(id) {
   if (!confirm('Bạn có chắc muốn xóa mặt hàng này? Các phiếu liên quan sẽ bị xóa.')) return;
-  fetch('/admin/enterprise/inventory/items/' + id + '/delete', { method: 'POST' })
-    .then(function(res) { return res.json(); })
+  apiRequest('/admin/enterprise/inventory/items/' + id + '/delete', { method: 'POST' })
     .then(function(res) {
       if (res.ok) {
         reloadPreservingScroll();
       } else {
-        alert(res.message || 'Lỗi xóa mặt hàng.');
+        window.showNotify(res.message || 'Lỗi xóa mặt hàng.', 'error');
       }
-    })
-    .catch(function(err) {
-      alert('Lỗi kết nối: ' + err);
     });
 }
 
@@ -753,38 +728,29 @@ function submitMovementForm(e) {
     note: formData.get('note') || ''
   };
 
-  fetch(movementActionUrl, {
+  apiRequest(movementActionUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(res) {
+  }).then(function(res) {
     if (res.ok) {
       $('#movementModal').modal('hide');
       reloadPreservingScroll();
     } else {
-      alert(res.message || 'Lỗi lưu phiếu.');
+      window.showNotify(res.message || 'Lỗi lưu phiếu.', 'error');
     }
-  })
-  .catch(function(err) {
-    alert('Lỗi kết nối: ' + err);
   });
 }
 
 function deleteMovement(id) {
   if (!confirm('Bạn có chắc muốn xóa phiếu này?')) return;
-  fetch('/admin/enterprise/inventory/movements/' + id + '/delete', { method: 'POST' })
-    .then(function(res) { return res.json(); })
+  apiRequest('/admin/enterprise/inventory/movements/' + id + '/delete', { method: 'POST' })
     .then(function(res) {
       if (res.ok) {
         reloadPreservingScroll();
       } else {
-        alert(res.message || 'Lỗi xóa phiếu.');
+        window.showNotify(res.message || 'Lỗi xóa phiếu.', 'error');
       }
-    })
-    .catch(function(err) {
-      alert('Lỗi kết nối: ' + err);
     });
 }
 
@@ -800,24 +766,18 @@ function submitImportForm(e) {
   var btn = document.getElementById('btn-import-submit');
   btn.disabled = true;
 
-  fetch('/admin/enterprise/inventory/import', {
+  apiRequest('/admin/enterprise/inventory/import', {
     method: 'POST',
     body: formData
-  })
-  .then(function(res) { return res.json(); })
-  .then(function(res) {
-    btn.disabled = false;
+  }).then(function(res) {
     if (res.ok) {
       $('#importModal').modal('hide');
-      alert(res.message || 'Đã nhập thành công.');
-      reloadPreservingScroll();
+      window.showNotify(res.message || 'Đã nhập thành công.', 'success');
+      setTimeout(reloadPreservingScroll, 500);
     } else {
-      alert(res.message || 'Lỗi nhập dữ liệu.');
+      btn.disabled = false;
+      window.showNotify(res.message || 'Lỗi nhập dữ liệu.', 'error');
     }
-  })
-  .catch(function(err) {
-    btn.disabled = false;
-    alert('Lỗi kết nối: ' + err);
   });
 }
 </script>

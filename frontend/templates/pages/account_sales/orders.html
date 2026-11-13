@@ -203,22 +203,7 @@
 {{ super() }}
 <script>
 var CURRENT_ORDER_SERVICE = {{ (service or 'tai-khoan') | tojson }};
-var ORDER_CATALOG = [];
-try {
-  var _catEl = document.getElementById('order-catalog-data');
-  ORDER_CATALOG = _catEl ? JSON.parse(_catEl.textContent || '[]') : [];
-} catch (e) {
-  ORDER_CATALOG = [];
-}
-
-function setSelectVal(el, val) {
-  if (!el) return;
-  if (typeof window.setAdminSelectValue === 'function') {
-    window.setAdminSelectValue(el, val);
-  } else {
-    el.value = String(val || '');
-  }
-}
+var ORDER_CATALOG = JSON.parse(document.getElementById('order-catalog-data').textContent);
 
 function refreshOrderProductPicker() {
   var svcEl = document.getElementById('order-service');
@@ -284,9 +269,9 @@ function openAddOrderModal() {
     if (inp) inp.value = pair[1];
   });
   var svcEl = document.getElementById('order-service');
-  setSelectVal(svcEl, CURRENT_ORDER_SERVICE);
+  window.setAdminSelectValue(svcEl, CURRENT_ORDER_SERVICE);
   refreshOrderProductPicker();
-  setSelectVal(document.getElementById('order-status'), 'paid');
+  window.setAdminSelectValue(document.getElementById('order-status'), 'paid');
   $('#orderModal').modal('show');
 }
 </script>

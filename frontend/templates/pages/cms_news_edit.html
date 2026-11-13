@@ -28,7 +28,7 @@
             console.error('CMS image upload response missing URL');
             this.uploadError = 'Phản hồi tải ảnh không hợp lệ.';
           }
-        } else { this.uploadError = data.message || 'Lỗi tải ảnh'; }
+        } else { this.uploadError = data.message; }
         this.uploading = false;
       }
     }));

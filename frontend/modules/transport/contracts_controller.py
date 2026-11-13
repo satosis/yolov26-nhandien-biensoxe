@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 import re
 from typing import Any, Optional
+import uuid
 
 from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+
+import backend.services.config as cfg
 
 from frontend.deps import get_menu_context, templates
 from frontend.modules.invoices.companies import get_company, get_company_bank_accounts, list_companies
@@ -258,7 +262,7 @@ async def export_contract(
     if view == "html" or req_format == "html" or (not download and not format):
         return HTMLResponse(render_contract_html(ctx, preview=True))
 
-    safe_no = re.sub(r"[^A-Za-z0-9_-]", "_", ctx["contract_no"])
+    safe_no = re.sub(r"[^A-Za-z0-9_-]", "_", _remove_accents(ctx["contract_no"]))
     if req_format == "docx":
         return Response(
             content=render_contract_docx(ctx),
@@ -275,3 +279,42 @@ async def export_contract(
         },
     )
 
+
+async def contract_zalo_groups(request: Request, company_id: Optional[int], user: dict):
+    from frontend.modules.zalo.trip_requests import list_zalo_groups
+    from frontend.modules.transport.trips_controller import _group_named_like
+    try:
+        groups = await list_zalo_groups()
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    customer = get_company(company_id) if company_id else None
+    seller = _get_seller_company(request, user)
+    suggested = (_group_named_like(groups, (customer or {}).get("name", ""))
+                 or _group_named_like(groups, (seller or {}).get("name", "")))
+    return JSONResponse({"ok": True, "groups": groups, "suggested_group_id": suggested})
+
+
+async def send_contract_zalo(request: Request, user: dict):
+    """Dựng file hợp đồng giống nút tải về rồi gửi vào nhóm Zalo đã chọn."""
+    body = await request.json()
+    group_id = str(body.get("group_id") or "").strip()
+    group_name = str(body.get("group_name") or "").strip()
+    if not group_id:
+        return JSONResponse({"ok": False, "error": "Chọn nhóm Zalo nhận."}, status_code=400)
+    fmt = "docx" if body.get("format") == "docx" else "pdf"
+    company_id = int(body["customer_id"]) if body.get("customer_id") else None
+    resp = await export_contract(
+        request=request, company_id=company_id, date_param=body.get("date") or None, trip_id=None,
+        contract_no=str(body.get("contract_no") or "").strip() or None, kind=body.get("kind") or "hdvc",
+        download=fmt, format=fmt, view=None, user=user,
+    )
+    filename = re.search(r'filename="([^"]+)"', resp.headers["content-disposition"]).group(1)
+    path = Path(cfg.DATA_DIR) / "contracts_zalo" / uuid.uuid4().hex / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(resp.body)
+    from frontend.modules.zalo.trip_requests import _bridge_post
+    try:
+        await _bridge_post("/send-invoice-file", {"group_id": group_id, "file_path": str(path.resolve())})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    return JSONResponse({"ok": True, "message": f"Đã gửi vào nhóm {group_name}." if group_name else "Đã gửi vào nhóm Zalo."})

@@ -43,6 +43,7 @@ from frontend.modules.invoices.company_images import (
     transparent_company_image,
 )
 from frontend.modules.transport.contract import (
+    _remove_accents,
     get_contract_context,
     render_contract_html,
     render_contract_pdf,
@@ -734,7 +735,7 @@ async def export_company_contract(
         html_content = render_contract_html(ctx, preview=True)
         return HTMLResponse(html_content)
 
-    safe_no = re.sub(r"[^A-Za-z0-9_-]", "_", ctx["contract_no"])
+    safe_no = re.sub(r"[^A-Za-z0-9_-]", "_", _remove_accents(ctx["contract_no"]))
     if req_format == "docx":
         docx_bytes = render_contract_docx(ctx)
         filename = f"Hop_dong_{safe_no}.docx"

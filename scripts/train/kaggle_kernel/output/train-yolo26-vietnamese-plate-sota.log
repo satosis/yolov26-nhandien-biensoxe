@@ -1,0 +1,48 @@
+[{"stream_name":"stderr","time":9.592355891,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":9.592466128,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":9.592470658,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":9.592473524,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":10.424489274,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":10.424529662,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":10.424536027,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":10.424540893,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stdout","time":44.975292212,"data":"\u001b[33mWARNING: Retrying (Retry(total=4, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -3] Temporary failure in name resolution)\")': /simple/ultralytics/\u001b[0m\u001b[33m\r\n"}
+,{"stream_name":"stdout","time":77.495096173,"data":"\u001b[0m\u001b[33mWARNING: Retrying (Retry(total=3, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -3] Temporary failure in name resolution)\")': /simple/ultralytics/\u001b[0m\u001b[33m\r\n"}
+,{"stream_name":"stdout","time":110.520713903,"data":"\u001b[0m\u001b[33mWARNING: Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -3] Temporary failure in name resolution)\")': /simple/ultralytics/\u001b[0m\u001b[33m\r\n"}
+,{"stream_name":"stdout","time":144.524404753,"data":"\u001b[0m\u001b[33mWARNING: Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -3] Temporary failure in name resolution)\")': /simple/ultralytics/\u001b[0m\u001b[33m\r\n"}
+,{"stream_name":"stdout","time":180.552179304,"data":"\u001b[0m\u001b[33mWARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError(\"HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -3] Temporary failure in name resolution)\")': /simple/ultralytics/\u001b[0m\u001b[33m\r\n"}
+,{"stream_name":"stdout","time":212.555662504,"data":"\u001b[0m\u001b[31mERROR: Could not find a version that satisfies the requirement ultralytics (from versions: none)\u001b[0m\u001b[31m\r\n"}
+,{"stream_name":"stdout","time":212.555702563,"data":"\u001b[0m\u001b[31mERROR: No matching distribution found for ultralytics\u001b[0m\u001b[31m\r\n"}
+,{"stream_name":"stderr","time":217.491272711,"data":"Traceback (most recent call last):\n"}
+,{"stream_name":"stderr","time":217.491999731,"data":"  File \"\u003cstring\u003e\", line 1, in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":217.492020143,"data":"    import sys;import papermill as pm;pm.execute_notebook(\"__notebook__.ipynb\",\"__notebook__.ipynb\",progress_bar=False,log_output=True,stdout_file=sys.stdout,stderr_file=sys.stderr,allow_errors=False,timeout=43200)\n"}
+,{"stream_name":"stderr","time":217.4920291,"data":"                                      ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"}
+,{"stream_name":"stderr","time":217.492050444,"data":"  File \"/usr/local/lib/python3.13/dist-packages/papermill/execute.py\", line 131, in execute_notebook\n"}
+,{"stream_name":"stderr","time":217.492055524,"data":"    raise_for_execution_errors(nb, output_path)\n"}
+,{"stream_name":"stderr","time":217.492058223,"data":"    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n"}
+,{"stream_name":"stderr","time":217.492060718,"data":"  File \"/usr/local/lib/python3.13/dist-packages/papermill/execute.py\", line 251, in raise_for_execution_errors\n"}
+,{"stream_name":"stderr","time":217.492063328,"data":"    raise error\n"}
+,{"stream_name":"stderr","time":217.492065897,"data":"papermill.exceptions.PapermillExecutionError: \n"}
+,{"stream_name":"stderr","time":217.492068419,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":217.492071391,"data":"Exception encountered at \"In [1]\":\n"}
+,{"stream_name":"stderr","time":217.492073949,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":217.492076401,"data":"ModuleNotFoundError                       Traceback (most recent call last)\n"}
+,{"stream_name":"stderr","time":217.492078946,"data":"/tmp/ipykernel_16/1321472828.py in \u003ccell line: 0\u003e()\n"}
+,{"stream_name":"stderr","time":217.492081547,"data":"      3 from pathlib import Path\n"}
+,{"stream_name":"stderr","time":217.492084041,"data":"      4 import torch\n"}
+,{"stream_name":"stderr","time":217.492086581,"data":"----\u003e 5 import ultralytics\n"}
+,{"stream_name":"stderr","time":217.492089097,"data":"      6 \n"}
+,{"stream_name":"stderr","time":217.492091495,"data":"      7 print(f\"Ultralytics Version: {ultralytics.__version__}\")\n"}
+,{"stream_name":"stderr","time":217.492094075,"data":"\n"}
+,{"stream_name":"stderr","time":217.492096486,"data":"ModuleNotFoundError: No module named 'ultralytics'\n"}
+,{"stream_name":"stderr","time":217.492098901,"data":"\n"}
+,{"stream_name":"stderr","time":220.423182241,"data":"/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":220.423222341,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":220.64303811,"data":"/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":220.643071132,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":221.584245437,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":221.685810429,"data":"[NbConvertApp] Writing 17823 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":224.901312581,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":225.558898058,"data":"[NbConvertApp] Writing 312714 bytes to __results__.html\n"}
+,{"stream_name":"stdout","time":226.605682633,"data":"\u001b[0m"}
+]

@@ -27,3 +27,18 @@ async def export_contract(
 ):
     'Return a preview or download directly; never create a contract record.'
     return await controller.export_contract(request=request, company_id=customer_id, date_param=date_param, trip_id=trip_id, contract_no=contract_no, kind=kind, download=download, format=format, view=view, user=user)
+
+
+async def contract_zalo_groups(
+    request: Request,
+    customer_id: Optional[int] = Query(None),
+    user: dict = Depends(require_menu('vehicles')),
+):
+    return await controller.contract_zalo_groups(request=request, company_id=customer_id, user=user)
+
+
+async def send_contract_zalo(
+    request: Request,
+    user: dict = Depends(require_menu('vehicles')),
+):
+    return await controller.send_contract_zalo(request=request, user=user)

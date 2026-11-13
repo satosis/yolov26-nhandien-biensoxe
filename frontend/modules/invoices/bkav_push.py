@@ -27,7 +27,7 @@ from frontend.modules.invoices.export import (
     ALLOWED_PAYMENT_METHODS,
     DEFAULT_SERVICE_NAME,
     _service_description,
-    is_crane_by_shift_service,
+    is_crane_job,
     parse_vat_rate,
 )
 from frontend.modules.transport.route_segments import invoice_items
@@ -160,6 +160,7 @@ def build_command(trip: dict, buyer: dict) -> dict:
         amount = line["amount"]
         tax_amount = line_taxes[index]
         segment = segments[index] if index < len(segments) else {}
+        place = segment if segments else trip
         plate = str(segment.get("plate_number") or trip.get("plate_number") or "").strip()
         item_desc = str(line["description"] or "").strip()
         # Loại bỏ bất kỳ hậu tố biển kiểm soát/BKS nếu có để chỉ gửi duy nhất nội dung công việc
@@ -175,7 +176,7 @@ def build_command(trip: dict, buyer: dict) -> dict:
             "ItemTypeID": 22 if has_plate else 0,
             "IsDiscount": False,
             "ItemName": item_desc,
-            "UnitName": "Ca cẩu" if is_crane_by_shift_service(service) else "Chuyến",
+            "UnitName": "Ca cẩu" if is_crane_job(service, place.get("origin"), place.get("destination")) else "Chuyến",
             "Qty": 1,
             "Price": float(amount),
             "Amount": float(amount),

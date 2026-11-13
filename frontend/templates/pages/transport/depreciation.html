@@ -1338,24 +1338,17 @@ async function submitDeprAsset(e) {
     ? `/admin/transport/depreciation/api/${source}/${sourceId}/update`
     : '/admin/transport/depreciation/api/add';
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể lưu tài sản'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  const data = await apiRequest(url, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    window.location.reload();
+    return;
   }
+  window.showNotify(data.message || 'Không thể lưu tài sản', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
 }
 
 async function deleteDeprAsset(btn) {
@@ -1368,19 +1361,14 @@ async function deleteDeprAsset(btn) {
 
   if (!confirm(promptMsg)) return;
 
-  try {
-    const res = await fetch(`/admin/transport/depreciation/api/${source}/${sourceId}/delete`, {
-      method: 'POST',
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể xoá tài sản'));
-    }
-  } catch (err) {
-    alert('Lỗi kết nối: ' + err.message);
+  const data = await apiRequest(`/admin/transport/depreciation/api/${source}/${sourceId}/delete`, {
+    method: 'POST',
+  });
+  if (data.ok) {
+    window.location.reload();
+    return;
   }
+  window.showNotify(data.message || 'Không thể xoá tài sản', 'error');
 }
 
 async function restoreDeprVehicle() {
@@ -1388,19 +1376,14 @@ async function restoreDeprVehicle() {
   if (!sel || !sel.value) return;
   const id = sel.value;
 
-  try {
-    const res = await fetch(`/admin/transport/depreciation/api/vehicle/${id}/restore`, {
-      method: 'POST',
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể phục hồi xe'));
-    }
-  } catch (err) {
-    alert('Lỗi kết nối: ' + err.message);
+  const data = await apiRequest(`/admin/transport/depreciation/api/vehicle/${id}/restore`, {
+    method: 'POST',
+  });
+  if (data.ok) {
+    window.location.reload();
+    return;
   }
+  window.showNotify(data.message || 'Không thể phục hồi xe', 'error');
 }
 
 {% if open_pending %}

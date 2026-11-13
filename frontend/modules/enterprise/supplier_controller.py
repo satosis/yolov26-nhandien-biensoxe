@@ -36,22 +36,8 @@ async def suppliers_page(
     user: dict,
 ):
     ctx = get_menu_context(request, user)
-    company = get_active_company(request, ctx, company_id if isinstance(company_id, int) else None)
+    company = get_active_company(request, ctx, company_id)
     cid = company["id"] if company else 52
-
-    # Sanitize Query defaults if called directly
-    view_val = view if isinstance(view, str) else None
-    tab_val = tab if isinstance(tab, str) else None
-    book_val = book if isinstance(book, str) else None
-    supplier_val = supplier if isinstance(supplier, str) else None
-    product_val = product if isinstance(product, str) else None
-    month_val = month if isinstance(month, str) else None
-    date_from_val = date_from if isinstance(date_from, str) else None
-    date_to_val = date_to if isinstance(date_to, str) else None
-    q_val = q if isinstance(q, str) else None
-    page_val = int(page) if not hasattr(page, 'default') else 1
-    per_page_val = int(per_page) if not hasattr(per_page, 'default') else 100
-    debt_only_val = int(debt_only) if not hasattr(debt_only, 'default') else 0
 
     # Map view to tab and book
     # 4 distinct views:
@@ -59,18 +45,18 @@ async def suppliers_page(
     # 2. debts_bich: Công nợ (bích)
     # 3. purchases_trang: Sổ nhập hàng (trang)
     # 4. debts_trang: Công nợ (trang)
-    if view_val:
-        current_view = view_val
-        if view_val == "purchases_bich":
+    if view:
+        current_view = view
+        if view == "purchases_bich":
             active_tab = "purchases"
             active_book = "bich"
-        elif view_val == "debts_bich":
+        elif view == "debts_bich":
             active_tab = "debts"
             active_book = "bich"
-        elif view_val == "purchases_trang":
+        elif view == "purchases_trang":
             active_tab = "purchases"
             active_book = "trang_pa"
-        elif view_val == "debts_trang":
+        elif view == "debts_trang":
             active_tab = "debts"
             active_book = "trang_pa"
         else:
@@ -78,8 +64,8 @@ async def suppliers_page(
             active_book = "bich"
             current_view = "purchases_bich"
     else:
-        active_tab = tab_val or "purchases"
-        active_book = book_val or "bich"
+        active_tab = tab or "purchases"
+        active_book = book or "bich"
         if active_tab == "debts" and active_book == "trang_pa":
             current_view = "debts_trang"
         elif active_tab == "debts":
@@ -93,23 +79,23 @@ async def suppliers_page(
     purchases_data = supplier_service.list_purchases(
         company_id=cid,
         book_type=active_book if active_book != "all" else None,
-        supplier_name=supplier_val,
-        product_name=product_val,
-        month=month_val,
-        date_from=date_from_val,
-        date_to=date_to_val,
-        q=q_val,
-        page=page_val,
-        per_page=per_page_val,
+        supplier_name=supplier,
+        product_name=product,
+        month=month,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+        page=page,
+        per_page=per_page,
     )
 
     # Fetch debts summary (No cards - clean table)
     debts_data = supplier_service.list_supplier_debts(
         company_id=cid,
         book_type=active_book if active_book != "all" else None,
-        month=month_val,
-        q=q_val or supplier_val,
-        debt_only=bool(debt_only_val),
+        month=month,
+        q=q or supplier,
+        debt_only=bool(debt_only),
     )
 
     # Autocomplete suggestions
@@ -131,14 +117,14 @@ async def suppliers_page(
         "current_view": current_view,
         "active_tab": active_tab,
         "current_book": active_book,
-        "supplier_filter": supplier_val or "",
-        "product_filter": product_val or "",
-        "month_filter": month_val or "",
-        "date_from_filter": date_from_val or "",
-        "date_to_filter": date_to_val or "",
-        "q_filter": q_val or "",
-        "debt_only": debt_only_val,
-        "page": page_val,
+        "supplier_filter": supplier or "",
+        "product_filter": product or "",
+        "month_filter": month or "",
+        "date_from_filter": date_from or "",
+        "date_to_filter": date_to or "",
+        "q_filter": q or "",
+        "debt_only": debt_only,
+        "page": page,
         "purchases": purchases_data["items"],
         "total_rows": purchases_data["total_rows"],
         "total_pages": purchases_data["total_pages"],
@@ -509,10 +495,7 @@ async def api_import_excel(request: Request, file: UploadFile, book_type: str, u
         return JSONResponse({"status": "success", "data": res})
     finally:
         import os
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
+        os.remove(tmp_path)
 
 
 async def export_purchases(

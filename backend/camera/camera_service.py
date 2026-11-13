@@ -61,7 +61,7 @@ def add_camera(name, cam_type, imou_device_id, rtsp_url, is_active=True,
     dev_id = imou_device_id.strip() if imou_device_id else None
     params = (name, cam_type, dev_id, imou_channel_id, rtsp_url, is_active, site_ids, pk_json, camera_ip, camera_port)
     camera_id = db._execute_query(query, params, commit=True, return_id=True)
-    if isinstance(camera_id, bool) or not isinstance(camera_id, int) or camera_id <= 0:
+    if not camera_id or camera_id <= 0:
         logger.error("Camera insert returned no valid ID")
         return None
     return camera_id

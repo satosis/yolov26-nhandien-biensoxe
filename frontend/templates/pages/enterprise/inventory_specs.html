@@ -448,39 +448,29 @@ function submitSpecForm(e) {
   btn.disabled = true;
   var url = specId ? ('/admin/enterprise/inventory/specs/items/' + specId) : '/admin/enterprise/inventory/specs/items';
 
-  fetch(url, {
+  apiRequest(url, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(payload)
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
+  }).then(function(res) {
     btn.disabled = false;
     if (res.ok) {
       location.reload();
     } else {
-      window.showNotify(res.message, 'error');
+      window.showNotify(res.message || 'Có lỗi xảy ra.', 'error');
     }
-  })
-  .catch(function() {
-    btn.disabled = false;
-    window.showNotify('Có lỗi xảy ra.', 'error');
   });
 }
 
 function deleteSpec(id) {
   window.appConfirm('Xóa quy cách này?', {confirmText: 'Xóa'}, function() {
-    fetch('/admin/enterprise/inventory/specs/items/' + id + '/delete', {method: 'POST'})
-      .then(function(r) { return r.json(); })
+    apiRequest('/admin/enterprise/inventory/specs/items/' + id + '/delete', {method: 'POST'})
       .then(function(res) {
         if (res.ok) {
           location.reload();
         } else {
-          window.showNotify(res.message, 'error');
+          window.showNotify(res.message || 'Có lỗi xảy ra.', 'error');
         }
-      })
-      .catch(function() {
-        window.showNotify('Có lỗi xảy ra.', 'error');
       });
   });
 }
@@ -512,23 +502,17 @@ function submitPhotoForm(e) {
   btn.disabled = true;
 
   if (photoId) {
-    fetch('/admin/enterprise/inventory/specs/photos/' + photoId, {
+    apiRequest('/admin/enterprise/inventory/specs/photos/' + photoId, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({caption: caption})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
+    }).then(function(res) {
       btn.disabled = false;
       if (res.ok) {
         location.reload();
       } else {
-        window.showNotify(res.message, 'error');
+        window.showNotify(res.message || 'Có lỗi xảy ra.', 'error');
       }
-    })
-    .catch(function() {
-      btn.disabled = false;
-      window.showNotify('Có lỗi xảy ra.', 'error');
     });
   } else {
     var fileInput = document.getElementById('photoFile');
@@ -540,39 +524,29 @@ function submitPhotoForm(e) {
     var fd = new FormData();
     fd.append('file', fileInput.files[0]);
     fd.append('caption', caption);
-    fetch('/admin/enterprise/inventory/specs/photos', {
+    apiRequest('/admin/enterprise/inventory/specs/photos', {
       method: 'POST',
       body: fd
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
+    }).then(function(res) {
       btn.disabled = false;
       if (res.ok) {
         location.reload();
       } else {
-        window.showNotify(res.message, 'error');
+        window.showNotify(res.message || 'Có lỗi xảy ra.', 'error');
       }
-    })
-    .catch(function() {
-      btn.disabled = false;
-      window.showNotify('Có lỗi xảy ra.', 'error');
     });
   }
 }
 
 function deletePhoto(id) {
   window.appConfirm('Xóa ảnh này?', {confirmText: 'Xóa'}, function() {
-    fetch('/admin/enterprise/inventory/specs/photos/' + id + '/delete', {method: 'POST'})
-      .then(function(r) { return r.json(); })
+    apiRequest('/admin/enterprise/inventory/specs/photos/' + id + '/delete', {method: 'POST'})
       .then(function(res) {
         if (res.ok) {
           location.reload();
         } else {
-          window.showNotify(res.message, 'error');
+          window.showNotify(res.message || 'Có lỗi xảy ra.', 'error');
         }
-      })
-      .catch(function() {
-        window.showNotify('Có lỗi xảy ra.', 'error');
       });
   });
 }
@@ -590,12 +564,10 @@ function submitImportForm(e) {
     btn.textContent = 'Đang nhập...';
     var fd = new FormData();
     fd.append('file', fileInput.files[0]);
-    fetch('/admin/enterprise/inventory/specs/import', {
+    apiRequest('/admin/enterprise/inventory/specs/import', {
       method: 'POST',
       body: fd
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
+    }).then(function(res) {
       btn.disabled = false;
       btn.textContent = 'Nhập';
       if (res.ok) {
@@ -603,13 +575,8 @@ function submitImportForm(e) {
         $('#specImportModal').modal('hide');
         setTimeout(function() { location.reload(); }, 600);
       } else {
-        window.showNotify(res.message, 'error');
+        window.showNotify(res.message || 'Có lỗi xảy ra khi nhập file.', 'error');
       }
-    })
-    .catch(function() {
-      btn.disabled = false;
-      btn.textContent = 'Nhập';
-      window.showNotify('Có lỗi xảy ra khi nhập file.', 'error');
     });
   });
 }

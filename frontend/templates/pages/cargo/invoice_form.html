@@ -48,7 +48,7 @@
     .invoice-page-layout:has(.invoice-side-panel){grid-template-columns:100%}
   }
 </style>
-<script src="/static/admin-assets/js/cargo-invoice-form.js?v=24"></script>
+<script src="/static/admin-assets/js/cargo-invoice-form.js?v=25"></script>
 <script>
 function showSavedInvoiceImage(src) {
   const image = document.getElementById('saved-bkav-invoice-image');
@@ -75,42 +75,27 @@ async function handlePushBkav(event, guid) {
     button.disabled = true;
     button.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang đồng bộ BKAV...';
   }
-  window.dispatchEvent(new CustomEvent('showToast', {
-    detail: { msg: 'Đang đồng bộ hóa đơn sang BKAV và tải ảnh về...', type: 'info' }
-  }));
+  window.showNotify('Đang đồng bộ hóa đơn sang BKAV và tải ảnh về...', 'info');
 
-  try {
-    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/push-bkav', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      credentials: 'same-origin'
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || 'Đồng bộ BKAV thất bại.');
-    }
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: data.message || 'Hóa đơn nháp đã được đồng bộ sang BKAV.', type: 'success' }
-    }));
-    if (data.image_url) {
-      showSavedInvoiceImage(data.image_url);
-    } else {
-      await openInvoiceBkavImage(guid, false, true);
-    }
-    if (form) {
-      form.outerHTML = '<span class="badge badge-light border text-success py-1 px-2"><i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV</span>';
-    }
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: error.message || 'Lỗi khi đồng bộ BKAV.', type: 'error' }
-    }));
+  const data = await apiRequest('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/push-bkav', {
+    method: 'POST',
+  });
+  if (!data.ok) {
+    window.showNotify(data.message || data.error || 'Đồng bộ BKAV thất bại.', 'error');
     if (button) {
       button.disabled = false;
       button.innerHTML = originalHtml;
     }
+    return;
+  }
+  window.showNotify(data.message || 'Hóa đơn nháp đã được đồng bộ sang BKAV.', 'success');
+  if (data.image_url) {
+    showSavedInvoiceImage(data.image_url);
+  } else {
+    await openInvoiceBkavImage(guid, false, true);
+  }
+  if (form) {
+    form.outerHTML = '<span class="badge badge-light border text-success py-1 px-2"><i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV</span>';
   }
 }
 
@@ -120,31 +105,29 @@ async function openSavedInvoiceQr(guid, showModal = true) {
     window.dispatchEvent(new CustomEvent('show-image', {detail: {src: image.src}}));
     return;
   }
-  try {
-    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/qr', {credentials: 'same-origin'});
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tạo mã QR.');
-    const empty = document.getElementById('saved-invoice-payment-qr-empty');
-    if (image) { image.src = data.qr_url; image.hidden = false; }
-    if (empty) empty.hidden = true;
-    if (showModal) window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.qr_url}}));
-  } catch (error) {
-    if (showModal) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tạo mã QR.', type: 'error'}}));
+  const data = await apiRequest('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/qr');
+  if (!data.ok) {
+    if (showModal) window.showNotify(data.message || data.error || 'Không thể tạo mã QR.', 'error');
+    return;
   }
+  const empty = document.getElementById('saved-invoice-payment-qr-empty');
+  if (image) { image.src = data.qr_url; image.hidden = false; }
+  if (empty) empty.hidden = true;
+  if (showModal) window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.qr_url}}));
 }
 
 async function openInvoiceBkavImage(guid, showModal = true, silent = false) {
   const buttons = document.querySelectorAll('[data-bkav-refresh]');
   buttons.forEach(button => { button.disabled = true; });
   try {
-    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đang tải ảnh hóa đơn từ BKAV...', type: 'info'}}));
-    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info', {credentials: 'same-origin'});
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tải ảnh hóa đơn từ BKAV.');
+    if (!silent) window.showNotify('Đang tải ảnh hóa đơn từ BKAV...', 'info');
+    const data = await apiRequest('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info');
+    if (!data.ok) {
+      if (!silent) window.showNotify(data.message || data.error || 'Không thể tải ảnh hóa đơn từ BKAV.', 'error');
+      return;
+    }
     showSavedInvoiceImage(data.image_url);
     if (showModal) window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
-  } catch (error) {
-    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tải ảnh hóa đơn.', type: 'error'}}));
   } finally {
     buttons.forEach(button => { button.disabled = false; });
   }
@@ -162,29 +145,16 @@ async function sendInvoiceToZalo(guid) {
     btn.disabled = true;
     btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang gửi Zalo...';
   }
-  window.dispatchEvent(new CustomEvent('showToast', {
-    detail: { msg: 'Đang gửi thông tin và ảnh hóa đơn vào nhóm Zalo...', type: 'info' }
-  }));
+  window.showNotify('Đang gửi thông tin và ảnh hóa đơn vào nhóm Zalo...', 'info');
   try {
-    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/send-zalo', {
+    const data = await apiRequest('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/send-zalo', {
       method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      }
     });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || 'Không thể gửi hóa đơn vào nhóm Zalo.');
+    if (!data.ok) {
+      window.showNotify(data.message || data.error || 'Không thể gửi hóa đơn vào nhóm Zalo.', 'error');
+      return;
     }
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: data.message || 'Đã gửi ảnh hóa đơn vào nhóm Zalo thành công!', type: 'success' }
-    }));
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: error.message || 'Lỗi gửi tin nhắn Zalo.', type: 'error' }
-    }));
+    window.showNotify(data.message || 'Đã gửi ảnh hóa đơn vào nhóm Zalo thành công!', 'success');
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -214,9 +184,6 @@ window.addEventListener('resize', updateInvoiceStickyTop);
 
 let invoiceActionBusy = false;
 let bkavSyncCompleted = {{ 'true' if invoice and bkav_push and bkav_push.status == 'sent' else 'false' }};
-function invoiceToast(message, type) {
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: message, type: type || 'info'}}));
-}
 function submitInvoiceForm(action) {
   if (invoiceActionBusy) return;
   const form = document.getElementById('invoice-form');
@@ -229,7 +196,7 @@ function submitInvoiceForm(action) {
       const label = field.id ? document.querySelector('label[for="' + field.id + '"]') : null;
       const name = ((label && label.textContent) || field.getAttribute('aria-label') || field.placeholder || field.name || 'một ô')
         .replace(/\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
-      invoiceToast('Chưa lưu được: ô "' + name + '" chưa hợp lệ' + (field.validationMessage ? ' (' + field.validationMessage + ')' : '') + '.', 'error');
+      window.showNotify('Chưa lưu được: ô "' + name + '" chưa hợp lệ' + (field.validationMessage ? ' (' + field.validationMessage + ')' : '') + '.', 'error');
     }
     form.reportValidity();
     return;
@@ -256,22 +223,23 @@ async function submitInvoiceAction(event) {
       : action === 'save'
         ? '/admin/vehicles/cargo/invoices/save'
         : '/admin/vehicles/cargo/invoices/add';
-    const response = await fetch(endpoint, {
-      method: 'POST', body: new FormData(form), credentials: 'same-origin',
-      headers: {'Accept': action === 'export' ? '*/*' : 'application/json', 'X-Requested-With': 'XMLHttpRequest'}
-    });
     if (action === 'save') {
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.ok) throw new Error(data.error || ('Không thể lưu hóa đơn (máy chủ trả lỗi HTTP ' + response.status + ').'));
-      invoiceToast('Đã lưu hóa đơn thành công.', 'success');
+      const data = await apiRequest(endpoint, { method: 'POST', body: new FormData(form) });
+      if (!data.ok) {
+        window.showNotify(data.message || data.error || ('Không thể lưu hóa đơn (HTTP ' + data.status + ').'), 'error');
+        return;
+      }
+      window.showNotify('Đã lưu hóa đơn thành công.', 'success');
       if (data.redirect) setTimeout(() => { window.location.href = data.redirect; }, 700);
     } else if (action === 'bkav') {
-      const data = await response.json().catch(() => ({}));
-      const detail = Array.isArray(data.detail) ? data.detail.map(item => item.msg).join('; ') : data.detail;
-      if (!response.ok || !data.ok) throw new Error(data.error || detail || ('Không thể đồng bộ hóa đơn sang BKAV (HTTP ' + response.status + ').'));
+      const data = await apiRequest(endpoint, { method: 'POST', body: new FormData(form) });
+      if (!data.ok) {
+        window.showNotify(data.message || data.error || ('Không thể đồng bộ hóa đơn sang BKAV (HTTP ' + data.status + ').'), 'error');
+        return;
+      }
       actionSucceeded = true;
       bkavSyncCompleted = true;
-      invoiceToast(data.message || 'Đã đồng bộ hóa đơn sang BKAV.', 'success');
+      window.showNotify(data.message || 'Đã đồng bộ hóa đơn sang BKAV.', 'success');
       if (activeButton) activeButton.innerHTML = '<i class="bx bx-check-circle mr-1"></i>Đã đồng bộ BKAV';
       if (data.image_url) {
         showSavedInvoiceImage(data.image_url);
@@ -280,6 +248,10 @@ async function submitInvoiceAction(event) {
         setTimeout(() => { window.location.href = data.redirect; }, 1000);
       }
     } else {
+      const response = await fetch(endpoint, {
+        method: 'POST', body: new FormData(form), credentials: 'same-origin',
+        headers: {'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest'}
+      });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Không thể xuất hóa đơn theo mẫu.');
@@ -292,10 +264,10 @@ async function submitInvoiceAction(event) {
       const link = document.createElement('a');
       link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      invoiceToast('Đã xuất tệp hóa đơn theo mẫu.', 'success');
+      window.showNotify('Đã xuất tệp hóa đơn theo mẫu.', 'success');
     }
   } catch (error) {
-    invoiceToast(error.message || 'Có lỗi khi xử lý hóa đơn.', 'error');
+    window.showNotify(error.message || 'Có lỗi khi xử lý hóa đơn.', 'error');
   } finally {
     invoiceActionBusy = false;
     buttons.forEach(button => {
@@ -308,26 +280,24 @@ async function submitInvoiceAction(event) {
 document.addEventListener('DOMContentLoaded', function() {
   updateInvoiceStickyTop();
 
-  if (window.$) {
-    $('#documentPreviewModal').on('hidden.bs.modal', function () {
-      var frame = document.getElementById('documentPreviewFrame');
-      if (frame) frame.src = 'about:blank';
-      var loader = document.getElementById('documentPreviewLoading');
-      if (loader) loader.style.display = 'flex';
-    });
-  }
+  $('#documentPreviewModal').on('hidden.bs.modal', function () {
+    var frame = document.getElementById('documentPreviewFrame');
+    if (frame) frame.src = 'about:blank';
+    var loader = document.getElementById('documentPreviewLoading');
+    if (loader) loader.style.display = 'flex';
+  });
 
   {% if bkav_notice %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_notice|tojson }}, type: 'success'}}));
+  window.showNotify({{ bkav_notice|tojson }}, 'success');
   {% endif %}
   {% if bkav_error %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_error|tojson }}, type: 'error'}}));
+  window.showNotify({{ bkav_error|tojson }}, 'error');
   {% endif %}
   {% if saved %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đã lưu hóa đơn thành công.', type: 'success'}}));
+  window.showNotify('Đã lưu hóa đơn thành công.', 'success');
   {% endif %}
   {% if error %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ error|tojson }}, type: 'error'}}));
+  window.showNotify({{ error|tojson }}, 'error');
   {% endif %}
 
   if (window.location.search) {

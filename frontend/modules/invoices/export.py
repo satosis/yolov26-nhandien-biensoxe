@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 
 from openpyxl import load_workbook
+from frontend.formatting.text import fold_text
 from frontend.modules.transport.route_segments import invoice_items
 
 
@@ -40,6 +41,18 @@ def is_crane_by_shift_service(service_name: str | None) -> bool:
         "c\u01b0\u1edbc c\u1ea9u theo ca",
         "c\u01b0\u1edbc c\u1ea9u l\u1eafp d\u1ef1ng k\u1ebft c\u1ea5u nh\u00e0 x\u01b0\u1edfng",
     }
+
+
+def same_place(origin: str | None, destination: str | None) -> bool:
+    """Điểm đi và điểm đến trùng nhau (bỏ dấu, hoa thường, dấu câu): làm việc tại một chỗ, tức là ca cẩu."""
+    def key(value):
+        return " ".join(re.findall(r"[a-z0-9]+", fold_text(value)))
+    return bool(key(origin)) and key(origin) == key(destination)
+
+
+def is_crane_job(service_name: str | None, origin: str | None, destination: str | None) -> bool:
+    """Ca cẩu: dịch vụ cước cẩu theo ca, hoặc điểm đi trùng điểm đến."""
+    return is_crane_by_shift_service(service_name) or same_place(origin, destination)
 
 
 def cargo_description_from_service(service_name: str) -> str | None:
@@ -93,9 +106,10 @@ def _service_description(origin: str | None, destination: str | None,
                          service_name: str = DEFAULT_SERVICE_NAME) -> str:
     origin = (origin or "").strip()
     destination = (destination or "").strip()
-    if is_crane_by_shift_service(service_name):
+    if is_crane_job(service_name, origin, destination):
+        crane = service_name if is_crane_by_shift_service(service_name) else CRANE_BY_SHIFT_SERVICE
         location = destination or origin
-        return f"{service_name} tại {location}" if location else service_name
+        return f"{crane} tại {location}" if location else crane
     if origin and destination:
         return f"{service_name} từ {origin} đến {destination}"
     if origin:
@@ -153,8 +167,10 @@ def build_bkav_invoice(trip: dict, company: dict) -> bytes:
         work_content = str(trip.get("cargo_description") or "").strip()
     if not work_content:
         work_content = _service_description(trip.get("origin"), trip.get("destination"), service_name)
+    segments = trip.get("route_segments") or []
     for index, item in enumerate(invoice_items(trip, work_content)):
         row = 6 + index
+        place = segments[index] if segments else trip
         sheet.cell(row, 1, index + 1)
         if doc_display:
             _set_text(sheet, row, 2, str(doc_display))
@@ -162,7 +178,7 @@ def build_bkav_invoice(trip: dict, company: dict) -> bytes:
             sheet.cell(row, 2, bill_number)
         _set_text(sheet, row, 3, str(trip.get("plate_number") or ""))
         _set_text(sheet, row, 4, item["description"])
-        _set_text(sheet, row, 5, "Ca cẩu" if is_crane_by_shift_service(service_name) else "Chuyến")
+        _set_text(sheet, row, 5, "Ca cẩu" if is_crane_job(service_name, place.get("origin"), place.get("destination")) else "Chuyến")
         sheet.cell(row, 6, 1)
         sheet.cell(row, 7, item["amount"])
         sheet.cell(row, 8, item["amount"])
@@ -204,7 +220,6 @@ def build_saved_invoice_workbook(invoice: dict, lines: list[dict], company: dict
     if "Country" in book.defined_names:
         del book.defined_names["Country"]
     sheet = book.worksheets[0]
-    unit_name = "Ca cẩu" if is_crane_by_shift_service(invoice.get("service_name")) else "Chuyến"
     grouped = []
     for index, line in enumerate(lines):
         amount = Decimal(str(line.get("amount") or 0))
@@ -212,11 +227,12 @@ def build_saved_invoice_workbook(invoice: dict, lines: list[dict], company: dict
             raise ValueError(f"Cước dòng {index + 1} phải là số nguyên không âm.")
         plate = str(line.get("plate_number") or "")
         description = str(line.get("description") or "")
-        if grouped and (grouped[-1]["plate"], grouped[-1]["description"], grouped[-1]["unit_price"]) == (plate, description, amount):
+        unit = "Ca cẩu" if is_crane_job(invoice.get("service_name"), line.get("origin"), line.get("destination")) else "Chuyến"
+        if grouped and (grouped[-1]["plate"], grouped[-1]["description"], grouped[-1]["unit_price"], grouped[-1]["unit"]) == (plate, description, amount, unit):
             grouped[-1]["quantity"] += 1
         else:
             grouped.append({"plate": plate, "description": description,
-                            "unit_price": amount, "quantity": 1})
+                            "unit_price": amount, "quantity": 1, "unit": unit})
     for index, item in enumerate(grouped):
         amount = item["unit_price"] * item["quantity"]
         row = 6 + index
@@ -224,7 +240,7 @@ def build_saved_invoice_workbook(invoice: dict, lines: list[dict], company: dict
         sheet.cell(row, 2, int(invoice["invoice_number"]))
         _set_text(sheet, row, 3, item["plate"])
         _set_text(sheet, row, 4, item["description"])
-        _set_text(sheet, row, 5, unit_name)
+        _set_text(sheet, row, 5, item["unit"])
         sheet.cell(row, 6, item["quantity"])
         sheet.cell(row, 7, item["unit_price"])
         sheet.cell(row, 8, amount)

@@ -295,10 +295,6 @@ function loadModels() {
 }
 
 function openKycCamera() {
-    if (typeof window.cameraRequest !== 'function') {
-        console.error('Camera request helper unavailable');
-        return Promise.resolve({ ok: false, message: 'Không thể khởi tạo camera.' });
-    }
     let timeoutId;
     let timedOut = false;
     const timeout = new Promise(resolve => {
@@ -461,9 +457,7 @@ function handleUploadFailure(message) {
     const status = document.getElementById('kyc-status-text');
     if (uploadFailures >= MAX_UPLOAD_FAILURES) {
         stopKyc(`${message} Đã dừng sau ${MAX_UPLOAD_FAILURES} lần thử.`);
-        window.dispatchEvent(new CustomEvent('showToast', {
-            detail: { msg: status.textContent, type: 'error' }
-        }));
+        window.showNotify(status.textContent, 'error');
         return;
     }
     status.textContent = `❌ ${message} Đang thử lại (${uploadFailures}/${MAX_UPLOAD_FAILURES})...`;

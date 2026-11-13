@@ -32,9 +32,7 @@
     {% if draft_error %}
     <script>
       window.addEventListener('DOMContentLoaded', function() {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: {{ draft_error|tojson }}, type: 'error' }
-        }));
+        window.showNotify({{ draft_error|tojson }}, 'error');
       });
     </script>
     {% endif %}

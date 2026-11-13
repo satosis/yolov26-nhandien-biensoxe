@@ -77,10 +77,6 @@
     );
   }
 
-  function emitToast(message, type) {
-    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: message, type: type || 'info' } }));
-  }
-
   function csvCell(value) {
     return '"' + String(value || '').replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"';
   }
@@ -112,22 +108,14 @@
 
   async function runAction(rows, key, label) {
     if (!window.confirm(`${label} cho ${rows.length} dòng đã chọn?`)) return;
-    const actions = rows.map((row) => rowActions(row).get(key));
-    if (actions.some((action) => !action)) return;
-    const results = await Promise.allSettled(actions.map(async (action) => {
-      const options = {
+    const results = await Promise.allSettled(rows.map(async (row) => {
+      const action = rowActions(row).get(key);
+      const body = action.form ? new FormData(action.form) : action.value ? { action: action.value } : null;
+      const response = await fetch(action.url, {
         method: action.method,
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        credentials: 'same-origin'
-      };
-      if (action.form && action.method !== 'GET' && action.method !== 'DELETE') {
-        options.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
-        options.body = new URLSearchParams(new FormData(action.form));
-      } else if (action.value && action.method !== 'GET' && action.method !== 'DELETE') {
-        options.headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
-        options.body = new URLSearchParams({ action: action.value });
-      }
-      const response = await fetch(action.url, options);
+        body: body && action.method !== 'GET' && action.method !== 'DELETE' ? new URLSearchParams(body) : undefined
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       if ((response.headers.get('content-type') || '').includes('application/json')) {
         const result = await response.json();
@@ -135,15 +123,13 @@
           throw new Error(result.message || 'Thao tác thất bại');
         }
       }
-      return response;
     }));
     const succeeded = results.filter((result) => result.status === 'fulfilled').length;
-    const failed = results.length - succeeded;
     if (succeeded) {
-      emitToast(`Đã xử lý ${succeeded}/${results.length} dòng.`, failed ? 'warning' : 'success');
+      window.showNotify(`Đã xử lý ${succeeded}/${results.length} dòng.`, succeeded < results.length ? 'warning' : 'success');
       window.setTimeout(() => window.location.reload(), 300);
     } else {
-      emitToast('Không thể thực hiện thao tác đã chọn.', 'error');
+      window.showNotify('Không thể thực hiện thao tác đã chọn.', 'error');
     }
   }
 

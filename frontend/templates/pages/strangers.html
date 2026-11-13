@@ -21,9 +21,7 @@
         return;
       }
       this.busy = false;
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: result.message || 'Không thể cập nhật người lạ.', type: 'error' }
-      }));
+      window.showNotify(result.message, 'error');
     },
     async bulkRegister() {
       if (!this.selected.length || !this.bulkUser || this.busy) return;

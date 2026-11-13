@@ -19,7 +19,7 @@ from frontend.modules.enterprise.inventory_controller import (
 
 def _resolve_company(request: Request, user: dict, company_id: Optional[int] = None) -> tuple[dict, dict | None, int]:
     ctx = get_menu_context(request, user)
-    company = get_active_company(request, ctx, company_id if isinstance(company_id, int) else None)
+    company = get_active_company(request, ctx, company_id)
     cid = company["id"] if company else 52
     return ctx, company, cid
 

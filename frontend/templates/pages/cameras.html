@@ -91,9 +91,7 @@
     if (dev.type && typeSelect) {
         setAdminSelectValue(typeSelect, dev.type);
     }
-    if (typeof autoFillRtsp === 'function') {
-        autoFillRtsp(document.getElementById('add-cam-form'));
-    }
+    autoFillRtsp(document.getElementById('add-cam-form'));
     this.showDiscoveryModal = false;
     document.getElementById('add-cam-form').scrollIntoView({ behavior: 'smooth' });
   },
@@ -111,9 +109,7 @@
         dev._added = true;
         if (!skipReload) setTimeout(() => window.location.reload(), 600);
     } else if (!skipReload) {
-        window.dispatchEvent(new CustomEvent('showToast', {
-            detail: { msg: result.message, type: 'error' }
-        }));
+        window.showNotify(result.message, 'error');
     }
     return result;
   }

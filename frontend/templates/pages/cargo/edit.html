@@ -77,14 +77,14 @@
 {% if zalo_created %}
 <script>
   window.addEventListener('DOMContentLoaded', function() {
-    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: 'Đã lưu chuyến hàng từ tin Zalo.', type: 'success' } }));
+    window.showNotify('Đã lưu chuyến hàng từ tin Zalo.', 'success');
   });
 </script>
 {% endif %}
 {% if zalo_notice %}
 <script>
   window.addEventListener('DOMContentLoaded', function() {
-    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: {{ zalo_notice|tojson }}, type: 'info' } }));
+    window.showNotify({{ zalo_notice|tojson }}, 'info');
   });
 </script>
 {% endif %}
@@ -196,24 +196,17 @@
     segment.distanceError = '';
     const url = '/admin/vehicles/api/calculate-distance-by-address?origin='
       + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
-    try {
-      const result = await apiRequest(url);
-      if (segment.distanceRequestId !== requestId || !this.extraSegments.includes(segment)
-          || segment.origin?.trim() !== origin || segment.destination?.trim() !== destination) return;
-      const distance = Number(result.distance_km);
-      if (result.ok && result.distance_km != null && Number.isFinite(distance) && distance >= 0) {
-        segment.distance_km = distance;
-        this.syncRouteTotals();
-      } else {
-        segment.distanceError = result.message || 'Không tìm được quãng đường. Bạn có thể nhập km thủ công.';
-        if (!silent) this.showRequestError(result, segment.distanceError);
-      }
-    } catch {
-      if (segment.distanceRequestId === requestId) {
-        segment.distanceError = 'Không kết nối được bản đồ. Bạn có thể nhập km thủ công.';
-      }
-    } finally {
-      if (segment.distanceRequestId === requestId) segment.calculating = false;
+    const result = await apiRequest(url);
+    if (segment.distanceRequestId === requestId) segment.calculating = false;
+    if (segment.distanceRequestId !== requestId || !this.extraSegments.includes(segment)
+        || segment.origin?.trim() !== origin || segment.destination?.trim() !== destination) return;
+    const distance = Number(result.distance_km);
+    if (result.ok && result.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      segment.distance_km = distance;
+      this.syncRouteTotals();
+    } else {
+      segment.distanceError = result.message || 'Không tìm được quãng đường. Bạn có thể nhập km thủ công.';
+      if (!silent) this.showRequestError(result, segment.distanceError);
     }
   },
   async fillMissingRouteDistances() {
@@ -355,7 +348,6 @@
   lookingUpCompany: false,
   savingCompany: false,
   initCatalogSelects() {
-    if (typeof TomSelect === 'undefined') return;
     new TomSelect('#cargo-service', {
       create: false, maxItems: 1, placeholder: 'Chọn dịch vụ...',
       onChange: value => {
@@ -376,10 +368,6 @@
     if (!select) return;
     this.selectedCompany = this.companies.find(item => String(item.id) === String(select.value)) || null;
     this.originFollowsCompany = !this.origin || this.origin === (this.selectedCompany?.address || '');
-    if (typeof TomSelect === 'undefined') {
-      select.addEventListener('change', event => this.selectCompany(event.target.value));
-      return;
-    }
     new TomSelect(select, {
       create: false,
       maxItems: 1,
@@ -395,7 +383,7 @@
       }
     });
     const sellerSelect = document.getElementById('cargo-seller-company');
-    if (sellerSelect && typeof TomSelect !== 'undefined') {
+    if (sellerSelect) {
       new TomSelect(sellerSelect, {
         create: false,
         maxItems: 1,
@@ -545,14 +533,11 @@
     this.selectCompany(saved.id);
     this.newCompanyOpen = false;
     this.lookupMessage = '';
-    window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu đơn vị ' + saved.name, type:'success'}}));
+    window.showNotify('Đã lưu đơn vị ' + saved.name, 'success');
   },
 
   showRequestError(result, fallback, silent = false) {
-    if (silent) return;
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: result.message || fallback, type: 'error' }
-    }));
+    if (!silent) window.showNotify(result.message || fallback, 'error');
   },
 
   async handleLocationChange(val, type) {
@@ -561,15 +546,13 @@
     this.mapMatch = null;
     clearTimeout(this.mapsTimers[type]);
     window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+    if (type === 'origin') this.originCoords = null;
+    else this.destCoords = null;
     if (!val) {
-      if (type === 'origin') this.originCoords = null;
-      else this.destCoords = null;
       this.calculatingKM = false;
       this.scheduleDistanceCalculation();
       return;
     }
-    if (type === 'origin') this.originCoords = null;
-    else this.destCoords = null;
     if (this.isMapsLink(val) && /^https?:\/\/\S+$/.test(val)) {
       this.mapsTimers[type] = setTimeout(() => this.resolveMaps(val, type), 500);
     }
@@ -616,7 +599,7 @@
         window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
       }
       this.lastDistanceKey = key;
-      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+      if (!silent) window.showNotify('📏 Quãng đường: ' + distance + ' km', 'success');
     } else {
       this.showRequestError(json, 'Không tính được quãng đường.', silent);
     }
@@ -677,7 +660,7 @@
       this.destCoords = coords;
     }
     this.scheduleDistanceCalculation(true);
-    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
+    if (!silent) window.showNotify('📍 ' + json.label, 'info');
   },
 
   async geocodeOnly(q, type) {
@@ -694,7 +677,7 @@
 
   async calculateKM() {
     if (!this.originCoords || !this.destCoords) {
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Cần dán link Google Maps cho cả 2 điểm để tính tự động.', type:'warning'}}));
+      window.showNotify('Cần dán link Google Maps cho cả 2 điểm để tính tự động.', 'warning');
       return;
     }
     this.calculatingKM = true;
@@ -704,7 +687,7 @@
     if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
       this.distance_km = distance;
       if (!this.fuelLitersTouched) this.calcLitersFromRate();
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+      window.showNotify('📏 Quãng đường: ' + distance + ' km', 'success');
     } else {
       this.showRequestError(json, 'Không tính được quãng đường.');
     }
@@ -719,7 +702,7 @@
     const price = Number(json.price);
     if (json.ok && json.price != null && Number.isFinite(price) && price > 0) {
       this.fuelPrice = price;
-      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', type:'info'}}));
+      if (!silent) window.showNotify('Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', 'info');
     } else {
       this.showRequestError(json, 'Không lấy được giá dầu.', silent);
     }
@@ -1063,11 +1046,10 @@ async function triggerGenerateQr(btn) {
   }
 
   try {
-    const resp = await fetch(`/admin/vehicles/cargo/${tripId}/qr`, {
+    const data = await apiRequest(`/admin/vehicles/cargo/${tripId}/qr`, {
       method: 'POST',
       body: formData,
     });
-    const data = await resp.json();
     if (data.ok && data.qr_url) {
       currentQrUrl = data.qr_url;
       const img = document.getElementById('trip-qr-img');
@@ -1087,23 +1069,12 @@ async function triggerGenerateQr(btn) {
       }
 
       if (topText) topText.innerText = 'Tạo lại mã QR';
-
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: 'Đã tạo mã QR thanh toán thành công!', type: 'success' }
-      }));
-
+      window.showNotify('Đã tạo mã QR thanh toán thành công!', 'success');
       document.getElementById('qr-card-box')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: data.error || 'Không thể tạo mã QR.', type: 'error' }
-      }));
+      window.showNotify(data.message || 'Không thể tạo mã QR.', 'error');
       if (topText) topText.innerText = originalText;
     }
-  } catch (err) {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: 'Lỗi kết nối khi tạo mã QR.', type: 'error' }
-    }));
-    if (topText) topText.innerText = originalText;
   } finally {
     if (topBtn) topBtn.disabled = false;
     if (btn && btn !== topBtn) btn.disabled = false;
@@ -1113,41 +1084,35 @@ async function triggerGenerateQr(btn) {
 function copyTripQrLink() {
   if (!currentQrUrl) return;
   navigator.clipboard.writeText(currentQrUrl).then(() => {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: 'Đã sao chép link ảnh QR!', type: 'success' }
-    }));
+    window.showNotify('Đã sao chép link ảnh QR!', 'success');
   });
 }
 
 function zoomTripQr() {
   const url = currentQrUrl || document.getElementById('trip-qr-img')?.src;
   if (!url) {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: 'Chưa có ảnh mã QR để phóng to.', type: 'warning' }
-    }));
+    window.showNotify('Chưa có ảnh mã QR để phóng to.', 'warning');
     return;
   }
   window.dispatchEvent(new CustomEvent('show-image', { detail: { src: url } }));
 }
 
 async function openTripBkavImage(tripId) {
-  try {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đang tải ảnh hóa đơn từ BKAV...', type: 'info'}}));
-    const response = await fetch('/admin/vehicles/cargo/' + encodeURIComponent(tripId) + '/bkav-image-info', {credentials: 'same-origin'});
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tải ảnh hóa đơn từ BKAV.');
-    window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tải ảnh hóa đơn.', type: 'error'}}));
+  window.showNotify('Đang tải ảnh hóa đơn từ BKAV...', 'info');
+  const data = await apiRequest('/admin/vehicles/cargo/' + encodeURIComponent(tripId) + '/bkav-image-info');
+  if (!data.ok) {
+    window.showNotify(data.message || 'Không thể tải ảnh hóa đơn từ BKAV.', 'error');
+    return;
   }
+  window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   {% if bkav_notice %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_notice|tojson }}, type: 'success'}}));
+  window.showNotify({{ bkav_notice|tojson }}, 'success');
   {% endif %}
   {% if bkav_error %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ bkav_error|tojson }}, type: 'error'}}));
+  window.showNotify({{ bkav_error|tojson }}, 'error');
   {% endif %}
   if (window.location.search) {
     const searchUrl = new URL(window.location.href);

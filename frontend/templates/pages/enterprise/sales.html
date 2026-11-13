@@ -225,6 +225,10 @@
     <div class="tab-content" id="salesTabsContent">
       <!-- Tab 1: Theo hóa đơn -->
       <div class="tab-pane fade show active" id="invoicesView" role="tabpanel">
+        <div id="salesActiveEditorsAlert" class="alert alert-warning py-2 px-3 mx-3 my-2 small align-items-center shadow-sm" style="display:none; background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:6px;">
+          <i class="fas fa-user-edit mr-2 text-warning fa-lg"></i>
+          <span id="salesActiveEditorsText" class="font-weight-medium"></span>
+        </div>
         <div class="table-responsive sales-table-wrap">
           <table class="table table-sm table-hover mb-0 sales-table" data-bulk-select="1">
             <thead>
@@ -303,6 +307,15 @@
           </div>
         </div>
         <div class="modal-body">
+          <!-- Cảnh báo có người nhập cùng nội dung -->
+          <div id="saleEditingConflictAlert" class="alert alert-danger py-2 px-3 mb-3 align-items-center shadow-sm" style="display:none; font-size:13.5px; border-left: 5px solid #dc3545; background-color: #fff5f5; color: #721c24; border-radius:6px;">
+            <i class="fas fa-exclamation-triangle mr-2 fa-lg text-danger"></i>
+            <div style="flex:1;">
+              <strong class="d-block text-danger font-weight-bold" style="font-size:14px;">CẢNH BÁO ĐANG CÓ NGƯỜI NHẬP CÙNG NỘI DUNG:</strong>
+              <span id="saleEditingConflictMessage"></span>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group col-md-3">
               <label for="saleInvoiceNumber">Số hóa đơn / STT</label>
@@ -479,7 +492,7 @@
 
 {% block scripts %}
 <link rel="stylesheet" href="/static/admin-assets/css/goods-spec-lookup.css?v=20261109-3">
-<script src="/static/admin-assets/js/goods-spec-lookup.js?v=20261109-1"></script>
+<script src="/static/admin-assets/js/goods-spec-lookup.js?v=20261112-1"></script>
 <script>initGoodsSpecLookup({{ spec_lookup|tojson }}, {floating: true});</script>
 <script>
 (function () {
@@ -499,21 +512,145 @@
   let importingSales = false;
   let currentNextStt = '{{ next_stt|default("1") }}';
 
+  // === QUẢN LÝ PHIÊN VÀ CẢNH BÁO ĐANG NHẬP CÙNG NỘI DUNG ===
+  let presenceSessionId = null;
+  let presenceTimer = null;
+  let currentConflictMessage = '';
+  let activeCompanyEditors = [];
+
+  function getOrCreatePresenceSessionId() {
+    if (!presenceSessionId) {
+      presenceSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+    }
+    return presenceSessionId;
+  }
+
+  async function sendPresenceHeartbeat() {
+    if (!$('#saleModal').hasClass('show') && !$('#saleModal').is(':visible')) {
+      return;
+    }
+    const customerSelect = document.getElementById('saleCustomer');
+    let custId = customerSelect ? customerSelect.value : '';
+    let custName = '';
+    if (customerSelect && customerSelect.tomselect) {
+      const ts = customerSelect.tomselect;
+      const opt = ts.options[custId];
+      custName = opt ? (opt.text || '') : '';
+      if (!custName && !custId) {
+        custName = (ts.input ? ts.input.value : '') || ts.lastQuery || '';
+      }
+    } else if (customerSelect && customerSelect.selectedIndex >= 0) {
+      const opt = customerSelect.options[customerSelect.selectedIndex];
+      if (opt && opt.value) custName = opt.textContent.trim();
+    }
+    const invNum = (document.getElementById('saleInvoiceNumber')?.value || '').trim();
+    const resId = editingSaleId ? String(editingSaleId) : '';
+
+    try {
+      const resp = await fetch('/admin/enterprise/sales/api/presence/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: getOrCreatePresenceSessionId(),
+          scope: 'sales',
+          resource_id: resId,
+          customer_id: custId,
+          customer_name: custName,
+          invoice_number: invNum,
+        }),
+      });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const alertBox = document.getElementById('saleEditingConflictAlert');
+      const msgBox = document.getElementById('saleEditingConflictMessage');
+      if (data.conflict && data.message) {
+        currentConflictMessage = data.message;
+        if (msgBox) msgBox.textContent = data.message;
+        if (alertBox) alertBox.style.display = 'flex';
+      } else {
+        currentConflictMessage = '';
+        if (alertBox) alertBox.style.display = 'none';
+      }
+    } catch (e) {}
+  }
+
+  function startPresenceHeartbeat() {
+    getOrCreatePresenceSessionId();
+    stopPresenceHeartbeat();
+    sendPresenceHeartbeat();
+    presenceTimer = setInterval(sendPresenceHeartbeat, 3000);
+  }
+
+  function stopPresenceHeartbeat() {
+    if (presenceTimer) {
+      clearInterval(presenceTimer);
+      presenceTimer = null;
+    }
+    currentConflictMessage = '';
+    const alertBox = document.getElementById('saleEditingConflictAlert');
+    if (alertBox) alertBox.style.display = 'none';
+  }
+
+  function releasePresenceSession() {
+    if (!presenceSessionId) return;
+    const sid = presenceSessionId;
+    presenceSessionId = null;
+    stopPresenceHeartbeat();
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(
+          '/admin/enterprise/sales/api/presence/release',
+          new Blob([JSON.stringify({ session_id: sid })], { type: 'application/json' })
+        );
+      } else {
+        fetch('/admin/enterprise/sales/api/presence/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
+  async function checkActiveCompanyEditors() {
+    try {
+      const resp = await fetch('/admin/enterprise/sales/api/presence/active?scope=sales');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      activeCompanyEditors = data.active || [];
+      renderActiveEditorsNotice();
+    } catch (e) {}
+  }
+
+  function renderActiveEditorsNotice() {
+    const alertEl = document.getElementById('salesActiveEditorsAlert');
+    const textEl = document.getElementById('salesActiveEditorsText');
+    if (!alertEl || !textEl) return;
+    const otherEditors = activeCompanyEditors.filter(e => e.session_id !== presenceSessionId);
+    if (!otherEditors.length) {
+      alertEl.style.display = 'none';
+      return;
+    }
+    const parts = otherEditors.map(e => {
+      let desc = e.user_name + ' đang nhập hóa đơn';
+      if (e.customer_name) desc += ' của khách hàng ' + e.customer_name;
+      else if (e.invoice_number) desc += ' số ' + e.invoice_number;
+      return desc;
+    });
+    textEl.textContent = 'Đang có người thao tác: ' + parts.join('; ') + '.';
+    alertEl.style.display = 'flex';
+  }
+
   const SALES_STATE_KEY = 'enterpriseSalesState';
   function readSalesState() {
-    try {
-      const raw = sessionStorage.getItem(SALES_STATE_KEY);
-      return raw ? (JSON.parse(raw) || {}) : {};
-    } catch (e) {
-      return {};
-    }
+    const raw = sessionStorage.getItem(SALES_STATE_KEY);
+    return raw ? (JSON.parse(raw) || {}) : {};
   }
   function saveSalesState(patch) {
-    try {
-      const current = readSalesState();
-      const updated = Object.assign({}, current, patch);
-      sessionStorage.setItem(SALES_STATE_KEY, JSON.stringify(updated));
-    } catch (e) {}
+    const current = readSalesState();
+    const updated = Object.assign({}, current, patch);
+    sessionStorage.setItem(SALES_STATE_KEY, JSON.stringify(updated));
   }
   let activeTabOnLoad = 'invoices';
   let pendingScroll = 0;
@@ -581,7 +718,7 @@
       } else {
         this.value = new Intl.NumberFormat('vi-VN').format(parseInt(digits, 10));
       }
-      if (typeof onChange === 'function') {
+      if (onChange) {
         onChange();
       }
     });
@@ -650,7 +787,7 @@
         const formatted = formatWeightExpr(raw);
         this.value = endsWithSpecial && !/[,+\-*\/]$/.test(formatted) ? formatted + raw.slice(-1) : formatted;
       }
-      if (typeof onChange === 'function') {
+      if (onChange) {
         onChange();
       }
     });
@@ -662,45 +799,20 @@
     });
   }
   function notify(message, isError) {
-    if (!message) return;
-    if (window.toastr) {
-      if (isError) toastr.error(message);
-      else toastr.success(message);
-    } else {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: message, type: isError ? 'error' : 'success' }
-      }));
-    }
+    window.showNotify(message, isError ? 'error' : 'success');
   }
   async function requestJson(url, options) {
-    const opts = options || {};
-    opts.headers = Object.assign({
-      'Accept': 'application/json'
-    }, opts.headers || {});
-    const response = await fetch(url, opts);
-    const text = await response.text();
-    let data;
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch (_) {
-      if (text && text.trim().startsWith('<')) {
-        throw new Error('Lỗi phản hồi máy chủ (HTTP ' + response.status + '). Vui lòng thử lại.');
-      }
-      throw new Error(text || ('HTTP ' + response.status));
-    }
-    if (!response.ok) {
-      const errMsg = (data && data.message) ? data.message : ('Lỗi xử lý (HTTP ' + response.status + ')');
-      throw new Error(errMsg);
+    const data = await apiRequest(url, options);
+    if (!data.ok) {
+      throw new Error(data.message || 'Lỗi xử lý.');
     }
     return data;
   }
   async function fetchNextStt() {
-    try {
-      const data = await requestJson(apiUrl + '/next-stt');
-      if (data && data.next_stt) {
-        currentNextStt = String(data.next_stt);
-      }
-    } catch (_) {}
+    const data = await requestJson(apiUrl + '/next-stt');
+    if (data && data.next_stt) {
+      currentNextStt = String(data.next_stt);
+    }
     return currentNextStt;
   }
   function formatDate(value) {
@@ -757,10 +869,14 @@
       const invCell = invDisplay
         ? escapeHtml(invDisplay)
         : '<span class="text-muted">—</span>';
+      const activeEditor = activeCompanyEditors.find(e => String(e.resource_id) === String(sale.id) && e.session_id !== presenceSessionId);
+      const editorBadge = activeEditor
+        ? ' <span class="badge badge-warning text-dark font-weight-bold ml-1" style="font-size:11px;" title="' + escapeHtml(activeEditor.user_name) + ' đang mở sửa hóa đơn này"><i class="fas fa-user-edit mr-1"></i>' + escapeHtml(activeEditor.user_name) + ' đang sửa</span>'
+        : '';
       return '<tr>' +
         '<td data-label="#" class="text-center text-muted font-weight-medium">' + stt + '</td>' +
         '<td data-label="Ngày" class="text-nowrap">' + escapeHtml(formatDate(sale.sale_date)) + '</td>' +
-        '<td data-label="Số hóa đơn" class="text-nowrap text-center">' + invCell + '</td>' +
+        '<td data-label="Số hóa đơn" class="text-nowrap text-center">' + invCell + editorBadge + '</td>' +
         '<td data-label="Khách hàng" class="text-nowrap"><strong>' + escapeHtml(sale.customer_name) + '</strong></td>' +
         '<td data-label="Trạng thái" class="text-center">' + formatStatusSelector(sale) + '</td>' +
         '<td data-label="Mặt hàng" class="text-center">' + escapeHtml(sale.item_count) + '</td>' +
@@ -776,7 +892,7 @@
     }).join('');
   }
   async function loadSales(page = 1, options = {}) {
-    const pageNum = (typeof page === 'number' || (typeof page === 'string' && /^\d+$/.test(page))) ? Number(page) : 1;
+    const pageNum = Number(page) || 1;
     const keepPos = !!(options && options.keepPosition);
     const y = keepPos ? window.scrollY : 0;
     if (!keepPos) {
@@ -801,6 +917,7 @@
       salesTotalPages = Number(data.total_pages) || 1;
       salesTotal = Number(data.total) || 0;
       salesSummary = data.summary || { total_amount: 0, paid_amount: 0 };
+      await checkActiveCompanyEditors();
       render();
       saveSalesState({ page: salesPage });
       if (keepPos) {
@@ -827,7 +944,7 @@
     if (/[+\-*\/]$/.test(s.trim())) return null;
     try {
       const res = Function('"use strict"; return (' + s + ');')();
-      if (typeof res === 'number' && !isNaN(res) && isFinite(res)) {
+      if (Number.isFinite(res)) {
         return Math.round(res * 1000) / 1000;
       }
     } catch (e) {
@@ -901,32 +1018,29 @@
       if (!q) { hide(); return; }
       timer = setTimeout(async () => {
         const mySeq = ++seq;
-        try {
-          const res = await fetch('/admin/enterprise/inventory/api/suggest?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } });
-          if (!res.ok || mySeq !== seq) return;
-          const data = await res.json();
-          const items = (data && data.items) || [];
-          if (!items.length || document.activeElement !== input) { hide(); return; }
-          box.innerHTML = '';
-          items.forEach(item => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'list-group-item list-group-item-action py-1 px-2 text-left';
-            btn.style.fontSize = '13px';
-            const qtyText = (typeof formatQty === 'function' ? formatQty(item.closing) : item.closing) + (item.unit ? ' ' + item.unit : '');
-            btn.innerHTML = '<span class="font-weight-bold"></span> <span class="text-muted small"></span>';
-            btn.children[0].textContent = item.name;
-            btn.children[1].textContent = (item.warehouse ? item.warehouse + ' · ' : '') + 'tồn ' + qtyText;
-            btn.addEventListener('mousedown', (e) => { e.preventDefault(); pick(item); });
-            btn.addEventListener('click', (e) => { e.preventDefault(); pick(item); });
-            box.appendChild(btn);
-          });
-          const rect = input.getBoundingClientRect();
-          box.style.left = rect.left + 'px';
-          box.style.top = rect.bottom + 'px';
-          box.style.width = Math.max(rect.width, 280) + 'px';
-          box.style.display = 'block';
-        } catch (err) { hide(); }
+        const data = await apiRequest('/admin/enterprise/inventory/api/suggest?q=' + encodeURIComponent(q));
+        if (!data.ok || mySeq !== seq) { hide(); return; }
+        const items = data.items || [];
+        if (!items.length || document.activeElement !== input) { hide(); return; }
+        box.innerHTML = '';
+        items.forEach(item => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'list-group-item list-group-item-action py-1 px-2 text-left';
+          btn.style.fontSize = '13px';
+          const qtyText = formatQty(item.closing) + (item.unit ? ' ' + item.unit : '');
+          btn.innerHTML = '<span class="font-weight-bold"></span> <span class="text-muted small"></span>';
+          btn.children[0].textContent = item.name;
+          btn.children[1].textContent = (item.warehouse ? item.warehouse + ' · ' : '') + 'tồn ' + qtyText;
+          btn.addEventListener('mousedown', (e) => { e.preventDefault(); pick(item); });
+          btn.addEventListener('click', (e) => { e.preventDefault(); pick(item); });
+          box.appendChild(btn);
+        });
+        const rect = input.getBoundingClientRect();
+        box.style.left = rect.left + 'px';
+        box.style.top = rect.bottom + 'px';
+        box.style.width = Math.max(rect.width, 280) + 'px';
+        box.style.display = 'block';
       }, 200);
     });
     input.addEventListener('blur', () => setTimeout(hide, 250));
@@ -963,27 +1077,65 @@
       url += '&sale_id=' + encodeURIComponent(editingSaleId);
     }
 
-    try {
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (row._stockReqSeq !== reqSeq) return;
+    const data = await apiRequest(url);
+    if (!data.ok || row._stockReqSeq !== reqSeq) return;
 
-      if (!data.found) {
-        warnEl.textContent = 'Không có trong kho ' + wh;
-        warnEl.style.display = 'block';
-      } else if (data.after < 0) {
-        const closingText = typeof formatQty === 'function' ? formatQty(data.closing) : data.closing;
-        const unitText = (data.unit || '').trim();
-        warnEl.textContent = 'Âm kho: tồn ' + closingText + (unitText ? ' ' + unitText : '');
-        warnEl.style.display = 'block';
-      } else {
-        warnEl.textContent = '';
-        warnEl.style.display = 'none';
-      }
-    } catch (err) {
-      // ignore
+    if (!data.found) {
+      warnEl.textContent = 'Không có trong kho ' + wh;
+      warnEl.style.display = 'block';
+    } else if (data.after < 0) {
+      const closingText = formatQty(data.closing);
+      const unitText = (data.unit || '').trim();
+      warnEl.textContent = 'Âm kho: tồn ' + closingText + (unitText ? ' ' + unitText : '');
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.textContent = '';
+      warnEl.style.display = 'none';
     }
+  }
+
+  // Khối lượng lý thuyết suy ra từ tên hàng (bảng bazem); hiện để đối chiếu với số cân, bấm vào mới điền.
+  function updateSaleEstimate(row) {
+    const el = row.querySelector('.sale-item-estimate');
+    if (!el) return;
+    const est = typeof window.goodsSpecEstimate === 'function' ? window.goodsSpecEstimate(row.querySelector('.sale-item-name').value) : null;
+    row._estimate = est;
+    if (!est) {
+      el.style.display = 'none';
+      el.textContent = '';
+      return;
+    }
+    const unit = row.querySelector('.sale-item-unit').value.trim().toLowerCase();
+    const qty = parseWeightVal(row.querySelector('.sale-item-quantity').value);
+    let text = 'Lý thuyết ' + formatQty(est.total) + ' kg';
+    let color = '#4f46e5';
+    if (qty > 0 && (unit === '' || unit === 'kg')) {
+      const dev = Math.round((qty - est.total) / est.total * 100);
+      text += ' · ' + (dev > 0 ? '+' : dev < 0 ? '−' : '') + Math.abs(dev) + '%';
+      if (Math.abs(dev) > 5) color = '#d97706';
+    }
+    el.textContent = text;
+    el.style.color = color;
+    el.style.display = 'block';
+  }
+  function applySaleEstimate(row) {
+    const est = row._estimate;
+    if (!est) return;
+    const unit = row.querySelector('.sale-item-unit').value.trim().toLowerCase();
+    const qtyInput = row.querySelector('.sale-item-quantity');
+    if ((unit === '' || unit === 'kg') && parseWeightVal(qtyInput.value) <= 0) {
+      qtyInput.value = formatQty(est.total);
+      qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const stockQty = row.querySelector('.sale-item-stock-qty');
+    if (!stockQty.value.trim()) {
+      stockQty.value = formatQty(est.pieces);
+      stockQty.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    const stockUnit = row.querySelector('.sale-item-stock-unit');
+    if (!stockUnit.value) setSaleSelectValue(stockUnit, est.pieceUnit);
+    scheduleStockCheck(row);
+    updateSaleEstimate(row);
   }
 
   function addItemRow(item, isSurcharge = false) {
@@ -991,7 +1143,8 @@
     const tr = document.createElement('tr');
     tr.innerHTML = '<td class="text-center text-muted align-middle sale-item-stt"></td>' +
       '<td style="position:relative;"><input class="form-control form-control-sm sale-item-name" autocomplete="off" maxlength="255" placeholder="' + (isSurch ? 'Khoản phát sinh (cước xe, sơn, v.v.)...' : 'Tên hàng...') + '">' +
-      '<div class="sale-item-stock-warning text-danger" style="display:none; font-size:11px; line-height:1.2; margin-top:2px;"></div></td>' +
+      '<div class="sale-item-stock-warning text-danger" style="display:none; font-size:11px; line-height:1.2; margin-top:2px;"></div>' +
+      '<button type="button" class="btn btn-link p-0 sale-item-estimate" style="display:none; font-size:11px; line-height:1.2; margin-top:2px; font-weight:600; text-align:left;"></button></td>' +
       '<td><input type="text" inputmode="decimal" class="form-control form-control-sm sale-item-stock-qty" placeholder="0"></td>' +
       '<td><select class="form-control form-control-sm sale-item-stock-unit"><option value=""></option><option value="Cây">Cây</option><option value="Tấm">Tấm</option><option value="Bó">Bó</option><option value="Bộ">Bộ</option></select></td>' +
       '<td><select class="form-control form-control-sm sale-item-warehouse"><option value=""></option><option value="ĐV">ĐV</option><option value="TL">TL</option></select></td>' +
@@ -1043,6 +1196,10 @@
     const stockQtyInput = tr.querySelector('.sale-item-stock-qty');
 
     nameInput.addEventListener('input', () => scheduleStockCheck(tr));
+    if (!isSurch) {
+      nameInput.addEventListener('input', () => updateSaleEstimate(tr));
+      tr.querySelector('.sale-item-estimate').addEventListener('click', () => applySaleEstimate(tr));
+    }
     if (!isSurch) attachStockSuggest(tr);
     whSelect.addEventListener('change', () => scheduleStockCheck(tr));
     stockQtyInput.addEventListener('input', () => scheduleStockCheck(tr));
@@ -1079,6 +1236,7 @@
     }
 
     attachWeightInput(qtyInput, syncFromQtyOrPrice);
+    qtyInput.addEventListener('input', () => updateSaleEstimate(tr));
     qtyInput.addEventListener('blur', () => {
       handleMathInputCommit(qtyInput);
       syncFromQtyOrPrice();
@@ -1094,6 +1252,8 @@
     tr.querySelectorAll('input').forEach(input => input.addEventListener('input', calculateTotal));
     if (isSurch) {
       setTimeout(() => tr.querySelector('.sale-item-total-input').focus(), 50);
+    } else {
+      updateSaleEstimate(tr);
     }
     calculateTotal();
   }
@@ -1241,6 +1401,7 @@
       if (!data.items || !data.items.length) addItemRow();
       calculateTotal();
       $('#saleModal').modal('show');
+      startPresenceHeartbeat();
     } catch (error) {
       notify(error.message, true);
     }
@@ -1262,7 +1423,16 @@
         debtInfo.classList.add('d-none');
       }
     }
+    setTimeout(sendPresenceHeartbeat, 50);
   });
+  const saleInvEl = document.getElementById('saleInvoiceNumber');
+  if (saleInvEl) {
+    saleInvEl.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(sendPresenceHeartbeat, 500);
+    });
+    saleInvEl.addEventListener('change', sendPresenceHeartbeat);
+  }
   document.getElementById('saleStatus').addEventListener('change', async function () {
     const invInput = document.getElementById('saleInvoiceNumber');
     if (['pending', 'delivering'].includes(this.value)) {
@@ -1297,6 +1467,7 @@
     addItemRow();
     addItemRow();
     $('#saleModal').modal('show');
+    startPresenceHeartbeat();
   }
   document.querySelectorAll('.js-trigger-add-sale, #addSaleButton, #addSaleButtonHeader').forEach(btn => {
     btn.addEventListener('click', openNewSaleModal);
@@ -1332,6 +1503,12 @@
   });
   document.getElementById('saleForm').addEventListener('submit', async function (event) {
     event.preventDefault();
+    if (currentConflictMessage) {
+      const ok = window.confirm(
+        currentConflictMessage + "\n\nBạn có chắc chắn muốn lưu hóa đơn này không?"
+      );
+      if (!ok) return;
+    }
     const items = Array.from(document.querySelectorAll('#saleItemRows tr'))
       .map(row => {
         const warehouse = (row.querySelector('.sale-item-warehouse')?.value || '').trim();
@@ -1437,6 +1614,7 @@
         }
       }
       $('#saleModal').modal('hide');
+      releasePresenceSession();
       resetSaleEditor();
       notify(data.message || 'Đã lưu hóa đơn.', false);
       await fetchNextStt();
@@ -1497,9 +1675,7 @@
     if (currentIndex > -1 && currentIndex < focusables.length - 1) {
       const nextInput = focusables[currentIndex + 1];
       nextInput.focus();
-      if (nextInput.select && typeof nextInput.select === 'function') {
-        nextInput.select();
-      }
+      nextInput.select?.();
     }
   }
 
@@ -1859,7 +2035,7 @@
 
   async function loadSaleItems(page = 1, options = {}) {
     if (!saleItemsRows) return;
-    const pageNum = (typeof page === 'number' || (typeof page === 'string' && /^\d+$/.test(page))) ? Number(page) : 1;
+    const pageNum = Number(page) || 1;
     const keepPos = !!(options && options.keepPosition);
     const y = keepPos ? window.scrollY : 0;
     if (!keepPos) {
@@ -1933,24 +2109,22 @@
 
   function switchTab(tab) {
     if (tab === 'items') {
-      if (window.jQuery) $('#tabItemsLink').tab('show');
+      $('#tabItemsLink').tab('show');
       loadItemsFirstTime();
     } else {
-      if (window.jQuery) $('#tabInvoicesLink').tab('show');
+      $('#tabInvoicesLink').tab('show');
     }
   }
 
   const salesSummaryEl = document.getElementById('salesSummary');
-  if (window.jQuery) {
-    window.jQuery('#salesViewTabs a[data-toggle="tab"]').on('shown.bs.tab', (event) => {
-      const isItems = (event.target.id === 'tabItemsLink');
-      if (salesSummaryEl) {
-        if (isItems) salesSummaryEl.style.display = 'none';
-        else salesSummaryEl.style.removeProperty('display');
-      }
-      saveSalesState({ tab: isItems ? 'items' : 'invoices' });
-    });
-  }
+  $('#salesViewTabs a[data-toggle="tab"]').on('shown.bs.tab', (event) => {
+    const isItems = (event.target.id === 'tabItemsLink');
+    if (salesSummaryEl) {
+      if (isItems) salesSummaryEl.style.display = 'none';
+      else salesSummaryEl.style.removeProperty('display');
+    }
+    saveSalesState({ tab: isItems ? 'items' : 'invoices' });
+  });
 
   const tabDebtBookLink = document.getElementById('tabDebtBookLink');
   if (tabDebtBookLink) {
@@ -1965,8 +2139,7 @@
   }
 
   if (tabItemsLink) {
-    tabItemsLink.addEventListener('shown.bs.tab', loadItemsFirstTime);
-    if (window.jQuery) window.jQuery(tabItemsLink).on('shown.bs.tab', loadItemsFirstTime);
+    $(tabItemsLink).on('shown.bs.tab', loadItemsFirstTime);
   }
 
   if (saleItemsRows) {
@@ -2002,6 +2175,15 @@
   }
 
   loadSales(Number(saved.page) || 1);
+  checkActiveCompanyEditors();
+  setInterval(checkActiveCompanyEditors, 5000);
+
+  $('#saleModal').on('hidden.bs.modal', function () {
+    releasePresenceSession();
+  });
+  window.addEventListener('beforeunload', function () {
+    releasePresenceSession();
+  });
 
   const editParam = urlParams.get('edit');
   if (/^\d+$/.test(editParam || '')) {

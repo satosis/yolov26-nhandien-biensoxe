@@ -90,24 +90,17 @@
     segment.distanceError = '';
     const url = '/admin/vehicles/api/calculate-distance-by-address?origin='
       + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
-    try {
-      const result = await apiRequest(url);
-      if (segment.distanceRequestId !== requestId || !this.extraSegments.includes(segment)
-          || segment.origin?.trim() !== origin || segment.destination?.trim() !== destination) return;
-      const distance = Number(result.distance_km);
-      if (result.ok && result.distance_km != null && Number.isFinite(distance) && distance >= 0) {
-        segment.distance_km = distance;
-        this.syncRouteTotals();
-      } else {
-        segment.distanceError = result.message || 'Không tìm được quãng đường. Bạn có thể nhập km thủ công.';
-        if (!silent) this.showRequestError(result, segment.distanceError);
-      }
-    } catch {
-      if (segment.distanceRequestId === requestId) {
-        segment.distanceError = 'Không kết nối được bản đồ. Bạn có thể nhập km thủ công.';
-      }
-    } finally {
-      if (segment.distanceRequestId === requestId) segment.calculating = false;
+    const result = await apiRequest(url);
+    if (segment.distanceRequestId === requestId) segment.calculating = false;
+    if (segment.distanceRequestId !== requestId || !this.extraSegments.includes(segment)
+        || segment.origin?.trim() !== origin || segment.destination?.trim() !== destination) return;
+    const distance = Number(result.distance_km);
+    if (result.ok && result.distance_km != null && Number.isFinite(distance) && distance >= 0) {
+      segment.distance_km = distance;
+      this.syncRouteTotals();
+    } else {
+      segment.distanceError = result.message || 'Không tìm được quãng đường. Bạn có thể nhập km thủ công.';
+      if (!silent) this.showRequestError(result, segment.distanceError);
     }
   },
   routeSegmentsPayload() {
@@ -230,7 +223,6 @@
   lookingUpCompany: false,
   savingCompany: false,
   initCatalogSelects() {
-    if (typeof TomSelect === 'undefined') return;
     new TomSelect('#cargo-service', {
       create: false, maxItems: 1, placeholder: 'Chọn dịch vụ...',
       onChange: value => {
@@ -252,10 +244,6 @@
     this.selectedCompany = this.companies.find(item => String(item.id) === String(select.value)) || null;
     this.originFollowsCompany = !this.fromZaloDraft && (!this.origin || this.origin === (this.selectedCompany?.address || ''));
     if (this.originFollowsCompany) this.origin = this.selectedCompany?.address || '';
-    if (typeof TomSelect === 'undefined') {
-      select.addEventListener('change', event => this.selectCompany(event.target.value));
-      return;
-    }
     new TomSelect(select, {
       create: false,
       maxItems: 1,
@@ -271,7 +259,7 @@
       }
     });
     const sellerSelect = document.getElementById('cargo-seller-company');
-    if (sellerSelect && typeof TomSelect !== 'undefined') {
+    if (sellerSelect) {
       new TomSelect(sellerSelect, {
         create: false,
         maxItems: 1,
@@ -421,14 +409,11 @@
     this.selectCompany(saved.id);
     this.newCompanyOpen = false;
     this.lookupMessage = '';
-    window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu đơn vị ' + saved.name, type:'success'}}));
+    window.showNotify('Đã lưu đơn vị ' + saved.name, 'success');
   },
 
   showRequestError(result, fallback, silent = false) {
-    if (silent) return;
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: result.message || fallback, type: 'error' }
-    }));
+    if (!silent) window.showNotify(result.message || fallback, 'error');
   },
 
   async handleLocationChange(val, type) {
@@ -438,15 +423,13 @@
     this.mapMatch = null;
     clearTimeout(this.mapsTimers[type]);
     window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
+    if (type === 'origin') this.originCoords = null;
+    else this.destCoords = null;
     if (!val) {
-      if (type === 'origin') this.originCoords = null;
-      else this.destCoords = null;
       this.calculatingKM = false;
       this.scheduleDistanceCalculation();
       return;
     }
-    if (type === 'origin') this.originCoords = null;
-    else this.destCoords = null;
     if (this.isMapsLink(val) && /^https?:\/\/\S+$/.test(val)) {
       this.mapsTimers[type] = setTimeout(() => this.resolveMaps(val, type), 500);
     }
@@ -493,7 +476,7 @@
         window.dispatchEvent(new CustomEvent('cargoLocationChanged'));
       }
       this.lastDistanceKey = key;
-      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+      if (!silent) window.showNotify('📏 Quãng đường: ' + distance + ' km', 'success');
     } else {
       this.showRequestError(json, 'Không tính được quãng đường.', silent);
     }
@@ -554,7 +537,7 @@
       this.destCoords = coords;
     }
     this.scheduleDistanceCalculation(true);
-    if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📍 ' + json.label, type:'info'}}));
+    if (!silent) window.showNotify('📍 ' + json.label, 'info');
   },
 
   async geocodeOnly(q, type) {
@@ -571,7 +554,7 @@
 
   async calculateKM() {
     if (!this.originCoords || !this.destCoords) {
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Cần tọa độ của cả hai địa điểm để tính quãng đường.', type:'warning'}}));
+      window.showNotify('Cần tọa độ của cả hai địa điểm để tính quãng đường.', 'warning');
       return;
     }
     this.calculatingKM = true;
@@ -581,7 +564,7 @@
     if (json.ok && json.distance_km != null && Number.isFinite(distance) && distance >= 0) {
       this.distance_km = distance;
       if (!this.fuelLitersTouched || !this.fuelLiters) this.calcLitersFromRate();
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'📏 Quãng đường: ' + distance + ' km', type:'success'}}));
+      window.showNotify('📏 Quãng đường: ' + distance + ' km', 'success');
     } else {
       this.showRequestError(json, 'Không tính được quãng đường.');
     }
@@ -596,7 +579,7 @@
     const price = Number(json.price);
     if (json.ok && json.price != null && Number.isFinite(price) && price > 0) {
       this.fuelPrice = price;
-      if (!silent) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg: 'Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', type:'info'}}));
+      if (!silent) window.showNotify('Giá dầu ngày ' + d + ': ' + formatNumber(price) + ' ₫/lít', 'info');
     } else {
       this.showRequestError(json, 'Không lấy được giá dầu.', silent);
     }

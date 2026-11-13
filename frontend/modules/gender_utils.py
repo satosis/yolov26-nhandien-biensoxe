@@ -106,4 +106,4 @@ def split_rep_honorific(rep: str | None, gender: str | None = None) -> tuple[str
         clean_name = val[7:].strip()
 
     honorific = get_honorific(clean_name, gender)
-    return (f"{honorific} ", clean_name)
+    return (f"{honorific} ", clean_name.upper())

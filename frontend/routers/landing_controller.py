@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import dataclasses
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from fastapi import BackgroundTasks, Request
 from fastapi.responses import JSONResponse, Response
 
@@ -30,21 +30,21 @@ def _landing_settings(warehouse=False):
     }
 
 
+def _format_publish_date(value: str | None) -> str:
+    return date.fromisoformat(value[:10]).strftime("%d/%m/%Y") if value else ""
+
+
 async def landing_home(request: Request):
     settings = _landing_settings(warehouse=True)
     
     projects = get_projects()
     for p in projects:
         p['load'] = p.get('load_capacity')
-        if p.get('created_at'):
-            p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
         
     news_items = get_news(limit=3)
     for n in news_items:
         if n.get('publish_date'):
-            n['publish_date_str'] = n['publish_date'].strftime('%d/%m/%Y') if hasattr(n['publish_date'], 'strftime') else str(n['publish_date'])
-        if n.get('created_at'):
-            n['created_at'] = n['created_at'].isoformat() if hasattr(n['created_at'], 'isoformat') else str(n['created_at'])
+            n['publish_date_str'] = _format_publish_date(n['publish_date'])
 
     return templates.TemplateResponse(
         "pages/landing_home.html",
@@ -132,11 +132,7 @@ async def landing_news(request: Request, page: int):
     )
     for item in news_items:
         if item.get("publish_date"):
-            d = item["publish_date"]
-            if hasattr(d, "strftime"):
-                item["publish_date_str"] = d.strftime("%d/%m/%Y")
-            else:
-                item["publish_date_str"] = str(d)
+            item["publish_date_str"] = _format_publish_date(item["publish_date"])
     user = get_optional_user(request)
     return templates.TemplateResponse("pages/landing_news.html", {
         "request": request,
@@ -181,7 +177,7 @@ async def sitemap(request: Request):
         if not item.get("is_published", True):
             continue
         d = item.get("publish_date")
-        date_str = d.strftime("%Y-%m-%d") if hasattr(d, "strftime") else now
+        date_str = d[:10] if d else now
         urls_xml += f"""  <url>
     <loc>{base}/tin-tuc/{item['id']}</loc>
     <lastmod>{date_str}</lastmod>

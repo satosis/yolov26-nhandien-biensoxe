@@ -180,15 +180,13 @@ function getPartnerOptions(account) {
 }
 
 function initTomSelects() {
-  if (typeof TomSelect !== 'undefined') {
-    const debitEl = document.getElementById('debit_partner_id');
-    const creditEl = document.getElementById('credit_partner_id');
-    if (debitEl && !debitTom && !debitEl.tomselect) {
-      debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
-    }
-    if (creditEl && !creditTom && !creditEl.tomselect) {
-      creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
-    }
+  const debitEl = document.getElementById('debit_partner_id');
+  const creditEl = document.getElementById('credit_partner_id');
+  if (debitEl && !debitTom && !debitEl.tomselect) {
+    debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
+  }
+  if (creditEl && !creditTom && !creditEl.tomselect) {
+    creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body', valueField: 'value', labelField: 'text', searchField: ['text']});
   }
 }
 
@@ -201,10 +199,8 @@ function updatePartnerField(side, account, targetVal) {
   if (account !== '131' && account !== '331') {
     groupEl.style.display = 'none';
     selectEl.removeAttribute('required');
-    if (tom) {
-      tom.clear();
-      tom.clearOptions();
-    }
+    tom.clear();
+    tom.clearOptions();
     selectEl.value = '';
     return;
   }
@@ -215,28 +211,15 @@ function updatePartnerField(side, account, targetVal) {
     (account === '331' ? ' (Nhà cung cấp)' : ' (Khách hàng)');
 
   const list = getPartnerOptions(account);
-  if (tom) {
-    tom.clear();
-    tom.clearOptions();
-    list.forEach(function(p) {
-      const txt = p.name + (p.tax_code ? ' (MST ' + p.tax_code + ')' : '');
-      tom.addOption({value: String(p.id), text: txt});
-    });
-    tom.refreshOptions(false);
-    if (targetVal) {
-      tom.setValue(String(targetVal), true);
-    }
-  } else {
-    selectEl.innerHTML = '<option value="">-- Chọn đối tác --</option>';
-    list.forEach(function(p) {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.name + (p.tax_code ? ' (MST ' + p.tax_code + ')' : '');
-      selectEl.appendChild(opt);
-    });
-    if (targetVal) {
-      selectEl.value = targetVal;
-    }
+  tom.clear();
+  tom.clearOptions();
+  list.forEach(function(p) {
+    const txt = p.name + (p.tax_code ? ' (MST ' + p.tax_code + ')' : '');
+    tom.addOption({value: String(p.id), text: txt});
+  });
+  tom.refreshOptions(false);
+  if (targetVal) {
+    tom.setValue(String(targetVal), true);
   }
 }
 
@@ -308,9 +291,6 @@ document.addEventListener('DOMContentLoaded', function() {
   initTomSelects();
   updatePartnerField('debit', '331', '');
   updatePartnerField('credit', '711', '');
-  {% if error or message %}
-  window.showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-  {% endif %}
 });
 </script>
 {% endblock %}

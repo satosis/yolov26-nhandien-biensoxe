@@ -9,7 +9,3 @@ def get_role_permissions(role: str) -> str:
         (role,), fetch=True, commit=False
     )
     return row["allowed_menus"] if row else ""
-
-
-def get_all_roles() -> list[dict]:
-    return db._execute_query("SELECT id, role_name, allowed_menus FROM roles ORDER BY id", fetchall=True) or []

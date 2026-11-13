@@ -1,5 +1,5 @@
 """Cầu nối HTTP của frontend.modules.zalo.controller: nhận tham số của request rồi giao cho controller, không làm gì thêm."""
-from fastapi import Request, Query, Depends, Header, Form, UploadFile, File
+from fastapi import Request, Query, Depends, Header, Form, UploadFile, File, Body
 from frontend.deps import require_menu
 import frontend.modules.zalo.controller as controller
 
@@ -38,6 +38,10 @@ async def ingest_message(
     x_zalo_bridge_secret: str = Header(''),
 ):
     return await controller.ingest_message(event=event, file=file, x_zalo_bridge_secret=x_zalo_bridge_secret)
+
+
+async def company_card(payload: dict = Body(...), x_zalo_bridge_secret: str = Header('')):
+    return await controller.company_card(payload=payload, x_zalo_bridge_secret=x_zalo_bridge_secret)
 
 
 async def apply_saved_draft(

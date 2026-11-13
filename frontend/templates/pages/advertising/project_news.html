@@ -129,23 +129,4 @@
   </div>
 
 </div>
-
-{% if msg %}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  if (window.showNotify) {
-    window.showNotify({{ msg|tojson }}, 'success');
-  }
-});
-</script>
-{% endif %}
-{% if error %}
-<script>
-document.addEventListener("DOMContentLoaded", function() {
-  if (window.showNotify) {
-    window.showNotify({{ error|tojson }}, 'error');
-  }
-});
-</script>
-{% endif %}
 {% endblock %}

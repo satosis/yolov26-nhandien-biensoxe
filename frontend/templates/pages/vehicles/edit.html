@@ -133,10 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   display?.addEventListener('input', syncPurchasePrice);
   display?.form?.addEventListener('submit', syncPurchasePrice);
-  if (typeof TomSelect !== 'undefined') {
-    new TomSelect('#edit-site', { plugins: ['remove_button'], placeholder: '— Chọn địa điểm —', maxItems: null });
-    new TomSelect('#edit-owner', { create: true, placeholder: '— Chọn hoặc nhập chủ xe —' });
-  }
+  new TomSelect('#edit-site', { plugins: ['remove_button'], placeholder: '— Chọn địa điểm —', maxItems: null });
+  new TomSelect('#edit-owner', { create: true, placeholder: '— Chọn hoặc nhập chủ xe —' });
 });
 </script>
 {% endblock %}

@@ -29,6 +29,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from backend.services import config as cfg
 from frontend.modules.transport.contract import (
+    default_contract_no,
     derive_company_code,
     _to_data_uri_if_local,
     _signature_print_width_mm,
@@ -142,7 +143,7 @@ def _extract_trip_data(invoice: dict, lines: list[dict], customer: dict, seller:
     primary_origin = ", ".join(origins) if origins else ""
     primary_dest = ", ".join(destinations) if destinations else ""
 
-    contract_no = invoice.get("contract_no") or f"{c_date.day:02d}{c_date.month:02d}{str(c_date.year)[-2:]}/HĐNT/{cust_code}-{seller_code}"
+    contract_no = invoice.get("contract_no") or default_contract_no(customer_tax, c_date, cust_code, seller_code)
     bbvc_no = invoice.get("bbvc_no") or (contract_no if "BBVC" in str(contract_no) else f"{c_date.day:02d}{c_date.month:02d}/{c_date.year}/BBVC")
     dntt_no = invoice.get("dntt_no") or (contract_no if ("ĐNTT" in str(contract_no) or "DNTT" in str(contract_no)) else f"{inv_num}/ĐNTT-ĐLX")
 
@@ -499,21 +500,20 @@ _COMMON_CSS = """
   }
   .sig-slot {
     width: 50%;
-    height: 180px;
-    min-height: 180px;
-    max-height: 180px;
+    height: 55mm;
+    min-height: 55mm;
     text-align: center;
     vertical-align: middle;
     padding: 0;
   }
   .sig-slot-inner {
-    height: 180px;
+    height: 55mm;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   .sig-slot-inner img {
-    max-height: none;
+    max-height: 58mm;
     max-width: none;
     object-fit: contain;
   }
@@ -963,8 +963,8 @@ def render_hdvc_pages(info: dict) -> str:
       <div class="doc-subtitle">Số : {info['contract_no']}</div>
 
       <div class="italic text-justify" style="font-size: 11.5pt; margin-bottom: 8px;">
-        - Căn cứ vào luật thương mại có hiệu lực ngày 01/01/2006.<br>
-        - Căn cứ vào bộ luật dân sự có hiệu lực ngày 01/01/2006.<br>
+        - Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24/11/2015;<br>
+        - Căn cứ Luật Thương mại số 36/2005/QH11 ngày 14/06/2005;<br>
         - Căn cứ vào nhu cầu và khả năng của hai bên.
       </div>
 
@@ -1038,46 +1038,55 @@ def render_hdvc_pages(info: dict) -> str:
       </div>
 
       <div class="bold uppercase" style="margin-top: 8px; font-size: 12pt;">Điều 2: ĐƠN GIÁ, KHỐI LƯỢNG, ĐỊA ĐIỂM GIAO NHẬN HÀNG HÓA</div>
-      <div class="text-justify" style="line-height: 1.5;">
-        2.1. Đơn giá áp dụng theo chuyến do hai bên thỏa thuận theo từng thời điểm.<br>
+      <div class="text-justify" style="line-height: 1.4;">
+        2.1. Đơn giá áp dụng theo từng chuyến do hai bên thỏa thuận theo từng thời điểm căn cứ theo báo giá, tin nhắn hoặc văn bản xác nhận giữa hai bên. Đơn giá trên đã bao gồm thuế giá trị gia tăng (VAT), trừ trường hợp hai bên có thỏa thuận khác.<br>
         2.2. Khối lượng hàng hoá chở tối thiểu trên một chuyến theo định mức của bên vận chuyển.<br>
-        2.3. Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A.
+        2.3. Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A. Bên A có trách nhiệm thông báo trước.<br>
+        2.4. Phí chờ, lưu xe và hủy chuyến: Trường hợp xe của Bên B đã đến đúng giờ và địa điểm theo thông báo nhưng Bên A bốc xếp chậm quá 02 giờ hoặc Bên A hủy chuyến, Bên A có trách nhiệm thanh toán chi phí chờ xe, lưu ca hoặc phí hủy chuyến theo thỏa thuận thực tế của hai bên.
       </div>
     </div>
 
     <!-- PAGE 2: HỢP ĐỒNG VẬN CHUYỂN (TIẾP THEO) -->
     <div class="a4-page">
       <div class="bold uppercase" style="margin-top: 4px; font-size: 12pt;">Điều 3: PHƯƠNG THỨC THANH TOÁN</div>
-      <div class="text-justify" style="line-height: 1.5; margin-bottom: 8px;">
-        3.1. Thanh toán bằng chuyển khoản, tiền mặt hoặc bù trừ công nợ.<br>
-        3.2. Thanh toán theo chuyến áp theo giá đã được hai bên thỏa thuận từng thời điểm.<br>
-        3.3. Thanh toán: Sau khi vận chuyển 2 bên tiến hành đối chiếu khối lượng hàng hóa đã vận chuyển và xuất hóa đơn thuế GTGT (VAT). Trong vòng 30 ngày làm việc sau khi nhận đầy đủ chứng từ, Bên A có trách nhiệm thanh toán cước cho Bên B.<br>
-        3.4. Nếu Bên A chậm thanh toán, Bên B có quyền tạm dừng vận chuyển hàng.
+      <div class="text-justify" style="line-height: 1.3; margin-bottom: 6px;">
+        3.1. Thanh toán bằng chuyển khoản hoặc bù trừ công nợ (có biên bản bù trừ). Tiền mặt chỉ áp dụng cho khoản dưới 5.000.000 đồng.<br>
+        3.2. Giá trị thanh toán căn cứ theo số chuyến thực tế và đơn giá thỏa thuận tại mục 2.1.<br>
+        3.3. Sau khi hoàn thành vận chuyển từng chuyến, hai bên tiến hành đối chiếu khối lượng hàng hóa và Bên B xuất hóa đơn GTGT theo từng chuyến. Chậm nhất ngày 10 hàng tháng (hoặc trong vòng 30 ngày làm việc kể từ ngày nhận đầy đủ hóa đơn GTGT và chứng từ hợp lệ), Bên A có trách nhiệm thanh toán 100% cước vận chuyển cho Bên B.<br>
+        3.4. Nếu Bên A chậm thanh toán, Bên B có quyền tạm dừng vận chuyển. Bên A phải trả thêm lãi trên số tiền chậm trả, theo lãi suất nợ quá hạn trung bình trên thị trường tại thời điểm thanh toán.
       </div>
 
-      <div class="bold uppercase" style="margin-top: 8px; font-size: 12pt;">Điều 4: TRÁCH NHIỆM MỖI BÊN</div>
-      <div class="text-justify" style="line-height: 1.5; margin-bottom: 8px;">
+      <div class="bold uppercase" style="margin-top: 6px; font-size: 12pt;">Điều 4: TRÁCH NHIỆM MỖI BÊN</div>
+      <div class="text-justify" style="line-height: 1.3; margin-bottom: 6px;">
         <strong>4.1. Bên A:</strong><br>
         - Thông báo lịch vận chuyển ít nhất là 06 tiếng để Bên B bố trí phương tiện.<br>
         - Cung cấp cho Bên B các hồ sơ chứng từ cần thiết cho việc vận chuyển hàng hóa.<br>
         - Chịu trách nhiệm dọn bãi cho xe Bên B vào cẩu và trả hàng nhanh chóng.<br>
+        - Chịu trách nhiệm hoàn toàn trước pháp luật về tính hợp pháp, hóa đơn chứng từ nguồn gốc hàng hóa và không yêu cầu Bên B chở hàng quá khổ, quá tải trọng theo quy định.<br>
+        - Đảm bảo chất lượng, quy cách đóng gói và tiến độ sản phẩm trước khi bốc xếp vận chuyển.<br>
+        - Bố trí người nhận hàng tại công trình, tạo điều kiện cho Bên B giao nhận hàng nhanh chóng.<br>
         - Thanh toán cho Bên B theo đúng Điều 3 của hợp đồng.<br>
         <strong>4.2. Bên B:</strong><br>
         - Bố trí phương tiện vận chuyển đúng thời gian, không làm lỡ kế hoạch của Bên A.<br>
-        - Đảm bảo người vận hành các xe, thiết bị phục vụ nhu cầu vận chuyển xuất trình đầy đủ giấy tờ hợp lệ.<br>
-        - Đảm bảo chất lượng, số lượng hàng hóa khi vận chuyển.<br>
+        - Đảm bảo người vận hành các xe, thiết bị phục vụ nhu cầu vận chuyển xuất trình đầy đủ giấy tờ hợp lệ khi các cơ quan có thẩm quyền kiểm tra.<br>
+        - Có trách nhiệm kiểm tra và giữ nguyên số lượng, tình trạng hàng hóa như lúc nhận trong suốt quá trình vận chuyển.<br>
+        - Trường hợp hàng hóa bị hư hỏng phải có biên bản xác nhận của hai bên tại hiện trường giao nhận và phiếu nhập kho của Bên A.<br>
+        - Nếu do lỗi trực tiếp của Bên B làm hàng hóa bị hư hỏng, nứt gãy dẫn đến khách hàng từ chối nhận, Bên B chịu trách nhiệm bồi thường chi phí lỗi thực tế đó; loại trừ các hư hỏng do Bên A đóng gói, xếp hàng hoặc do sự kiện bất khả kháng.<br>
+        - Đảm bảo khi giao hàng tại công trình phải có chữ ký xác nhận của cán bộ được ủy quyền bên nhận hàng.<br>
         - Xuất hóa đơn GTGT hợp pháp cho Bên A.
       </div>
 
-      <div class="bold uppercase" style="margin-top: 8px; font-size: 12pt;">Điều 5: ĐIỀU KHOẢN CHUNG</div>
-      <div class="text-justify" style="line-height: 1.5; margin-bottom: 8px;">
-        - Hai bên cam kết thực hiện đúng những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm sẽ phải bồi thường thiệt hại cho bên kia theo quy định pháp luật.<br>
+      <div class="bold uppercase" style="margin-top: 6px; font-size: 12pt;">Điều 5: ĐIỀU KHOẢN CHUNG</div>
+      <div class="text-justify" style="line-height: 1.3; margin-bottom: 6px;">
+        - Hai bên cam kết thực hiện đúng những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm hợp đồng mà không thuộc trường hợp bất khả kháng sẽ phải chịu phạt vi phạm với mức tối đa 8% giá trị phần nghĩa vụ bị vi phạm theo Luật Thương mại, đồng thời bồi thường thiệt hại thực tế phát sinh cho bên kia.<br>
+        - Sự kiện bất khả kháng: Trường hợp xảy ra các sự kiện bất khả kháng (thiên tai, bão lũ, dịch bệnh, cấm đường theo quyết định cơ quan nhà nước, tai nạn giao thông không do lỗi của bên vận chuyển...) dẫn đến chậm trễ hoặc không thể thực hiện chuyến hàng, bên gặp sự kiện được miễn trừ trách nhiệm nhưng phải kịp thời thông báo cho bên kia để cùng phối hợp giải quyết.<br>
         - Mọi tranh chấp phát sinh trong quá trình thực hiện hợp đồng sẽ được hai bên giải quyết thông qua thương lượng hòa giải. Nếu không giải quyết được sẽ đưa ra Tòa án có thẩm quyền tại Tỉnh Phú Thọ để giải quyết.
       </div>
 
-      <div class="bold uppercase" style="margin-top: 8px; font-size: 12pt;">Điều 6: HIỆU LỰC CỦA HỢP ĐỒNG</div>
-      <div class="text-justify" style="line-height: 1.5; margin-bottom: 12px;">
-        - Hợp đồng này có hiệu lực kể từ ngày ký đến hết ngày 31/12/2026.<br>
+      <div class="bold uppercase" style="margin-top: 6px; font-size: 12pt;">Điều 6: HIỆU LỰC CỦA HỢP ĐỒNG</div>
+      <div class="text-justify" style="line-height: 1.3; margin-bottom: 8px;">
+        - Hợp đồng này có hiệu lực kể từ ngày ký đến hết ngày 31/12/2026. Khi hết hạn, nếu hai bên không có văn bản thông báo chấm dứt trước 30 ngày thì hợp đồng tự động gia hạn thêm từng năm (01 năm).<br>
+        - Khi hợp đồng chấm dứt hoặc hết hạn, các bên vẫn có nghĩa vụ thực hiện đầy đủ các quyền và nghĩa vụ công nợ, thanh toán còn lại cho đến khi hoàn tất 100%.<br>
         - Hợp đồng này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau.
       </div>
 
@@ -1327,13 +1336,16 @@ def render_dlx_document_docx(
             _add_p(doc, "Điều 1: NỘI DUNG CỦA HỢP ĐỒNG", space_before=8).runs[0].bold = True
             _add_p(doc, "Bên A thuê vận chuyển và Bên B nhận cung cấp, điều động phương tiện vận chuyển hàng hóa theo từng chuyến thông báo.")
             _add_p(doc, "Điều 2: ĐƠN GIÁ VÀ ĐỊA ĐIỂM GIAO NHẬN", space_before=6).runs[0].bold = True
-            _add_p(doc, "Đơn giá áp dụng theo chuyến do hai bên thỏa thuận từng thời điểm. Địa điểm giao nhận theo yêu cầu cụ thể của Bên A.")
+            _add_p(doc, "Đơn giá áp dụng theo từng chuyến do hai bên thỏa thuận theo từng thời điểm căn cứ theo báo giá, tin nhắn xác nhận và đã gồm VAT. Phí lưu ca, chờ xe quá 02 giờ hoặc hủy chuyến do Bên A chịu theo thỏa thuận thực tế.")
             _add_p(doc, "Điều 3: PHƯƠNG THỨC THANH TOÁN", space_before=6).runs[0].bold = True
-            _add_p(doc, "Thanh toán bằng chuyển khoản hoặc tiền mặt trong vòng 30 ngày làm việc sau khi nhận đầy đủ chứng từ hóa đơn.")
-            _add_p(doc, "Điều 4: TRÁCH NHIỆM MỖI BÊN", space_before=6).runs[0].bold = True
-            _add_p(doc, "Bên A thông báo kế hoạch vận chuyển trước 06 tiếng và thanh toán đúng hạn. Bên B bố trí xe đúng thời gian và đảm bảo an toàn hàng hóa.")
+            _add_p(doc, "3.1. Thanh toán bằng chuyển khoản hoặc bù trừ công nợ (có biên bản bù trừ). Tiền mặt chỉ áp dụng cho khoản dưới 5.000.000 đồng.")
+            _add_p(doc, "3.2. Giá trị thanh toán căn cứ theo số chuyến thực tế và đơn giá thỏa thuận tại mục 2.1.")
+            _add_p(doc, "3.3. Sau khi hoàn thành vận chuyển từng chuyến, hai bên tiến hành đối chiếu khối lượng hàng hóa và Bên B xuất hóa đơn GTGT theo từng chuyến. Chậm nhất ngày 10 hàng tháng (hoặc trong vòng 30 ngày làm việc sau khi nhận đầy đủ hóa đơn GTGT và chứng từ hợp lệ), Bên A có trách nhiệm thanh toán 100% cước vận chuyển cho Bên B.")
+            _add_p(doc, "3.4. Nếu Bên A chậm thanh toán, Bên B có quyền tạm dừng vận chuyển. Bên A phải trả thêm lãi trên số tiền chậm trả, theo lãi suất nợ quá hạn trung bình trên thị trường tại thời điểm thanh toán.")
+            _add_p(doc, "Điều 4: TRÁCH NHIỆM MỖI BÊN & CHẾ TÀI", space_before=6).runs[0].bold = True
+            _add_p(doc, "Bên A chịu trách nhiệm về nguồn gốc, tính hợp pháp của hàng hóa, không chở quá tải và thanh toán đúng hạn. Bên B bố trí xe đúng hẹn, bảo quản và giữ nguyên số lượng tình trạng hàng như lúc nhận, loại trừ hư hỏng do Bên A đóng gói, xếp hàng hoặc sự kiện bất khả kháng. Vi phạm hợp đồng chịu phạt tối đa không quá 8% phần vi phạm theo Luật Thương mại.")
             _add_p(doc, "Điều 5: HIỆU LỰC HỢP ĐỒNG", space_before=6).runs[0].bold = True
-            _add_p(doc, "Hợp đồng có hiệu lực từ ngày ký đến hết ngày 31/12/2026, lập thành 02 bản có giá trị pháp lý như nhau.", space_after=14)
+            _add_p(doc, "Hợp đồng có hiệu lực từ ngày ký đến hết ngày 31/12/2026 và tự động gia hạn thêm từng năm nếu không có thông báo chấm dứt trước 30 ngày. Khi hợp đồng chấm dứt hoặc hết hạn, các bên vẫn phải thanh toán toàn bộ công nợ còn lại đến khi hoàn tất 100%. Lập thành 02 bản có giá trị pháp lý như nhau.", space_after=14)
 
             customer_sig = info.get("customer_sig_url") or info.get("customer_stamp_url") or ""
             seller_sig = info.get("seller_sig_url") or info.get("seller_stamp_url") or ""

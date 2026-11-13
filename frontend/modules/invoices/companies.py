@@ -289,18 +289,46 @@ def _fill_missing_company_fields_cursor(cursor, company_id: int, data: dict) -> 
 
     bank_acc = str(data.get("bank_account") or "").strip()
     if bank_acc:
+        branch = str(data.get("branch") or "").strip()
         cursor.execute(
-            "SELECT 1 FROM public.company_bank_accounts WHERE company_id = %s LIMIT 1",
+            "SELECT id, account_number, bank_name, branch FROM public.company_bank_accounts WHERE company_id = %s",
             (company_id,),
         )
-        if not cursor.fetchone():
+        existing_rows = cursor.fetchall() or []
+        if not existing_rows:
             cursor.execute(
                 """INSERT INTO public.company_bank_accounts
                 (company_id, account_number, bank_name, branch, sort_order)
-                VALUES (%s, %s, %s, '', 0)""",
-                (company_id, bank_acc, str(data.get("bank_name") or "").strip()),
+                VALUES (%s, %s, %s, %s, 0)""",
+                (company_id, bank_acc, str(data.get("bank_name") or "").strip(), branch),
             )
             filled.append("bank_accounts")
+        else:
+            acc_digits = re.sub(r"\D", "", bank_acc)
+            for r in existing_rows:
+                if not isinstance(r, dict):
+                    cols = [desc[0] for desc in cursor.description]
+                    r = dict(zip(cols, r))
+                row_digits = re.sub(r"\D", "", str(r.get("account_number") or ""))
+                if acc_digits and row_digits == acc_digits:
+                    updates = []
+                    up_params = []
+                    new_bank = str(data.get("bank_name") or "").strip()
+                    if new_bank and not str(r.get("bank_name") or "").strip():
+                        updates.append("bank_name = %s")
+                        up_params.append(new_bank)
+                    if branch and not str(r.get("branch") or "").strip():
+                        updates.append("branch = %s")
+                        up_params.append(branch)
+                    if updates:
+                        up_params.append(r.get("id"))
+                        cursor.execute(
+                            f"UPDATE public.company_bank_accounts SET {', '.join(updates)} WHERE id = %s",
+                            tuple(up_params),
+                        )
+                        if "bank_accounts" not in filled:
+                            filled.append("bank_accounts")
+                    break
 
     return filled
 

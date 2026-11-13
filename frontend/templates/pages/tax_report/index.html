@@ -303,7 +303,7 @@
     navigator.clipboard.writeText(num.toString()).then(() => {
       this.copySuccess = label;
       setTimeout(() => { this.copySuccess = ''; }, 2000);
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã sao chép số tiền chỉ tiêu ' + label + ': ' + num.toLocaleString('vi-VN') + ' đ', type:'success'}}));
+      window.showNotify('Đã sao chép số tiền chỉ tiêu ' + label + ': ' + num.toLocaleString('vi-VN') + ' đ', 'success');
     });
   }
 }">

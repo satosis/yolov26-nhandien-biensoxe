@@ -2,7 +2,6 @@ import requests
 import json
 import logging
 import os
-import time
 import uuid
 from typing import Optional, List, Dict
 
@@ -18,8 +17,6 @@ class HunonicHandler:
         self.password = password
         self.token: Optional[str] = None
         self.user_id: Optional[str] = None
-        self.last_login: float = 0
-        self.token_expiry: int = 3600 * 24
         
     def login(self) -> bool:
         url = f"{self.API_BASE}/auth/login"
@@ -34,21 +31,13 @@ class HunonicHandler:
         response.raise_for_status()
         data = response.json()
         if not isinstance(data, dict):
-            logger.error("Hunonic login response is not an object")
             raise ValueError("Hunonic login response must be an object")
-        token = data.get("access_token") or data.get("token")
-        if not isinstance(token, str) or not token.strip():
-            logger.error("Hunonic login response has no valid access token")
+        token = str(data.get("access_token") or data.get("token") or "").strip()
+        if not token:
             raise ValueError("Hunonic login response is missing a valid access token")
-        user_id = data.get("user_id")
-        if user_id is None:
-            user_id = data.get("id")
-        if user_id is not None and (isinstance(user_id, bool) or not isinstance(user_id, (str, int))):
-            logger.error("Hunonic login response has an invalid user ID")
-            raise ValueError("Hunonic login response has an invalid user ID")
-        self.token = token.strip()
+        user_id = data.get("user_id") if data.get("user_id") is not None else data.get("id")
+        self.token = token
         self.user_id = str(user_id) if user_id is not None else None
-        self.last_login = time.time()
         logger.info("Hunonic login successful")
         return True
 
@@ -62,32 +51,18 @@ class HunonicHandler:
             logger.error("Hunonic device list failed with HTTP %s", response.status_code)
         response.raise_for_status()
         data = response.json()
-        if not isinstance(data, dict) or not isinstance(data.get("devices"), list):
-            logger.error("Hunonic device list response has no devices array")
+        devices = data.get("devices") if isinstance(data, dict) else None
+        if not isinstance(devices, list):
             raise ValueError("Hunonic devices response must contain a list")
-        devices = data["devices"]
         normalized = []
         for device in devices:
             if not isinstance(device, dict):
-                logger.error("Hunonic device list contains a non-object entry")
-                raise ValueError("Hunonic devices response contains an invalid device")
-            device_id = device.get("id")
-            if device_id is None:
-                device_id = device.get("device_id")
-            if device_id is None:
-                device_id = device.get("deviceId")
-            name = device.get("name")
-            if name is None:
-                name = device.get("deviceName")
-            if name is None:
-                name = "Hunonic Device"
-            if isinstance(device_id, bool) or not isinstance(device_id, (str, int)) or not str(device_id).strip():
-                logger.error("Hunonic device list contains an invalid device ID")
-                raise ValueError("Hunonic devices response contains an invalid device ID")
-            if not isinstance(name, str):
-                logger.error("Hunonic device list contains an invalid device name")
-                raise ValueError("Hunonic devices response contains an invalid device name")
-            normalized.append({"id": str(device_id).strip(), "name": name.strip() or "Hunonic Device"})
+                continue
+            device_id = device.get("id") or device.get("device_id") or device.get("deviceId")
+            if not device_id or isinstance(device_id, bool):
+                continue
+            name = str(device.get("name") or device.get("deviceName") or "Hunonic Device").strip()
+            normalized.append({"id": str(device_id).strip(), "name": name or "Hunonic Device"})
         return normalized
 
     def send_command(self, device_id: str, cmd: str) -> bool:

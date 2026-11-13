@@ -300,20 +300,5 @@ function openEditModal(btn) {
 function openImportModal() {
   $('#importModal').modal('show');
 }
-
-{% if msg %}
-document.addEventListener("DOMContentLoaded", function() {
-  if (window.showNotify) {
-    window.showNotify({{ msg|tojson }}, 'success');
-  }
-});
-{% endif %}
-{% if error %}
-document.addEventListener("DOMContentLoaded", function() {
-  if (window.showNotify) {
-    window.showNotify({{ error|tojson }}, 'error');
-  }
-});
-{% endif %}
 </script>
 {% endblock %}

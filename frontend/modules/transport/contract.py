@@ -7,8 +7,11 @@ import io
 from html import escape
 import os
 import re
+import shutil
 import subprocess
 import tempfile
+import threading
+import time
 import unicodedata
 from datetime import date, datetime
 from pathlib import Path
@@ -75,7 +78,7 @@ def derive_company_code(name: str) -> str:
         flags=re.IGNORECASE,
     ).strip()
     clean = re.sub(
-        r"^(TNHH|CỔ PHẦN|CO PHAN|MTV|MỘT THÀNH VIÊN)\s+",
+        r"^((TNHH|CỔ PHẦN|CO PHAN|MTV|MỘT THÀNH VIÊN)\s+)+",
         "",
         clean,
         flags=re.IGNORECASE,
@@ -98,6 +101,12 @@ def derive_company_code(name: str) -> str:
     if len(words) == 1:
         return _remove_accents(words[0]).upper()[:6]
     return "".join(_remove_accents(w[0]) for w in words).upper()[:6]
+
+
+def default_contract_no(tax_code: str | None, c_date: date, cust_code: str, seller_code: str) -> str:
+    """Số hợp đồng mặc định: MST bên khách/HĐNT/KH-NB; khách không có MST thì dùng ngày ký ddmmyy."""
+    head = (tax_code or "").strip() or f"{c_date.day:02d}{c_date.month:02d}{str(c_date.year)[-2:]}"
+    return f"{head}/HĐNT/{cust_code}-{seller_code}"
 
 
 def _contract_bank_accounts(company: dict | None, fallback_number: str = "", fallback_name: str = "") -> list[dict]:
@@ -137,7 +146,7 @@ def _format_rep_html(rep: str, gender: str | None = None) -> str:
     prefix, name = split_rep_honorific(rep, gender)
     if not name:
         return "Ông/Bà ................................................."
-    return f"{escape(prefix)}<span class=\"bold\">{escape(name)}</span>"
+    return f"{escape(prefix)}<span class=\"bold\">{escape(name.upper())}</span>"
 
 
 def get_contract_context(
@@ -202,7 +211,7 @@ def get_contract_context(
 
     seller_code = derive_company_code(seller_name)
     if not contract_no:
-        contract_no = f"{day_str}{month_str}-{year_str}/{cust_code}-{seller_code}"
+        contract_no = default_contract_no(customer.get("tax_code"), c_date, cust_code, seller_code)
 
     seller_rep = (seller.get("director_name") or "").strip()
     seller_addr = (seller.get("address") or "").strip()
@@ -352,7 +361,7 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   html, body {{
     font-family: "Times New Roman", Times, serif;
     font-size: 11.5pt;
-    line-height: 1.32;
+    line-height: 1.28;
     color: #000;
     margin: 0;
     padding: 0;
@@ -372,10 +381,11 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
     page-break-after: always;
   }}
   .page:last-child {{
-    line-height: 1.28;
+    line-height: 1.16;
+    font-size: 10.5pt;
   }}
   @media print {{
-    body {{
+    html, body {{
       background: #fff !important;
     }}
     .no-print {{
@@ -412,43 +422,47 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   .header-quoc-hieu {{
     font-size: 12pt;
     line-height: 1.25;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
   }}
   .doc-title {{
     font-size: 15pt;
     letter-spacing: 0.5px;
-    margin-top: 6px;
-    margin-bottom: 3px;
+    margin-top: 2px;
+    margin-bottom: 2px;
   }}
   .contract-no {{
     font-size: 11.5pt;
-    margin-bottom: 10px;
+    margin-bottom: 4px;
   }}
   .can-cu {{
     font-style: italic;
     font-size: 11pt;
-    margin-bottom: 8px;
+    margin-bottom: 2px;
     padding-left: 15px;
     text-indent: -15px;
   }}
   .intro-date {{
-    margin-top: 10px;
-    margin-bottom: 10px;
+    margin-top: 3px;
+    margin-bottom: 3px;
     text-align: justify;
   }}
   .party-table {{
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
-    margin-bottom: 8px;
+    margin-bottom: 3px;
   }}
   .party-table td {{
-    padding: 1.5px 0;
+    padding: 1px 0;
     vertical-align: top;
     font-size: 11.5pt;
   }}
   .party-header {{
     font-weight: bold;
     padding-bottom: 3px !important;
+  }}
+  .party-header .company-name {{
+    font-size: 13pt;
   }}
   .col-label {{
     width: 95px;
@@ -471,15 +485,18 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   }}
   .section-title {{
     font-weight: bold;
-    text-decoration: underline;
-    margin-top: 8px;
+    font-size: 13pt;
+    margin-top: 7px;
     margin-bottom: 2px;
   }}
   .article-title {{
     font-weight: bold;
     text-decoration: underline;
-    margin-top: 5px;
+    margin-top: 8px;
     margin-bottom: 2px;
+  }}
+  .section-title + .article-title {{
+    margin-top: 5px;
   }}
   p {{
     margin: 2px 0;
@@ -488,7 +505,7 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   .bullet-item {{
     padding-left: 18px;
     text-indent: -18px;
-    margin: 1.5px 0;
+    margin: 1px 0;
     text-align: justify;
   }}
   .sig-table {{
@@ -506,21 +523,20 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
   }}
   .sig-slot {{
     width: 50%;
-    height: 220px;
-    min-height: 220px;
-    max-height: 220px;
+    height: 55mm;
+    min-height: 55mm;
     text-align: center;
     vertical-align: middle;
     padding: 0;
   }}
   .sig-slot-inner {{
-    height: 220px;
+    height: 55mm;
     display: flex;
     align-items: center;
     justify-content: center;
   }}
   .sig-slot-inner img {{
-    max-height: none;
+    max-height: 58mm;
     max-width: none;
     object-fit: contain;
   }}
@@ -550,9 +566,8 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
       <div class="contract-no italic red-text">Số : {ctx['contract_no']}</div>
     </div>
 
-    <div class="can-cu">- &nbsp; Căn cứ vào luật thương mại có hiệu lực ngày 01/01/2006.</div>
-    <div class="can-cu">- &nbsp; Căn cứ vào bộ luật dân sự có hiệu lực ngày 01/01/2006.</div>
-    <div class="can-cu">- &nbsp; Căn cứ vào hướng dẫn HD 1889/TTG ngày 19 tháng 12 năm 2005 hướng dẫn lập hợp đồng kinh tế.</div>
+    <div class="can-cu">- &nbsp; Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24/11/2015;</div>
+    <div class="can-cu">- &nbsp; Căn cứ Luật Thương mại số 36/2005/QH11 ngày 14/06/2005;</div>
     <div class="can-cu">- &nbsp; Căn cứ vào nhu cầu và khả năng của hai bên.</div>
 
     <div class="intro-date">
@@ -561,9 +576,10 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
 
     <!-- BÊN A -->
     <table class="party-table">
+      <colgroup><col style="width: 95px;"><col style="width: 40%;"><col></colgroup>
       <tr>
         <td colspan="3" class="party-header">
-          Bên thuê vận chuyển(Bên A): &nbsp; <span class="bold">{ctx['customer_name']}</span>
+          Bên thuê vận chuyển(Bên A): &nbsp; <span class="bold company-name">{ctx['customer_name']}</span>
         </td>
       </tr>
       <tr>
@@ -588,15 +604,16 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
 
     <!-- BÊN B -->
     <table class="party-table">
+      <colgroup><col style="width: 95px;"><col style="width: 40%;"><col></colgroup>
       <tr>
         <td colspan="3" class="party-header">
-          Bên vận chuyển(Bên B): &nbsp; <span class="bold">{ctx['seller_name']}</span>
+          Bên vận chuyển(Bên B): &nbsp; <span class="bold company-name">{ctx['seller_name']}</span>
         </td>
       </tr>
       <tr>
         <td class="col-label">Đại diện</td>
         <td class="col-mid">: {seller_rep_html}</td>
-        <td class="col-right">Chức vụ : <span class="bold">{escape(ctx.get('seller_pos') or 'Giám đốc')}</span></td>
+        <td class="col-right">Chức vụ: <span class="bold">{escape(ctx.get('seller_pos') or 'Giám đốc')}</span></td>
       </tr>
       <tr>
         <td class="col-label">Địa chỉ</td>
@@ -624,47 +641,50 @@ def render_contract_html(ctx: dict[str, Any], preview: bool = False) -> str:
     <p>Bên A có nhu cầu thuê vận chuyển và bên B đồng ý nhận vận chuyển hàng cho bên A tới các công trình theo thỏa thuận hai bên.</p>
 
     <div class="article-title">Điều 2: ĐƠN GIÁ, KHỐI LƯỢNG, ĐỊA ĐIỂM GIAO NHẬN HÀNG HÓA</div>
-    <p>2.1. Đơn giá áp dụng theo chuyến do hai bên thỏa thuận theo từng thời điểm.</p>
+    <p>2.1. Đơn giá áp dụng theo từng chuyến do hai bên thỏa thuận theo từng thời điểm căn cứ theo báo giá, tin nhắn hoặc văn bản xác nhận giữa hai bên. Đơn giá trên đã bao gồm thuế giá trị gia tăng (VAT), trừ trường hợp hai bên có thỏa thuận khác.</p>
     <p>2.2. Khối lượng hàng hoá chở tối thiểu trên một chuyến theo định mức của bên vận chuyển.</p>
-    <p>2.3 Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A. Bên A có trách nhiệm thông báo.</p>
+    <p>2.3 Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A. Bên A có trách nhiệm thông báo trước.</p>
+    <p>2.4. Phí chờ, lưu xe và hủy chuyến: Trường hợp xe của Bên B đã đến đúng giờ và địa điểm theo thông báo nhưng Bên A bốc xếp chậm quá 02 giờ hoặc Bên A hủy chuyến, Bên A có trách nhiệm thanh toán chi phí chờ xe, lưu ca hoặc phí hủy chuyến theo thỏa thuận thực tế của hai bên.</p>
 
     <div class="article-title">Điều 3: PHƯƠNG THỨC THANH TOÁN</div>
-    <p>3.1  Thanh toán bằng chuyển khoản , tiền mặt hoặc bù trừ công nợ.</p>
-    <p>3.2   Thanh toán theo chuyến áp theo giá đã được hai bên thỏa thuận từng thời điểm.</p>
-    <p>3.3  Thanh toán: Sau khi vận chuyển 2 bên tiến hành đối chiếu khối lượng hàng hóa đã vận chuyển trong tháng và viết hóa đơn thuế GTGT (VAT). Từ ngày 1 đến 10 hàng tháng, bên A có trách nhiệm thanh toán 100% cước tháng trước cho bên B.</p>
+    <p>3.1. Thanh toán bằng chuyển khoản hoặc bù trừ công nợ (có biên bản bù trừ). Tiền mặt chỉ áp dụng cho khoản dưới 5.000.000 đồng.</p>
+    <p>3.2. Giá trị thanh toán căn cứ theo số chuyến thực tế và đơn giá thỏa thuận tại mục 2.1.</p>
+    <p>3.3. Sau khi hoàn thành vận chuyển từng chuyến, hai bên tiến hành đối chiếu khối lượng hàng hóa và bên B xuất hóa đơn GTGT theo từng chuyến. Chậm nhất ngày 10 hàng tháng (hoặc trong vòng 30 ngày làm việc kể từ ngày nhận đầy đủ hóa đơn GTGT và chứng từ hợp lệ), bên A có trách nhiệm thanh toán 100% cước vận chuyển cho bên B.</p>
   </div>
 
   <!-- TRANG 2 -->
   <div class="page">
-    <p>3.4  Nếu bên A chậm thanh toán, bên B có quyền tạm dừng vận chuyển hàng.</p>
+    <p>3.4. Nếu bên A chậm thanh toán, bên B có quyền tạm dừng vận chuyển. Bên A phải trả thêm lãi trên số tiền chậm trả, theo lãi suất nợ quá hạn trung bình trên thị trường tại thời điểm thanh toán.</p>
 
     <div class="article-title">Điều 4: TRÁCH NHIỆM MỖI BÊN</div>
-    <p class="bold underline">4.1. Bên A:</p>
+    <p class="bold">4.1. Bên A:</p>
     <div class="bullet-item">- &nbsp; Thông báo lịch vận chuyển ít nhất là 06 tiếng để bên B bố trí phương tiện (trong trường hợp phát sinh 2 bên sẽ thỏa thuận tạo điều kiện hỗ trợ).</div>
     <div class="bullet-item">- &nbsp; Cung cấp cho bên B các hồ sơ chứng từ cần thiết cho việc vận chuyển hàng hóa.</div>
     <div class="bullet-item">- &nbsp; Chịu trách nhiệm dọn bãi cho xe bên B vào cẩu hàng.</div>
-    <div class="bullet-item">- &nbsp; Đảm bảo chất lượng, tiến độ sản phẩm trước khi vận chuyển.</div>
+    <div class="bullet-item">- &nbsp; Chịu trách nhiệm hoàn toàn trước pháp luật về tính hợp pháp, hóa đơn chứng từ nguồn gốc hàng hóa và không yêu cầu bên B chở hàng quá khổ, quá tải trọng theo quy định.</div>
+    <div class="bullet-item">- &nbsp; Đảm bảo chất lượng, quy cách đóng gói và tiến độ sản phẩm trước khi bốc xếp vận chuyển.</div>
     <div class="bullet-item">- &nbsp; Bố trí người nhận hàng tại công trình, tạo điều kiện cho Bên B trả hàng nhanh chóng.</div>
     <div class="bullet-item">- &nbsp; Thanh toán cho bên B theo đúng điều 3 của hợp đồng.</div>
 
-    <p class="bold underline" style="margin-top: 6px;">4.2. Bên B:</p>
+    <p class="bold" style="margin-top: 6px;">4.2. Bên B:</p>
     <div class="bullet-item">- &nbsp; Bố trí phương tiện vận chuyển không làm lỡ kế hoạch của bên A.</div>
     <div class="bullet-item">- &nbsp; Đảm bảo người vận hành các xe, thiết bị phục vụ nhu cầu vận chuyển của bên A phải xuất trình các giấy tờ cần thiết khi bị các ban ngành Nhà nước kiểm tra.</div>
-    <div class="bullet-item">- &nbsp; Có trách nhiệm kiểm tra và đảm bảo chất lượng, số lượng hàng hóa khi vận chuyển.</div>
-    <div class="bullet-item">- &nbsp; Trường hợp hàng bị hư hỏng phải trả về, phải có biên bản hư hỏng hàng hóa có đầy đủ xác nhận của 2 bên, phiếu nhập kho do bên A cung cấp.</div>
-    <div class="bullet-item">- &nbsp; Trong quá trình vận chuyển nếu do bên B làm sản phẩm của bên A bị lỗi (nứt, sứt mẻ, gãy…) làm cho khách hàng của bên A từ chối nhận hàng thì bên B phải chịu trách nhiệm đền bù về chi phí các lỗi của sản phẩm đó.</div>
+    <div class="bullet-item">- &nbsp; Có trách nhiệm kiểm tra và giữ nguyên số lượng, tình trạng hàng hóa như lúc nhận trong suốt quá trình vận chuyển.</div>
+    <div class="bullet-item">- &nbsp; Trường hợp hàng bị hư hỏng phải có biên bản hư hỏng hàng hóa có đầy đủ xác nhận của 2 bên tại hiện trường và phiếu nhập kho do bên A cung cấp.</div>
+    <div class="bullet-item">- &nbsp; Trong quá trình vận chuyển nếu do lỗi trực tiếp của bên B làm sản phẩm của bên A bị lỗi (nứt, sứt mẻ, gãy…) làm cho khách hàng của bên A từ chối nhận hàng thì bên B phải chịu trách nhiệm đền bù về chi phí trực tiếp của các lỗi đó; loại trừ các hư hại do bên A đóng gói, xếp hàng hoặc do sự kiện bất khả kháng.</div>
     <div class="bullet-item">- &nbsp; Đảm bảo khi giao hàng tại công trình của bên A phải có chữ ký xác nhận của cán bộ được ủy quyền của bên nhận hàng.</div>
     <div class="bullet-item">- &nbsp; Cấp hóa đơn GTGT hợp pháp cho bên A.</div>
 
     <div class="article-title">Điều 5: ĐIỀU KHOẢN CHUNG</div>
-    <div class="bullet-item">- &nbsp; Hai bên cam kết thực hiện những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm <span class="bold">sẽ phải bồi</span> thường thiệt hại cho bên kia và chịu trách nhiệm trước pháp luật.</div>
+    <div class="bullet-item">- &nbsp; Hai bên cam kết thực hiện đúng những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm hợp đồng mà không thuộc trường hợp bất khả kháng sẽ phải chịu phạt vi phạm với mức tối đa 8% giá trị phần nghĩa vụ bị vi phạm theo quy định của Luật Thương mại, đồng thời bồi thường thiệt hại thực tế phát sinh cho bên kia.</div>
+    <div class="bullet-item">- &nbsp; Sự kiện bất khả kháng: Trường hợp xảy ra các sự kiện bất khả kháng (thiên tai, bão lũ, dịch bệnh, cấm đường theo quyết định của cơ quan nhà nước, tai nạn giao thông không do lỗi của bên vận chuyển...) dẫn đến chậm trễ hoặc không thể thực hiện chuyến hàng, bên gặp sự kiện được miễn trừ trách nhiệm nhưng phải kịp thời thông báo cho bên kia để cùng phối hợp giải quyết.</div>
     <div class="bullet-item">- &nbsp; Các thay đổi khác nếu có ngoài nội dung hợp đồng này, hai bên thông báo cho nhau bằng văn bản và thỏa thuận để làm phụ lục và bổ sung hợp đồng (phụ lục hợp đồng là một phần nội dung của hợp đồng này).</div>
     <div class="bullet-item">- &nbsp; Quá trình thực hiện nếu có gì vướng mắc hai bên cùng bàn bạc giải quyết thông qua thương lượng trên tinh thần hợp tác và bình đẳng. Nếu hai bên không giải quyết được bằng thương lượng hòa giải thì một trong các bên sẽ yêu cầu Tòa án có thẩm quyền tại Tỉnh Phú Thọ giải quyết theo quy định của pháp luật hiện hành.</div>
 
     <div class="article-title">Điều 6: HIỆU LỰC CỦA HỢP ĐỒNG</div>
-    <div class="bullet-item">- &nbsp; Hợp đồng này có hiệu lực kể từ ngày ký. Hợp đồng hết hiệu lực khi các bên đã thực hiện các quyền và nghĩa vụ đối với nhau.</div>
+    <div class="bullet-item">- &nbsp; Hợp đồng này có hiệu lực kể từ ngày ký đến hết ngày {ctx['valid_until']}. Khi hết hạn, nếu hai bên không có văn bản thông báo chấm dứt trước 30 ngày thì hợp đồng tự động gia hạn thêm từng năm (01 năm).</div>
+    <div class="bullet-item">- &nbsp; Khi hợp đồng chấm dứt hoặc hết hạn, các bên vẫn có nghĩa vụ thực hiện đầy đủ các quyền và nghĩa vụ công nợ, thanh toán còn lại cho đến khi hoàn tất 100%.</div>
     <div class="bullet-item">- &nbsp; Hợp đồng này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau.</div>
-    <div class="bullet-item">- &nbsp; Hợp đồng có hiệu lực từ ngày kí đến hết ngày {ctx['valid_until']}.</div>
 
     <table class="sig-table">
       <tr>
@@ -708,31 +728,49 @@ def _find_browser_exe() -> str | None:
     return None
 
 
+def _stop_chrome_and_clean(proc: subprocess.Popen, tmp_dir: Path) -> None:
+    if proc.poll() is None:
+        proc.kill()
+    proc.wait()
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def render_pdf_from_html(html_content: str, title: str = "Tài liệu") -> bytes:
     """Render PDF from HTML using headless Chrome/Edge, or PyMuPDF fallback."""
     browser_exe = _find_browser_exe()
     if browser_exe:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            html_file = Path(tmp_dir) / "doc.html"
-            pdf_file = Path(tmp_dir) / "doc.pdf"
-            profile_dir = Path(tmp_dir) / "profile"
-            html_file.write_text(html_content, encoding="utf-8")
+        tmp_dir = Path(tempfile.mkdtemp())
+        html_file = tmp_dir / "doc.html"
+        pdf_file = tmp_dir / "doc.pdf"
+        html_file.write_text(html_content, encoding="utf-8")
 
-            cmd = [
-                browser_exe,
-                "--headless=new",
-                "--disable-gpu",
-                f"--user-data-dir={profile_dir}",
-                "--no-first-run",
-                "--no-default-browser-check",
-                "--disable-background-networking",
-                "--no-pdf-header-footer",
-                f"--print-to-pdf={pdf_file}",
-                str(html_file),
-            ]
-            subprocess.run(cmd, capture_output=True, timeout=25, check=True)
-            if pdf_file.exists() and pdf_file.stat().st_size > 1000:
-                return pdf_file.read_bytes()
+        cmd = [
+            browser_exe,
+            "--headless=new",
+            "--disable-gpu",
+            f"--user-data-dir={tmp_dir / 'profile'}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-background-networking",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={pdf_file}",
+            str(html_file),
+        ]
+        # Chrome 156 ghi xong PDF nhưng không tự thoát: chờ file PDF đứng kích thước rồi lấy file;
+        # tắt Chrome (máy bận mất vài chục giây) và xóa thư mục tạm chạy ở nền.
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + 25
+        last_size = -1
+        while proc.poll() is None and time.monotonic() < deadline:
+            size = pdf_file.stat().st_size if pdf_file.exists() else -1
+            if size > 1000 and size == last_size:
+                break
+            last_size = size
+            time.sleep(0.5)
+        pdf_bytes = pdf_file.read_bytes() if pdf_file.exists() and pdf_file.stat().st_size > 1000 else b""
+        threading.Thread(target=_stop_chrome_and_clean, args=(proc, tmp_dir), daemon=True).start()
+        if pdf_bytes:
+            return pdf_bytes
 
     # PyMuPDF Fallback: convert HTML using basic PyMuPDF story / rect
     if fitz is not None:
@@ -792,9 +830,8 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
 
     # Căn cứ
     can_cus = [
-        "Căn cứ vào luật thương mại có hiệu lực ngày 01/01/2006.",
-        "Căn cứ vào bộ luật dân sự có hiệu lực ngày 01/01/2006.",
-        "Căn cứ vào hướng dẫn HD 1889/TTG ngày 19 tháng 12 năm 2005 hướng dẫn lập hợp đồng kinh tế.",
+        "Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24/11/2015;",
+        "Căn cứ Luật Thương mại số 36/2005/QH11 ngày 14/06/2005;",
         "Căn cứ vào nhu cầu và khả năng của hai bên.",
     ]
     for cc in can_cus:
@@ -817,6 +854,7 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
         r_pt.bold = True
         r_pn = p_p.add_run(name)
         r_pn.bold = True
+        r_pn.font.size = Pt(13)
 
         tbl = doc.add_table(rows=0, cols=3)
         tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -840,7 +878,7 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
         if rep_name:
             r1_pre = p1.add_run(f": {prefix}")
             r1_pre.font.size = Pt(11.5)
-            r1_name = p1.add_run(rep_name)
+            r1_name = p1.add_run(rep_name.upper())
             r1_name.bold = True
             r1_name.font.size = Pt(11.5)
         else:
@@ -940,44 +978,48 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
     p_mid.runs[0].italic = True
     p_mid.paragraph_format.space_before = Pt(6)
 
-    def add_sec_title(txt):
+    def add_sec_title(txt, underline=True, space_before=14, font_size=None):
         p = doc.add_paragraph()
         r = p.add_run(txt)
         r.bold = True
-        r.underline = True
-        p.paragraph_format.space_before = Pt(6)
+        if underline:
+            r.underline = True
+        if font_size:
+            r.font.size = Pt(font_size)
+        p.paragraph_format.space_before = Pt(space_before)
         p.paragraph_format.space_after = Pt(2)
 
-    add_sec_title("NỘI DUNG CÔNG VIỆC GIAO DỊCH :")
-    add_sec_title("Điều 1: NỘI DUNG CỦA HỢP ĐỒNG")
+    add_sec_title("NỘI DUNG CÔNG VIỆC GIAO DỊCH :", underline=False, space_before=7, font_size=13)
+    add_sec_title("Điều 1: NỘI DUNG CỦA HỢP ĐỒNG", space_before=5)
     doc.add_paragraph("Bên A có nhu cầu thuê vận chuyển và bên B đồng ý nhận vận chuyển hàng cho bên A tới các công trình theo thỏa thuận hai bên.")
 
     add_sec_title("Điều 2: ĐƠN GIÁ, KHỐI LƯỢNG, ĐỊA ĐIỂM GIAO NHẬN HÀNG HÓA")
-    doc.add_paragraph("2.1. Đơn giá áp dụng theo chuyến do hai bên thỏa thuận theo từng thời điểm.")
+    doc.add_paragraph("2.1. Đơn giá áp dụng theo từng chuyến do hai bên thỏa thuận theo từng thời điểm căn cứ theo báo giá, tin nhắn hoặc văn bản xác nhận giữa hai bên. Đơn giá trên đã bao gồm thuế giá trị gia tăng (VAT), trừ trường hợp hai bên có thỏa thuận khác.")
     doc.add_paragraph("2.2. Khối lượng hàng hoá chở tối thiểu trên một chuyến theo định mức của bên vận chuyển.")
-    doc.add_paragraph("2.3 Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A. Bên A có trách nhiệm thông báo.")
+    doc.add_paragraph("2.3 Địa điểm giao nhận hàng hóa cụ thể từng chuyến sẽ thông báo theo yêu cầu của bên A. Bên A có trách nhiệm thông báo trước.")
+    doc.add_paragraph("2.4. Phí chờ, lưu xe và hủy chuyến: Trường hợp xe của Bên B đã đến đúng giờ và địa điểm theo thông báo nhưng Bên A bốc xếp chậm quá 02 giờ hoặc Bên A hủy chuyến, Bên A có trách nhiệm thanh toán chi phí chờ xe, lưu ca hoặc phí hủy chuyến theo thỏa thuận thực tế của hai bên.")
 
     add_sec_title("Điều 3: PHƯƠNG THỨC THANH TOÁN")
-    doc.add_paragraph("3.1  Thanh toán bằng chuyển khoản , tiền mặt hoặc bù trừ công nợ.")
-    doc.add_paragraph("3.2   Thanh toán theo chuyến áp theo giá đã được hai bên thỏa thuận từng thời điểm.")
-    doc.add_paragraph("3.3  Thanh toán: Sau khi vận chuyển 2 bên tiến hành đối chiếu khối lượng hàng hóa đã vận chuyển trong tháng và viết hóa đơn thuế GTGT (VAT). Từ ngày 1 đến 10 hàng tháng, bên A có trách nhiệm thanh toán 100% cước tháng trước cho bên B.")
+    doc.add_paragraph("3.1. Thanh toán bằng chuyển khoản hoặc bù trừ công nợ (có biên bản bù trừ). Tiền mặt chỉ áp dụng cho khoản dưới 5.000.000 đồng.")
+    doc.add_paragraph("3.2. Giá trị thanh toán căn cứ theo số chuyến thực tế và đơn giá thỏa thuận tại mục 2.1.")
+    doc.add_paragraph("3.3. Sau khi hoàn thành vận chuyển từng chuyến, hai bên tiến hành đối chiếu khối lượng hàng hóa và bên B xuất hóa đơn GTGT theo từng chuyến. Chậm nhất ngày 10 hàng tháng (hoặc trong vòng 30 ngày làm việc kể từ ngày nhận đầy đủ hóa đơn GTGT và chứng từ hợp lệ), bên A có trách nhiệm thanh toán 100% cước vận chuyển cho bên B.")
 
     # Trang 2
     doc.add_page_break()
 
-    doc.add_paragraph("3.4  Nếu bên A chậm thanh toán, bên B có quyền tạm dừng vận chuyển hàng.")
+    doc.add_paragraph("3.4. Nếu bên A chậm thanh toán, bên B có quyền tạm dừng vận chuyển. Bên A phải trả thêm lãi trên số tiền chậm trả, theo lãi suất nợ quá hạn trung bình trên thị trường tại thời điểm thanh toán.")
 
     add_sec_title("Điều 4: TRÁCH NHIỆM MỖI BÊN")
     p_41 = doc.add_paragraph()
     r_41 = p_41.add_run("4.1. Bên A:")
     r_41.bold = True
-    r_41.underline = True
 
     items_41 = [
         "Thông báo lịch vận chuyển ít nhất là 06 tiếng để bên B bố trí phương tiện (trong trường hợp phát sinh 2 bên sẽ thỏa thuận tạo điều kiện hỗ trợ).",
         "Cung cấp cho bên B các hồ sơ chứng từ cần thiết cho việc vận chuyển hàng hóa.",
         "Chịu trách nhiệm dọn bãi cho xe bên B vào cẩu hàng.",
-        "Đảm bảo chất lượng, tiến độ sản phẩm trước khi vận chuyển.",
+        "Chịu trách nhiệm hoàn toàn trước pháp luật về tính hợp pháp, hóa đơn chứng từ nguồn gốc hàng hóa và không yêu cầu bên B chở hàng quá khổ, quá tải trọng theo quy định.",
+        "Đảm bảo chất lượng, quy cách đóng gói và tiến độ sản phẩm trước khi bốc xếp vận chuyển.",
         "Bố trí người nhận hàng tại công trình, tạo điều kiện cho Bên B trả hàng nhanh chóng.",
         "Thanh toán cho bên B theo đúng điều 3 của hợp đồng.",
     ]
@@ -989,14 +1031,13 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
     p_42 = doc.add_paragraph()
     r_42 = p_42.add_run("4.2. Bên B:")
     r_42.bold = True
-    r_42.underline = True
 
     items_42 = [
         "Bố trí phương tiện vận chuyển không làm lỡ kế hoạch của bên A.",
         "Đảm bảo người vận hành các xe, thiết bị phục vụ nhu cầu vận chuyển của bên A phải xuất trình các giấy tờ cần thiết khi bị các ban ngành Nhà nước kiểm tra.",
-        "Có trách nhiệm kiểm tra và đảm bảo chất lượng, số lượng hàng hóa khi vận chuyển.",
-        "Trường hợp hàng bị hư hỏng phải trả về, phải có biên bản hư hỏng hàng hóa có đầy đủ xác nhận của 2 bên, phiếu nhập kho do bên A cung cấp.",
-        "Trong quá trình vận chuyển nếu do bên B làm sản phẩm của bên A bị lỗi (nứt, sứt mẻ, gãy…) làm cho khách hàng của bên A từ chối nhận hàng thì bên B phải chịu trách nhiệm đền bù về chi phí các lỗi của sản phẩm đó.",
+        "Có trách nhiệm kiểm tra và giữ nguyên số lượng, tình trạng hàng hóa như lúc nhận trong suốt quá trình vận chuyển.",
+        "Trường hợp hàng bị hư hỏng phải có biên bản hư hỏng hàng hóa có đầy đủ xác nhận của 2 bên tại hiện trường và phiếu nhập kho do bên A cung cấp.",
+        "Trong quá trình vận chuyển nếu do lỗi trực tiếp của bên B làm sản phẩm của bên A bị lỗi (nứt, sứt mẻ, gãy…) làm cho khách hàng của bên A từ chối nhận hàng thì bên B phải chịu trách nhiệm đền bù về chi phí trực tiếp của các lỗi đó; loại trừ các hư hại do bên A đóng gói, xếp hàng hoặc do sự kiện bất khả kháng.",
         "Đảm bảo khi giao hàng tại công trình của bên A phải có chữ ký xác nhận của cán bộ được ủy quyền của bên nhận hàng.",
         "Cấp hóa đơn GTGT hợp pháp cho bên A.",
     ]
@@ -1006,23 +1047,22 @@ def render_contract_docx(ctx: dict[str, Any]) -> bytes:
         p_it.paragraph_format.space_after = Pt(2)
 
     add_sec_title("Điều 5: ĐIỀU KHOẢN CHUNG")
-    p_d5_1 = doc.add_paragraph("-   Hai bên cam kết thực hiện những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm ")
-    r_boiduong = p_d5_1.add_run("sẽ phải bồi")
-    r_boiduong.bold = True
-    p_d5_1.add_run(" thường thiệt hại cho bên kia và chịu trách nhiệm trước pháp luật.")
-    p_d5_1.paragraph_format.left_indent = Inches(0.2)
-
-    p_d5_2 = doc.add_paragraph("-   Các thay đổi khác nếu có ngoài nội dung hợp đồng này, hai bên thông báo cho nhau bằng văn bản và thỏa thuận để làm phụ lục và bổ sung hợp đồng (phụ lục hợp đồng là một phần nội dung của hợp đồng này).")
-    p_d5_2.paragraph_format.left_indent = Inches(0.2)
-
-    p_d5_3 = doc.add_paragraph("-   Quá trình thực hiện nếu có gì vướng mắc hai bên cùng bàn bạc giải quyết thông qua thương lượng trên tinh thần hợp tác và bình đẳng. Nếu hai bên không giải quyết được bằng thương lượng hòa giải thì một trong các bên sẽ yêu cầu Tòa án có thẩm quyền tại Tỉnh Phú Thọ giải quyết theo quy định của pháp luật hiện hành.")
-    p_d5_3.paragraph_format.left_indent = Inches(0.2)
+    items_d5 = [
+        "Hai bên cam kết thực hiện đúng những điều khoản ghi trong hợp đồng. Nếu bên nào vi phạm hợp đồng mà không thuộc trường hợp bất khả kháng sẽ phải chịu phạt vi phạm với mức tối đa 8% giá trị phần nghĩa vụ bị vi phạm theo quy định của Luật Thương mại, đồng thời bồi thường thiệt hại thực tế phát sinh cho bên kia.",
+        "Sự kiện bất khả kháng: Trường hợp xảy ra các sự kiện bất khả kháng (thiên tai, bão lũ, dịch bệnh, cấm đường theo quyết định của cơ quan nhà nước, tai nạn giao thông không do lỗi của bên vận chuyển...) dẫn đến chậm trễ hoặc không thể thực hiện chuyến hàng, bên gặp sự kiện được miễn trừ trách nhiệm nhưng phải kịp thời thông báo cho bên kia để cùng phối hợp giải quyết.",
+        "Các thay đổi khác nếu có ngoài nội dung hợp đồng này, hai bên thông báo cho nhau bằng văn bản và thỏa thuận để làm phụ lục và bổ sung hợp đồng (phụ lục hợp đồng là một phần nội dung của hợp đồng này).",
+        "Quá trình thực hiện nếu có gì vướng mắc hai bên cùng bàn bạc giải quyết thông qua thương lượng trên tinh thần hợp tác và bình đẳng. Nếu hai bên không giải quyết được bằng thương lượng hòa giải thì một trong các bên sẽ yêu cầu Tòa án có thẩm quyền tại Tỉnh Phú Thọ giải quyết theo quy định của pháp luật hiện hành.",
+    ]
+    for it in items_d5:
+        p_it = doc.add_paragraph(f"-   {it}")
+        p_it.paragraph_format.left_indent = Inches(0.2)
+        p_it.paragraph_format.space_after = Pt(2)
 
     add_sec_title("Điều 6: HIỆU LỰC CỦA HỢP ĐỒNG")
     items_d6 = [
-        "Hợp đồng này có hiệu lực kể từ ngày ký. Hợp đồng hết hiệu lực khi các bên đã thực hiện các quyền và nghĩa vụ đối với nhau.",
+        f"Hợp đồng này có hiệu lực kể từ ngày ký đến hết ngày {ctx['valid_until']}. Khi hết hạn, nếu hai bên không có văn bản thông báo chấm dứt trước 30 ngày thì hợp đồng tự động gia hạn thêm từng năm (01 năm).",
+        "Khi hợp đồng chấm dứt hoặc hết hạn, các bên vẫn có nghĩa vụ thực hiện đầy đủ các quyền và nghĩa vụ công nợ, thanh toán còn lại cho đến khi hoàn tất 100%.",
         "Hợp đồng này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị pháp lý như nhau.",
-        f"Hợp đồng có hiệu lực từ ngày kí đến hết ngày {ctx['valid_until']}.",
     ]
     for it in items_d6:
         p_it = doc.add_paragraph(f"-   {it}")

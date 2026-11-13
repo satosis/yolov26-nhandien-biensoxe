@@ -1,0 +1,12 @@
+{
+  "id": "nmhungm/train-yolo26-vietnamese-plate-sota",
+  "title": "train-yolo26-vietnamese-plate-sota",
+  "code_file": "train_yolo26_vietnamese_plate.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": []
+}

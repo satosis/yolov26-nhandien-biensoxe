@@ -217,13 +217,9 @@
 function copyToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function() {
-      if (window.showNotify) {
-        window.showNotify('Đã sao chép.', 'success');
-      }
+      window.showNotify('Đã sao chép.', 'success');
     }).catch(function() {
-      if (window.showNotify) {
-        window.showNotify('Không thể sao chép.', 'error');
-      }
+      window.showNotify('Không thể sao chép.', 'error');
     });
   } else {
     var ta = document.createElement('textarea');
@@ -235,13 +231,9 @@ function copyToClipboard(text) {
     ta.select();
     try {
       document.execCommand('copy');
-      if (window.showNotify) {
-        window.showNotify('Đã sao chép.', 'success');
-      }
+      window.showNotify('Đã sao chép.', 'success');
     } catch (e) {
-      if (window.showNotify) {
-        window.showNotify('Không thể sao chép.', 'error');
-      }
+      window.showNotify('Không thể sao chép.', 'error');
     }
     document.body.removeChild(ta);
   }

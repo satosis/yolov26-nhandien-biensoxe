@@ -3,8 +3,7 @@
 
   function enhanceSelect(select) {
     if (!(select instanceof HTMLSelectElement) || select.tomselect ||
-        select.matches('[data-no-search], .d-none, [hidden], .ts-hidden-accessible') ||
-        typeof TomSelect === 'undefined') return;
+        select.matches('[data-no-search], .d-none, [hidden], .ts-hidden-accessible')) return;
 
     select.classList.add('admin-search-select');
 
@@ -136,9 +135,7 @@
     }, true);
 
     document.addEventListener('shown.bs.modal', handleModalShown);
-    if (typeof jQuery !== 'undefined') {
-      jQuery(document).on('shown.bs.modal', handleModalShown);
-    }
+    jQuery(document).on('shown.bs.modal', handleModalShown);
 
     const observer = new MutationObserver(records => {
       for (const record of records) {

@@ -37,7 +37,7 @@
         <select id="quick-company-select" class="form-control" required onchange="updateQuickContractNumber()">
           <option value="">-- Chọn đơn vị khách hàng --</option>
           {% for company in companies %}
-          <option value="{{ company.id }}" data-name="{{ company.name }}" {% if selected_company_id == company.id %}selected{% endif %}>
+          <option value="{{ company.id }}" data-name="{{ company.name }}" data-tax="{{ company.tax_code or '' }}" {% if selected_company_id == company.id %}selected{% endif %}>
             {{ company.name }}{% if company.tax_code %} (MST: {{ company.tax_code }}){% endif %}
           </option>
           {% endfor %}
@@ -64,6 +64,9 @@
       <button type="button" class="btn btn-primary btn-sm px-3" onclick="exportQuickContract('html')">
         <i class="bx bx-show mr-1"></i> Xem trước
       </button>
+      <button type="button" class="btn btn-success btn-sm px-3" onclick="openContractZalo()">
+        <i class="bx bx-send mr-1"></i> Gửi Zalo
+      </button>
     </div>
   </div>
 </div>
@@ -79,6 +82,38 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="contractZaloModal" tabindex="-1" role="dialog" aria-labelledby="contractZaloModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title font-size-15" id="contractZaloModalLabel">Gửi hợp đồng qua Zalo</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="contractZaloGroup">Nhóm Zalo</label>
+          <select class="form-control" id="contractZaloGroup">
+            <option value="">— Chọn nhóm —</option>
+          </select>
+        </div>
+        <div class="form-group mb-0">
+          <label for="contractZaloFormat">Định dạng</label>
+          <select class="form-control" id="contractZaloFormat">
+            <option value="pdf">PDF</option>
+            <option value="docx">Word (.docx)</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Đóng</button>
+        <button type="button" class="btn btn-primary btn-sm font-weight-bold" id="contractZaloSubmitBtn" onclick="submitContractZalo()">Gửi</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -87,7 +122,7 @@ function contractCompanyCode(name) {
   const clean = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/gi, 'd').toUpperCase()
     .replace(/^(CONG TY|DOANH NGHIEP|TAP DOAN)\s+/, '')
-    .replace(/^(TNHH|CO PHAN|MOT THANH VIEN)\s+/, '');
+    .replace(/^((TNHH|CO PHAN|MTV|MOT THANH VIEN)\s+)+/, '');
   const words = clean.match(/[A-Z0-9]+/g) || [];
   const digits = words.find(word => /^\d+$/.test(word));
   const initials = words.filter(word => !/^\d+$/.test(word))
@@ -109,10 +144,9 @@ function updateQuickContractNumber() {
   const name = company.selectedOptions[0]?.dataset.name || '';
   const compCode = contractCompanyCode(name);
   const sellerCode = "{{ seller_code or '' }}" || "SELLER";
-  let generated = `${day}${month}-${year}/${compCode}-${sellerCode}`;
-  if (category === 'hdnt') {
-    generated = `${day}${month}${year.slice(-2)}/HĐNT/${compCode}-${sellerCode}`;
-  } else if (category === 'bbvc') {
+  const noHead = (company.selectedOptions[0]?.dataset.tax || '').trim() || `${day}${month}${year.slice(-2)}`;
+  let generated = `${noHead}/HĐNT/${compCode}-${sellerCode}`;
+  if (category === 'bbvc') {
     generated = `${day}${month}/${year}/BBVC`;
   } else if (category === 'bbbg') {
     generated = `${day}${month}${year.slice(-2)}/BBBG/${compCode}-${sellerCode}`;
@@ -127,13 +161,9 @@ function updateQuickContractNumber() {
   number.dataset.generated = generated;
 }
 
-function contractToast(message) {
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:message,type:'error'}}));
-}
-
 async function exportQuickContract(format) {
   if (document.getElementById('contracts-seller-missing')) {
-    contractToast('Chọn công ty đang làm việc trước khi xuất hợp đồng.');
+    window.showNotify('Chọn công ty đang làm việc trước khi xuất hợp đồng.', 'error');
     return;
   }
   const company = document.getElementById('quick-company-select');
@@ -154,12 +184,60 @@ async function exportQuickContract(format) {
 
   url.searchParams.set('view', 'html');
   document.getElementById('contractPreviewFrame').src = url.toString();
-  window.jQuery('#contractPreviewModal').modal('show');
+  $('#contractPreviewModal').modal('show');
+}
+
+async function openContractZalo() {
+  const companyId = document.getElementById('quick-company-select').value;
+  const data = await apiRequest('/admin/transport/contracts/zalo-groups?customer_id=' + encodeURIComponent(companyId));
+  if (!data.ok) {
+    window.showNotify(data.message, 'error');
+    return;
+  }
+  const select = document.getElementById('contractZaloGroup');
+  select.innerHTML = '<option value="">— Chọn nhóm —</option>';
+  for (const g of (Array.isArray(data.groups) ? data.groups : [])) {
+    const opt = document.createElement('option');
+    opt.value = g.group_id;
+    opt.textContent = g.name || g.group_id;
+    select.appendChild(opt);
+  }
+  if (data.suggested_group_id) select.value = data.suggested_group_id;
+  $('#contractZaloModal').modal('show');
+}
+
+async function submitContractZalo() {
+  const group = document.getElementById('contractZaloGroup');
+  const btn = document.getElementById('contractZaloSubmitBtn');
+  btn.disabled = true;
+  try {
+    const data = await apiRequest('/admin/transport/contracts/send-zalo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customer_id: document.getElementById('quick-company-select').value,
+        date: document.getElementById('quick-date-input').value,
+        kind: document.getElementById('quick-category-select')?.value || 'hdvc',
+        contract_no: document.getElementById('quick-no-input').value.trim(),
+        format: document.getElementById('contractZaloFormat').value,
+        group_id: group.value,
+        group_name: group.value ? group.options[group.selectedIndex].text : '',
+      }),
+    });
+    if (!data.ok) {
+      window.showNotify(data.message, 'error');
+      return;
+    }
+    window.showNotify(data.message, 'success');
+    $('#contractZaloModal').modal('hide');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   updateQuickContractNumber();
-  window.jQuery?.('#contractPreviewModal').on('hidden.bs.modal', () => {
+  $('#contractPreviewModal').on('hidden.bs.modal', () => {
     document.getElementById('contractPreviewFrame').src = 'about:blank';
   });
 });

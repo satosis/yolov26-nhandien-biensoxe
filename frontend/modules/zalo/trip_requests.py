@@ -36,8 +36,8 @@ def _province(value: str, provinces: list[str]) -> str:
 
 def build_trip_draft(messages: list[dict], *, provinces: list[str],
                      services: list[str], directory: list[dict]) -> dict:
-    if not messages or len(messages) > 20:
-        raise ValueError("Chọn từ 1 đến 20 tin nhắn cho một chuyến hàng.")
+    if not messages:
+        raise ValueError("Chọn ít nhất 1 tin nhắn cho một chuyến hàng.")
     groups = {str(item.get("group_id") or "") for item in messages}
     if len(groups) != 1 or not next(iter(groups)):
         raise ValueError("Các tin đã chọn phải thuộc cùng một nhóm Zalo.")
@@ -332,123 +332,6 @@ async def send_invoice_notice(trip_id: int, *, trip: dict, buyer: dict,
     except (OSError, ValueError, json.JSONDecodeError, httpx.HTTPError) as err:
         _set_notice_state(trip_id, "send_uncertain", f"Chưa xác nhận Zalo đã nhận tin ({err}).")
         return "send_uncertain", "Hóa đơn đã tạo; chưa xác nhận thông báo Zalo đã gửi."
-
-
-async def send_saved_invoice_to_zalo(
-    invoice_guid: str,
-    image_path: str = "",
-) -> tuple[bool, str]:
-    """Send invoice image, payment QR image and bank transfer info to the Zalo group."""
-    import asyncio
-    import logging
-    import urllib.parse
-    from pathlib import Path
-    import fitz
-    from frontend.modules.invoices.companies import get_company
-    from frontend.modules.bank_transfer import BANK_CODE_MAP, remove_accents as _remove_accents
-    from backend.services import config as cfg
-    logging.getLogger(__name__)
-
-    guid_str = str(invoice_guid)
-    invoice = db._execute_query("""
-        SELECT invoice.*, buyer.name AS buyer_name, seller.name AS seller_name
-        FROM public.bkav_invoices invoice
-        LEFT JOIN public.invoice_companies buyer ON buyer.id = invoice.buyer_company_id
-        LEFT JOIN public.invoice_companies seller ON seller.id = invoice.seller_company_id
-        WHERE invoice.invoice_guid = %s
-    """, (guid_str,), fetch=True, commit=False)
-
-    if not invoice:
-        return False, "Không tìm thấy thông tin hóa đơn."
-
-    # 1. Ảnh hóa đơn BKAV
-    valid_image_path = ""
-    if image_path and Path(image_path).exists() and Path(image_path).is_file():
-        valid_image_path = str(Path(image_path).resolve())
-    else:
-        from frontend.modules.invoices.bkav_sync import get_or_fetch_bkav_invoice_files
-        png_path, _ = await asyncio.to_thread(get_or_fetch_bkav_invoice_files, guid_str)
-        if png_path and png_path.exists():
-            valid_image_path = str(png_path.resolve())
-
-    # 2. Ảnh QR chuyển khoản thanh toán & Thông tin chuyển khoản
-    valid_qr_path = ""
-    transfer_text = ""
-    seller = get_company(invoice.get("seller_company_id"))
-    seller_name = seller.get("name") if seller else (invoice.get("seller_name") or "")
-
-    if seller and seller.get("bank_account") and seller.get("bank_name"):
-        bank_name = str(seller["bank_name"]).strip()
-        account_no = str(seller["bank_account"]).strip()
-        account_holder = str(seller.get("name") or "").strip()
-        amount = (int(round(float(invoice["debt_amount"])))
-                  if invoice.get("payment_status") == "debt" and invoice.get("debt_amount")
-                  else int(round(float(invoice.get("gross") or 0))))
-        num = int(invoice["invoice_number"]) if invoice.get("invoice_number") else 0
-        info = f"HD {num:08d}" if num else (invoice.get("invoice_serial") or "Thanh toan hoa don")
-        amount_str = f"{amount:,.0f}".replace(",", ".") + " đ" if amount > 0 else "Theo hóa đơn"
-
-        transfer_text = (
-            f"💳 THÔNG TIN CHUYỂN KHOẢN:\n"
-            f"• Ngân hàng: {bank_name}\n"
-            f"• Số tài khoản: {account_no}\n"
-            f"• Chủ tài khoản: {account_holder}\n"
-            f"• Số tiền: {amount_str}\n"
-            f"• Nội dung CK: {info}"
-        )
-
-        bank_code = BANK_CODE_MAP.get(bank_name.upper(), bank_name.upper())
-        params = {
-            "amount": str(amount),
-            "addInfo": info,
-            "accountName": _remove_accents(account_holder).upper(),
-        }
-        qr_url = f"https://img.vietqr.io/image/{bank_code}-{account_no}-compact2.png?{urllib.parse.urlencode(params)}"
-        # Tên file có số tiền: sửa cước sau khi đã tạo QR thì phải tạo QR mới, không dùng lại ảnh cũ.
-        qr_file = Path(cfg.BKAV_INVOICE_DIR) / f"{guid_str}_qr_{amount}.png"
-
-        if not qr_file.exists():
-            qr_file.parent.mkdir(parents=True, exist_ok=True)
-            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                qr_resp = await client.get(qr_url)
-            if qr_resp.status_code == 200:
-                if b"<svg" in qr_resp.content[:100]:
-                    doc = fitz.open(stream=qr_resp.content, filetype="svg")
-                    pix = doc[0].get_pixmap(dpi=150)
-                    qr_file.write_bytes(pix.tobytes("png"))
-                else:
-                    qr_file.write_bytes(qr_resp.content)
-        if qr_file.exists():
-            valid_qr_path = str(qr_file.resolve())
-
-    images_to_send = [p for p in (valid_image_path, valid_qr_path) if p]
-    if not images_to_send:
-        return False, "Không tìm thấy ảnh hóa đơn hoặc ảnh QR để gửi."
-
-    port = ensure_zalo_bridge()
-    if not port:
-        return False, "Cầu nối Zalo chưa sẵn sàng. Hãy kiểm tra kết nối tài khoản Zalo."
-
-    secret = bridge_secret()
-    payload = {
-        "text": transfer_text,
-        "images": images_to_send,
-        "company_id": invoice.get("seller_company_id"),
-        "company_name": seller_name,
-    }
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"http://127.0.0.1:{port}/send-invoice-notice",
-            headers={"X-Zalo-Bridge-Secret": secret},
-            json=payload,
-        )
-    if resp.status_code == 200 and resp.json().get("ok") is True:
-        cname = seller_name or "công ty"
-        return True, f"Đã gửi ảnh hóa đơn, mã QR và thông tin chuyển khoản vào nhóm Zalo {cname} thành công!"
-    err = resp.json().get("error") if resp.headers.get("content-type", "").startswith("application/json") else resp.text
-    return False, f"Cầu nối Zalo phản hồi lỗi: {err or resp.status_code}"
-
 
 
 async def _bridge_post(path: str, payload: dict, timeout: float = 30) -> dict:

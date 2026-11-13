@@ -883,102 +883,98 @@ async function fetchAndRenderLedger(code, dateFrom, dateTo) {
   titleEl.innerHTML = '<i class="bx bx-book-open mr-2"></i>SỔ TỔNG HỢP / CHI TIẾT TÀI KHOẢN ' + code;
   subtitleEl.textContent = 'Đang tải dữ liệu hạch toán...';
 
-  try {
-    const url = `/admin/transport/trial-balance/api/ledger?code=${encodeURIComponent(code)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
-    const resp = await fetch(url);
-    const data = await resp.json();
-
-    if (!resp.ok || !data.ok) {
-      throw new Error(data.message || 'Không thể lấy dữ liệu sổ');
-    }
-
-    const ledger = data.ledger;
-    titleEl.innerHTML = '<i class="bx bx-book-open mr-2"></i>' + ledger.title;
-    subtitleEl.textContent = `Tài khoản: ${ledger.account_code} - ${ledger.account_name}; ${ledger.date_str}`;
-
-    // External link button
-    if (ledger.external_link) {
-      extBtn.href = ledger.external_link;
-      extLabel.textContent = ledger.external_label || 'Mở phân hệ liên quan';
-      extBtn.classList.remove('d-none');
-    } else {
-      extBtn.classList.add('d-none');
-    }
-
-    // Render items table (Ảnh 2 FAST/MISA)
-    itemsBody.innerHTML = '';
-    if (ledger.items && ledger.items.length > 0) {
-      ledger.items.forEach(it => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="font-weight-bold text-center text-primary" style="font-family:monospace;">${it.code}</td>
-          <td class="text-left font-weight-medium text-dark">${it.name}</td>
-          <td class="text-center font-weight-bold text-secondary" style="font-family:monospace;">${it.account_code}</td>
-          <td class="tb-money">${fmtVND(it.open_dr)}</td>
-          <td class="tb-money">${fmtVND(it.open_cr)}</td>
-          <td class="tb-money font-weight-bold">${fmtVND(it.ps_dr)}</td>
-          <td class="tb-money font-weight-bold">${fmtVND(it.ps_cr)}</td>
-          <td class="tb-money font-weight-bold text-success">${fmtVND(it.close_dr)}</td>
-          <td class="tb-money font-weight-bold text-success">${fmtVND(it.close_cr)}</td>
-        `;
-        itemsBody.appendChild(tr);
-      });
-    } else {
-      itemsBody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">Không có phát sinh đối tượng trong kỳ này.</td></tr>';
-    }
-
-    // Update Footers
-    const t = ledger.totals;
-    document.getElementById('ledgerFooterSummaryText').textContent = `Tổng cộng (${t.count} dòng)`;
-    document.getElementById('ledgerFootOpenDr').textContent = fmtVND(t.open_dr);
-    document.getElementById('ledgerFootOpenCr').textContent = fmtVND(t.open_cr);
-    document.getElementById('ledgerFootPsDr').textContent = fmtVND(t.ps_dr);
-    document.getElementById('ledgerFootPsCr').textContent = fmtVND(t.ps_cr);
-
-    // Đối với các sổ theo dõi quỹ có số dư chạy lũy kế (như TK 111, 112):
-    // Số dư cuối kỳ ở dòng Tổng cộng phải bằng chính xác số dư dòng cuối cùng ngay phía trên nó, không cộng dồn
-    let footCloseDr = t.close_dr;
-    let footCloseCr = t.close_cr;
-    if (ledger.items && ledger.items.length > 0 && (ledger.account_code.startsWith('111') || ledger.account_code.startsWith('112'))) {
-      const lastRow = ledger.items[ledger.items.length - 1];
-      footCloseDr = lastRow.close_dr;
-      footCloseCr = lastRow.close_cr;
-    }
-    document.getElementById('ledgerFootCloseDr').textContent = fmtVND(footCloseDr);
-    document.getElementById('ledgerFootCloseCr').textContent = fmtVND(footCloseCr);
-
-    // Render Transactions (Tab 2)
-    txBody.innerHTML = '';
-    const txs = ledger.transactions || [];
-    document.getElementById('ledgerTxCountBadge').textContent = txs.length;
-    if (txs.length > 0) {
-      txs.forEach(tx => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="text-center text-nowrap">${tx.date}</td>
-          <td class="text-center font-weight-bold text-primary" style="font-family:monospace;">${tx.number}</td>
-          <td class="text-center text-muted" style="font-family:monospace;">${tx.serial}</td>
-          <td class="text-left font-weight-medium">${tx.partner || '—'}</td>
-          <td class="text-left text-muted small">${tx.description || '—'}</td>
-          <td class="text-center font-weight-bold text-danger">${tx.debit_acc}</td>
-          <td class="text-center font-weight-bold text-primary">${tx.credit_acc}</td>
-          <td class="tb-money font-weight-bold">${fmtVND(tx.amount)} đ</td>
-          <td class="text-center"><span class="badge badge-light border ${tx.status === 'Còn nợ' ? 'text-danger' : 'text-success'}">${tx.status}</span></td>
-          <td class="text-center">
-            ${tx.link ? `<a href="${tx.link}" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-1" title="Xem hóa đơn"><i class="bx bx-show"></i></a>` : '—'}
-          </td>
-        `;
-        txBody.appendChild(tr);
-      });
-    } else {
-      txBody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">Không có chi tiết chứng từ.</td></tr>';
-    }
-
-    loadingEl.classList.add('d-none');
-    contentEl.classList.remove('d-none');
-  } catch (err) {
-    loadingEl.innerHTML = `<div class="alert alert-danger mx-4 my-3"><i class="bx bx-error mr-1"></i>Lỗi tải dữ liệu sổ: ${err.message}</div>`;
+  const url = `/admin/transport/trial-balance/api/ledger?code=${encodeURIComponent(code)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`;
+  const data = await apiRequest(url);
+  if (!data.ok || !data.ledger) {
+    loadingEl.innerHTML = '<div class="alert alert-danger mx-4 my-3"><i class="bx bx-error mr-1"></i><span></span></div>';
+    loadingEl.querySelector('span').textContent = 'Lỗi tải dữ liệu sổ: ' + (data.message || 'Không thể lấy dữ liệu sổ');
+    return;
   }
+
+  const ledger = data.ledger;
+  titleEl.innerHTML = '<i class="bx bx-book-open mr-2"></i>' + ledger.title;
+  subtitleEl.textContent = `Tài khoản: ${ledger.account_code} - ${ledger.account_name}; ${ledger.date_str}`;
+
+  // External link button
+  if (ledger.external_link) {
+    extBtn.href = ledger.external_link;
+    extLabel.textContent = ledger.external_label || 'Mở phân hệ liên quan';
+    extBtn.classList.remove('d-none');
+  } else {
+    extBtn.classList.add('d-none');
+  }
+
+  // Render items table (Ảnh 2 FAST/MISA)
+  itemsBody.innerHTML = '';
+  if (ledger.items && ledger.items.length > 0) {
+    ledger.items.forEach(it => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="font-weight-bold text-center text-primary" style="font-family:monospace;">${it.code}</td>
+        <td class="text-left font-weight-medium text-dark">${it.name}</td>
+        <td class="text-center font-weight-bold text-secondary" style="font-family:monospace;">${it.account_code}</td>
+        <td class="tb-money">${fmtVND(it.open_dr)}</td>
+        <td class="tb-money">${fmtVND(it.open_cr)}</td>
+        <td class="tb-money font-weight-bold">${fmtVND(it.ps_dr)}</td>
+        <td class="tb-money font-weight-bold">${fmtVND(it.ps_cr)}</td>
+        <td class="tb-money font-weight-bold text-success">${fmtVND(it.close_dr)}</td>
+        <td class="tb-money font-weight-bold text-success">${fmtVND(it.close_cr)}</td>
+      `;
+      itemsBody.appendChild(tr);
+    });
+  } else {
+    itemsBody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">Không có phát sinh đối tượng trong kỳ này.</td></tr>';
+  }
+
+  // Update Footers
+  const t = ledger.totals;
+  document.getElementById('ledgerFooterSummaryText').textContent = `Tổng cộng (${t.count} dòng)`;
+  document.getElementById('ledgerFootOpenDr').textContent = fmtVND(t.open_dr);
+  document.getElementById('ledgerFootOpenCr').textContent = fmtVND(t.open_cr);
+  document.getElementById('ledgerFootPsDr').textContent = fmtVND(t.ps_dr);
+  document.getElementById('ledgerFootPsCr').textContent = fmtVND(t.ps_cr);
+
+  // Đối với các sổ theo dõi quỹ có số dư chạy lũy kế (như TK 111, 112):
+  // Số dư cuối kỳ ở dòng Tổng cộng phải bằng chính xác số dư dòng cuối cùng ngay phía trên nó, không cộng dồn
+  let footCloseDr = t.close_dr;
+  let footCloseCr = t.close_cr;
+  if (ledger.items && ledger.items.length > 0 && (ledger.account_code.startsWith('111') || ledger.account_code.startsWith('112'))) {
+    const lastRow = ledger.items[ledger.items.length - 1];
+    footCloseDr = lastRow.close_dr;
+    footCloseCr = lastRow.close_cr;
+  }
+  document.getElementById('ledgerFootCloseDr').textContent = fmtVND(footCloseDr);
+  document.getElementById('ledgerFootCloseCr').textContent = fmtVND(footCloseCr);
+
+  // Render Transactions (Tab 2)
+  txBody.innerHTML = '';
+  const txs = ledger.transactions || [];
+  document.getElementById('ledgerTxCountBadge').textContent = txs.length;
+  if (txs.length > 0) {
+    txs.forEach(tx => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center text-nowrap">${tx.date}</td>
+        <td class="text-center font-weight-bold text-primary" style="font-family:monospace;">${tx.number}</td>
+        <td class="text-center text-muted" style="font-family:monospace;">${tx.serial}</td>
+        <td class="text-left font-weight-medium">${tx.partner || '—'}</td>
+        <td class="text-left text-muted small">${tx.description || '—'}</td>
+        <td class="text-center font-weight-bold text-danger">${tx.debit_acc}</td>
+        <td class="text-center font-weight-bold text-primary">${tx.credit_acc}</td>
+        <td class="tb-money font-weight-bold">${fmtVND(tx.amount)} đ</td>
+        <td class="text-center"><span class="badge badge-light border ${tx.status === 'Còn nợ' ? 'text-danger' : 'text-success'}">${tx.status}</span></td>
+        <td class="text-center">
+          ${tx.link ? `<a href="${tx.link}" target="_blank" class="btn btn-xs btn-outline-primary py-0 px-1" title="Xem hóa đơn"><i class="bx bx-show"></i></a>` : '—'}
+        </td>
+      `;
+      txBody.appendChild(tr);
+    });
+  } else {
+    txBody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">Không có chi tiết chứng từ.</td></tr>';
+  }
+
+  loadingEl.classList.add('d-none');
+  contentEl.classList.remove('d-none');
 }
 
 function exportCurrentLedgerExcel() {
@@ -1002,19 +998,17 @@ async function submitAddAccount(e) {
 
   const formData = new FormData(form);
   try {
-    const res = await fetch('/admin/transport/trial-balance/accounts/add', {
+    const data = await apiRequest('/admin/transport/trial-balance/accounts/add', {
       method: 'POST',
       body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi thêm tài khoản');
-    if (window.toastr) toastr.success(data.message || 'Đã thêm tài khoản thành công.');
+    if (!data.ok) {
+      window.showNotify(data.message || 'Lỗi thêm tài khoản', 'error');
+      return;
+    }
+    window.showNotify(data.message || 'Đã thêm tài khoản thành công.', 'success');
     $('#modalAddAccount').modal('hide');
     setTimeout(() => window.location.reload(), 600);
-  } catch (err) {
-    if (window.toastr) toastr.error(err.message);
-    else alert(err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu tài khoản';
@@ -1040,19 +1034,17 @@ async function submitEditAccount(e) {
 
   const formData = new FormData(form);
   try {
-    const res = await fetch(`/admin/transport/trial-balance/accounts/${encodeURIComponent(code)}/edit`, {
+    const data = await apiRequest(`/admin/transport/trial-balance/accounts/${encodeURIComponent(code)}/edit`, {
       method: 'POST',
       body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi sửa tài khoản');
-    if (window.toastr) toastr.success(data.message || 'Đã cập nhật tài khoản thành công.');
+    if (!data.ok) {
+      window.showNotify(data.message || 'Lỗi sửa tài khoản', 'error');
+      return;
+    }
+    window.showNotify(data.message || 'Đã cập nhật tài khoản thành công.', 'success');
     $('#modalEditAccount').modal('hide');
     setTimeout(() => window.location.reload(), 600);
-  } catch (err) {
-    if (window.toastr) toastr.error(err.message);
-    else alert(err.message);
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bx bx-check mr-1"></i>Cập nhật';
@@ -1061,19 +1053,15 @@ async function submitEditAccount(e) {
 
 async function deleteCustomAccount(code) {
   if (!confirm(`Bạn có chắc muốn xóa tài khoản ${code} khỏi Bảng cân đối?`)) return;
-  try {
-    const res = await fetch(`/admin/transport/trial-balance/accounts/${encodeURIComponent(code)}/delete`, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi xóa tài khoản');
-    if (window.toastr) toastr.success(data.message || 'Đã xóa tài khoản thành công.');
-    setTimeout(() => window.location.reload(), 600);
-  } catch (err) {
-    if (window.toastr) toastr.error(err.message);
-    else alert(err.message);
+  const data = await apiRequest(`/admin/transport/trial-balance/accounts/${encodeURIComponent(code)}/delete`, {
+    method: 'POST',
+  });
+  if (!data.ok) {
+    window.showNotify(data.message || 'Lỗi xóa tài khoản', 'error');
+    return;
   }
+  window.showNotify(data.message || 'Đã xóa tài khoản thành công.', 'success');
+  setTimeout(() => window.location.reload(), 600);
 }
 </script>
 {% endblock %}

@@ -397,41 +397,29 @@ async function submitVoucherForm(e) {
     ? `${VOUCHER_API_BASE}/${voucherId}/update`
     : `${VOUCHER_API_BASE}/${VOUCHER_KIND}/add`;
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      body: formData,
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể lưu chứng từ'));
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    saveBtn.disabled = false;
-    saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
+  const data = await apiRequest(url, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    window.location.reload();
+    return;
   }
+  window.showNotify(data.message || 'Không thể lưu chứng từ', 'error');
+  saveBtn.disabled = false;
+  saveBtn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu';
 }
 
 async function deleteVoucher(id) {
   if (!confirm('Xoá chứng từ này?')) return;
 
-  try {
-    const res = await fetch(`${VOUCHER_API_BASE}/${id}/delete`, {
-      method: 'POST',
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể xoá chứng từ'));
-    }
-  } catch (err) {
-    alert('Lỗi kết nối: ' + err.message);
+  const data = await apiRequest(`${VOUCHER_API_BASE}/${id}/delete`, {
+    method: 'POST',
+  });
+  if (data.ok) {
+    window.location.reload();
+    return;
   }
+  window.showNotify(data.message || 'Không thể xoá chứng từ', 'error');
 }
 </script>

@@ -16,9 +16,9 @@
 {% if service.hero_image %}
 <meta property="og:image" content="{{ request.base_url }}{{ service.hero_image.lstrip('/') }}">
 {% elif service_slug == 'van-chuyen-qua-can' %}
-<meta property="og:image" content="{{ request.base_url }}static/services/crane/img/weights_truck_scale_outdoor.jpg">
+<meta property="og:image" content="{{ request.base_url }}upload/services/crane/img/weights_truck_scale_outdoor.jpg">
 {% elif not service.hero_icon %}
-<meta property="og:image" content="{{ request.base_url }}static/services/crane/img/crane_hero_yard.jpg">
+<meta property="og:image" content="{{ request.base_url }}upload/services/crane/img/crane_hero_yard.jpg">
 {% endif %}
 <meta property="og:url" content="{{ meta.canonical_url }}">
 {% endblock %}
@@ -94,7 +94,7 @@
           </div>
           {% else %}
           <div class="relative h-[250px] sm:h-[290px]">
-            <img src="{{ '/static/services/crane/img/weights_truck_scale_outdoor.jpg' if service_slug == 'van-chuyen-qua-can' else '/static/services/crane/img/crane_hero_yard.jpg' }}" 
+            <img src="{{ '/upload/services/crane/img/weights_truck_scale_outdoor.jpg' if service_slug == 'van-chuyen-qua-can' else '/upload/services/crane/img/crane_hero_yard.jpg' }}" 
                  alt="{{ meta.h1 }}" 
                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/20 to-transparent"></div>

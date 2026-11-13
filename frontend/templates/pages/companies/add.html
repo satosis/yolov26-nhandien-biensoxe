@@ -196,12 +196,6 @@
 {% block scripts %}
 <script src="/static/admin-assets/js/company-form.js?v=20261104-1"></script>
 <script>
-{% if message or error %}
-window.dispatchEvent(new CustomEvent('showToast', {
-  detail: {msg: {{ (error or message)|tojson }}, type: {{ ('error' if error else 'success')|tojson }}}
-}));
-{% endif %}
-
 function clearLookupMessage() {
   document.getElementById('lookup-message').textContent = '';
 }

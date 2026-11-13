@@ -335,21 +335,16 @@ async function saveDetails() {
     });
   });
 
-  try {
-    var res = await fetch('/admin/enterprise/partner-trades/entries/{{ entry.id }}/details', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lines: lines })
-    });
-    var data = await res.json();
-    if (res.ok && data.ok) {
-      window.showNotify('Đã lưu.', 'success');
-      setTimeout(function() { window.location.reload(); }, 300);
-    } else {
-      window.showNotify((data && data.message) || 'Lỗi khi lưu chi tiết.', 'error');
-    }
-  } catch (e) {
-    window.showNotify('Lỗi kết nối máy chủ.', 'error');
+  var data = await apiRequest('/admin/enterprise/partner-trades/entries/{{ entry.id }}/details', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lines: lines })
+  });
+  if (data.ok) {
+    window.showNotify('Đã lưu.', 'success');
+    setTimeout(function() { window.location.reload(); }, 300);
+  } else {
+    window.showNotify(data.message || 'Lỗi khi lưu chi tiết.', 'error');
   }
 }
 </script>

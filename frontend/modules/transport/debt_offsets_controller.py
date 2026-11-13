@@ -69,7 +69,7 @@ async def create_debt_offset(
     user: dict,
 ):
     cid = get_current_company_id()
-    created_by = user.get("id") if isinstance(user, dict) else None
+    created_by = user.get("id")
 
     ok, msg = create_offset(
         company_id=cid,

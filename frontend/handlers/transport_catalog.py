@@ -12,7 +12,7 @@ async def cargo_catalog_page(
     role_filter: str = Query('all'),
     back: str = Query('/admin/vehicles'),
     page: int = Query(1, ge=1),
-    q: str = Query('', max_length=200),
+    q: str = Query(''),
     debt: str = Query(''),
     message: str = Query(''),
     error: str = Query(''),

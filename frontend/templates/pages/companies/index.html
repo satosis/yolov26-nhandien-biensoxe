@@ -282,27 +282,6 @@
 
 <script src="/static/admin-assets/js/admin-inputs.js?v=20261104-1"></script>
 <script>
-function showNotify(msg, type = 'success') {
-  if (window.toastr) {
-    if (type === 'error') toastr.error(msg);
-    else if (type === 'warning') toastr.warning(msg);
-    else toastr.success(msg);
-  } else {
-    console.log('[' + type + ']', msg);
-  }
-  window.dispatchEvent(new CustomEvent('showToast', {
-    detail: { msg: msg, type: type }
-  }));
-}
-
-{% if error or message %}
-showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-const compUrl = new URL(window.location.href);
-compUrl.searchParams.delete('message');
-compUrl.searchParams.delete('error');
-window.history.replaceState(null, '', compUrl.pathname + compUrl.search + compUrl.hash);
-{% endif %}
-
 async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
   const tableArea = document.getElementById('catalog-table-area');
   const spinner = document.getElementById('catalog-search-spinner');
@@ -468,23 +447,13 @@ async function confirmBulkDeleteCompanies() {
   }
   if (!confirm(`Bạn có chắc muốn xóa ${ids.length} công ty đã chọn?`)) return;
 
-  try {
-    const res = await fetch('/admin/companies/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body: JSON.stringify({ ids: ids })
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify(data.message || 'Đã xóa các đơn vị thành công.', 'success');
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Có lỗi xảy ra khi xóa.', 'error');
-      reloadCatalogTableAjax();
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối máy chủ: ' + err.message, 'error');
-  }
+  const data = await apiRequest('/admin/companies/bulk-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: ids })
+  });
+  showNotify(data.message || (data.ok ? 'Đã xóa các đơn vị thành công.' : 'Có lỗi xảy ra khi xóa.'), data.ok ? 'success' : 'error');
+  reloadCatalogTableAjax();
 }
 
 async function confirmBulkRefreshTax() {
@@ -501,21 +470,13 @@ async function confirmBulkRefreshTax() {
   }
 
   try {
-    const res = await fetch('/admin/companies/bulk-refresh', {
+    const data = await apiRequest('/admin/companies/bulk-refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: ids })
     });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify(data.message || 'Cập nhật từ MST thành công.', 'success');
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Có lỗi xảy ra khi cập nhật.', 'error');
-      reloadCatalogTableAjax();
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối máy chủ: ' + err.message, 'error');
+    showNotify(data.message || (data.ok ? 'Cập nhật từ MST thành công.' : 'Có lỗi xảy ra khi cập nhật.'), data.ok ? 'success' : 'error');
+    reloadCatalogTableAjax();
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -529,19 +490,15 @@ async function refreshCatalogCompany(btn, companyId) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Đang cập nhật...';
   try {
-    const response = await fetch(`/admin/companies/${companyId}/refresh`, {
+    const data = await apiRequest(`/admin/companies/${companyId}/refresh`, {
       method: 'POST',
-      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
     });
-    const data = await response.json();
-    if (response.ok && data.ok) {
+    if (data.ok) {
       showNotify(data.message || 'Đã cập nhật thông tin đơn vị.', 'success');
       reloadCatalogTableAjax();
     } else {
       showNotify(data.message || 'Không thể cập nhật từ MST.', 'error');
     }
-  } catch (err) {
-    showNotify('Lỗi kết nối khi cập nhật MST: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = origHtml;
@@ -558,20 +515,16 @@ function deleteCatalogCompany(event, companyId, companyName) {
     confirmBtn.disabled = true;
     confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Đang xóa...';
     try {
-      const response = await fetch(`/admin/companies/${companyId}/delete`, {
+      const data = await apiRequest(`/admin/companies/${companyId}/delete`, {
         method: 'POST',
-        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
       });
-      const data = await response.json();
-      if (response.ok && data.ok) {
+      if (data.ok) {
         $('#companyDeleteModal').modal('hide');
         showNotify(data.message || 'Đã xóa công ty.', 'success');
         reloadCatalogTableAjax();
       } else {
         showNotify(data.message || 'Không thể xóa công ty.', 'error');
       }
-    } catch (err) {
-      showNotify('Lỗi kết nối khi xóa: ' + err.message, 'error');
     } finally {
       confirmBtn.disabled = false;
       confirmBtn.innerHTML = '<i class="bx bx-trash mr-1"></i> Xác nhận xóa';
@@ -598,26 +551,16 @@ async function submitPayDebtAjax(event, form, companyName, maxDebt) {
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
   }
 
-  try {
-    const formData = new FormData(form);
-    const resp = await fetch(form.action, {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-    });
-    const data = await resp.json();
-    if (resp.ok && data.ok) {
-      showNotify(data.message || 'Đã ghi nhận thanh toán công nợ.', 'success');
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Không thể thanh toán công nợ.', 'error');
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = origBtnText;
-      }
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối khi thanh toán: ' + err.message, 'error');
+  const formData = new FormData(form);
+  const data = await apiRequest(form.action, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    showNotify(data.message || 'Đã ghi nhận thanh toán công nợ.', 'success');
+    reloadCatalogTableAjax();
+  } else {
+    showNotify(data.message || 'Không thể thanh toán công nợ.', 'error');
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = origBtnText;
@@ -659,55 +602,48 @@ async function loadDebtLedgerHistory(companyId) {
   const tbody = document.getElementById('debtHistoryBody');
   tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm mr-1"></span> Đang tải lịch sử công nợ...</td></tr>';
 
-  try {
-    const resp = await fetch(`/admin/companies/${companyId}/debts`, {
-      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) {
-      tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-danger">${data.message || 'Lỗi tải sổ nợ'}</td></tr>`;
-      return;
-    }
-
-    document.getElementById('debtModalBalance').textContent = data.company.current_debt_fmt;
-
-    if (!data.logs || data.logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bản ghi biến động công nợ nào.</td></tr>';
-      return;
-    }
-
-    let html = '';
-    data.logs.forEach((log, idx) => {
-      const isPos = log.is_increase;
-      const amountClass = isPos ? 'text-danger font-weight-bold' : 'text-success font-weight-bold';
-      const sign = isPos ? '+' : '-';
-      const typeBadge = isPos 
-        ? '<span class="badge badge-soft-danger px-2 py-1"><i class="bx bx-plus mr-1"></i>' + (log.type_label || 'Ghi nợ') + '</span>'
-        : '<span class="badge badge-soft-success px-2 py-1"><i class="bx bx-check mr-1"></i>' + (log.type_label || 'Thanh toán') + '</span>';
-
-      html += `<tr>
-        <td class="text-center text-muted font-weight-medium align-middle">${idx + 1}</td>
-        <td class="align-middle text-muted small">${log.recorded_date_str || ''}</td>
-        <td class="align-middle">${typeBadge}</td>
-        <td class="align-middle text-right ${amountClass}">${sign}${log.amount_fmt}</td>
-        <td class="align-middle small">
-          ${log.note ? `<div class="font-weight-medium">${log.note}</div>` : ''}
-          ${log.reference_doc ? `<div class="text-muted font-size-11">CT/HĐ: <code>${log.reference_doc}</code></div>` : ''}
-        </td>
-        <td class="align-middle small text-muted">${log.creator_name || '--'}</td>
-        <td class="align-middle text-center">
-          ${log.debt_type !== 'initial' ? `
-            <button type="button" class="btn btn-link btn-sm text-danger p-0" title="Xóa bản ghi này" onclick="deleteDebtLogAjax(${log.id})">
-              <i class="bx bx-trash"></i>
-            </button>
-          ` : ''}
-        </td>
-      </tr>`;
-    });
-    tbody.innerHTML = html;
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-3 text-danger">Lỗi kết nối: ${err.message}</td></tr>`;
+  const data = await apiRequest(`/admin/companies/${companyId}/debts`);
+  if (!data.ok) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-3 text-danger">${data.message || 'Lỗi tải sổ nợ'}</td></tr>`;
+    return;
   }
+
+  document.getElementById('debtModalBalance').textContent = data.company.current_debt_fmt;
+
+  if (!data.logs || data.logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bản ghi biến động công nợ nào.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  data.logs.forEach((log, idx) => {
+    const isPos = log.is_increase;
+    const amountClass = isPos ? 'text-danger font-weight-bold' : 'text-success font-weight-bold';
+    const sign = isPos ? '+' : '-';
+    const typeBadge = isPos 
+      ? '<span class="badge badge-soft-danger px-2 py-1"><i class="bx bx-plus mr-1"></i>' + (log.type_label || 'Ghi nợ') + '</span>'
+      : '<span class="badge badge-soft-success px-2 py-1"><i class="bx bx-check mr-1"></i>' + (log.type_label || 'Thanh toán') + '</span>';
+
+    html += `<tr>
+      <td class="text-center text-muted font-weight-medium align-middle">${idx + 1}</td>
+      <td class="align-middle text-muted small">${log.recorded_date_str || ''}</td>
+      <td class="align-middle">${typeBadge}</td>
+      <td class="align-middle text-right ${amountClass}">${sign}${log.amount_fmt}</td>
+      <td class="align-middle small">
+        ${log.note ? `<div class="font-weight-medium">${log.note}</div>` : ''}
+        ${log.reference_doc ? `<div class="text-muted font-size-11">CT/HĐ: <code>${log.reference_doc}</code></div>` : ''}
+      </td>
+      <td class="align-middle small text-muted">${log.creator_name || '--'}</td>
+      <td class="align-middle text-center">
+        ${log.debt_type !== 'initial' ? `
+          <button type="button" class="btn btn-link btn-sm text-danger p-0" title="Xóa bản ghi này" onclick="deleteDebtLogAjax(${log.id})">
+            <i class="bx bx-trash"></i>
+          </button>
+        ` : ''}
+      </td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
 }
 
 async function submitAddDebtModal(event) {
@@ -716,24 +652,18 @@ async function submitAddDebtModal(event) {
   const companyId = document.getElementById('addDebtCompanyId').value;
   const formData = new FormData(form);
 
-  try {
-    const resp = await fetch(`/admin/companies/${companyId}/add-debt`, {
-      method: 'POST',
-      body: formData,
-      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await resp.json();
-    if (resp.ok && data.ok) {
-      showNotify(data.message || 'Đã ghi nhận nợ ngoài thành công.', 'success');
-      form.reset();
-      document.getElementById('debtActionAddCard').style.display = 'none';
-      loadDebtLedgerHistory(companyId);
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Lỗi ghi nhận nợ.', 'error');
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối: ' + err.message, 'error');
+  const data = await apiRequest(`/admin/companies/${companyId}/add-debt`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    showNotify(data.message || 'Đã ghi nhận nợ ngoài thành công.', 'success');
+    form.reset();
+    document.getElementById('debtActionAddCard').style.display = 'none';
+    loadDebtLedgerHistory(companyId);
+    reloadCatalogTableAjax();
+  } else {
+    showNotify(data.message || 'Lỗi ghi nhận nợ.', 'error');
   }
   return false;
 }
@@ -744,47 +674,35 @@ async function submitPayDebtModal(event) {
   const companyId = document.getElementById('payDebtCompanyId').value;
   const formData = new FormData(form);
 
-  try {
-    const resp = await fetch(`/admin/companies/${companyId}/pay-debt`, {
-      method: 'POST',
-      body: formData,
-      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await resp.json();
-    if (resp.ok && data.ok) {
-      showNotify(data.message || 'Đã trừ nợ thành công.', 'success');
-      form.reset();
-      document.getElementById('debtActionPayCard').style.display = 'none';
-      loadDebtLedgerHistory(companyId);
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Lỗi trừ nợ.', 'error');
-    }
-  } catch (err) {
-    showNotify('Lỗi kết nối: ' + err.message, 'error');
+  const data = await apiRequest(`/admin/companies/${companyId}/pay-debt`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.ok) {
+    showNotify(data.message || 'Đã trừ nợ thành công.', 'success');
+    form.reset();
+    document.getElementById('debtActionPayCard').style.display = 'none';
+    loadDebtLedgerHistory(companyId);
+    reloadCatalogTableAjax();
+  } else {
+    showNotify(data.message || 'Lỗi trừ nợ.', 'error');
   }
   return false;
 }
 
 async function deleteDebtLogAjax(logId) {
   if (!confirm('Bạn có chắc muốn xóa bản ghi này?')) return;
-  try {
-    const resp = await fetch(`/admin/companies/debts/${logId}/delete`, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await resp.json();
-    if (resp.ok && data.ok) {
-      showNotify(data.message || 'Đã xóa bản ghi công nợ.', 'success');
-      if (currentLedgerCompanyId) {
-        loadDebtLedgerHistory(currentLedgerCompanyId);
-      }
-      reloadCatalogTableAjax();
-    } else {
-      showNotify(data.message || 'Lỗi khi xóa.', 'error');
+  const data = await apiRequest(`/admin/companies/debts/${logId}/delete`, {
+    method: 'POST',
+  });
+  if (data.ok) {
+    showNotify(data.message || 'Đã xóa bản ghi công nợ.', 'success');
+    if (currentLedgerCompanyId) {
+      loadDebtLedgerHistory(currentLedgerCompanyId);
     }
-  } catch (err) {
-    showNotify('Lỗi kết nối: ' + err.message, 'error');
+    reloadCatalogTableAjax();
+  } else {
+    showNotify(data.message || 'Lỗi khi xóa.', 'error');
   }
 }
 </script>

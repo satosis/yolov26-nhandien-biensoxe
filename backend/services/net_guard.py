@@ -121,15 +121,6 @@ def install(allowed: set[tuple[str, int]], log_path: Path) -> None:
         _installed = True
 
 
-def uninstall() -> None:
-    global _installed
-    if _installed:
-        socket.socket.connect = _orig_connect
-        socket.create_connection = _orig_create_connection
-        socket.socketpair = _orig_socketpair
-        _installed = False
-
-
 def install_from_env() -> bool:
     if os.environ.get("EXTERNAL_DRY_RUN") != "1":
         return False

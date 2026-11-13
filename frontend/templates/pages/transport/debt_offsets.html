@@ -143,15 +143,13 @@ let debitTom = null;
 let creditTom = null;
 
 function initTomSelects() {
-  if (typeof TomSelect !== 'undefined') {
-    const debitEl = document.getElementById('debit_partner_id');
-    const creditEl = document.getElementById('credit_partner_id');
-    if (debitEl && !debitTom && !debitEl.tomselect) {
-      debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body'});
-    }
-    if (creditEl && !creditTom && !creditEl.tomselect) {
-      creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body'});
-    }
+  const debitEl = document.getElementById('debit_partner_id');
+  const creditEl = document.getElementById('credit_partner_id');
+  if (debitEl && !debitTom && !debitEl.tomselect) {
+    debitTom = new TomSelect(debitEl, {create: false, dropdownParent: 'body'});
+  }
+  if (creditEl && !creditTom && !creditEl.tomselect) {
+    creditTom = new TomSelect(creditEl, {create: false, dropdownParent: 'body'});
   }
 }
 
@@ -185,9 +183,6 @@ function openEditOffsetModal(btn) {
 
 document.addEventListener('DOMContentLoaded', function() {
   initTomSelects();
-  {% if error or message %}
-  window.showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-  {% endif %}
 });
 </script>
 {% endblock %}

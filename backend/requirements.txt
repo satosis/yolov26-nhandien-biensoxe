@@ -25,8 +25,6 @@ tinytuya
 opencv-python-headless==4.10.0.84
 insightface>=0.7.3
 onnxruntime>=1.18.0
-rapidocr-onnxruntime
+asterocr>=1.0.2
 
 PyMuPDF>=1.24.0
-vietocr
-huggingface_hub

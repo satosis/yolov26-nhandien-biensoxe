@@ -27,6 +27,7 @@ from backend.services.google_maps import (
 from frontend.context.company_context import company_context
 from frontend.formatting.money import MILLION_PRICE as _MILLION, million_price
 from frontend.formatting.text import fold_text
+from frontend.modules.invoices.export import CRANE_BY_SHIFT_SERVICE, same_place
 from frontend.modules.invoices.companies import lookup_tax_code, normalize_tax_code, save_company
 from frontend.modules.zalo.inbox import INBOX_DIR, get_message, list_messages, save_ocr_text
 from frontend.modules.transport.invoice_forms import liters_for_distance
@@ -149,15 +150,10 @@ def extract_matching_company(text: str, exclude_company_id: int | None = None) -
     return None
 
 
-@lru_cache(maxsize=1)
-def _ocr_engine():
-    from rapidocr_onnxruntime import RapidOCR
-    return RapidOCR()
-
-
 def read_image_text(path: Path) -> str:
     import cv2
     import numpy as np
+    from backend.util.ocr.aster_engine import get_aster_recognizer, read_document_text
 
     path_obj = Path(path)
     if not path_obj.is_file():
@@ -166,12 +162,7 @@ def read_image_text(path: Path) -> str:
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
         return ""
-    ocr = _ocr_engine()
-    result, _ = ocr(img)
-    if not result:
-        return ""
-    lines = [str(item[1]) for item in result if len(item) > 1 and item[1]]
-    return "\n".join(lines)
+    return read_document_text(img, get_aster_recognizer(), is_bgr=True)
 
 
 def _is_own_invoice_photo(ocr_text: str, owner_id: int | None) -> bool:
@@ -875,7 +866,8 @@ def _route_distances(pairs: list[tuple[str, str]]) -> list[float | None]:
 
 def _fill_distance_and_fuel(lines: list[dict], vehicles: list[dict]) -> None:
     """Like the invoice form: the km of each line, and from them the litres and cost of the fuel its vehicle burns."""
-    todo = [line for line in lines if line["origin"] and line["destination"] != _NO_DESTINATION]
+    todo = [line for line in lines if line["origin"] and line["destination"] != _NO_DESTINATION
+            and not same_place(line["origin"], line["destination"])]
     pairs = [(line["origin"], line["destination"]) for line in todo]
     price = None
     for line, km in zip(todo, _route_distances(pairs) if pairs else []):
@@ -908,9 +900,12 @@ def _split_priced_lines(message: dict) -> list[dict]:
     return [{**message, "text": trip} for trip in trips] if len(trips) > 1 else [message]
 
 
-# ", BSX: 19H-209.07" in an order: it says which vehicle carries the trip, it is not part of the invoice line
+# ", BSX: 19H-209.07" / ", BSX: chú Tư" in an order: it says which vehicle carries the trip, it is not part of the
+# invoice line
 _WRITTEN_PLATE = re.compile(
-    r"[,;]?\s*(?:(?:BSX|BKS|biển\s+số(?:\s+xe)?|bien\s+so(?:\s+xe)?|xe)\s*[:：]?\s*)?\b\d{2}\s*[A-Z]{1,2}\d?\s*-?\s*\d{3}\.?\d{2}\b",
+    r"[,;]?\s*(?:(?:BSX|BKS|biển\s+số(?:\s+xe)?|bien\s+so(?:\s+xe)?|xe)\s*[:：]?\s*)?\b\d{2}\s*[A-Z]{1,2}\d?\s*-?\s*\d{3}\.?\d{2}\b"
+    r"|[,;]?\s*(?:BSX|BKS|biển\s+số(?:\s+xe)?|bien\s+so(?:\s+xe)?)\s*[:：]?\s*"
+    r"(?:chú|chu|bác|bac|anh|em|ông|ong|bố|bo|mẹ|me)\b(?:\s+[^\W\d_]+)?",
     re.I)
 
 
@@ -1093,6 +1088,7 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
     waiting_place = ""
     last_place = ""  # the latest pin above the message being read: "đến vị trí trên" points at it
     last_route: tuple[str, str, bool] | None = None
+    last_written = ""  # the invoice line the order of last_route spells out, for a price sent after it
     for m in (part for message in messages for part in _split_priced_lines(message)):
         t = str(m.get("text") or "").strip()
         located = message_place(m, directory)
@@ -1108,6 +1104,7 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
         route = _LEG_ROUTE.search(t) or _LABELLED_ROUTE.search(t) or _WITHIN_ROUTE.search(t)
         if not pm and route:
             last_route = route_places(route)
+            last_written = _written_line(t)
         if pm:
             amt = float(million_price(pm))
             vehicle_nick, vehicle_id = named_vehicle(t)
@@ -1141,7 +1138,8 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
                 "vehicle_id": vehicle_id,
                 "sender": str(m.get("sender_name") or ""),
                 "document_route": document_route,
-                "written": _written_line(t),
+                # "3.500.000 chưa vat" answering an order above takes that order's own words
+                "written": _written_line(t) or (last_written if not route and not document_route else ""),
             })
             waiting_place = ""  # reset for next leg
     for leg in legs:  # a pin wins over the place written in the text
@@ -1232,8 +1230,10 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
         if leg["vat_included"]:  # the price is the amount to pay: the goods are worked back from it
             amt = float(leg["net"])
         leg_cargo = leg["cargo"] or cargo
-        route_words = f"trong {dest}" if leg_origin == dest else f"từ {leg_origin} đi {dest}"
-        desc = " ".join(part for part in (service, leg_cargo[:1].lower() + leg_cargo[1:], route_words) if part)  # "(Code: K2-04)" kept as written
+        crane_job = same_place(leg_origin, dest)  # điểm đi trùng điểm đến: ca cẩu
+        route_words = f"tại {dest}" if crane_job else f"từ {leg_origin} đi {dest}"
+        desc = " ".join(part for part in (CRANE_BY_SHIFT_SERVICE if crane_job else service,
+                                          leg_cargo[:1].lower() + leg_cargo[1:], route_words) if part)  # "(Code: K2-04)" kept as written
         if leg.get("document_route"):  # "Cước vận chuyển chặng Khai Quang - Phú Hà", as that invoice says
             desc = "Cước vận chuyển chặng {} - {}".format(*leg["document_route"])
         if leg.get("written"):  # the sender wrote the invoice line out: it goes in as written, its places normalized
@@ -1271,7 +1271,7 @@ def extract_multiline_invoice_data(messages: list[dict], seller_company_id: int 
         "buyer_name": buyer_name,
         "buyer_tax_code": buyer_tax,
         "invoice_date": date.today().isoformat(),
-        "service_name": service,
+        "service_name": CRANE_BY_SHIFT_SERVICE if lines and all(same_place(l["origin"], l["destination"]) for l in lines) else service,
         "vat_rate": vat_rate,
         "payment_method": "CK",
         "payment_status": "debt",
@@ -1475,12 +1475,12 @@ def finalize_invoice_session_sync(group_id: str) -> Optional[dict]:
         _ask_group(group_id, messages[0].get("company_id"),
                    f"🤖 Chưa lập được hóa đơn cho {buyer_name}: còn thiếu {', '.join(missing_for_invoice)}. "
                    "Anh/chị gửi bổ sung giúp.")
-    if lines and missing_places and not needs_vehicle:
-        # The places sent next open this order again, with its buyer and every message so far.
+    if (not lines or missing_places) and not needs_vehicle:
+        # The price or places sent next open this order again, with its buyer and every message so far.
         WAITING_DIR.mkdir(parents=True, exist_ok=True)
         (WAITING_DIR / f"{group_id}.json").write_text(json.dumps({
             "message_ids": message_ids, "last_message_at": time.time(), "asked_at": time.time(),
-            "matched_by": session.get("matched_by"),
+            "matched_by": session.get("matched_by"), "missing": "price" if not lines else "places",
             "buyer": {"id": session.get("company_id"), "name": session.get("company_name") or "",
                       "tax_code": session.get("tax_code") or "", "address": session.get("address") or ""},
         }, ensure_ascii=False), encoding="utf-8")
@@ -1659,6 +1659,11 @@ async def process_invoice_message_ingest(item: dict) -> None:
     text = str(item.get("text") or "").strip()
     if text.startswith(_BOT_NOTICE_MARKERS):
         return  # the system's own notice or question
+    from frontend.modules.zalo.company_card import fill_company_from_card
+    if _is_image_message(item) or _is_pdf_message(item):
+        await fill_company_from_card(item.get("ocr_text") or await asyncio.to_thread(_document_text, item))
+    elif text:
+        await fill_company_from_card(text)
     from frontend.modules.zalo.invoice_follow_up import handle_invoice_follow_up
     if text and not get_active_session(group_id) and await asyncio.to_thread(handle_invoice_follow_up, item):
         return  # a correction to the invoice already made from this group's orders
@@ -1695,8 +1700,7 @@ async def process_invoice_message_ingest(item: dict) -> None:
         saved_file = item.get("saved_file")
         image_path = INBOX_DIR / saved_file if saved_file else None
         if image_path:
-            ocr_text = await asyncio.to_thread(read_image_text, image_path)
-            save_ocr_text(item["id"], ocr_text)
+            ocr_text = item.get("ocr_text") or await asyncio.to_thread(_document_text, item)
             if await asyncio.to_thread(_is_own_invoice_photo, ocr_text, owner_id):
                 logger.info("Group %s: the photo is an invoice of the seller itself; no session opened.", group_id)
                 return
@@ -1716,13 +1720,17 @@ async def process_invoice_message_ingest(item: dict) -> None:
         # A name is weaker evidence than a tax code: it may open a session, never re-target one being collected.
         matched_company = extract_company_by_name(text, exclude_company_id=item.get("company_id"))
         matched_by = "name"
-    waiting_places = False
+    waiting_reply = False
     if not matched_company and not active_session:
         waiting = _read_waiting(group_id)
-        if (waiting.get("buyer") and not _MILLION.search(text)
-                and (_shares_pin(item) or _LEG_ROUTE.search(text) or _LABELLED_ROUTE.search(text))):
+        if waiting.get("missing") == "price":
+            answers = bool(_MILLION.search(text))
+        else:
+            answers = not _MILLION.search(text) and bool(
+                _shares_pin(item) or _LEG_ROUTE.search(text) or _LABELLED_ROUTE.search(text))
+        if waiting.get("buyer") and answers:
             matched_company, matched_by = waiting["buyer"], waiting.get("matched_by") or "tax_code"
-            waiting_places = True  # the places an order was waiting for: it goes on with the same buyer
+            waiting_reply = True  # the price or places an order was waiting for: it goes on with the same buyer
     now = time.time()
 
     if matched_company:
@@ -1732,7 +1740,7 @@ async def process_invoice_message_ingest(item: dict) -> None:
         else:
             carried = ((active_session.get("message_ids", []) if active_session else _preceding_places(item))
                        + document_ids + [item["id"]])
-        if not active_session and (waiting_places or not _read_waiting(group_id).get("buyer")):
+        if not active_session and (waiting_reply or not _read_waiting(group_id).get("buyer")):
             carried = _read_waiting(group_id).get("message_ids", []) + carried  # orders that waited for this tax code
         session = {
             "group_id": group_id,

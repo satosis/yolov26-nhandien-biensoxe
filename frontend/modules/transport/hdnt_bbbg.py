@@ -24,9 +24,11 @@ from docx.shared import Pt, Twips, Mm
 from html import escape
 from frontend.modules.gender_utils import split_rep_honorific, get_honorific
 from frontend.modules.transport.contract import (
+    default_contract_no,
     derive_company_code,
     _to_data_uri_if_local,
     _contract_bank_accounts,
+    _signature_print_width_mm,
 )
 from frontend.modules.invoices.companies import get_company_bank_accounts
 
@@ -198,15 +200,9 @@ def convert_docx_bytes_to_doc(docx_bytes: bytes) -> bytes:
             return f_out.read()
     finally:
         if in_path and os.path.exists(in_path):
-            try:
-                os.remove(in_path)
-            except Exception:
-                pass
+            os.remove(in_path)
         if out_path and os.path.exists(out_path):
-            try:
-                os.remove(out_path)
-            except Exception:
-                pass
+            os.remove(out_path)
         pythoncom.CoUninitialize()
 
 
@@ -233,7 +229,6 @@ def _populate_template(trip: dict, customer: dict, seller: dict | None = None) -
     day_str = f"{c_date.day:02d}"
     month_str = f"{c_date.month:02d}"
     year_str = str(c_date.year)
-    short_year = str(c_date.year)[-2:]
 
     customer_name = (customer.get("name") or "").strip()
     cust_code = derive_company_code(customer_name)
@@ -246,7 +241,7 @@ def _populate_template(trip: dict, customer: dict, seller: dict | None = None) -
         raise ValueError("Tên công ty bán/vận chuyển (Bên A) không được để trống trong cơ sở dữ liệu.")
 
     seller_code = derive_company_code(seller_name)
-    contract_no = trip.get("contract_no") or f"{day_str}{month_str}{short_year}/HĐNT/{cust_code}-{seller_code}"
+    contract_no = trip.get("contract_no") or default_contract_no((customer or {}).get("tax_code"), c_date, cust_code, seller_code)
 
     seller_rep = (seller.get("director_name") or "").strip()
     seller_pos = (seller.get("director_title") or "Giám đốc").strip()
@@ -605,8 +600,9 @@ def _insert_docx_sig(cell, sig_url: str = "", stamp_url: str = "", rep_name: str
 
     if valid_path:
         try:
+            actual_width = _signature_print_width_mm(active_url) if active_url else width_mm
             run = p.add_run()
-            run.add_picture(str(valid_path), width=Mm(width_mm))
+            run.add_picture(str(valid_path), width=Mm(actual_width))
         except Exception as exc:
             logger.warning("Failed to insert signature picture: %s", exc)
             p.paragraph_format.line_spacing = Pt(18)
@@ -701,16 +697,12 @@ def compute_contract_no(trip: dict, customer: dict, seller: dict | None = None) 
     else:
         c_date = date.today()
 
-    day_str = f"{c_date.day:02d}"
-    month_str = f"{c_date.month:02d}"
-    short_year = str(c_date.year)[-2:]
-
     customer_name = ((customer or {}).get("name") or "").strip()
     cust_code = derive_company_code(customer_name)
 
     seller_name = ((seller or {}).get("name") or "").strip()
     seller_code = derive_company_code(seller_name)
-    return f"{day_str}{month_str}{short_year}/HĐNT/{cust_code}-{seller_code}"
+    return default_contract_no((customer or {}).get("tax_code"), c_date, cust_code, seller_code)
 
 
 def _format_bank_lines(banks: list[dict]) -> str:
@@ -734,9 +726,11 @@ def _render_sig_box(rep_name: str, sig_url: str = "", stamp_url: str = "") -> st
 
     active_data = sig_data or stamp_data
     if active_data:
-        sig_space = f'<div style="height: 95px; display: flex; align-items: center; justify-content: center;"><img src="{active_data}" alt="Chữ ký / Con dấu" style="max-height: 90px; max-width: 180px; object-fit: contain;"></div>'
+        active_url = sig_url or stamp_url
+        width_mm = _signature_print_width_mm(active_url)
+        sig_space = f'<div style="height: 55mm; display: flex; align-items: center; justify-content: center;"><img src="{active_data}" alt="Chữ ký / Con dấu" style="width: {width_mm:g}mm; max-height: 58mm; object-fit: contain;"></div>'
     else:
-        sig_space = '<div style="height: 95px;"></div>'
+        sig_space = '<div style="height: 55mm;"></div>'
 
     rep_html = f'<div style="font-weight: bold; font-size: 11pt; margin-top: 4px;">{escape(rep_name)}</div>' if rep_name else '<div style="height: 18px;"></div>'
     return f'{sig_space}{rep_html}'
@@ -767,7 +761,6 @@ def render_hdnt_bbbg_html(
     day_str = f"{c_date.day:02d}"
     month_str = f"{c_date.month:02d}"
     year_str = str(c_date.year)
-    short_year = str(c_date.year)[-2:]
 
     customer_name = ((customer or {}).get("name") or "").strip()
     cust_code = derive_company_code(customer_name)
@@ -775,7 +768,7 @@ def render_hdnt_bbbg_html(
     seller = seller or {}
     seller_name = (seller.get("name") or "").strip()
     seller_code = derive_company_code(seller_name)
-    contract_no = trip.get("contract_no") or f"{day_str}{month_str}{short_year}/HĐNT/{cust_code}-{seller_code}"
+    contract_no = trip.get("contract_no") or default_contract_no((customer or {}).get("tax_code"), c_date, cust_code, seller_code)
 
     seller_rep = (seller.get("director_name") or "").strip()
     seller_pos = (seller.get("director_title") or "Giám đốc").strip()
@@ -1247,7 +1240,7 @@ def render_hdnt_bbbg_html(
     break-before: page;
   }}
   @media print {{
-    body {{
+    html, body {{
       background: #fff !important;
     }}
     .no-print {{

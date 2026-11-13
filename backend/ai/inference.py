@@ -15,7 +15,6 @@ from typing import Optional
 from backend.services import config as cfg
 from backend.util.image_utils import save_snapshot
 from backend.util.texture_utils import check_plate_authenticity
-from backend.util.bbox_utils import merge_plate_boxes
 
 # Submodule imports and re-exports
 from backend.ai.types import InferenceResult
@@ -23,15 +22,9 @@ from backend.ai.models import (
     PlateDetector,
     OCRReader,
     FaceRecognizer,
-    validate_plate_crop,
-    enhance_plate,
-    _face_embedding,
-    _face_bbox_in_frame,
-    _patch_e2e_loss,
-    _onnx_runtime_target,
-    _plate_ort_session_options,
 )
-from backend.ai.tracking import PlateVoter, PersonTrack, SimpleTracker
+from backend.ai.plate_analysis import PlateStream, detect_plate_regions, format_plate
+from backend.ai.tracking import PersonTrack, SimpleTracker
 
 logger = logging.getLogger("inference")
 
@@ -47,7 +40,8 @@ class InferenceWorker:
         self._ocr = None
         self._face_recog = None
 
-        self._voters: dict[str, PlateVoter] = {}
+        # Mỗi camera một luồng biển số dùng chung với trang Nhận diện (backend.ai.plate_analysis).
+        self._plate_streams: dict[str, dict] = {}
         self._shm_clients: dict[str, shared_memory.SharedMemory] = {}
         self._seen_plates: dict[str, float] = {}
 
@@ -130,6 +124,7 @@ class InferenceWorker:
             return
             
         logger.info("--- Idle Timeout: Releasing AI Models to free memory ---")
+        self._plate_streams.clear()
         self._plate_detector.close()
         self._plate_detector = None
         self._ocr = None
@@ -145,10 +140,58 @@ class InferenceWorker:
         self._check_async_tasks()
         logger.info("InferenceWorker cleanup complete")
 
-    def _get_voter(self, cam_id: str) -> PlateVoter:
-        if cam_id not in self._voters:
-            self._voters[cam_id] = PlateVoter(buffer_size=cfg.FRAME_BUFFER_SIZE)
-        return self._voters[cam_id]
+    def _submit_plate_step(self, cam_id: str, site_id, frame, ts: float, detections) -> None:
+        """Bước biển số chạy nền, mỗi camera tối đa một job, để OCR chậm không chặn vòng khung hình."""
+        state = self._plate_streams.get(cam_id)
+        if state is None:
+            state = self._plate_streams[cam_id] = {
+                "stream": PlateStream(self._plate_detector, self._ocr, "camera", normalize=cfg.normalize_plate),
+                "job": None,
+            }
+        if state["job"] is not None and not state["job"].done():
+            return
+        state["job"] = self._run_async(self._plate_step, state["stream"], cam_id, site_id, frame, ts, detections)
+
+    def _plate_step(self, stream: PlateStream, cam_id: str, site_id, frame, ts: float, detections) -> None:
+        _, active, expired = stream.step(frame, ts, detections=detections)
+        for event, final in [(event, False) for event in active] + [(event, True) for event in expired]:
+            meta = stream.track_meta.setdefault(event["track_id"], {})
+            # Chốt ngay khi track đủ phiếu, không chờ xe rời khung (xe đứng chờ barrier).
+            if event["status"] == "recognized" and event["text"] and not meta.get("acted"):
+                meta["acted"] = True
+                self._on_plate_recognized(event, cam_id, site_id, frame, final=final)
+        for event in expired:
+            stream.track_meta.pop(event["track_id"], None)
+
+    def _on_plate_recognized(self, event: dict, cam_id: str, site_id, frame, *, final: bool) -> None:
+        text = format_plate(event["text"])
+        crop = event.get("best_crop")
+        plate_type = "white"
+        if crop is not None:
+            plate_type = self._ocr._ocr.detect_plate_type(crop)
+            is_suspicious, susp_conf, reason = check_plate_authenticity(crop)
+            if is_suspicious:
+                logger.warning("SUSPICIOUS PLATE DETECTED on %s: %s (Reason: %s, Conf: %.2f)", cam_id, text, reason, susp_conf)
+        if (time.time() - self._seen_plates.get(text, 0)) <= 15:
+            return
+        self._seen_plates[text] = time.time()
+        if len(self._seen_plates) > 256:
+            _cut = time.time() - 60
+            self._seen_plates = {k: v for k, v in self._seen_plates.items() if v > _cut}
+        # Track đã kết thúc thì khung hiện tại không còn xe: lưu crop biển tốt nhất.
+        snapshot_path = save_snapshot(crop if final and crop is not None else frame, cam_id, text)
+        self._enqueue_recording_event({
+            "cam_id": cam_id,
+            "plate_text": text,
+            "ts": time.time(),
+            "event_type": "plate",
+            "site_id": site_id
+        })
+        normalized = cfg.normalize_plate(text)
+        self._record_vehicle_entry(normalized, "car", cam_id, snapshot_path, site_id)
+        if not self._is_plate_whitelisted(normalized, site_id):
+            logger.info(f"UNKNOWN PLATE DETECTED: {text}. Adding to pending list...")
+            self._add_pending_plate(normalized, text, cam_id, site_id, snapshot_path, plate_type)
 
     def _get_tracker(self, cam_id: str) -> SimpleTracker:
         if cam_id not in self._trackers:
@@ -229,16 +272,14 @@ class InferenceWorker:
                 result = InferenceResult(cam_id=cam_id, ts=ts)
                 result.annotated_frame = frame.copy()
 
-                detections = self._plate_detector.detect(frame)
-                detections = merge_plate_boxes(detections)
-                
+                # Phát hiện một lần (gộp biển 2 dòng), dùng chung cho người, cửa và luồng biển số.
+                detections = detect_plate_regions(self._plate_detector, frame)
+
                 person_dets = [d for d in detections if d[5] == 1]
                 other_dets = [d for d in detections if d[5] != 1]
                 
                 tracker = self._get_tracker(cam_id)
                 tracked_persons = tracker.update(person_dets)
-                
-                voter = self._get_voter(cam_id)
                 
                 for det, track in tracked_persons:
                     x1, y1, x2, y2, det_conf, _ = det
@@ -263,15 +304,6 @@ class InferenceWorker:
                 
                 for x1, y1, x2, y2, det_conf, cls_id in other_dets:
                     if cls_id == 0:
-                        h_frame, w_frame = frame.shape[:2]
-                        px = int((x2 - x1) * 0.15) + 10
-                        py = int((y2 - y1) * 0.15) + 5
-                        px1, py1 = max(0, x1 - px), max(0, y1 - py)
-                        px2, py2 = min(w_frame, x2 + px), min(h_frame, y2 + py)
-                        
-                        crop = frame[py1:py2, px1:px2].copy()
-                        if crop.size > 0:
-                            self._run_async(self._async_ocr, crop, voter, cam_id, result)
                         cv2.rectangle(result.annotated_frame, (x1, y1), (x2, y2), (255, 0, 255), 2)
                         cv2.putText(result.annotated_frame, "PLATE", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
                     elif cls_id == 2:
@@ -285,32 +317,7 @@ class InferenceWorker:
                         frame_height=frame.shape[0],
                     )
 
-                if voter.is_ready():
-                    best_text, best_conf = voter.best()
-                    voter.reset()
-                    if best_text:
-                        result.plate_text = best_text
-                        result.plate_conf = best_conf
-                        if (time.time() - self._seen_plates.get(best_text, 0)) > 15:
-                            self._seen_plates[best_text] = time.time()
-                            if len(self._seen_plates) > 256:
-                                _cut = time.time() - 60
-                                self._seen_plates = {k: v for k, v in self._seen_plates.items() if v > _cut}
-                            result.snapshot_path = save_snapshot(frame, cam_id, best_text)
-                            
-                            self._enqueue_recording_event({
-                                "cam_id": cam_id,
-                                "plate_text": best_text,
-                                "ts": time.time(),
-                                "event_type": "plate",
-                                "site_id": site_id
-                            })
-
-                            normalized = cfg.normalize_plate(best_text)
-                            self._run_async(self._record_vehicle_entry, normalized, "car", cam_id, result.snapshot_path, site_id)
-                            if not self._is_plate_whitelisted(normalized, site_id):
-                                logger.info(f"UNKNOWN PLATE DETECTED: {best_text}. Adding to pending list...")
-                                self._run_async(self._add_pending_plate, normalized, best_text, cam_id, site_id, result.snapshot_path, result.plate_type)
+                self._submit_plate_step(cam_id, site_id, frame, ts, detections)
 
                 self._frame_counter += 1
                 if self._frame_counter % cfg.FACE_RECOG_EVERY_N == 0:
@@ -378,22 +385,6 @@ class InferenceWorker:
         self._pending_tasks.add(fut)
         return fut
 
-    def _async_ocr(self, crop, voter: PlateVoter, cam_id: str, result: InferenceResult):
-        if self._ocr is None:
-            return
-        if not validate_plate_crop(crop):
-            logger.debug("Crop rejected by plate validation (cam: %s)", cam_id)
-            return
-        text, ocr_conf, p_type = self._ocr.read(crop)
-        if text:
-            voter.add(text, ocr_conf)
-            result.plate_type = p_type
-
-            is_suspicious, susp_conf, reason = check_plate_authenticity(crop)
-            if is_suspicious:
-                logger.warning("SUSPICIOUS PLATE DETECTED on %s: %s (Reason: %s, Conf: %.2f)", cam_id, text, reason, susp_conf)
-
-
 def inference_process(infer_queue: Queue, recorder_control_queue: Queue, stop_event: Event):
     ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
@@ -408,20 +399,8 @@ def inference_process(infer_queue: Queue, recorder_control_queue: Queue, stop_ev
 
 
 __all__ = [
-    "InferenceResult",
     "PlateDetector",
     "OCRReader",
     "FaceRecognizer",
-    "validate_plate_crop",
-    "enhance_plate",
-    "PlateVoter",
-    "PersonTrack",
-    "SimpleTracker",
-    "InferenceWorker",
     "inference_process",
-    "_face_embedding",
-    "_face_bbox_in_frame",
-    "_patch_e2e_loss",
-    "_onnx_runtime_target",
-    "_plate_ort_session_options",
 ]

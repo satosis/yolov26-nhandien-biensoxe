@@ -535,7 +535,7 @@
         <div class="modal-body">
           <p class="mb-2"><strong>{{ staff.full_name }}</strong> · Tháng {{ month[5:7] }}/{{ month[:4] }}</p>
           {% if advance_error %}
-          <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: {{ advance_error|tojson }}, type: 'error'}})));</script>
+          <script>window.addEventListener('DOMContentLoaded', () => window.showNotify({{ advance_error|tojson }}, 'error'));</script>
           {% endif %}
           <label for="payrollAdvanceAmount" class="font-weight-bold">Số tiền tạm ứng (đ)</label>
           <input id="payrollAdvanceAmount" name="amount" type="text" inputmode="numeric" autocomplete="off"
@@ -663,7 +663,7 @@
 </script>
 {% if saved %}
 <script>
-window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu thông tin lương nhân sự.', type:'success'}}));
+window.showNotify('Đã lưu thông tin lương nhân sự.', 'success');
 const url = new URL(window.location.href);
 url.searchParams.delete('saved');
 window.history.replaceState(null, '', url.pathname + url.search + url.hash);

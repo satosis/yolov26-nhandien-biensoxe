@@ -13,16 +13,6 @@
 {% endblock %}
 {% block content %}
 
-{% if error_msg %}<script>
-document.addEventListener('DOMContentLoaded', () => {
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:{{ error_msg|tojson }},type:'error'}}));
-  const usersUrl = new URL(window.location.href);
-  usersUrl.searchParams.delete('error');
-  window.history.replaceState(null, '', usersUrl.pathname + usersUrl.search + usersUrl.hash);
-});
-</script>{% endif %}
-
-
 <!-- Bulk action toolbar -->
 <div id="bulk-actions-bar" class="alert alert-info py-2 px-3 d-none align-items-center justify-content-between mb-3 shadow-sm">
   <div class="d-flex align-items-center">
@@ -426,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
       forbidden: 'Bạn không có quyền lưu ảnh cho người dùng này.',
       'Disk write failed': 'Không thể lưu ảnh. Vui lòng thử lại.',
     };
-    return { ...result, message: messages[result.message] || result.message || 'Không thể lưu ảnh.' };
+    return { ...result, message: messages[result.message] || result.message };
   }
 
   function showKycStartupError(result) {
@@ -445,7 +435,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Saved KYC face preview failed to load:', angle);
     const message = 'Đã lưu ảnh nhưng không tải được ảnh xem trước.';
     document.getElementById('kyc-status-text').textContent = `❌ ${message}`;
-    window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: message, type: 'error' } }));
+    window.showNotify(message, 'error');
   }
 
   async function startKYC() {
@@ -722,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Swal.fire({
             icon: 'error',
             title: 'Lỗi máy chủ',
-            text: response.message || 'Không thể xoá ảnh.',
+            text: response.message,
         });
     }
   }
@@ -965,7 +955,7 @@ document.addEventListener('DOMContentLoaded', () => {
       Swal.fire({
         icon: 'error',
         title: 'Không thể làm sạch bộ nhớ AI',
-        text: data.message || 'Vui lòng thử lại.',
+        text: data.message,
       });
     }
   }
@@ -1041,30 +1031,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    try {
-      const res = await fetch('/admin/users/bulk-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selected })
-      });
-      const data = await res.json();
-      if (data.ok) {
-        if (window.toastr) {
-          toastr.success(data.message || `Đã xóa ${data.count} người dùng.`);
-        } else {
-          alert(data.message || `Đã xóa ${data.count} người dùng.`);
-        }
-        setTimeout(() => window.location.reload(), 500);
-      } else {
-        if (window.toastr) {
-          toastr.error(data.message || 'Lỗi khi xóa người dùng.');
-        } else {
-          alert(data.message || 'Lỗi khi xóa người dùng.');
-        }
-      }
-    } catch (err) {
-      if (window.toastr) toastr.error('Lỗi mạng hoặc máy chủ không phản hồi: ' + err);
-      else alert('Lỗi mạng hoặc máy chủ không phản hồi: ' + err);
+    const data = await apiRequest('/admin/users/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: selected })
+    });
+    if (data.ok) {
+      window.showNotify(data.message || `Đã xóa ${data.count} người dùng.`, 'success');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      window.showNotify(data.message || 'Lỗi khi xóa người dùng.', 'error');
     }
   }
 </script>

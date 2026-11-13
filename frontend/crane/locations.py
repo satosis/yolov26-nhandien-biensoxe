@@ -152,7 +152,7 @@ SERVICES = {
         ),
         "catalog_title": "Các Loại Container Cho Thuê (Giá Niêm Yết)",
         "catalog_lead": "Đơn giá niêm yết trực tiếp theo tháng và cước cẩu hạ trọn gói bằng xe cẩu chính chủ.",
-        "hero_image": "/static/services/container/img/container_hero.jpg",
+        "hero_image": "/upload/services/container/img/container_hero.jpg",
         "ad_voice": {
             "need": "thuê container",
             "trust": "Cẩu hạ và đặt container đúng vị trí bằng xe cẩu tự hành của công ty.",
@@ -199,7 +199,7 @@ SERVICES = {
         "catalog_title": "Bảng Giá Thiết Bị Điện Mặt Trời Tại Kho",
         "catalog_lead": "Đơn giá niêm yết công khai cho tấm pin, biến tần, pin lưu trữ, tủ điện & phụ kiện.",
         "hero_icon": "",
-        "hero_image": "/static/services/solar/img/solar_hero.jpg",
+        "hero_image": "/upload/services/solar/img/solar_hero.jpg",
         "ad_voice": {
             "need": "mua thiết bị điện mặt trời",
             "offer": "{company} cung cấp thiết bị điện năng lượng mặt trời tại {area}.",

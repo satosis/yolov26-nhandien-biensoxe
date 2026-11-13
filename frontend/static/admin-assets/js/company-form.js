@@ -1,7 +1,7 @@
 /* Company forms (add, edit, enterprise edit modal): activity select, logo/stamp preview, tax code lookup. */
 function initCompanyActivitySelect(select) {
   if (!select || select.tagName === 'INPUT') return;
-  if (typeof TomSelect !== 'undefined' && !select.tomselect) {
+  if (!select.tomselect) {
     new TomSelect(select, {
       create: true,
       createOnBlur: true,
@@ -96,9 +96,8 @@ async function lookupCompanyTaxCode(prefix) {
   message.textContent = '';
   btn.disabled = true;
   try {
-    const resp = await fetch('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
-    const result = await resp.json();
-    if (!resp.ok || !result.ok) throw new Error(result.message || 'Không tra cứu được.');
+    const result = await apiRequest('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
+    if (!result.ok) throw new Error(result.message || 'Không tra cứu được.');
     field('name').value = result.name || '';
     const addr = (result.address || '').trim();
     field('address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;

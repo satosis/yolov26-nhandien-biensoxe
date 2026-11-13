@@ -20,7 +20,7 @@ from backend.services.database import db
 from frontend.formatting.text import strip_marks
 from frontend.modules.invoices.bkav_push import _send_command, configuration
 from frontend.modules.invoices.companies import fill_missing_company_fields, normalize_tax_code
-from frontend.modules.invoices.export import CRANE_BY_SHIFT_SERVICE, is_crane_by_shift_service
+from frontend.modules.invoices.export import CRANE_BY_SHIFT_SERVICE, is_crane_by_shift_service, same_place
 from frontend.modules.invoices.replacement_note import format_original_identify
 from frontend.modules.transport.catalog import list_items as list_catalog_items
 
@@ -64,6 +64,11 @@ def _is_crane_invoice_line(detail: dict, description: str) -> bool:
         return True
     unit = strip_marks(detail.get("UnitName") or "")
     return unit in {"ca cau", "ca"}
+
+def _is_same_place_route(line: str) -> bool:
+    route = _find_route(line)
+    return bool(route) and same_place(route.group(1), _clean_destination(route.group(2)))
+
 
 def _fuel_price_for_date(target_date):
     try:
@@ -193,9 +198,8 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
                   key=len, default=prefix or "Cước vận chuyển")
     remainder = prefix[len(service):].strip() if prefix.casefold().startswith(service.casefold()) else ""
     cargo = next((name for name in (cargo_types or []) if remainder.casefold() == name.casefold()), "")
-    crane_by_shift = (not any(_find_route(line) for line in lines)
-                      and all(_is_crane_invoice_line(detail, line)
-                              for detail, line in zip(detail_rows, lines)))
+    crane_by_shift = all(_is_same_place_route(line) if _find_route(line) else _is_crane_invoice_line(detail, line)
+                         for detail, line in zip(detail_rows, lines))
     if crane_by_shift:
         service = next((name for name in (services or []) if is_crane_by_shift_service(name)),
                        CRANE_BY_SHIFT_SERVICE)
@@ -209,7 +213,7 @@ def parse_invoice(row: dict, *, services: list[str] | None = None,
             raw_amount = _number(detail["Price"]) * _number(detail["Qty"])
         amount = _number(raw_amount) if raw_amount is not None else Decimal(0)
         is_crane_line = _is_crane_invoice_line(detail, line)
-        is_crane_segment = not leg and (is_crane_line or crane_by_shift)
+        is_crane_segment = _is_same_place_route(line) if leg else (is_crane_line or crane_by_shift)
         if (not leg and not is_crane_segment) or amount <= 0:
             segments = []
             break
@@ -376,17 +380,17 @@ def stored_bkav_invoice_files(invoice_guid: str) -> tuple[Path | None, Path | No
         "SELECT image_path, pdf_path FROM public.bkav_invoice_files WHERE invoice_guid = %s",
         (guid,), fetch=True, commit=False,
     )
-    if not isinstance(row, dict):
+    if not row:
         link = db._execute_query(
             "SELECT partner_invoice_id FROM public.bkav_saved_invoice_links WHERE invoice_guid = %s",
             (guid,), fetch=True, commit=False,
         )
-        if isinstance(link, dict) and link.get("partner_invoice_id"):
+        if link and link.get("partner_invoice_id"):
             push = db._execute_query(
                 "SELECT invoice_guid FROM public.bkav_invoice_pushes WHERE trip_id = %s",
                 (link["partner_invoice_id"],), fetch=True, commit=False,
             )
-            if isinstance(push, dict) and push.get("invoice_guid"):
+            if push and push.get("invoice_guid"):
                 row = db._execute_query(
                     "SELECT image_path, pdf_path FROM public.bkav_invoice_files WHERE invoice_guid = %s",
                     (str(push["invoice_guid"]),), fetch=True, commit=False,
@@ -396,17 +400,17 @@ def stored_bkav_invoice_files(invoice_guid: str) -> tuple[Path | None, Path | No
                 "SELECT trip_id FROM public.bkav_invoice_pushes WHERE invoice_guid = %s",
                 (guid,), fetch=True, commit=False,
             )
-            if isinstance(push, dict) and push.get("trip_id"):
+            if push and push.get("trip_id"):
                 link = db._execute_query(
                     "SELECT invoice_guid FROM public.bkav_saved_invoice_links WHERE partner_invoice_id = %s",
                     (push["trip_id"],), fetch=True, commit=False,
                 )
-                if isinstance(link, dict) and link.get("invoice_guid"):
+                if link and link.get("invoice_guid"):
                     row = db._execute_query(
                         "SELECT image_path, pdf_path FROM public.bkav_invoice_files WHERE invoice_guid = %s",
                         (str(link["invoice_guid"]),), fetch=True, commit=False,
                     )
-    if not isinstance(row, dict):
+    if not row:
         legacy_png = _BKAV_UPLOAD_DIR / f"{guid}.png"
         legacy_pdf = _BKAV_UPLOAD_DIR / f"{guid}.pdf"
         if legacy_png.is_file() and legacy_png.stat().st_size:
@@ -420,8 +424,8 @@ def stored_bkav_invoice_files(invoice_guid: str) -> tuple[Path | None, Path | No
                 "SELECT image_path, pdf_path FROM public.bkav_invoice_files WHERE invoice_guid = %s",
                 (guid,), fetch=True, commit=False,
             )
-    image_path = _stored_bkav_path(row.get("image_path")) if isinstance(row, dict) else None
-    pdf_path = _stored_bkav_path(row.get("pdf_path")) if isinstance(row, dict) else None
+    image_path = _stored_bkav_path(row.get("image_path")) if row else None
+    pdf_path = _stored_bkav_path(row.get("pdf_path")) if row else None
     return (image_path if image_path and image_path.is_file() and image_path.stat().st_size else None,
             pdf_path if pdf_path and pdf_path.is_file() and pdf_path.stat().st_size else None)
 
@@ -442,12 +446,12 @@ def delete_stored_bkav_invoice_files(invoice_guid: str) -> None:
         "SELECT partner_invoice_id FROM public.bkav_saved_invoice_links WHERE invoice_guid = %s",
         (guid,), fetch=True, commit=False,
     )
-    if isinstance(link, dict) and link.get("partner_invoice_id"):
+    if link and link.get("partner_invoice_id"):
         push = db._execute_query(
             "SELECT invoice_guid FROM public.bkav_invoice_pushes WHERE trip_id = %s",
             (link["partner_invoice_id"],), fetch=True, commit=False,
         )
-        if isinstance(push, dict) and push.get("invoice_guid"):
+        if push and push.get("invoice_guid"):
             db._execute_query("DELETE FROM public.bkav_invoice_files WHERE invoice_guid = %s",
                               (str(push["invoice_guid"]),), commit=True)
     else:
@@ -455,12 +459,12 @@ def delete_stored_bkav_invoice_files(invoice_guid: str) -> None:
             "SELECT trip_id FROM public.bkav_invoice_pushes WHERE invoice_guid = %s",
             (guid,), fetch=True, commit=False,
         )
-        if isinstance(push, dict) and push.get("trip_id"):
+        if push and push.get("trip_id"):
             link = db._execute_query(
                 "SELECT invoice_guid FROM public.bkav_saved_invoice_links WHERE partner_invoice_id = %s",
                 (push["trip_id"],), fetch=True, commit=False,
             )
-            if isinstance(link, dict) and link.get("invoice_guid"):
+            if link and link.get("invoice_guid"):
                 db._execute_query("DELETE FROM public.bkav_invoice_files WHERE invoice_guid = %s",
                                   (str(link["invoice_guid"]),), commit=True)
     for path in (image_path, pdf_path):
@@ -525,43 +529,31 @@ def get_or_fetch_bkav_invoice_files(invoice_guid: str, seller_tax: str | None = 
         "SELECT * FROM public.bkav_invoices WHERE invoice_guid = %s",
         (str(invoice_guid),), fetch=True, commit=False,
     )
-    if not isinstance(inv, dict):
-        inv = None
     push = None
     link = db._execute_query(
         "SELECT partner_invoice_id FROM public.bkav_saved_invoice_links WHERE invoice_guid = %s",
         (str(invoice_guid),), fetch=True, commit=False,
     )
-    if not isinstance(link, dict):
-        link = None
     if link:
         push = db._execute_query(
             "SELECT * FROM public.bkav_invoice_pushes WHERE trip_id = %s",
             (link["partner_invoice_id"],), fetch=True, commit=False,
         )
-        if not isinstance(push, dict):
-            push = None
     if not push:
         push = db._execute_query(
             "SELECT * FROM public.bkav_invoice_pushes WHERE invoice_guid = %s",
             (str(invoice_guid),), fetch=True, commit=False,
         )
-        if not isinstance(push, dict):
-            push = None
         if push and not inv:
             link = db._execute_query(
                 "SELECT invoice_guid FROM public.bkav_saved_invoice_links WHERE partner_invoice_id = %s",
                 (push["trip_id"],), fetch=True, commit=False,
             )
-            if not isinstance(link, dict):
-                link = None
             if link:
                 inv = db._execute_query(
                     "SELECT * FROM public.bkav_invoices WHERE invoice_guid = %s",
                     (str(link["invoice_guid"]),), fetch=True, commit=False,
                 )
-                if not isinstance(inv, dict):
-                    inv = None
 
     if not inv and not push:
         raise ValueError("Không tìm thấy thông tin hóa đơn trong hệ thống.")
@@ -581,7 +573,7 @@ def get_or_fetch_bkav_invoice_files(invoice_guid: str, seller_tax: str | None = 
                 "SELECT tax_code FROM public.invoice_companies WHERE id = %s",
                 (inv["seller_company_id"],), fetch=True, commit=False,
             )
-            if isinstance(company, dict):
+            if company:
                 seller_tax = company.get("tax_code")
 
     if push:
@@ -591,12 +583,12 @@ def get_or_fetch_bkav_invoice_files(invoice_guid: str, seller_tax: str | None = 
         invoice_date = invoice_date or push.get("attempted_at")
 
     partner_invoice_id = None
-    if isinstance(link, dict) and link.get("partner_invoice_id"):
+    if link and link.get("partner_invoice_id"):
         partner_invoice_id = link["partner_invoice_id"]
-    elif isinstance(push, dict) and push.get("trip_id"):
+    elif push and push.get("trip_id"):
         partner_invoice_id = push["trip_id"]
 
-    bkav_guid = str(push["invoice_guid"]) if (isinstance(push, dict) and push.get("invoice_guid")) else str(invoice_guid)
+    bkav_guid = str(push["invoice_guid"]) if (push and push.get("invoice_guid")) else str(invoice_guid)
 
     config = configuration(seller_tax)
 

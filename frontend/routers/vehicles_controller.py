@@ -51,8 +51,8 @@ def _parse_vehicle_profile(vehicle_type, purchase_price, depreciation_start_date
             years = int(depreciation_years.strip())
         except ValueError as exc:
             raise ValueError("Số năm khấu hao không hợp lệ.") from exc
-        if years < 1 or years > 50:
-            raise ValueError("Số năm khấu hao phải từ 1 đến 50.")
+        if years < 1:
+            raise ValueError("Số năm khấu hao phải lớn hơn 0.")
     return vehicle_type, price, start, years
 
 

@@ -114,7 +114,7 @@ class RecorderProcess:
             "duration_seconds": int(duration),
             "file_size_bytes": file_size
         }, returning="id")
-        if isinstance(recording_id, bool) or not isinstance(recording_id, int) or recording_id <= 0:
+        if not recording_id or recording_id <= 0:
             logger.error("Recorder metadata insert returned no ID for camera %s", cam_id)
             raise RuntimeError("Recording metadata insert did not return a valid ID")
 

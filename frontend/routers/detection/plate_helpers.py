@@ -1,11 +1,7 @@
-import re
 import time
 import json
-import base64
 import threading
 import logging
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 import numpy as np
 import cv2
@@ -14,32 +10,20 @@ from fastapi import HTTPException
 
 from backend.services import config as cfg
 from backend.camera import camera_service as cam_svc
-from backend.util.image_utils import save_snapshot
-from backend.ai.plate_analysis import PlateFrameAnalyzer, detect_plate_regions
-from backend.util.ocr.pipeline import OCRTrackAggregator, assess_image
-from backend.util.ocr.vn_plate_ocr import prepare_plate_preview
-from backend.ai.inference import validate_plate_crop
-
-from .model_registry import (
-    _get_models,
-    _read_cached_ocr,
-    _ocr_crop_hash,
-    _detector_lock,
-    _ocr_lock,
-)
-from .tracking import _get_spatial_tracker
-
-logger = logging.getLogger(__name__)
-_bg_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="plate-snap")
-
-
+from backend.util.image_utils import jpeg_data_uri, save_snapshot
+from backend.ai.plate_analysis import PlateStream, format_plate
+from backend.util.ocr.plate_image import display_image
 from backend.repositories.plate_repo import check_whitelist as _check_whitelist
 from backend.repositories.plate_repo import add_pending as _add_pending_plate_simple
-from backend.ai.tracking import FlowBoxTracker
 
-_live_detect_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="live-detect")
-_LIVE_DETECT_WAIT_SECONDS = 0.15   # model nhanh (và test dùng Mock) trả kết quả ngay trong lượt gọi
-_LIVE_MIN_GAP_SECONDS = 1.25
+from .model_registry import _get_models, _detector_lock, _ocr_lock
+
+logger = logging.getLogger(__name__)
+
+# Nguồn camera thật trên trang: biển lạ đã chốt được đưa vào danh sách chờ duyệt.
+_PENDING_SOURCES = ("webcam", "rtsp")
+# Ảnh người chỉ để nhận ra trên thẻ, không cần to hơn mức này.
+_PERSON_IMAGE_HEIGHT = 256
 
 
 def _authorize_detection_camera(camera_id: int, site_id) -> None:
@@ -96,85 +80,63 @@ def _read_latest_camera_frame(camera_id: int) -> np.ndarray:
     raise HTTPException(status_code=503, detail="Camera chưa có khung hình để nhận diện.")
 
 
-_live_streams_lock = threading.Lock()
-_live_streams = OrderedDict()
-_LIVE_STREAM_TTL_SECONDS = 20
-_MAX_LIVE_STREAMS = 64
+_streams_lock = threading.Lock()
+_streams = OrderedDict()
+_STREAM_TTL_SECONDS = 20
+_MAX_STREAMS = 64
 
 
-def _live_stream_state(stream_key, detector, ocr, *, quick_ocr=True, search_small=True):
+def _stream_state(stream_key):
+    """Luồng biển số của một nguồn trên trang (một webcam, một camera, một video đang xem, một ảnh)."""
+    detector, ocr, _ = _get_models(include_face=False)
     now = time.monotonic()
-    with _live_streams_lock:
-        expired = [key for key, value in _live_streams.items()
-                   if now - value["last_seen"] > _LIVE_STREAM_TTL_SECONDS]
+    with _streams_lock:
+        expired = [key for key, value in _streams.items() if now - value["last_seen"] > _STREAM_TTL_SECONDS]
         for key in expired:
-            _live_streams.pop(key, None)
+            _streams.pop(key, None)
 
-        state = _live_streams.get(stream_key)
+        state = _streams.get(stream_key)
         if state is None:
-            analyzer = PlateFrameAnalyzer(
-                detector, ocr, search_small=search_small, detector_lock=_detector_lock,
-                ocr_lock=_ocr_lock, include_people=True, quick_ocr=quick_ocr,
-            )
-            aggregator = OCRTrackAggregator(
-                normalize=cfg.normalize_plate,
-                validator=analyzer.is_valid,
-                recognize=analyzer.recognize_crop,
-                recognize_track=analyzer.recognize_track,
-                max_gap_seconds=1.25,
-                max_crops=5,
-                iou_threshold=0.10,
-                max_tracks=64,
-            )
             state = {
-                "analyzer": analyzer,
-                "aggregator": aggregator,
+                "stream": PlateStream(detector, ocr, "page", normalize=cfg.normalize_plate,
+                                      detector_lock=_detector_lock, ocr_lock=_ocr_lock),
                 "lock": threading.Lock(),
                 "last_seen": now,
-                "track_meta": {},
-                "tracker": FlowBoxTracker(),
-                "job": None,
-                "items": [],
-                "final_items": [],
-                "gap_ema": 0.0,
-                "last_job_ts": None,
+                "stream_id": stream_key[-1],
             }
-            _live_streams[stream_key] = state
+            _streams[stream_key] = state
         else:
-            _live_streams.move_to_end(stream_key)
+            _streams.move_to_end(stream_key)
             state["last_seen"] = now
 
-        while len(_live_streams) > _MAX_LIVE_STREAMS:
-            _live_streams.popitem(last=False)
+        while len(_streams) > _MAX_STREAMS:
+            _streams.popitem(last=False)
         return state
 
 
-def _format_vn_plate_for_display(value: str) -> str:
-    """Format recognized Vietnamese plate numbers for display only."""
-    if not isinstance(value, str) or not value.strip():
-        return ""
-    original = value.strip().upper()
-    clean = re.sub(r"[^A-Z0-9]", "", original)
-    patterns = (
-        r"^(\d{2}[A-Z]{1,2})(\d{4,5})$",  # 30F-945.35
-        r"^(\d{2}[A-Z]\d)(\d{4,5})$",  # 29A1-123.45
-        r"^(T\d{2})(\d{4,5})$",  # Temporary plates
-        r"^([A-Z]{2})(\d{4,5})$",  # Military / special plates
-    )
-    for pattern in patterns:
-        match = re.fullmatch(pattern, clean)
-        if match:
-            prefix, number = match.groups()
-            suffix = f"{number[:3]}.{number[3:]}" if len(number) == 5 else number
-            return f"{prefix}-{suffix}"
-    return original
+def clear_streams():
+    with _streams_lock:
+        _streams.clear()
 
 
-def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_frame=None):
-    track_id = event["track_id"]
-    meta = state["track_meta"].setdefault(track_id, {})
+def _person_item(observation):
+    crop = observation["crop"]
+    if crop.shape[0] > _PERSON_IMAGE_HEIGHT:
+        scale = _PERSON_IMAGE_HEIGHT / crop.shape[0]
+        crop = cv2.resize(crop, (max(1, round(crop.shape[1] * scale)), _PERSON_IMAGE_HEIGHT),
+                          interpolation=cv2.INTER_AREA)
+    return {
+        "type": "person", "confidence": round(float(observation["confidence"]) * 100, 1),
+        "bbox": [int(value) for value in observation["bbox"]], "crop_preview": jpeg_data_uri(crop),
+    }
+
+
+def _plate_item(event, state, frame_bgr, site_id, source, *, final):
+    """Một item biển số cho mọi nguồn: chữ, trạng thái whitelist, ảnh gốc + ảnh đã xử lý."""
+    stream = state["stream"]
+    meta = stream.track_meta.setdefault(event["track_id"], {})
     text = event.get("text") or ""
-    display_text = _format_vn_plate_for_display(text)
+    display_text = format_plate(text)
     recognized = event.get("status") == "recognized" and bool(text)
     normalized = cfg.normalize_plate(text) if text else ""
     owner_name = meta.get("owner_name", "unknown")
@@ -187,9 +149,10 @@ def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_f
             meta["whitelist_checked"] = True
             owner_name = meta["owner_name"]
         status = "whitelist" if owner_name != "unknown" else "unknown"
-        if status == "unknown" and source != "video_preview" and not meta.get("pending_saved"):
-            snapshot = save_snapshot(snapshot_frame if snapshot_frame is not None else frame_bgr,
-                                     source, normalized)
+        if status == "unknown" and source in _PENDING_SOURCES and not meta.get("pending_saved"):
+            # Track đã kết thúc thì khung hiện tại không còn xe: lưu crop biển tốt nhất.
+            best = event.get("best_crop")
+            snapshot = save_snapshot(best if final and best is not None else frame_bgr, source, normalized)
             _add_pending_plate_simple(
                 normalized, text, source, site_id=site_id,
                 image_path=snapshot, plate_type="white",
@@ -199,325 +162,48 @@ def _realtime_plate_item(event, state, frame_bgr, site_id, source, *, snapshot_f
     item = {
         "type": "plate",
         "text": display_text or "(BIỂN SỐ ?)",
-        "plate_type": "white",
         "confidence": round(float(event.get("detector_confidence") or 0) * 100, 1),
         "ocr_confidence": round(float(event.get("confidence") or 0) * 100, 1),
         "status": status,
         "owner_name": owner_name,
         "bbox": [int(value) for value in event["bbox"]],
         "ocr_text": display_text,
-        "quality": {"quality_score": float(event.get("quality_score") or 0)},
-        "valid_format": bool(text and state["analyzer"].is_valid(text)),
+        "valid_format": bool(text and stream.analyzer.is_valid(text)),
         "recognition_status": event.get("status", "unreadable"),
-        "track_id": track_id,
+        "track_id": event["track_id"],
         "stream_id": str(state.get("stream_id") or ""),
-        "start_time": event.get("start_time"),
-        "end_time": event.get("end_time"),
         "best_crop_time": event.get("best_crop_time"),
-        "observations": event.get("observations", 0),
     }
     best_crop = event.get("best_crop")
     best_crop_time = event.get("best_crop_time")
-    if source == "video_preview" and best_crop is not None and meta.get("preview_time") != best_crop_time:
-        raw_crop = np.ascontiguousarray(best_crop)
-        preview_crop = prepare_plate_preview(raw_crop)
-        ok, encoded = cv2.imencode(".jpg", preview_crop, [cv2.IMWRITE_JPEG_QUALITY, 94])
-        if ok:
-            item["crop_preview"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
-        ok, encoded = cv2.imencode(".jpg", raw_crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        if ok:
-            item["crop_original"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
-        crop_quality = assess_image(raw_crop)
-        item["quality"] = crop_quality
-        meta["preview_time"] = best_crop_time
+    if best_crop is not None and meta.get("crop_time") != best_crop_time:
+        item["crop_preview"] = jpeg_data_uri(display_image(best_crop))
+        item["crop_original"] = jpeg_data_uri(best_crop)
+        meta["crop_time"] = best_crop_time
     return item
 
 
-def _live_detection_job(state, frame_bgr, timestamp, site_id, source):
-    last = state.get("last_job_ts")
-    if last is not None:
-        gap = timestamp - last
-        ema = state.get("gap_ema", 0.0)
-        state["gap_ema"] = gap if ema == 0.0 else 0.7 * ema + 0.3 * gap
-    state["last_job_ts"] = timestamp
-    state["aggregator"].max_gap_seconds = max(_LIVE_MIN_GAP_SECONDS, 3.0 * state["gap_ema"])
+def detect_frame(frame_bgr, stream_key, site_id, source, *, timestamp=None, finish=False):
+    """Một khung của bất kỳ tab nào trên trang Nhận diện → người và biển số có trong khung đó.
 
-    state["analyzer"].quick_ocr = True
-    observations = state["analyzer"].observe(frame_bgr, timestamp)
-    plate_observations = [item for item in observations if item.get("type") == "plate"]
-    people = [{
-        "type": "person", "text": "Person", "confidence": round(float(item["confidence"]) * 100, 1),
-        "status": "unknown", "bbox": item["bbox"],
-    } for item in observations if item.get("type") == "person"]
-
-    expired = state["aggregator"].update(timestamp, plate_observations)
-    active_events = state["aggregator"].snapshot()
-
-    active = [(f"person:{i}", p) for i, p in enumerate(people)]
-    for event in active_events:
-        item = _realtime_plate_item(
-            event, state, frame_bgr, site_id, source,
-            snapshot_frame=None,
-        )
-        active.append((f"plate:{event['track_id']}", item))
-
-    final = [
-        _realtime_plate_item(
-            event, state, frame_bgr, site_id, source,
-            snapshot_frame=event.get("best_crop"),
-        )
-        for event in expired
-    ]
-    for event in expired:
-        state["track_meta"].pop(event["track_id"], None)
-
-    return active, final, timestamp
-
-
-def _apply_live_job(state, job):
-    state["job"] = None
-    active, final, ts = job.result()
-    state["items"] = active
-    state["final_items"].extend(final)
-    state["tracker"].reseed({key: item["bbox"] for key, item in active}, ts)
-
-
-def _detect_live_frame(frame_bgr, stream_key, site_id, source):
-    detector, ocr, _ = _get_models(include_face=False)
-    state = _live_stream_state(stream_key, detector, ocr)  # mặc định quick_ocr=True, search_small=True như cũ
-    now = time.monotonic()
+    Camera, Webcam, Ảnh và Video đi đúng một đường: luồng theo stream_key, một bước PlateStream.step,
+    một cách dựng item. Tab chỉ khác nhau ở nơi lấy khung hình; source chỉ còn quyết định biển lạ có
+    được ghi vào danh sách chờ duyệt hay không. Không thêm nhánh xử lý riêng theo tab ở đây.
+    timestamp: thời điểm của khung trong nguồn (video); nguồn không có thì lấy đồng hồ máy chủ.
+    finish: khung đứng yên (ảnh đơn, video tạm dừng) — soát kỹ khung đó và chốt luôn mọi track.
+    """
+    state = _stream_state(stream_key)
+    stream = state["stream"]
     with state["lock"]:
-        state["stream_id"] = stream_key[-1] if stream_key else ""
-        state["tracker"].advance(frame_bgr, now)
-        job = state["job"]
-        if job is not None and job.done():
-            _apply_live_job(state, job)
-            job = None
-        submitted = job is None
-        if submitted:
-            state["tracker"].trim(now)
-            job = state["job"] = _live_detect_executor.submit(_live_detection_job, state, frame_bgr, now, site_id, source)
-    # Chỉ chờ lượt vừa giao: model nhanh trả ngay; lượt đang chạy từ trước là model chậm, không chờ thêm.
-    if submitted:
-        try:
-            job.result(timeout=_LIVE_DETECT_WAIT_SECONDS)
-        except concurrent.futures.TimeoutError:
-            pass
-        except Exception:
-            pass  # lỗi sẽ được nêu ở _apply_live_job bên dưới
-    with state["lock"]:
-        if state["job"] is job and job.done():
-            _apply_live_job(state, job)
-        boxes = state["tracker"].boxes
-        results = [{**item, "bbox": [int(round(v)) for v in boxes.get(key, item["bbox"])]} for key, item in state["items"]]
-        results.extend(state["final_items"])
-        state["final_items"] = []
-    return results
-
-
-def _detect_realtime_frame_sync(frame_bgr, stream_key, site_id, source, *, timestamp=None,
-                                finish_tracks=False, quick_ocr=True, search_small=True):
-    detector, ocr, _ = _get_models(include_face=False)
-    state = _live_stream_state(stream_key, detector, ocr, quick_ocr=quick_ocr, search_small=search_small)
-    with state["lock"]:
-        state["stream_id"] = stream_key[-1] if stream_key else ""
-        timestamp = time.monotonic() if timestamp is None else float(timestamp)
-        state["analyzer"].quick_ocr = quick_ocr
-        observations = state["analyzer"].observe(frame_bgr, timestamp)
-        plate_observations = [item for item in observations if item.get("type") == "plate"]
-        people = [{
-            "type": "person", "text": "Person", "confidence": round(float(item["confidence"]) * 100, 1),
-            "status": "unknown", "bbox": item["bbox"],
-        } for item in observations if item.get("type") == "person"]
-
-        expired = state["aggregator"].update(timestamp, plate_observations)
-        active = [] if finish_tracks else state["aggregator"].snapshot()
-        if finish_tracks:
-            expired.extend(state["aggregator"].finish())
-        events_by_id = {event["track_id"]: (event, True) for event in expired}
-        events_by_id.update({event["track_id"]: (event, False) for event in active})
-        results = people + [
-            _realtime_plate_item(
-                event, state, frame_bgr, site_id, source,
-                snapshot_frame=event.get("best_crop") if is_expired else None,
-            )
-            for event, is_expired in events_by_id.values()
-        ]
+        moment = time.monotonic() if timestamp is None else float(timestamp)
+        people, active, expired = stream.step(frame_bgr, moment, finish=finish)
+        results = [_person_item(person) for person in people]
+        # Xe không còn ở khung này (track vừa kết thúc, hoặc còn chờ ghép sau khi xe rời đi) thì
+        # không có khung để vẽ: track kết thúc vẫn gửi về để cập nhật thẻ, kèm visible = False.
+        results += [{**_plate_item(event, state, frame_bgr, site_id, source, final=True),
+                     "visible": event["end_time"] == moment} for event in expired]
+        results += [_plate_item(event, state, frame_bgr, site_id, source, final=False)
+                    for event in active if event["end_time"] == moment]
         for event in expired:
-            state["track_meta"].pop(event["track_id"], None)
+            stream.track_meta.pop(event["track_id"], None)
         return results
-
-
-def _detect_realtime_frame(frame_bgr, stream_key, site_id, source, *, timestamp=None,
-                           finish_tracks=False, quick_ocr=True, search_small=True):
-    if source == "video_preview":
-        return _detect_realtime_frame_sync(
-            frame_bgr, stream_key, site_id, source,
-            timestamp=timestamp,
-            finish_tracks=finish_tracks,
-            quick_ocr=quick_ocr,
-            search_small=search_small,
-        )
-    return _detect_live_frame(frame_bgr, stream_key, site_id, source)
-
-
-def _detect_plates(frame_bgr, s_id, source="webcam", *, preview_view="both", full_ocr=False):
-    detector, ocr, _ = _get_models(include_face=False)
-    is_preview = source == "video_preview"
-    detections = detect_plate_regions(detector, frame_bgr,
-                                     roi=(.2, .2, .8, .8) if is_preview and preview_view == "center" else None,
-                                     search_small=source in ("upload", "video") or (is_preview and preview_view == "both"),
-                                     lock=_detector_lock)
-
-    plate_dets = [d for d in detections if d[5] == 0]
-    other_dets = [d for d in detections if d[5] != 0]
-
-    plate_res = []
-
-    if source == "upload":
-        for x1, y1, x2, y2, conf, cls_id in plate_dets:
-            h_img, w_img = frame_bgr.shape[:2]
-            px = int((x2 - x1) * 0.15) + 10
-            py = int((y2 - y1) * 0.15) + 5
-            x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
-            x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
-            crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
-            text, ocr_conf, p_type = "", 0.0, "white"
-            if validate_plate_crop(crop):
-                ch = _ocr_crop_hash(crop)
-                text, ocr_conf, p_type = _read_cached_ocr(ocr, crop, ch)
-            status = "no_plate"
-            owner_name = "unknown"
-            if text:
-                normalized = cfg.normalize_plate(text)
-                wl = _check_whitelist(normalized)
-                if wl:
-                    status = "whitelist"
-                    owner_name = wl.get("owner_name", "Whitelist")
-                else:
-                    status = "unknown"
-            if not text and conf < 0.45:
-                continue
-            plate_res.append({
-                "type": "plate",
-                "text": text if text else "(BIỂN SỐ ?)",
-                "plate_type": p_type,
-                "confidence": round(conf * 100, 1),
-                "ocr_confidence": round(ocr_conf * 100, 1),
-                "status": status,
-                "owner_name": owner_name,
-                "is_confirmed": bool(text and text != "(BIỂN SỐ ?)"),
-                "bbox": [x1, y1, x2, y2],
-                "debug_ocr": getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
-            })
-    else:
-        tracker = _get_spatial_tracker(source, s_id)
-        now_ts = time.time()
-        matched_items = tracker.match_and_update(plate_dets, now_ts, frame_bgr=frame_bgr)
-
-        for track, (x1, y1, x2, y2), conf, is_new in matched_items:
-            if track.confirmed and (track.ocr_conf >= 0.96 or track.ocr_attempts >= 5):
-                plate_item = {
-                    "type": "plate",
-                    "text": track.text,
-                    "track_id": track.track_id,
-                    "plate_type": track.plate_type,
-                    "confidence": round(conf * 100, 1),
-                    "ocr_confidence": round(track.ocr_conf * 100, 1),
-                    "status": track.status,
-                    "owner_name": track.owner_name,
-                    "is_confirmed": True,
-                    "bbox": [x1, y1, x2, y2],
-                }
-                if source == "video":
-                    plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
-                plate_res.append(plate_item)
-                continue
-
-            h_img, w_img = frame_bgr.shape[:2]
-            px = max(2, round((x2 - x1) * .10))
-            py = max(1, round((y2 - y1) * .12))
-            x1_p, y1_p = max(0, x1 - px), max(0, y1 - py)
-            x2_p, y2_p = min(w_img, x2 + px), min(h_img, y2 + py)
-
-            crop = frame_bgr[y1_p:y2_p, x1_p:x2_p]
-            quality = assess_image(crop)
-            text, ocr_conf, p_type = "", 0.0, "white"
-            if validate_plate_crop(crop) and quality.get("valid", True):
-                ch = _ocr_crop_hash(crop)
-                quick_ocr = source == "video_preview" and preview_view != "both" and not full_ocr
-                text, ocr_conf, p_type = _read_cached_ocr(ocr, crop, ch, quick=quick_ocr)
-
-            status = "no_plate"
-            owner_name = "unknown"
-            valid_format = bool(text and ocr._ocr.is_valid_vn_plate(text))
-            if valid_format and ocr_conf >= .70:
-                normalized = cfg.normalize_plate(text)
-                wl = _check_whitelist(normalized)
-                if wl:
-                    status = "whitelist"
-                    owner_name = wl.get("owner_name", "Whitelist")
-                else:
-                    status = "unknown"
-
-                track.set_ocr_result(text, ocr_conf, p_type, status, owner_name, frame_bgr=frame_bgr)
-
-                if track.confirmed and not track.db_saved and track.status == "unknown" and source != "video_preview":
-                    track.db_saved = True
-                    def _bg_save(f_copy, src, norm, txt, sid, pt):
-                        try:
-                            snap_path = save_snapshot(f_copy, src, norm)
-                            _add_pending_plate_simple(
-                                norm, txt, src, site_id=sid,
-                                image_path=snap_path, plate_type=pt,
-                            )
-                        except Exception as e:
-                            logger.debug("Background snapshot save error: %s", e)
-                    _bg_pool.submit(
-                        _bg_save,
-                        frame_bgr.copy(), source, cfg.normalize_plate(track.text), track.text, s_id, track.plate_type,
-                    )
-
-            raw_disp = track.text if track.text else (text if text else "")
-            display_text = _format_vn_plate_for_display(raw_disp) if raw_disp else ""
-            display_conf = track.ocr_conf if track.text else ocr_conf
-            display_ptype = track.plate_type if track.text else p_type
-            display_status = track.status if track.text else status
-            display_owner = track.owner_name if track.text else owner_name
-
-            if not display_text and not track.confirmed and conf < 0.45:
-                continue
-
-            plate_item = {
-                "type": "plate",
-                "text": display_text if display_text else "(BIỂN SỐ ?)",
-                "track_id": track.track_id,
-                "plate_type": display_ptype,
-                "confidence": round(conf * 100, 1),
-                "ocr_confidence": round(display_conf * 100, 1),
-                "status": display_status,
-                "owner_name": display_owner,
-                "is_confirmed": track.confirmed,
-                "bbox": [x1, y1, x2, y2],
-                "ocr_text": display_text or "",
-                "quality": quality,
-                "valid_format": valid_format,
-                "recognition_status": "recognized" if valid_format and ocr_conf >= .70 else "uncertain" if text else "unreadable",
-            }
-            if source in ("upload", "video", "video_preview"):
-                plate_item["debug_ocr"] = getattr(getattr(ocr, "_ocr", ocr), "last_debug_info", None)
-            if source == "video_preview" and quality.get("valid"):
-                preview = prepare_plate_preview(crop)
-                ok, encoded = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 94])
-                if ok:
-                    plate_item["crop_preview"] = "data:image/jpeg;base64," + base64.b64encode(encoded).decode("ascii")
-            plate_res.append(plate_item)
-
-    for x1, y1, x2, y2, conf, cls_id in other_dets:
-        if cls_id == 1:
-            plate_res.append({
-                "type": "person", "text": "Person",
-                "confidence": round(conf * 100, 1), "status": "unknown", "bbox": [x1, y1, x2, y2]
-            })
-
-    return plate_res

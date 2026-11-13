@@ -30,7 +30,7 @@ def _build_peak_hours(history: list) -> dict:
     today = date.today()
     for row in history:
         et = row.get("entry_time")
-        if et and hasattr(et, "date") and et.date() == today:
+        if et and et.date() == today:
             h = et.hour
             counts[h] = counts.get(h, 0) + 1
     return counts

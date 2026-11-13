@@ -103,10 +103,10 @@ def parse_voucher_form(book: str, kind: str, form: dict) -> tuple[dict | None, s
         raw_months = str(form.get("new_months") or "").strip()
         try:
             new_months = int(raw_months)
-            if not (1 <= new_months <= 600):
-                return None, "Số tháng còn lại phải từ 1 đến 600."
-        except Exception:
-            return None, "Số tháng còn lại phải từ 1 đến 600."
+            if new_months < 1:
+                return None, "Số tháng còn lại phải lớn hơn 0."
+        except ValueError:
+            return None, "Số tháng còn lại phải lớn hơn 0."
 
     elif kind == "transfer":
         to_dept = str(form.get("to_dept") or "").strip()[:255]

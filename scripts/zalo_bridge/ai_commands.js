@@ -102,10 +102,11 @@ function killTree(child) {
 export function createAiRunner({
   project, sendText, spawnFn = spawn,
   onBusyChange = async () => {},
+  onBatchDone = async () => {},
   claudeBin = process.env.CLAUDE_BIN || 'claude',
   pythonBin = process.env.PYTHON_BIN || 'python',
   timeoutMs = Number(process.env.ZALO_AI_TIMEOUT_MS) || 60 * 60 * 1000, // đủ cho plan + agy (tối đa 30 phút) + review
-  gatherMs = Number(process.env.ZALO_AI_GATHER_MS) || 5000,
+  gatherMs = Number(process.env.ZALO_AI_GATHER_MS) || 10000,
   progressFirstMs = 60 * 1000,
   progressEveryMs = 2 * 60 * 1000,
 }) {
@@ -205,32 +206,22 @@ export function createAiRunner({
     };
     try {
       await onBusyChange(true);
-      await reply(`Đã nhận lệnh từ ${senderName || 'thành viên'}${attached}, đang xử lý...`);
+      const countMsg = batch.length > 1 ? ` (đã gom ${batch.length} tin nhắn)` : '';
+      await reply(`Đã nhận lệnh từ ${senderName || 'thành viên'}${countMsg}${attached}, đang xử lý...`);
       scheduleProgress(progressFirstMs);
-      const { code, stdout, stderr } = await runClaude(buildPrompt(request, senderName, files));
+      // Chạy thẳng Antigravity thay vì Claude để tránh giới hạn 5 giờ của Claude.
+      const agy = await runAgy(buildAgyPrompt(request, senderName, files));
       processing = false;
       clearTimeout(progressTimer);
       await progressReply;
       const minutes = ((Date.now() - current.startedAt) / 60000).toFixed(1);
       if (current.stopped) return await reply('Đã hủy lệnh theo yêu cầu.');
       if (current.timedOut) return await reply(`Hết thời gian (${Math.round(timeoutMs / 60000)} phút), đã dừng lệnh.`);
-      let result = null;
-      try { result = JSON.parse(stdout); } catch { /* không phải JSON: báo lỗi bên dưới */ }
-      if (result?.session_id) sessionId = result.session_id;
-      if (code !== 0 || !result || result.is_error) {
-        const detail = (result?.result || stderr || stdout || `mã thoát ${code}`).trim();
-        if (isQuotaError(detail)) {
-          const agy = await runAgy(buildAgyPrompt(request, senderName, files));
-          if (current.stopped) return await reply('Đã hủy lệnh theo yêu cầu.');
-          if (current.timedOut) return await reply(`Hết thời gian (${Math.round(timeoutMs / 60000)} phút), đã dừng lệnh.`);
-          if (agy.ok) {
-            const total = ((Date.now() - current.startedAt) / 60000).toFixed(1);
-            return await reply(`Xong (${total} phút):\n${agy.text || '(không có nội dung)'}`);
-          }
-        }
-        return await reply(`Lỗi khi chạy AI (${minutes} phút):\n${detail.slice(-1500)}`);
+      if (agy.ok) {
+        await onBatchDone(batch).catch(e => console.error('Lỗi onBatchDone:', e));
+        return await reply(`Xong (${minutes} phút):\n${agy.text || '(không có nội dung)'}`);
       }
-      return await reply(`Xong (${minutes} phút):\n${String(result.result || '').trim() || '(không có nội dung)'}`);
+      return await reply(`Lỗi khi chạy AI (${minutes} phút):\n${(agy.stderr || '').slice(-1500) || 'agy không có phản hồi'}`);
     } catch (error) {
       console.error('Không xử lý được lệnh AI:', error);
       try { await reply(`Lỗi xử lý AI: ${error.message}`); } catch (replyError) {

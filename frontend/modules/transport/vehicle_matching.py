@@ -18,14 +18,16 @@ _NOT_NAMES = {"xuat", "chua", "roi", "di", "ve", "nay", "do", "can", "chuyen", "
 
 
 def vehicle_owner_in_text(text: str) -> tuple[str, str]:
-    """The person a message names as a vehicle's owner: "xe chú Tư" -> ("chú", "Tư"), "xe bố" -> ("bố", "").
+    """The person a message names as a vehicle's owner: "xe chú Tư" / "BSX: chú Tư" -> ("chú", "Tư"), "xe bố" -> ("bố", "").
 
     Also recognizes when a message starts with who carries: "Chú Tư chở..." -> ("Chú", "Tư"), "Bố chở..." -> ("Bố", "").
     Accents do not matter ("xe chu tu" is the same), and the words come back as typed. ("", "") when none."""
     words = re.findall(r"\w+", str(text or ""))
     folded = [_fold(word) for word in words]
     for at in range(len(words) - 1):
-        if folded[at] != "xe":
+        # "BSX: chú Tư" / "biển số chú Tư": the owner written where the plate goes names the vehicle too
+        plate_cue = folded[at] in ("bsx", "bks") or (folded[at] == "so" and at > 0 and folded[at - 1] == "bien")
+        if folded[at] != "xe" and not plate_cue:
             continue
         title = at + 2 if folded[at + 1] == "cua" else at + 1  # "xe của bố" is "xe bố"
         if title < len(words) and folded[title] in _OWNER_TITLES:

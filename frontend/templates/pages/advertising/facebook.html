@@ -404,14 +404,14 @@
         body.append('topic', document.getElementById('fb-suggest-topic').value);
         form.querySelectorAll('input[name="pool_photo_ids"]').forEach(input => body.append('pool_photo_ids', input.value));
         if (form.elements.photos.files[0]) body.append('photos', form.elements.photos.files[0]);
-        const res = await fetch('/admin/advertising/facebook/compose/suggest', {method: 'POST', body});
-        const data = await res.json().catch(() => ({message: 'Máy chủ trả lỗi ' + res.status}));
-        if (!res.ok || !data.ok) throw new Error(data.message || 'AI chưa viết được bài.');
+        const data = await apiRequest('/admin/advertising/facebook/compose/suggest', {method: 'POST', body});
+        if (!data.ok) {
+          window.showNotify(data.message || 'AI chưa viết được bài.', 'error');
+          return;
+        }
         message.value = data.message;
         document.getElementById('fb-suggest-topic').value = data.topic;
         message.focus();
-      } catch (error) {
-        window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
       } finally {
         btn.disabled = false;
         btn.innerHTML = label;
@@ -698,16 +698,10 @@
     </form>
   </div>
   <script>
-    function radarToast(msg, type) {
-      window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: msg, type: type || 'error'}}));
-    }
     async function radarPost(url, fields) {
       const body = new FormData();
       Object.keys(fields).forEach(function (key) { body.append(key, fields[key]); });
-      const res = await fetch(url, {method: 'POST', body: body});
-      const data = await res.json().catch(function () { return {message: 'Máy chủ trả lỗi ' + res.status}; });
-      if (!res.ok || !data.ok) throw new Error(data.message || 'Không thực hiện được.');
-      return data;
+      return apiRequest(url, {method: 'POST', body: body});
     }
     async function radarDraft(btn) {
       const post = document.getElementById('radar-post').value;
@@ -716,10 +710,12 @@
       btn.textContent = 'AI đang viết...';
       try {
         const data = await radarPost('/admin/advertising/facebook/radar/draft', {post: post});
+        if (!data.ok) {
+          window.showNotify(data.message || 'Không thực hiện được.', 'error');
+          return;
+        }
         document.getElementById('radar-comment').value = data.comment;
         document.getElementById('radar-message').value = data.message;
-      } catch (error) {
-        radarToast(error.message);
       } finally {
         btn.disabled = false;
         btn.innerHTML = label;
@@ -733,9 +729,7 @@
           name: document.getElementById('radar-name').value,
           phone: document.getElementById('radar-phone').value,
         });
-        radarToast(data.message, 'success');
-      } catch (error) {
-        radarToast(error.message);
+        window.showNotify(data.message || (data.ok ? 'Đã lưu.' : 'Không thực hiện được.'), data.ok ? 'success' : 'error');
       } finally {
         btn.disabled = false;
       }
@@ -748,7 +742,7 @@
       } catch (error) {
         document.execCommand('copy');
       }
-      radarToast('Đã sao chép.', 'success');
+      window.showNotify('Đã sao chép.', 'success');
     }
   </script>
 

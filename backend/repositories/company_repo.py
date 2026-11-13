@@ -24,17 +24,3 @@ def get_assigned_companies(user_id: int, user_role: str = "") -> list[dict]:
             fetchall=True, commit=False
         ) or []
     return []
-
-
-def get_company_by_id(company_id: int) -> dict | None:
-    return db._execute_query(
-        "SELECT id, name, tax_code, address, email FROM public.invoice_companies WHERE id = %s",
-        (company_id,), fetch=True, commit=False
-    )
-
-
-def get_all_companies() -> list[dict]:
-    return db._execute_query(
-        "SELECT id, name, tax_code, address, email FROM public.invoice_companies ORDER BY name",
-        fetchall=True, commit=False
-    ) or []

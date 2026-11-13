@@ -7,9 +7,10 @@ ranking signal: a blurred or dark image is still a valid image.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 import hashlib
+import itertools
 import math
 from typing import Any
 
@@ -20,7 +21,6 @@ from backend.util.bbox_utils import box_iou
 
 _PROFILES = {
     "document": (96, 3.0, 2800, 6_000_000, 1.5),
-    "plate": (96, 4.0, 1600, 1_500_000, 2.0),
     "handwriting": (64, 3.0, 2400, 4_000_000, 1.3),
 }
 _MAX_VARIANTS = 3
@@ -115,23 +115,23 @@ def assess_image(image: np.ndarray) -> dict:
     return result
 
 
-def _contrast(image: np.ndarray, clip_limit: float) -> np.ndarray:
+def enhance_ocr_image(image: np.ndarray, clip_limit: float) -> np.ndarray:
+    """Local contrast (CLAHE on lightness) plus a mild unsharp mask, at the same size."""
     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     lab[:, :, 0] = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(4, 4)).apply(lab[:, :, 0])
-    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    enhanced = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+    blurred = cv2.GaussianBlur(enhanced, (0, 0), 0.8)
+    return cv2.addWeighted(enhanced, 1.20, blurred, -0.20, 0)
 
 
 def prepare_ocr_image(image: np.ndarray, profile: str = "document") -> np.ndarray:
-    """Prepare a BGR uint8 image without changing its aspect or rejecting blur.
+    """Prepare a BGR uint8 document image without changing its aspect or rejecting blur.
 
-    Upscaling is limited to 3x (documents/handwriting) or 4x (plates). Output
-    dimensions and area are bounded independently of the source dimensions.
-    Input arrays are never modified. Callers should also try the raw image.
+    Upscaling is limited to 3x. Output dimensions and area are bounded
+    independently of the source dimensions. Input arrays are never modified.
+    Callers should also try the raw image. Plates use backend.util.ocr.plate_image.
     """
-    image = _profile_image(image, profile)
-    enhanced = _contrast(image, _PROFILES[profile][4])
-    blurred = cv2.GaussianBlur(enhanced, (0, 0), 0.8)
-    return cv2.addWeighted(enhanced, 1.20, blurred, -0.20, 0)
+    return enhance_ocr_image(_profile_image(image, profile), _PROFILES[profile][4])
 
 
 def iter_ocr_variants(image: np.ndarray, profile: str = "document", max_variants: int = 3):
@@ -142,10 +142,8 @@ def iter_ocr_variants(image: np.ndarray, profile: str = "document", max_variants
     """
     if profile not in _PROFILES:
         raise ValueError(f"Unknown OCR profile: {profile!r}")
-    if isinstance(max_variants, bool) or not isinstance(max_variants, (int, np.integer)) or max_variants < 0:
-        raise ValueError("max_variants must be a nonnegative integer")
     raw = _bgr(image)
-    count = min(int(max_variants), _MAX_VARIANTS)
+    count = max(0, min(int(max_variants), _MAX_VARIANTS))
     if count == 0:
         return
     yield raw
@@ -156,77 +154,6 @@ def iter_ocr_variants(image: np.ndarray, profile: str = "document", max_variants
         gray = cv2.cvtColor(bounded, cv2.COLOR_BGR2GRAY)
         normalized = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8)).apply(gray)
         yield cv2.cvtColor(normalized, cv2.COLOR_GRAY2BGR)
-
-
-def fuse_temporal_crops(crops: Iterable[np.ndarray], *, min_alignment: float = 0.70) -> np.ndarray | None:
-    """Align and denoise several views of the same moving object's plate.
-
-    This is deliberately conservative: it returns no fused image unless at
-    least three similarly shaped crops can be registered to the sharpest view
-    with a small translation and a strong ECC score. It improves temporal
-    noise/compression consistency, but is not super-resolution and cannot
-    recover detail absent from every source frame.
-    """
-    images = []
-    for crop in crops:
-        try:
-            image = _bgr(crop)
-        except ValueError:
-            continue
-        if min(image.shape[:2]) < 8:
-            continue
-        images.append(image)
-    if len(images) < 3:
-        return None
-
-    aspects = [image.shape[1] / image.shape[0] for image in images]
-    if max(aspects) / min(aspects) > 1.30:
-        return None
-
-    # Pick a stable reference by native sharpness/quality, then normalize the
-    # other detections to its geometry. The regular OCR path still tries the
-    # original source crops independently.
-    metrics = [(image, assess_image(image)) for image in images]
-    reference_source, _ = max(metrics, key=lambda item: (
-        item[1]["quality_score"], item[1]["sharpness"], item[0].shape[0] * item[0].shape[1],
-    ))
-    reference = _profile_image(reference_source, "plate")
-    height, width = reference.shape[:2]
-    if height < 24 or width < 48:
-        return None
-    reference_gray = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-    reference_gray = cv2.GaussianBlur(clahe.apply(reference_gray), (3, 3), 0)
-    aligned = [reference]
-    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 40, 1e-4)
-    for image in images:
-        if image is reference_source:
-            continue
-        candidate = cv2.resize(image, (width, height), interpolation=cv2.INTER_CUBIC
-                               if image.shape[0] < height else cv2.INTER_AREA)
-        gray = cv2.cvtColor(candidate, cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(clahe.apply(gray), (3, 3), 0)
-        warp = np.eye(2, 3, dtype=np.float32)
-        try:
-            correlation, warp = cv2.findTransformECC(
-                reference_gray, gray, warp, cv2.MOTION_TRANSLATION, criteria, None, 3,
-            )
-        except cv2.error:
-            continue
-        dx, dy = float(warp[0, 2]), float(warp[1, 2])
-        if correlation < min_alignment or abs(dx) > width * .06 or abs(dy) > height * .10:
-            continue
-        aligned.append(cv2.warpAffine(
-            candidate, warp, (width, height),
-            flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-            borderMode=cv2.BORDER_REFLECT_101,
-        ))
-
-    if len(aligned) < 3:
-        return None
-    stack = np.stack(aligned, axis=0)
-    temporal_median = np.median(stack, axis=0).astype(np.uint8)
-    return cv2.addWeighted(reference, 0.55, temporal_median, 0.45, 0)
 
 
 def best_prediction(predictions: Iterable[Mapping], text_key: str = "text",
@@ -306,6 +233,7 @@ class _Sample:
     crop: np.ndarray | None
     signature: str
     read: bool
+    context: np.ndarray | None = None
 
     @property
     def rank(self) -> float:
@@ -318,12 +246,12 @@ class _Track:
     start_time: float
     last_time: float
     bbox: tuple
-    observations: int = 0
     valid_votes: int = 0
     velocity: tuple[float, float] = (0.0, 0.0)
     motion_steps: int = 0
     hypotheses: dict[str, _Hypothesis] = field(default_factory=dict)
     samples: list[_Sample] = field(default_factory=list)
+    pooled: tuple | None = None
 
 
 class OCRTrackAggregator:
@@ -336,51 +264,52 @@ class OCRTrackAggregator:
     supply its full-format validator so fragments never become OCR votes.
 
     With ``recognize``, OCR is deferred until finalization and runs only on the
-    retained, temporally diverse ``max_crops`` samples. An optional
-    ``recognize_track`` callback can make one final prediction from aligned
-    crops if individual reads remain uncertain. Exceptions propagate to the
-    caller.
-    Mark already-attempted empty reads with ``ocr_read=True`` (``read`` and
-    ``ocr_attempted`` are also accepted). No models or services are loaded here.
+    retained, temporally diverse ``max_crops`` samples; it receives the crop and
+    the optional ``context`` image of its observation. An optional
+    ``recognize_track`` callback pools the evidence of all retained crops when
+    individual reads have not settled; it is asked again only when the retained
+    crops change. Exceptions propagate to the caller.
+    Mark already-attempted empty reads with ``ocr_read=True``. No models or
+    services are loaded here.
 
     Events are JSON-ready except for optional ``best_crop``. Recognition needs
-    matching valid text from two distinct source timestamps, average confidence
-    >= .70, and >= 60% of valid votes. A single read remains uncertain.
+    matching valid text from ``min_support`` distinct source timestamps (two by
+    default), average confidence >= .70, and >= 60% of valid votes; or pooled
+    evidence with confidence >= .90. A source that ends after a single frame (a
+    still image) cannot give a second reading: there one reading is enough.
+
+    A slow source keeps its tracks: the association window grows to three times
+    the observed interval between analysed frames.
 
     At most ``max_tracks`` identities are active. When slots are full, new
-    unmatched detections are dropped and counted in ``dropped_observations``;
-    callers should surface that counter as reduced candidate coverage.
+    unmatched detections are dropped.
     """
 
     def __init__(self, *, normalize: Callable[[str], str] | None = None,
                  validator: Callable[[str], bool] | None = None,
-                 recognize: Callable[[np.ndarray], Mapping | None] | None = None,
+                 recognize: Callable[[np.ndarray, np.ndarray | None], Mapping | None] | None = None,
                  recognize_track: Callable[[list[np.ndarray]], Mapping | None] | None = None,
                  max_gap_seconds: float = 1.5, max_crops: int = 5, iou_threshold: float = 0.15,
-                 max_tracks: int = 128):
+                 max_tracks: int = 128, min_support: int = 2, track_ids: Iterator[int] | None = None):
         gap = _number(max_gap_seconds, -1.0)
         threshold = _number(iou_threshold, -1.0)
         if gap <= 0 or not 0 <= threshold <= 1:
             raise ValueError("max_gap_seconds must be positive and iou_threshold must be in [0, 1]")
-        if isinstance(max_crops, bool) or not isinstance(max_crops, (int, np.integer)) or not 1 <= max_crops <= 32:
-            raise ValueError("max_crops must be an integer from 1 to 32")
-        if isinstance(max_tracks, bool) or not isinstance(max_tracks, (int, np.integer)) or not 1 <= max_tracks <= 1024:
-            raise ValueError("max_tracks must be an integer from 1 to 1024")
-        for callback in (normalize, validator, recognize, recognize_track):
-            if callback is not None and not callable(callback):
-                raise ValueError("OCR callbacks must be callable")
         self.normalize = normalize or (lambda text: " ".join(text.split()))
         self.validator = validator
         self.recognize = recognize
         self.recognize_track = recognize_track
-        self.max_gap_seconds = gap
-        self.max_crops = int(max_crops)
-        self.max_tracks = int(max_tracks)
-        self.dropped_observations = 0
+        self.max_gap_seconds = self._base_gap = gap
+        self._frame_gap = 0.0
+        self.max_crops = max(1, min(int(max_crops), 32))
+        self.max_tracks = max(1, min(int(max_tracks), 1024))
+        self.min_support = max(1, int(min_support))
         self.iou_threshold = threshold
         self._tracks: dict[int, _Track] = {}
-        self._next_id = 1
+        # A shared counter keeps ids unique across several aggregators of one process.
+        self._track_ids = track_ids or itertools.count(1)
         self._last_timestamp: float | None = None
+        self._frames = 0
 
     def _text(self, value: Any) -> tuple[str, bool]:
         if not isinstance(value, str) or not value.strip():
@@ -475,10 +404,11 @@ class OCRTrackAggregator:
             signature = hashlib.blake2b(preview.tobytes(), digest_size=8).hexdigest()
             crop = _bounded_resize(crop, 1.0, _MAX_RETAINED_EDGE, _MAX_RETAINED_PIXELS)
         raw_text = observation.get("text")
-        read = (isinstance(raw_text, str) and bool(raw_text.strip())) or any(
-            observation.get(flag) is True for flag in ("ocr_read", "read", "ocr_attempted"))
+        read = (isinstance(raw_text, str) and bool(raw_text.strip())) or observation.get("ocr_read") is True
+        context = observation.get("context")
         return _Sample(timestamp, text, _confidence(observation.get("confidence")), valid,
-                       _confidence(observation.get("detector_confidence")), score, crop, signature, read)
+                       _confidence(observation.get("detector_confidence")), score, crop, signature, read,
+                       context if isinstance(context, np.ndarray) and context.size else None)
 
     def _retain(self, track: _Track, sample: _Sample) -> None:
         if sample.crop is None:
@@ -498,6 +428,8 @@ class OCRTrackAggregator:
             return
         # Own retained memory; callers may reuse the decoder's source buffer.
         sample.crop = sample.crop.copy()
+        if sample.context is not None:
+            sample.context = sample.context.copy()
         available = track.samples + [sample]
         if len(available) <= self.max_crops:
             track.samples = available
@@ -525,20 +457,18 @@ class OCRTrackAggregator:
                 velocity = tuple(0.65 * new + 0.35 * old for new, old in zip(velocity, track.velocity))
             track.velocity = velocity
             track.motion_steps += 1
-        if track.observations == 0 or gap > 0:
-            track.observations += 1
         track.bbox, track.last_time = box, timestamp
         sample = self._sample(timestamp, observation)
         if sample.read:
             self._vote(track, sample)
         self._retain(track, sample)
 
-    def _finalize(self, track: _Track, *, allow_temporal_fusion: bool = True) -> dict:
+    def _finalize(self, track: _Track, min_support: int | None = None) -> dict:
         if self.recognize is not None:
             for sample in sorted(track.samples, key=lambda item: item.timestamp):
                 if sample.read or sample.crop is None:
                     continue
-                prediction = self.recognize(sample.crop)
+                prediction = self.recognize(sample.crop, sample.context)
                 if prediction is not None and not isinstance(prediction, Mapping):
                     raise ValueError("recognize must return a prediction mapping or None")
                 prediction = prediction or {}
@@ -548,75 +478,35 @@ class OCRTrackAggregator:
                 self._vote(track, sample)
         valid = [item for item in track.hypotheses.values() if item.valid and item.support]
         winner = max(valid, key=lambda item: (item.weighted_sum, item.support, item.confidence)) if valid else None
+        text, confidence = (winner.text, float(winner.confidence)) if winner else ("", 0.0)
         status = "unreadable"
         if winner is not None:
-            status = "recognized" if winner.support >= 2 and winner.confidence >= 0.70 and winner.support / track.valid_votes >= 0.60 else "uncertain"
-        # If separate frames did not produce a stable reading, one conservative
-        # registration/fusion pass can recover a candidate from shared temporal
-        # detail. Do not count the fused read as a separate source-frame vote.
-        fused_text = ""
-        if (allow_temporal_fusion and status != "recognized" and self.recognize_track is not None
-                and len(track.samples) >= 3):
-            crops = [sample.crop for sample in track.samples if sample.crop is not None]
-            if len(crops) >= 3:
+            needed = self.min_support if min_support is None else min_support
+            status = "recognized" if winner.support >= needed and winner.confidence >= 0.70 and winner.support / track.valid_votes >= 0.60 else "uncertain"
+        # Separate frames that did not settle on one reading still share evidence:
+        # pool it over the retained crops. The pooled reading is not another vote.
+        crops = [sample.crop for sample in track.samples if sample.crop is not None]
+        if status != "recognized" and self.recognize_track is not None and len(crops) >= 2:
+            key = tuple(sample.signature for sample in track.samples if sample.crop is not None)
+            if track.pooled is None or track.pooled[0] != key:
                 prediction = self.recognize_track(crops)
                 if prediction is not None and not isinstance(prediction, Mapping):
                     raise ValueError("recognize_track must return a prediction mapping or None")
-                if prediction:
-                    text, valid_text = self._text(prediction.get("text"))
-                    confidence = _confidence(prediction.get("confidence"))
-                    if valid_text and confidence > 0:
-                        if prediction.get("temporal_fusion") is True:
-                            fused_text = text
-                        quality = max((sample.quality_score for sample in track.samples), default=0.)
-                        weight = confidence * (0.5 + 0.5 * quality)
-                        hypothesis = track.hypotheses.get(text)
-                        if hypothesis is None or hypothesis.support == 0:
-                            if hypothesis is None:
-                                hypothesis = track.hypotheses[text] = _Hypothesis(text, True)
-                            hypothesis.valid = True
-                            hypothesis.support = 1
-                            hypothesis.confidence_sum = confidence
-                            hypothesis.weighted_sum = weight
-                            hypothesis.last_timestamp = track.last_time
-                            hypothesis.last_confidence = confidence
-                            hypothesis.last_weight = weight
-                            hypothesis.best_confidence = max(hypothesis.best_confidence, confidence)
-                            if prediction.get("temporal_fusion") is not True:
-                                track.valid_votes += 1
-                        else:
-                            hypothesis.best_confidence = max(hypothesis.best_confidence, confidence)
-                            if hypothesis.support:
-                                hypothesis.confidence_sum = max(
-                                    hypothesis.confidence_sum, confidence * hypothesis.support,
-                                )
-                                hypothesis.weighted_sum = max(
-                                    hypothesis.weighted_sum, weight * hypothesis.support,
-                                )
-                        valid = [item for item in track.hypotheses.values() if item.valid and item.support]
-                        winner = max(valid, key=lambda item: (item.weighted_sum, item.support, item.confidence))
-                        consensus_ok = (
-                            winner.support >= 2 and winner.confidence >= 0.70
-                            and winner.support / track.valid_votes >= 0.60
-                        )
-                        fused_read_ok = (
-                            bool(fused_text) and winner.text == fused_text and confidence >= 0.90
-                        )
-                        status = "recognized" if consensus_ok or fused_read_ok else "uncertain"
-        ranked = sorted(track.hypotheses.values(), key=lambda item: (item.valid, item.weighted_sum, item.best_confidence), reverse=True)
-        preferred = [sample for sample in track.samples if winner is not None and sample.text == winner.text]
+                prediction = prediction or {}
+                pooled_text, pooled_valid = self._text(prediction.get("text"))
+                track.pooled = (key, pooled_text if pooled_valid else "", _confidence(prediction.get("confidence")))
+            _, pooled_text, pooled_confidence = track.pooled
+            if pooled_text and pooled_confidence > 0 and (pooled_confidence >= 0.90 or winner is None or pooled_text == text):
+                confidence = max(pooled_confidence, confidence) if pooled_text == text else pooled_confidence
+                text = pooled_text
+                status = "recognized" if pooled_confidence >= 0.90 else "uncertain"
+        preferred = [sample for sample in track.samples if text and sample.text == text]
         best_sample = max(preferred or track.samples, key=lambda item: item.rank, default=None)
         return {
-            "track_id": track.track_id, "start_time": track.start_time, "end_time": track.last_time,
-            "bbox": list(track.bbox), "text": winner.text if winner else "",
-            "confidence": float(winner.confidence) if winner else 0.0, "status": status,
-            "temporal_fusion": bool(fused_text and winner and winner.text == fused_text),
+            "track_id": track.track_id, "end_time": track.last_time,
+            "bbox": list(track.bbox), "text": text, "confidence": confidence, "status": status,
             "detector_confidence": max((sample.detector_confidence for sample in track.samples), default=0.0),
-            "quality_score": max((sample.quality_score for sample in track.samples), default=0.0),
-            "observations": track.observations,
             "best_crop_time": best_sample.timestamp if best_sample else None,
-            "candidates": [{"text": item.text, "confidence": float(item.confidence),
-                            "support": item.support, "valid": item.valid} for item in ranked[:self.max_crops]],
             "best_crop": best_sample.crop if best_sample else None,
         }
 
@@ -624,11 +514,10 @@ class OCRTrackAggregator:
         """Recognize newly retained crops and return active track states.
 
         Unlike :meth:`update` expiration or :meth:`finish`, this leaves tracks
-        active and defers temporal fusion until they end. Live camera callers can
-        therefore surface stable OCR votes while a vehicle is still in view.
+        active, so live camera callers can surface a reading while a vehicle is
+        still in view.
         """
-        return [self._finalize(track, allow_temporal_fusion=False)
-                for track in self._tracks.values()]
+        return [self._finalize(track) for track in self._tracks.values()]
 
     def update(self, timestamp: float, observations: Iterable[Mapping]) -> list[dict]:
         """Observe one source frame and return tracks expired before that frame.
@@ -652,10 +541,16 @@ class OCRTrackAggregator:
             box = _bbox(observation.get("bbox"))
             if box is not None:
                 normalized.append({**observation, "bbox": box})
+        if self._last_timestamp is not None and timestamp > self._last_timestamp:
+            gap = timestamp - self._last_timestamp
+            self._frame_gap = gap if self._frame_gap == 0.0 else 0.7 * self._frame_gap + 0.3 * gap
+            self.max_gap_seconds = max(self._base_gap, 3.0 * self._frame_gap)
         expired = [track for track in self._tracks.values() if timestamp - track.last_time > self.max_gap_seconds]
         events = [self._finalize(track) for track in expired]
         for track in expired:
             del self._tracks[track.track_id]
+        if self._last_timestamp is None or timestamp > self._last_timestamp:
+            self._frames += 1
         self._last_timestamp = timestamp
         pairs = []
         for track in self._tracks.values():
@@ -677,16 +572,19 @@ class OCRTrackAggregator:
         unmatched.sort(key=lambda item: _confidence(item[1].get("detector_confidence")), reverse=True)
         for _, observation in unmatched:
             if len(self._tracks) >= self.max_tracks:
-                self.dropped_observations += 1
-                continue
-            track = _Track(self._next_id, timestamp, timestamp, observation["bbox"])
-            self._next_id += 1
+                break
+            track = _Track(next(self._track_ids), timestamp, timestamp, observation["bbox"])
             self._tracks[track.track_id] = track
             self._observe(track, timestamp, observation)
         return events
 
     def finish(self) -> list[dict]:
-        """Flush all remaining tracks once, including unreadable/short tracks."""
-        events = [self._finalize(track) for track in self._tracks.values()]
+        """Flush all remaining tracks once, including unreadable/short tracks.
+
+        The support needed is capped by the number of frames the source had, so a
+        single still image is decided by its one reading.
+        """
+        support = min(self.min_support, self._frames)
+        events = [self._finalize(track, support) for track in self._tracks.values()]
         self._tracks.clear()
         return events

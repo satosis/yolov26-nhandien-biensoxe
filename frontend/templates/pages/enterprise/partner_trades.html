@@ -579,20 +579,14 @@ async function requestShareLink(id, renew) {
     fd.append('renew', '1');
     opts.body = fd;
   }
-  try {
-    var res = await fetch(url, opts);
-    var data = await res.json();
-    if (!data || !data.ok) {
-      window.showNotify((data && data.message) || 'Không thể lấy link xem sổ.', 'error');
-      return null;
-    }
-    $('#share-url').val(data.url);
-    $('#share-open').attr('href', data.url);
-    return data.url;
-  } catch (err) {
-    window.showNotify('Lỗi kết nối máy chủ.', 'error');
+  var data = await apiRequest(url, opts);
+  if (!data.ok) {
+    window.showNotify(data.message || 'Không thể lấy link xem sổ.', 'error');
     return null;
   }
+  $('#share-url').val(data.url);
+  $('#share-open').attr('href', data.url);
+  return data.url;
 }
 
 $(document).on('click', '#btnShareLedger', async function() {

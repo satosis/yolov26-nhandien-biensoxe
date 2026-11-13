@@ -74,7 +74,7 @@ async def create_other_voucher_action(
     user: dict,
 ):
     cid = get_current_company_id()
-    created_by = user.get("id") if isinstance(user, dict) else None
+    created_by = user.get("id")
 
     ok, msg = create_voucher(
         company_id=cid,

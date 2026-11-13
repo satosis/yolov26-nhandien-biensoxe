@@ -125,33 +125,6 @@ def discover_onvif_cameras(timeout=6):
     return cameras
 
 
-def probe_onvif_unicast(ip: str, port: int = 80) -> dict | None:
-    probe_xml = (
-        '<Envelope xmlns="http://www.w3.org/2003/05/soap-envelope" '
-        'xmlns:dn="http://www.onvif.org/ver10/network/wsdl">'
-        '<Header><MessageID xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">'
-        f'uuid:{uuid_mod.uuid4()}</MessageID>'
-        '<To xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">'
-        'urn:schemas-xmlsoap-org:ws:2004:08:addressing:discovery</To>'
-        '<Action xmlns="http://schemas.xmlsoap.org/ws/2004/08/addressing">'
-        'http://schemas.xmlsoap.org/ws/2004/08/discovery/Probe</Action>'
-        '</Header><Body><Probe xmlns="http://schemas.xmlsoap.org/ws/2004/08/discovery">'
-        '<Types>dn:NetworkVideoTransmitter</Types></Probe></Body></Envelope>'
-    )
-
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.sendto(probe_xml.encode(), (ip, WS_DISCOVERY_PORT))
-        if not select.select([sock], [], [], 3)[0]:
-            logger.debug("Unicast ONVIF probe to %s:%s timed out", ip, port)
-            return None
-        data, _ = sock.recvfrom(65535)
-    xml_str = data.decode('utf-8', errors='replace')
-    if '\ufffd' in xml_str:
-        logger.debug("ONVIF unicast response has invalid UTF-8 from %s", ip)
-        return None
-    return _parse_probe_match(xml_str, ip)
-
-
 def _parse_probe_match(xml_str: str, fallback_ip: str) -> dict | None:
     xml_str = xml_str.lstrip('\ufeff')
     if '\ufffd' in xml_str:

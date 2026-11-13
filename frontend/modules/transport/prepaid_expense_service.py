@@ -405,10 +405,10 @@ def parse_ccdc_form(form: dict) -> tuple[dict | None, str | None]:
     raw_months = str(form.get("total_months") or "").strip()
     try:
         months = int(raw_months)
-        if not (1 <= months <= 120):
-            return None, "Số kỳ phân bổ phải từ 1 đến 120 tháng."
-    except Exception:
-        return None, "Số kỳ phân bổ phải từ 1 đến 120 tháng."
+        if months < 1:
+            return None, "Số kỳ phân bổ phải là số lớn hơn 0."
+    except ValueError:
+        return None, "Số kỳ phân bổ phải là số lớn hơn 0."
 
     raw_cost = str(form.get("original_cost") or "").replace(".", "").replace(",", "").replace(" ", "").strip()
     try:

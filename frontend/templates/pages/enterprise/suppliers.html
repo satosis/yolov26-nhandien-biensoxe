@@ -971,19 +971,14 @@
   let currentNextSttTrang = '{{ next_stt_trang|default("1") }}';
 
   async function fetchNextPurchaseStt(bookType) {
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/next-stt?book=' + encodeURIComponent(bookType));
-      var res = await resp.json();
-      if (res && res.status === 'success' && res.next_stt) {
-        if (bookType === 'trang_pa') {
-          currentNextSttTrang = String(res.next_stt);
-        } else {
-          currentNextSttBich = String(res.next_stt);
-        }
-        return String(res.next_stt);
+    var res = await apiRequest('/admin/enterprise/suppliers/api/next-stt?book=' + encodeURIComponent(bookType));
+    if (res.ok && res.api_status === 'success' && res.next_stt) {
+      if (bookType === 'trang_pa') {
+        currentNextSttTrang = String(res.next_stt);
+      } else {
+        currentNextSttBich = String(res.next_stt);
       }
-    } catch (e) {
-      console.error('Error fetching next stt:', e);
+      return String(res.next_stt);
     }
     return bookType === 'trang_pa' ? currentNextSttTrang : currentNextSttBich;
   }
@@ -1002,7 +997,7 @@
 
   function escapeHtmlAttr(str) {
     if (str === null || str === undefined) return '';
-    return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function addPurchaseItemRow(itemData) {
@@ -1231,17 +1226,10 @@
 
     var orderLines = null;
     if (invNum) {
-      try {
-        var url = '/admin/enterprise/suppliers/api/purchases/order?book_type=' + encodeURIComponent(bookType) + '&invoice_number=' + encodeURIComponent(invNum);
-        var resp = await fetch(url);
-        if (resp.ok) {
-          var resData = await resp.json();
-          if (resData && resData.status === 'success' && Array.isArray(resData.items) && resData.items.length > 0) {
-            orderLines = resData.items;
-          }
-        }
-      } catch (err) {
-        orderLines = null;
+      var url = '/admin/enterprise/suppliers/api/purchases/order?book_type=' + encodeURIComponent(bookType) + '&invoice_number=' + encodeURIComponent(invNum);
+      var resData = await apiRequest(url);
+      if (resData.ok && resData.api_status === 'success' && Array.isArray(resData.items) && resData.items.length > 0) {
+        orderLines = resData.items;
       }
     }
 
@@ -1304,7 +1292,7 @@
     var commonNote = document.getElementById('p_note').value.trim();
 
     if (!suppName) {
-      alert('Vui lòng nhập tên nhà cung cấp');
+      window.showNotify('Vui lòng nhập tên nhà cung cấp', 'warning');
       return;
     }
 
@@ -1312,139 +1300,157 @@
     btn.disabled = true;
     btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang lưu...';
 
-    try {
-      var rows = document.querySelectorAll('#purchaseItemsBody tr');
-      var items = [];
-      rows.forEach(function(r) {
-        var pName = r.querySelector('.p_row_product_name').value.trim();
-        var qtyVal = r.querySelector('.p_row_quantity_kg').value.trim();
-        var priceVal = parseCurrency(r.querySelector('.p_row_unit_price').value);
-        var piecesVal = r.querySelector('.p_row_pieces').value;
-        var piecesUnitVal = (r.querySelector('.p_row_pieces_unit') ? r.querySelector('.p_row_pieces_unit').value : '').trim();
-        var rowWarehouse = (r.querySelector('.p_row_warehouse') ? r.querySelector('.p_row_warehouse').value : '').trim();
-        var rowNote = r.querySelector('.p_row_note').value.trim();
-        var totalStr = r.querySelector('.p_row_total_amount').value.trim();
+    var rows = document.querySelectorAll('#purchaseItemsBody tr');
+    var items = [];
+    rows.forEach(function(r) {
+      var pName = r.querySelector('.p_row_product_name').value.trim();
+      var qtyVal = r.querySelector('.p_row_quantity_kg').value.trim();
+      var priceVal = parseCurrency(r.querySelector('.p_row_unit_price').value);
+      var piecesVal = r.querySelector('.p_row_pieces').value;
+      var piecesUnitVal = (r.querySelector('.p_row_pieces_unit') ? r.querySelector('.p_row_pieces_unit').value : '').trim();
+      var rowWarehouse = (r.querySelector('.p_row_warehouse') ? r.querySelector('.p_row_warehouse').value : '').trim();
+      var rowNote = r.querySelector('.p_row_note').value.trim();
+      var totalStr = r.querySelector('.p_row_total_amount').value.trim();
 
-        if (pName || qtyVal || priceVal > 0 || totalStr) {
-          var itemObj = {
-            product_name: pName,
-            warehouse: rowWarehouse,
-            pieces: piecesVal ? parseFloat(piecesVal) : null,
-            pieces_unit: piecesUnitVal,
-            qty_formula: qtyVal,
-            unit_price: priceVal,
-            total_amount: totalStr ? parseCurrency(totalStr) : null,
-            note: rowNote
-          };
-          if (r.dataset.purchaseId) {
-            itemObj.id = parseInt(r.dataset.purchaseId, 10);
-          }
-          items.push(itemObj);
+      if (pName || qtyVal || priceVal > 0 || totalStr) {
+        var itemObj = {
+          product_name: pName,
+          warehouse: rowWarehouse,
+          pieces: piecesVal ? parseFloat(piecesVal) : null,
+          pieces_unit: piecesUnitVal,
+          qty_formula: qtyVal,
+          unit_price: priceVal,
+          total_amount: totalStr ? parseCurrency(totalStr) : null,
+          note: rowNote
+        };
+        if (r.dataset.purchaseId) {
+          itemObj.id = parseInt(r.dataset.purchaseId, 10);
         }
-      });
+        items.push(itemObj);
+      }
+    });
 
-      if (items.length === 0) {
-        alert('Vui lòng nhập ít nhất 1 mặt hàng');
+    if (items.length === 0) {
+      window.showNotify('Vui lòng nhập ít nhất 1 mặt hàng', 'warning');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
+      return;
+    }
+
+    for (var i = 0; i < items.length; i++) {
+      if (!items[i].product_name) {
+        window.showNotify('Vui lòng nhập tên hàng hóa ở dòng ' + (i + 1), 'warning');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
+        return;
+      }
+    }
+
+    var orderIdsEl = document.getElementById('p_order_ids');
+    var orderIdsVal = orderIdsEl ? orderIdsEl.value.trim() : '';
+    var originalIds = orderIdsVal ? JSON.parse(orderIdsVal) : null;
+
+    if (originalIds && Array.isArray(originalIds) && originalIds.length > 0) {
+      var orderPayload = {
+        original_ids: originalIds,
+        book_type: bookType,
+        invoice_number: invNum,
+        purchase_date: pDate,
+        supplier_name: suppName,
+        note: commonNote,
+        items: items
+      };
+
+      var result = await apiRequest('/admin/enterprise/suppliers/api/purchases/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload)
+      });
+      if (!result.ok || result.api_status !== 'success') {
+        window.showNotify(result.message || 'Lỗi khi lưu đơn nhập hàng', 'error');
         btn.disabled = false;
         btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
         return;
       }
 
-      for (var i = 0; i < items.length; i++) {
-        if (!items[i].product_name) {
-          alert('Vui lòng nhập tên hàng hóa ở dòng ' + (i + 1));
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
-          return;
-        }
+      $('#purchaseModal').modal('hide');
+      if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
+      } else {
+        window.location.reload();
+      }
+    } else if (id) {
+      var payload = {
+        book_type: bookType,
+        invoice_number: invNum,
+        purchase_date: pDate,
+        supplier_name: suppName,
+        warehouse: items[0].warehouse || '',
+        product_name: items[0].product_name,
+        pieces: items[0].pieces,
+        pieces_unit: items[0].pieces_unit || '',
+        qty_formula: items[0].qty_formula,
+        unit_price: items[0].unit_price,
+        total_amount: items[0].total_amount,
+        note: items[0].note || commonNote
+      };
+
+      var result = await apiRequest('/admin/enterprise/suppliers/api/purchases/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!result.ok || result.api_status !== 'success') {
+        window.showNotify(result.message || 'Lỗi khi lưu đơn nhập hàng', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
+        return;
       }
 
-      var orderIdsEl = document.getElementById('p_order_ids');
-      var orderIdsVal = orderIdsEl ? orderIdsEl.value.trim() : '';
-      var originalIds = null;
-      if (orderIdsVal) {
-        try {
-          originalIds = JSON.parse(orderIdsVal);
-        } catch (err) {
-          originalIds = null;
-        }
-      }
-
-      if (originalIds && Array.isArray(originalIds) && originalIds.length > 0) {
-        var orderPayload = {
-          original_ids: originalIds,
+      if (items.length > 1) {
+        var insertPayload = {
           book_type: bookType,
           invoice_number: invNum,
           purchase_date: pDate,
           supplier_name: suppName,
           note: commonNote,
-          items: items
+          items: items.slice(1)
         };
-
-        var resp = await fetch('/admin/enterprise/suppliers/api/purchases/order', {
-          method: 'PUT',
+        var extraResult = await apiRequest('/admin/enterprise/suppliers/api/purchases', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orderPayload)
+          body: JSON.stringify(insertPayload)
         });
-        var result = await resp.json();
-        if (!resp.ok || result.status !== 'success') {
-          alert(result.detail || 'Lỗi khi lưu đơn nhập hàng');
+        if (!extraResult.ok || extraResult.api_status !== 'success') {
+          window.showNotify(extraResult.message || 'Lỗi khi lưu các dòng bổ sung', 'error');
           btn.disabled = false;
           btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
           return;
         }
+      }
 
-        $('#purchaseModal').modal('hide');
-        if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
-      } else if (id) {
-        var payload = {
-          book_type: bookType,
-          invoice_number: invNum,
-          purchase_date: pDate,
-          supplier_name: suppName,
-          warehouse: items[0].warehouse || '',
-          product_name: items[0].product_name,
-          pieces: items[0].pieces,
-          pieces_unit: items[0].pieces_unit || '',
-          qty_formula: items[0].qty_formula,
-          unit_price: items[0].unit_price,
-          total_amount: items[0].total_amount,
-          note: items[0].note || commonNote
-        };
+      $('#purchaseModal').modal('hide');
+      if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
+      } else {
+        window.location.reload();
+      }
+    } else {
+      var payload = {
+        book_type: bookType,
+        invoice_number: invNum,
+        purchase_date: pDate,
+        supplier_name: suppName,
+        note: commonNote,
+        items: items
+      };
 
-        var resp = await fetch('/admin/enterprise/suppliers/api/purchases/' + id, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        var result = await resp.json();
-        if (!resp.ok || result.status !== 'success') {
-          alert(result.detail || 'Lỗi khi lưu đơn nhập hàng');
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
-          return;
-        }
-
-        if (items.length > 1) {
-          var insertPayload = {
-            book_type: bookType,
-            invoice_number: invNum,
-            purchase_date: pDate,
-            supplier_name: suppName,
-            note: commonNote,
-            items: items.slice(1)
-          };
-          await fetch('/admin/enterprise/suppliers/api/purchases', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(insertPayload)
-          });
-        }
-
+      var result = await apiRequest('/admin/enterprise/suppliers/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (result.ok && result.api_status === 'success') {
         $('#purchaseModal').modal('hide');
         if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
           openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
@@ -1452,38 +1458,10 @@
           window.location.reload();
         }
       } else {
-        var payload = {
-          book_type: bookType,
-          invoice_number: invNum,
-          purchase_date: pDate,
-          supplier_name: suppName,
-          note: commonNote,
-          items: items
-        };
-
-        var resp = await fetch('/admin/enterprise/suppliers/api/purchases', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        var result = await resp.json();
-        if (resp.ok && result.status === 'success') {
-          $('#purchaseModal').modal('hide');
-          if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
-            openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-          } else {
-            window.location.reload();
-          }
-        } else {
-          alert(result.detail || 'Lỗi khi lưu đơn nhập hàng');
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
-        }
+        window.showNotify(result.message || 'Lỗi khi lưu đơn nhập hàng', 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
       }
-    } catch (err) {
-      alert('Lỗi kết nối máy chủ: ' + err);
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu đơn hàng';
     }
   }
 
@@ -1491,33 +1469,22 @@
     var ok = await appConfirmAsync('Đánh lại STT Sổ nhập hàng Bích và Trang, mỗi sổ bắt đầu từ 1?', { confirmText: 'Đánh lại', confirmClass: 'btn-primary' });
     if (!ok) return;
     btn.disabled = true;
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/purchases/renumber', { method: 'POST' });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        window.location.reload();
-      } else {
-        window.showNotify(res.detail || res.message || 'Không đánh lại được STT.', 'error');
-        btn.disabled = false;
-      }
-    } catch (err) {
-      window.showNotify('Không kết nối được máy chủ.', 'error');
+    var res = await apiRequest('/admin/enterprise/suppliers/api/purchases/renumber', { method: 'POST' });
+    if (res.ok && res.api_status === 'success') {
+      window.location.reload();
+    } else {
+      window.showNotify(res.message || 'Không đánh lại được STT.', 'error');
       btn.disabled = false;
     }
   }
 
   async function deletePurchase(id) {
     if (!confirm('Bạn có chắc chắn muốn xóa dòng nhập hàng này?')) return;
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/purchases/' + id, { method: 'DELETE' });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        window.location.reload();
-      } else {
-        alert(res.detail || 'Không thể xóa');
-      }
-    } catch (err) {
-      alert('Lỗi: ' + err);
+    var res = await apiRequest('/admin/enterprise/suppliers/api/purchases/' + id, { method: 'DELETE' });
+    if (res.ok && res.api_status === 'success') {
+      window.location.reload();
+    } else {
+      window.showNotify(res.message || 'Không thể xóa', 'error');
     }
   }
 
@@ -1599,20 +1566,15 @@
     var item = window.currentStatementLedger && window.currentStatementLedger[idx];
     if (!item) return;
     if (!confirm('Bạn có chắc chắn muốn xóa dòng nhập hàng #' + item.id + ' này?')) return;
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/purchases/' + item.id, { method: 'DELETE' });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        if (window.currentStatementSupplier) {
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
+    var res = await apiRequest('/admin/enterprise/suppliers/api/purchases/' + item.id, { method: 'DELETE' });
+    if (res.ok && res.api_status === 'success') {
+      if (window.currentStatementSupplier) {
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
       } else {
-        alert(res.detail || 'Không thể xóa dòng nhập hàng');
+        window.location.reload();
       }
-    } catch (err) {
-      alert('Lỗi: ' + err);
+    } else {
+      window.showNotify(res.message || 'Không thể xóa dòng nhập hàng', 'error');
     }
   }
 
@@ -1620,39 +1582,29 @@
     var item = window.currentStatementLedger && window.currentStatementLedger[idx];
     if (!item) return;
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu thanh toán #' + item.id + ' này?')) return;
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/payments/' + item.id, { method: 'DELETE' });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        if (window.currentStatementSupplier) {
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
+    var res = await apiRequest('/admin/enterprise/suppliers/api/payments/' + item.id, { method: 'DELETE' });
+    if (res.ok && res.api_status === 'success') {
+      if (window.currentStatementSupplier) {
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
       } else {
-        alert(res.detail || 'Không thể xóa phiếu thanh toán');
+        window.location.reload();
       }
-    } catch (err) {
-      alert('Lỗi: ' + err);
+    } else {
+      window.showNotify(res.message || 'Không thể xóa phiếu thanh toán', 'error');
     }
   }
 
   async function deletePayment(id) {
     if (!confirm('Bạn có chắc chắn muốn xóa phiếu thanh toán này?')) return;
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/payments/' + id, { method: 'DELETE' });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
+    var res = await apiRequest('/admin/enterprise/suppliers/api/payments/' + id, { method: 'DELETE' });
+    if (res.ok && res.api_status === 'success') {
+      if ($('#statementModal').hasClass('show') && window.currentStatementSupplier) {
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
       } else {
-        alert(res.detail || 'Không thể xóa phiếu thanh toán');
+        window.location.reload();
       }
-    } catch (err) {
-      alert('Lỗi: ' + err);
+    } else {
+      window.showNotify(res.message || 'Không thể xóa phiếu thanh toán', 'error');
     }
   }
 
@@ -1675,32 +1627,23 @@
       btn.innerText = 'Đang lưu...';
     }
 
-    try {
-      var url = payId ? ('/admin/enterprise/suppliers/api/payments/' + payId) : '/admin/enterprise/suppliers/api/payments';
-      var method = payId ? 'PUT' : 'POST';
-      var resp = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        $('#paymentModal').modal('hide');
-        if (window.statementWasOpen && window.currentStatementSupplier) {
-          window.statementWasOpen = false;
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
+    var url = payId ? ('/admin/enterprise/suppliers/api/payments/' + payId) : '/admin/enterprise/suppliers/api/payments';
+    var method = payId ? 'PUT' : 'POST';
+    var res = await apiRequest(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok && res.api_status === 'success') {
+      $('#paymentModal').modal('hide');
+      if (window.statementWasOpen && window.currentStatementSupplier) {
+        window.statementWasOpen = false;
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
       } else {
-        alert(res.detail || 'Lỗi lưu thanh toán');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerText = 'Xác nhận thanh toán';
-        }
+        window.location.reload();
       }
-    } catch (err) {
-      alert('Lỗi kết nối máy chủ: ' + err);
+    } else {
+      window.showNotify(res.message || 'Lỗi lưu thanh toán', 'error');
       if (btn) {
         btn.disabled = false;
         btn.innerText = 'Xác nhận thanh toán';
@@ -1715,12 +1658,14 @@
     document.getElementById('stm_ledger_tbody').innerHTML = '<tr><td colspan="11" class="text-center py-3">Đang tải lịch sử đối soát...</td></tr>';
     $('#statementModal').modal('show');
 
-    try {
-      var url = '/admin/enterprise/suppliers/api/statement/' + encodeURIComponent(supplierName);
-      if (bookType) url += '?book_type=' + encodeURIComponent(bookType);
-      var resp = await fetch(url);
-      var data = await resp.json();
-      window.currentStatementLedger = data.ledger || [];
+    var url = '/admin/enterprise/suppliers/api/statement/' + encodeURIComponent(supplierName);
+    if (bookType) url += '?book_type=' + encodeURIComponent(bookType);
+    var data = await apiRequest(url);
+    if (!data.ok) {
+      document.getElementById('stm_ledger_tbody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-3">Lỗi tải dữ liệu: ' + escapeHtmlAttr(data.message || '') + '</td></tr>';
+      return;
+    }
+    window.currentStatementLedger = data.ledger || [];
       window.currentStatementOpeningBalance = data.opening_balance || 0;
       window.currentStatementOpeningDate = data.opening_balance_date || '';
       window.currentStatementNote = (data.profile && data.profile.note) || '';
@@ -1823,10 +1768,6 @@
         rows = '<tr><td colspan="11" class="text-center py-3 text-muted">Chưa có giao dịch nào phát sinh.</td></tr>';
       }
       document.getElementById('stm_ledger_tbody').innerHTML = rows;
-
-    } catch (err) {
-      document.getElementById('stm_ledger_tbody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-3">Lỗi tải dữ liệu: ' + err + '</td></tr>';
-    }
   }
 
   function openOpeningDebtModalFromStatement() {
@@ -1892,7 +1833,7 @@
     var bookType = document.getElementById('op_book_type').value || '{{ current_book }}';
 
     if (!supplier) {
-      alert('Vui lòng nhập tên nhà cung cấp');
+      window.showNotify('Vui lòng nhập tên nhà cung cấp', 'warning');
       return;
     }
 
@@ -1909,30 +1850,21 @@
       btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang lưu...';
     }
 
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/opening-debt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        $('#openingDebtModal').modal('hide');
-        if (window.statementWasOpen && window.currentStatementSupplier) {
-          window.statementWasOpen = false;
-          openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
-        } else {
-          window.location.reload();
-        }
+    var res = await apiRequest('/admin/enterprise/suppliers/api/opening-debt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok && res.api_status === 'success') {
+      $('#openingDebtModal').modal('hide');
+      if (window.statementWasOpen && window.currentStatementSupplier) {
+        window.statementWasOpen = false;
+        openStatementModal(window.currentStatementSupplier, window.currentStatementBook);
       } else {
-        alert(res.detail || 'Lỗi lưu nợ đầu kỳ');
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu nợ đầu kỳ';
-        }
+        window.location.reload();
       }
-    } catch (err) {
-      alert('Lỗi kết nối máy chủ: ' + err);
+    } else {
+      window.showNotify(res.message || 'Lỗi lưu nợ đầu kỳ', 'error');
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu nợ đầu kỳ';
@@ -1977,7 +1909,7 @@
     e.preventDefault();
     var fileInput = document.getElementById('import_file');
     if (!fileInput.files || fileInput.files.length === 0) {
-      alert('Vui lòng chọn file Excel');
+      window.showNotify('Vui lòng chọn file Excel', 'warning');
       return;
     }
 
@@ -1989,22 +1921,15 @@
     btn.disabled = true;
     btn.innerText = 'Đang xử lý nhập dữ liệu...';
 
-    try {
-      var resp = await fetch('/admin/enterprise/suppliers/api/import', {
-        method: 'POST',
-        body: formData
-      });
-      var res = await resp.json();
-      if (resp.ok && res.status === 'success') {
-        alert('Nhập dữ liệu thành công!\n- Đơn nhập hàng: ' + res.data.purchases_imported + '\n- Giao dịch thanh toán: ' + res.data.payments_imported);
-        window.location.reload();
-      } else {
-        alert(res.detail || 'Lỗi khi nhập file');
-        btn.disabled = false;
-        btn.innerText = 'Bắt đầu tải lên & Nhập';
-      }
-    } catch (err) {
-      alert('Lỗi kết nối máy chủ: ' + err);
+    var res = await apiRequest('/admin/enterprise/suppliers/api/import', {
+      method: 'POST',
+      body: formData
+    });
+    if (res.ok && res.api_status === 'success') {
+      window.showNotify('Nhập dữ liệu thành công! Đơn nhập hàng: ' + res.data.purchases_imported + ' · Thanh toán: ' + res.data.payments_imported, 'success');
+      setTimeout(function() { window.location.reload(); }, 600);
+    } else {
+      window.showNotify(res.message || 'Lỗi khi nhập file', 'error');
       btn.disabled = false;
       btn.innerText = 'Bắt đầu tải lên & Nhập';
     }

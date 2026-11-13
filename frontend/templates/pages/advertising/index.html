@@ -441,10 +441,6 @@
 </div>
 
 <script>
-function adsNotify(message, ok) {
-  window.showNotify(message, ok === false ? 'error' : 'success');
-}
-
 function openNewCampaignModal() { $('#newCampaignModal').modal('show'); }
 function openApiSettingsModal() { $('#apiSettingsModal').modal('show'); }
 
@@ -457,18 +453,11 @@ function updateSuggestedTitle(prov) {
 }
 
 async function toggleCampaign(campaignId, checkbox) {
-  try {
-    const res = await fetch(`/admin/advertising/api/campaigns/${campaignId}/toggle`, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      adsNotify(data.message || 'Lỗi khi chuyển trạng thái chiến dịch', false);
-      checkbox.checked = !checkbox.checked;
-    }
-  } catch (err) {
-    adsNotify('Không thể kết nối máy chủ', false);
+  const data = await apiRequest(`/admin/advertising/api/campaigns/${campaignId}/toggle`, {
+    method: 'POST',
+  });
+  if (!data.ok) {
+    window.showNotify(data.message || 'Lỗi khi chuyển trạng thái chiến dịch', 'error');
     checkbox.checked = !checkbox.checked;
   }
 }
@@ -493,20 +482,14 @@ async function submitMetrics(e) {
   formData.append('calls', document.getElementById('metricsCalls').value);
   formData.append('spent_amount', document.getElementById('metricsSpent').value);
 
-  try {
-    const res = await fetch(`/admin/advertising/api/campaigns/${campId}/metrics`, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      body: formData
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.location.reload();
-    } else {
-      adsNotify(data.message || 'Lỗi cập nhật', false);
-    }
-  } catch (err) {
-    adsNotify('Lỗi kết nối máy chủ', false);
+  const data = await apiRequest(`/admin/advertising/api/campaigns/${campId}/metrics`, {
+    method: 'POST',
+    body: formData
+  });
+  if (data.ok) {
+    window.location.reload();
+  } else {
+    window.showNotify(data.message || 'Lỗi cập nhật', 'error');
   }
 }
 
@@ -514,53 +497,35 @@ async function saveGoogleId(campId) {
   const inputEl = document.getElementById('google_id_' + campId);
   const val = inputEl ? inputEl.value.trim() : '';
   if (val && !/^\d+$/.test(val)) {
-    adsNotify('Google Campaign ID phải chỉ gồm chữ số.', false);
+    window.showNotify('Google Campaign ID phải chỉ gồm chữ số.', 'error');
     return;
   }
   const fd = new FormData();
   fd.append('google_campaign_id', val);
-  try {
-    const res = await fetch(`/admin/advertising/api/campaigns/${campId}/google-id`, {
-      method: 'POST',
-      body: fd,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    adsNotify(data.message || (data.ok ? 'Đã lưu' : 'Lỗi'), data.ok);
-    if (data.ok) setTimeout(() => location.reload(), 800);
-  } catch (err) {
-    adsNotify('Không thể kết nối máy chủ', false);
-  }
+  const data = await apiRequest(`/admin/advertising/api/campaigns/${campId}/google-id`, {
+    method: 'POST',
+    body: fd,
+  });
+  window.showNotify(data.message || (data.ok ? 'Đã lưu' : 'Lỗi'), data.ok ? 'success' : 'error');
+  if (data.ok) setTimeout(() => location.reload(), 800);
 }
 
 async function testGoogleConnection() {
-  try {
-    const res = await fetch('/admin/advertising/api/google/test', {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    adsNotify(data.message || (data.ok ? 'Kết nối thành công!' : 'Lỗi kết nối'), data.ok);
-  } catch (err) {
-    adsNotify('Lỗi kết nối máy chủ', false);
-  }
+  const data = await apiRequest('/admin/advertising/api/google/test', {
+    method: 'POST',
+  });
+  window.showNotify(data.message || (data.ok ? 'Kết nối thành công!' : 'Lỗi kết nối'), data.ok ? 'success' : 'error');
 }
 
 async function syncGoogleAdsNow() {
-  try {
-    const res = await fetch('/admin/advertising/api/google/sync', {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (data.ok) {
-      adsNotify(`Đồng bộ thành công! Đã liên kết: ${data.linked}, Cập nhật số liệu: ${data.metrics_updated}, Thay đổi trạng thái: ${(data.changes || []).length}`);
-      setTimeout(() => location.reload(), 1500);
-    } else {
-      adsNotify(data.message || 'Đồng bộ thất bại', false);
-    }
-  } catch (err) {
-    adsNotify('Lỗi kết nối máy chủ', false);
+  const data = await apiRequest('/admin/advertising/api/google/sync', {
+    method: 'POST',
+  });
+  if (data.ok) {
+    window.showNotify(`Đồng bộ thành công! Đã liên kết: ${data.linked}, Cập nhật số liệu: ${data.metrics_updated}, Thay đổi trạng thái: ${(data.changes || []).length}`, 'success');
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    window.showNotify(data.message || 'Đồng bộ thất bại', 'error');
   }
 }
 
@@ -568,18 +533,12 @@ async function setGoogleLive(enabled, confirmValue) {
   const fd = new FormData();
   fd.append('enabled', enabled ? '1' : '0');
   if (enabled) fd.append('confirm', confirmValue);
-  try {
-    const res = await fetch('/admin/advertising/api/google/live', {
-      method: 'POST',
-      body: fd,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    adsNotify(data.message || (data.ok ? 'Đã cập nhật' : 'Lỗi'), data.ok);
-    if (data.ok) setTimeout(() => location.reload(), 800);
-  } catch (err) {
-    adsNotify('Lỗi kết nối máy chủ', false);
-  }
+  const data = await apiRequest('/admin/advertising/api/google/live', {
+    method: 'POST',
+    body: fd,
+  });
+  window.showNotify(data.message || (data.ok ? 'Đã cập nhật' : 'Lỗi'), data.ok ? 'success' : 'error');
+  if (data.ok) setTimeout(() => location.reload(), 800);
 }
 
 function toggleGoogleLive(enable) {
@@ -596,7 +555,7 @@ function submitGoogleLive(e) {
   e.preventDefault();
   const value = document.getElementById('googleLiveConfirm').value.trim();
   if (value !== 'BAT') {
-    adsNotify('Xác nhận không đúng.', false);
+    window.showNotify('Xác nhận không đúng.', 'error');
     return;
   }
   $('#googleLiveModal').modal('hide');

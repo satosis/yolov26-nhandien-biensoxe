@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.background import BackgroundTask
 
 from frontend.auth.rbac import get_current_user
 from frontend.modules.claude_code import service
@@ -41,9 +42,11 @@ def run_events(run_id: str, after: int, user: dict) -> JSONResponse:
 
 def send(message: str, page_path: str, page_title: str, files: list, user: dict) -> JSONResponse:
     try:
-        return JSONResponse({"ok": True, "run": service.send(user, message, page_path, page_title, files)})
+        run = service.send(user, message, page_path, page_title, files)
     except service.ChatError as error:
         return _error(error)
+    return JSONResponse({"ok": True, "run": run},
+                        background=BackgroundTask(service.fill_companies_from_run, run["run_id"]))
 
 
 def stop(run_id: str, user: dict) -> JSONResponse:

@@ -119,24 +119,10 @@ def _correct_place(text: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def _get_predictor():
-    from vietocr.tool.predictor import Predictor
-    from vietocr.tool.config import Cfg
-    from huggingface_hub import hf_hub_download
+def _get_recognizer():
+    from backend.util.ocr.aster_engine import get_aster_recognizer
 
-    logger.info("Loading VietOCR handwriting model...")
-    config = Cfg.load_config_from_name("vgg_transformer")
-    weights = hf_hub_download(
-        repo_id="DungHugging/vietocr-handwritten-finetune",
-        filename="transformerocr.pth",
-    )
-    config["weights"] = weights
-    config["device"] = "cpu"
-    config["predictor"]["beamsearch"] = os.getenv("VIETOCR_BEAMSEARCH", "1").strip().lower() not in {"0", "false", "no"}
-    predictor = Predictor(config)
-    logger.info("VietOCR model loaded.")
-    return predictor
-
+    return get_aster_recognizer()
 
 
 def _remove_ruling_lines(gray: np.ndarray) -> np.ndarray:
@@ -201,12 +187,20 @@ def _normalize_line_crop(pil_img: Image.Image) -> Image.Image:
 
 
 def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
+    from backend.util.ocr.aster_engine import normalize_grayscale_strip
+
     bgr = cv2.cvtColor(np.array(normalized_crop.convert("RGB")), cv2.COLOR_RGB2BGR)
-    variants = [
+    bg_clean = normalize_grayscale_strip(bgr)
+    variants = [Image.fromarray(cv2.cvtColor(bg_clean, cv2.COLOR_BGR2RGB))]
+    variants.extend(
         Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         for image in iter_ocr_variants(bgr, profile="handwriting", max_variants=3)
-    ]
+    )
+    return variants
 
+
+def _make_binary_fallback(normalized_crop: Image.Image) -> Image.Image:
+    bgr = cv2.cvtColor(np.array(normalized_crop.convert("RGB")), cv2.COLOR_RGB2BGR)
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
     eq = clahe.apply(gray)
@@ -214,21 +208,28 @@ def _make_variants(normalized_crop: Image.Image) -> list[Image.Image]:
         eq, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         cv2.THRESH_BINARY, 31, 11,
     )
-    variants.append(Image.fromarray(cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB)))
-
-    background = cv2.medianBlur(eq, 31)
-    normalized = cv2.divide(eq, background, scale=255)
-    variants.append(Image.fromarray(cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)))
-
-    return variants
+    return Image.fromarray(cv2.cvtColor(binary, cv2.COLOR_GRAY2RGB))
 
 
-def _ocr_best_result(normalized_crop: Image.Image, predictor) -> dict:
+def _ocr_best_result(normalized_crop: Image.Image, recognizer) -> dict:
+    from backend.util.ocr.aster_engine import is_low_contrast_or_blurry
+
     predictions = []
     for variant in _make_variants(normalized_crop):
-        text, prob = predictor.predict(variant, return_prob=True)
-        logger.debug("OCR variant prob=%r text=%r", prob, str(text or "")[:40])
+        text, prob = recognizer.recognize_line(variant, auto_polarity=False, is_bgr=False)
+        logger.debug("OCR grayscale variant prob=%r text=%r", prob, str(text or "")[:40])
         predictions.append({"text": text, "confidence": prob})
+        if text and prob >= 0.96:
+            break
+
+    best_gray = best_prediction(predictions) or {"text": "", "confidence": 0.0}
+    bgr = cv2.cvtColor(np.array(normalized_crop.convert("RGB")), cv2.COLOR_RGB2BGR)
+    if (not best_gray["text"] or best_gray["confidence"] < 0.85) or is_low_contrast_or_blurry(bgr):
+        bin_variant = _make_binary_fallback(normalized_crop)
+        text, prob = recognizer.recognize_line(bin_variant, auto_polarity=False, is_bgr=False, normalize_gray=False)
+        logger.debug("OCR binary fallback prob=%r text=%r", prob, str(text or "")[:40])
+        predictions.append({"text": text, "confidence": prob})
+
     return best_prediction(predictions) or {"text": "", "confidence": 0.0}
 
 
@@ -373,11 +374,11 @@ def _ocr_line_results_from_bgr(img_bgr: np.ndarray) -> list[dict]:
         logger.warning("handwriting_ocr: không phát hiện được dòng nào trong ảnh")
         return []
 
-    predictor = _get_predictor()
+    recognizer = _get_recognizer()
     lines: list[dict] = []
     for idx, crop in enumerate(crops):
         crop_preview = _normalize_line_crop(crop)
-        result = _ocr_best_result(crop_preview, predictor)
+        result = _ocr_best_result(crop_preview, recognizer)
         text = result["text"]
         if text:
             lines.append({

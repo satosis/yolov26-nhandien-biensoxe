@@ -3,51 +3,36 @@ async function renumberVouchers(btn, bookType) {
   if (!confirm('Đánh lại số chứng từ của sổ này?')) {
     return;
   }
-  var origHtml = btn ? btn.innerHTML : '';
+  const origHtml = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class=\'bx bx-loader-alt bx-spin mr-1\'></i>Đang đánh số...';
   }
-  try {
-    var compEl = document.querySelector('input[name=\'company_id\']');
-    var companyId = compEl ? compEl.value : '';
-    var fd = new FormData();
-    fd.append('book_type', bookType);
-    if (companyId) {
-      fd.append('company_id', companyId);
-    }
-    var res = await fetch('/admin/transport/api/cash-bank/renumber-vouchers', {
-      method: 'POST',
-      body: fd,
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    var text = await res.text();
-    var data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseErr) {
-      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : ('Máy chủ phản hồi lỗi (' + res.status + '): ' + text.slice(0, 150)));
-    }
-    if (data.ok) {
-      alert(data.message || 'Đã đánh lại số chứng từ thành công.');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể đánh lại số chứng từ.'));
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-      }
-    }
-  } catch (err) {
-    alert('Lỗi: ' + (err.message || 'Không thể kết nối đến máy chủ.'));
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = origHtml;
-    }
+  const compEl = document.querySelector('input[name=\'company_id\']');
+  const companyId = compEl ? compEl.value : '';
+  const fd = new FormData();
+  fd.append('book_type', bookType);
+  if (companyId) {
+    fd.append('company_id', companyId);
+  }
+  const data = await apiRequest('/admin/transport/api/cash-bank/renumber-vouchers', {
+    method: 'POST',
+    body: fd,
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
+  }
+  if (data.ok) {
+    window.showNotify(data.message || 'Đã đánh lại số chứng từ thành công.', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể đánh lại số chứng từ.', 'error');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
   }
 }
 
@@ -107,7 +92,7 @@ function bindPartnerSync(codeId, nameId, onPicked) {
       const found = findByTax(this.value);
       if (found && found.name) {
         fill(nameEl, found.name, this);
-        if (typeof onPicked === 'function') onPicked(found);
+        if (onPicked) onPicked(found);
       } else {
         clearAuto(nameEl);
       }
@@ -118,7 +103,7 @@ function bindPartnerSync(codeId, nameId, onPicked) {
       if (found) {
         if (found.tax_code) this.value = found.tax_code;
         if (found.name) fill(nameEl, found.name, this);
-        if (typeof onPicked === 'function') onPicked(found);
+        if (onPicked) onPicked(found);
       }
     });
 
@@ -127,7 +112,7 @@ function bindPartnerSync(codeId, nameId, onPicked) {
       const found = findByName(this.value);
       if (found && found.tax_code) {
         fill(codeEl, found.tax_code, this);
-        if (typeof onPicked === 'function') onPicked(found);
+        if (onPicked) onPicked(found);
       } else {
         clearAuto(codeEl);
       }
@@ -138,7 +123,7 @@ function bindPartnerSync(codeId, nameId, onPicked) {
       if (found) {
         if (found.tax_code) codeEl.value = found.tax_code;
         this.value = found.name;
-        if (typeof onPicked === 'function') onPicked(found);
+        if (onPicked) onPicked(found);
       }
     });
   }
@@ -152,30 +137,23 @@ async function submitEditOpening(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
 
-  try {
-    const res = await fetch('/admin/transport/api/cash-bank/opening-balance', {
-      method: 'POST',
-      body: formData,
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    const data = await res.json();
-    if (data.ok) {
-      alert(data.message || 'Cập nhật số dư đầu kỳ thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể cập nhật số dư đầu kỳ'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu số dư';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu số dư';
+  const data = await apiRequest('/admin/transport/api/cash-bank/opening-balance', {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (data.ok) {
+    window.showNotify(data.message || 'Cập nhật số dư đầu kỳ thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể cập nhật số dư đầu kỳ', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu số dư';
 }
 
 function openEditOpeningModal(bookType, currentVal) {

@@ -1,6 +1,6 @@
 """Cầu nối HTTP của frontend.modules.enterprise.controller: nhận tham số của request rồi giao cho controller, không làm gì thêm."""
 from fastapi import Request, Query, Depends, Form, UploadFile, File
-from frontend.deps import require_menu
+from frontend.deps import require_menu, get_current_user
 from typing import Optional
 import frontend.modules.enterprise.controller as controller
 
@@ -535,3 +535,25 @@ async def enterprise_sales_invoice_pdf(
     user: dict = Depends(require_menu('sales')),
 ):
     return await controller.enterprise_sales_invoice_pdf(sale_id=sale_id, request=request, user=user)
+
+
+async def enterprise_sales_presence_heartbeat_api(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    return await controller.enterprise_presence_heartbeat_api(request=request, user=user)
+
+
+async def enterprise_sales_presence_release_api(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    return await controller.enterprise_presence_release_api(request=request, user=user)
+
+
+async def enterprise_sales_presence_active_api(
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
+    return await controller.enterprise_presence_active_api(request=request, user=user)
+

@@ -193,10 +193,10 @@
     setTimeout(() => { el.style.backgroundColor = ''; }, 600);
   }
   function notify(msg, type) {
-    if (window.showNotify) window.showNotify(msg, type || 'success');
+    window.showNotify(msg, type || 'success');
   }
   function closeDropdown() {
-    try { $('#page-header-reminders-dropdown').dropdown('hide'); } catch (err) {}
+    $('#page-header-reminders-dropdown').dropdown('hide');
     $('#reminders-bell-container .dropdown-menu').removeClass('show');
   }
 
@@ -254,15 +254,12 @@
     },
 
     fetchBadge: function() {
-      fetch('/api/reminders/badge')
-        .then(r => r.json())
-        .then(res => {
-          if (!res.ok) return;
-          this.activeItems = res.items || [];
-          this.updateBellBadge(res.count || 0);
-          this.renderDropdown(this.activeItems);
-        })
-        .catch(err => console.warn('Reminders fetch error:', err));
+      apiRequest('/api/reminders/badge').then(res => {
+        if (!res.ok) return;
+        this.activeItems = res.items || [];
+        this.updateBellBadge(res.count || 0);
+        this.renderDropdown(this.activeItems);
+      });
     },
 
     updateBellBadge: function(count) {
@@ -349,27 +346,25 @@
         remind_before_days: parseInt(document.getElementById('reminder-form-before-days').value, 10) || 15
       };
       if (!payload.title || !payload.due_date) {
-        alert('Vui lòng nhập nội dung và hạn chót.');
+        notify('Vui lòng nhập nội dung và hạn chót.', 'error');
         return;
       }
       btn.disabled = true;
       btn.textContent = 'Đang lưu...';
-      fetch(id ? `/api/reminders/${id}` : '/api/reminders', {
+      apiRequest(id ? `/api/reminders/${id}` : '/api/reminders', {
         method: id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      .then(r => r.json())
       .then(res => {
         if (res.ok) {
           $('#modal-reminder-form').modal('hide');
           notify(res.message || (id ? 'Đã cập nhật nhắc việc.' : 'Đã thêm nhắc việc.'));
           this.refresh();
         } else {
-          alert(res.message || 'Lỗi khi lưu');
+          notify(res.message || 'Lỗi khi lưu', 'error');
         }
       })
-      .catch(() => alert('Lỗi kết nối máy chủ'))
       .finally(() => { btn.disabled = false; btn.textContent = label; });
     },
 
@@ -396,31 +391,25 @@
     confirmRenew: function() {
       if (!this.pendingRenewItemId) return;
       const nextDue = document.getElementById('reminder-renew-next-due').value;
-      if (!nextDue) { alert('Vui lòng chọn hạn tiếp theo'); return; }
+      if (!nextDue) { notify('Vui lòng chọn hạn tiếp theo', 'error'); return; }
       const id = this.pendingRenewItemId;
-      fetch(`/api/reminders/${id}/renew`, {
+      apiRequest(`/api/reminders/${id}/renew`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ next_due_date: nextDue })
-      })
-      .then(r => r.json())
-      .then(res => {
+      }).then(res => {
         $('#modal-reminder-renew').modal('hide');
         this.pendingRenewItemId = null;
         if (res.ok) { notify(res.message || 'Đã gia hạn.'); this.refresh(); }
-        else alert(res.message || 'Lỗi gia hạn');
-      })
-      .catch(() => alert('Lỗi kết nối máy chủ'));
+        else notify(res.message || 'Lỗi gia hạn', 'error');
+      });
     },
 
     postAction: function(url, method, okMsg, okType) {
-      fetch(url, { method: method })
-        .then(r => r.json())
-        .then(res => {
-          if (res.ok) { notify(okMsg, okType); this.refresh(); }
-          else alert(res.message || 'Lỗi cập nhật');
-        })
-        .catch(err => console.error(err));
+      apiRequest(url, { method }).then(res => {
+        if (res.ok) { notify(okMsg, okType); this.refresh(); }
+        else notify(res.message || 'Lỗi cập nhật', 'error');
+      });
     },
 
     completeItem: function(id) { this.postAction(`/api/reminders/${id}/complete`, 'POST', 'Đã đánh dấu xong.'); },
@@ -443,15 +432,12 @@
     },
 
     fetchAll: function() {
-      fetch('/api/reminders/all')
-        .then(r => r.json())
-        .then(res => {
-          if (!res.ok) return;
-          this.allItems = res.items || [];
-          this.updateManagerCounts();
-          this.renderManagerTable();
-        })
-        .catch(err => console.error(err));
+      apiRequest('/api/reminders/all').then(res => {
+        if (!res.ok) return;
+        this.allItems = res.items || [];
+        this.updateManagerCounts();
+        this.renderManagerTable();
+      });
     },
 
     updateManagerCounts: function() {

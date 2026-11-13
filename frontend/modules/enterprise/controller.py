@@ -66,30 +66,29 @@ def _personal_month_range(value: str | None = None) -> tuple[str, date, date]:
     if not cleaned:
         cur_y = date.today().year
         return f"{cur_y}-all", date(cur_y, 1, 1), date(cur_y + 1, 1, 1)
-    if cleaned:
-        if cleaned in ("all", "all_year", "tat_ca"):
-            cur_y = date.today().year
-            return "all", date(cur_y, 1, 1), date(cur_y + 1, 1, 1)
-        m_year_all = re.match(r"^(\d{4})-(all|00)$", cleaned)
-        if m_year_all:
-            y = int(m_year_all.group(1))
-            return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
-        m = re.match(r"^(\d{4})[-/](\d{1,2})$", cleaned)
-        if m:
-            y, mo = int(m.group(1)), int(m.group(2))
-            if 1 <= mo <= 12:
-                try:
-                    month_start = date(y, mo, 1)
-                    if mo == 12:
-                        month_end = date(y + 1, 1, 1)
-                    else:
-                        month_end = date(y, mo + 1, 1)
-                    return month_start.strftime("%Y-%m"), month_start, month_end
-                except Exception:
-                    pass
-        elif cleaned.rstrip("-").isdigit() and len(cleaned.rstrip("-")) == 4:
-            y = int(cleaned.rstrip("-"))
-            return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
+    if cleaned in ("all", "all_year", "tat_ca"):
+        cur_y = date.today().year
+        return "all", date(cur_y, 1, 1), date(cur_y + 1, 1, 1)
+    m_year_all = re.match(r"^(\d{4})-(all|00)$", cleaned)
+    if m_year_all:
+        y = int(m_year_all.group(1))
+        return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
+    m = re.match(r"^(\d{4})[-/](\d{1,2})$", cleaned)
+    if m:
+        y, mo = int(m.group(1)), int(m.group(2))
+        if 1 <= mo <= 12:
+            try:
+                month_start = date(y, mo, 1)
+                if mo == 12:
+                    month_end = date(y + 1, 1, 1)
+                else:
+                    month_end = date(y, mo + 1, 1)
+                return month_start.strftime("%Y-%m"), month_start, month_end
+            except Exception:
+                pass
+    elif cleaned.rstrip("-").isdigit() and len(cleaned.rstrip("-")) == 4:
+        y = int(cleaned.rstrip("-"))
+        return f"{y}-all", date(y, 1, 1), date(y + 1, 1, 1)
 
     if not month_start:
         month_start = date.today().replace(day=1)
@@ -107,10 +106,6 @@ def _parse_opening_balance(val: str) -> Decimal:
     try:
         return parse_vnd(val)
     except ValueError:
-        return Decimal("0")
-    if False:
-
-
         return Decimal("0")
 
 
@@ -2218,3 +2213,61 @@ async def enterprise_sales_invoice_pdf(sale_id: int, request: Request, user: dic
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="Hoa_don_{filename}.pdf"'},
     )
+
+
+async def enterprise_presence_heartbeat_api(request: Request, user: dict):
+    company_id = _sales_company_id(request, user)
+    if not company_id:
+        return JSONResponse({"ok": False, "message": "Chưa chọn doanh nghiệp."}, status_code=400)
+    try:
+        data = await request.json()
+        session_id = str(data.get("session_id") or "").strip()
+        if not session_id:
+            return JSONResponse({"ok": False, "message": "Thiếu session_id."}, status_code=400)
+        scope = str(data.get("scope") or "sales").strip()
+        resource_id = str(data.get("resource_id") or "").strip()
+        customer_id = str(data.get("customer_id") or "").strip()
+        customer_name = str(data.get("customer_name") or "").strip()
+        invoice_number = str(data.get("invoice_number") or "").strip()
+        user_id = user.get("id") or 0
+        user_name = user.get("full_name") or user.get("username") or f"User #{user_id}"
+
+        from frontend.modules.enterprise import presence_service
+        res = presence_service.record_heartbeat(
+            session_id=session_id,
+            company_id=company_id,
+            scope=scope,
+            user_id=user_id,
+            user_name=user_name,
+            resource_id=resource_id,
+            customer_id=customer_id,
+            customer_name=customer_name,
+            invoice_number=invoice_number,
+        )
+        return JSONResponse(res)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Lỗi ghi nhận presence heartbeat: %s", exc)
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+async def enterprise_presence_release_api(request: Request, user: dict):
+    try:
+        data = await request.json()
+        session_id = str(data.get("session_id") or "").strip()
+        if session_id:
+            from frontend.modules.enterprise import presence_service
+            presence_service.release_session(session_id)
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+async def enterprise_presence_active_api(request: Request, user: dict):
+    company_id = _sales_company_id(request, user)
+    if not company_id:
+        return JSONResponse({"ok": False, "message": "Chưa chọn doanh nghiệp."}, status_code=400)
+    scope = request.query_params.get("scope", "sales")
+    from frontend.modules.enterprise import presence_service
+    active = presence_service.get_active_sessions_for_company(company_id=company_id, scope=scope)
+    return JSONResponse({"ok": True, "active": active})
+

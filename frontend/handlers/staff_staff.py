@@ -8,7 +8,7 @@ async def staff_index(
     request: Request,
     page: int = Query(1, ge=1),
     department: str = Query(''),
-    q: str = Query('', max_length=200),
+    q: str = Query(''),
     message: str = Query(''),
     error: str = Query(''),
     user: dict = Depends(require_menu('staff')),

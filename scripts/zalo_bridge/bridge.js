@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import sharp from 'sharp';
 import { Zalo, ThreadType, LoginQRCallbackEventType } from 'zca-js';
-import { createAiRunner } from './ai_commands.js';
+import { createAiRunner, BOT_MARK } from './ai_commands.js';
 import { createInvoiceSender } from './invoice_sender.js';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -16,6 +16,7 @@ const sessionPath = path.join(runtime, 'session.json');
 const statusPath = path.join(runtime, 'bridge-status.json');
 const portPath = path.join(runtime, 'bridge-port');
 const aiBusyPath = path.join(runtime, 'ai-running.pid');
+const pendingAiPath = path.join(runtime, 'pending_ai_requests.json');
 const ingestUrl = 'http://127.0.0.1:8001/api/zalo_bridge/ingest';
 const companiesUrl = 'http://127.0.0.1:8001/api/zalo_bridge/companies';
 const maxFileBytes = 40 * 1024 * 1024;
@@ -169,6 +170,10 @@ async function main() {
   const aiGroupName = ((await readFile(path.join(runtime, 'ai-group-name'), 'utf8').catch(() => ''))
     .trim() || defaultAiGroupName).toLocaleLowerCase('vi');
   let aiGroupId = null;
+  // Khi bridge khởi động lại, tin của người dùng đến trong lúc gián đoạn được lấy lại từ lịch sử nhóm
+  // và trả lời (xem replayMissed). aiSeenMsgIds tránh xử lý trùng một tin giữa lịch sử và listener
+  // trong cùng một phiên (nối lại tạm thời khi đang xử lý).
+  const aiSeenMsgIds = new Set();
   // Ảnh bridge tự gửi vào nhóm AI quay lại qua listener; không phải lệnh của người dùng.
   const botFileIds = new Set();
   let botFilesSending = 0;
@@ -240,6 +245,9 @@ async function main() {
   }
 
   function findTargetGroup(payload) {
+    if (payload.group_id && String(payload.group_id) === aiGroupId) {
+      return { groupId: aiGroupId, groupName: 'AI' };
+    }
     if (payload.group_id && matchedGroups.has(String(payload.group_id))) {
       return matchedGroups.get(String(payload.group_id));
     }
@@ -398,24 +406,65 @@ async function main() {
 
   await updateStatusConnected();
 
+  async function savePendingAi(item) {
+    try {
+      const existing = JSON.parse(await readFile(pendingAiPath, 'utf8').catch(() => '[]'));
+      existing.push(item);
+      await writeFile(pendingAiPath, JSON.stringify(existing, null, 2));
+    } catch {}
+  }
+
+  async function clearPendingAi(batch) {
+    try {
+      let existing = JSON.parse(await readFile(pendingAiPath, 'utf8').catch(() => '[]'));
+      const batchTexts = new Set(batch.map(b => b.text));
+      existing = existing.filter(e => !batchTexts.has(e.text));
+      await writeFile(pendingAiPath, JSON.stringify(existing, null, 2));
+    } catch {}
+  }
+
   const aiRunner = createAiRunner({
     project,
     onBusyChange: async busy => {
       if (busy) await writeFile(aiBusyPath, String(process.pid));
       else await unlink(aiBusyPath).catch(error => { if (error.code !== 'ENOENT') throw error; });
     },
+    onBatchDone: async batch => {
+      await clearPendingAi(batch);
+    },
     sendText: async text => {
       if (!aiGroupId) throw new Error('Chưa tìm thấy nhóm lệnh AI');
       await api.sendMessage({ msg: text }, aiGroupId, ThreadType.Group);
     },
   });
+
+  async function recoverPendingAi() {
+    try {
+      const items = JSON.parse(await readFile(pendingAiPath, 'utf8').catch(() => '[]'));
+      const valid = items.filter(it => Date.now() - (Number(it.ts) || 0) < 2 * 60 * 60 * 1000);
+      if (valid.length > 0) {
+        console.log(`Gom ${valid.length} tin nhắn AI chưa hoàn thành từ phiên trước để xử lý lại...`);
+        for (const item of valid) {
+          await aiRunner.handle(item.text, item.senderName, item.files || []);
+        }
+      }
+    } catch (e) {
+      console.warn('Không phục hồi được tin nhắn AI dở dang:', e.message);
+    }
+  }
+  void recoverPendingAi();
   async function handleAiMessage(message, content) {
+    const msgId = String(message.data.msgId);
+    if (aiSeenMsgIds.has(msgId)) return;
+    if (aiSeenMsgIds.size > 500) aiSeenMsgIds.clear();
+    aiSeenMsgIds.add(msgId);
     if (message.isSelf && content && typeof content === 'object'
         && (botFileIds.delete(String(message.data.msgId)) || botFilesSending > 0)) return;
     // Ảnh có chú thích: chú thích nằm ở title hoặc description tùy loại tin.
     const text = typeof content === 'string' ? content : (content?.title || content?.description || '');
     const senderName = message.data.dName || (message.isSelf ? account.displayName : '');
     const files = [];
+    let imageFilePath = null;
     if (content && typeof content === 'object' && content.href) {
       try {
         const file = await downloadAttachment(content.href);
@@ -427,6 +476,9 @@ async function main() {
         await mkdir(path.dirname(filePath), { recursive: true });
         await writeFile(filePath, file.data);
         files.push(filePath);
+        if (imageExtension) {
+          imageFilePath = filePath;
+        }
       } catch (error) {
         console.error(`Không tải được tệp của lệnh AI ${message.data.msgId}: ${error.message}`);
         aiRunner.cancelPendingFrom(senderName);
@@ -434,8 +486,69 @@ async function main() {
         return;
       }
     }
+    if (imageFilePath) {
+      await fetch('http://127.0.0.1:8001/api/zalo_bridge/company-card', {
+        method: 'POST',
+        headers: { 'X-Zalo-Bridge-Secret': secret, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: imageFilePath })
+      }).catch(error => console.error(`Không đọc được thông tin công ty từ ảnh ${message.data.msgId}: ${error.message}`));
+    }
     console.log(`Tin nhóm AI ${message.data.msgId} (${message.data.msgType}): ${text.slice(0, 80)} [${files.length} tệp]`);
+    await savePendingAi({ msgId, text, senderName, files, ts: Date.now() });
     await aiRunner.handle(text, senderName, files);
+  }
+
+  // Trả lời những tin của người dùng đến trong lúc bridge gián đoạn mà chưa được trả lời. Nguồn tin cũ
+  // lấy qua websocket (sự kiện old_messages, xin bằng requestOldMessages) vì endpoint lịch sử HTTP 404.
+  // Hai điều kiện BẮT BUỘC để replay một tin:
+  //   1) Trong RECENT_MS gần đây. Khoảng trống khi bridge restart chỉ vài giây–phút; chặn cứng này để
+  //      KHÔNG BAO GIỜ chạy lại tin cũ (old_messages có thể trả về một lát lịch sử cũ, không đáng tin).
+  //   2) Sau tin gần nhất của chính bot (tin tự gửi / cùng uid / có dấu 🤖, kể cả "đã nhận lệnh"/"đang
+  //      chạy"): bot đã nhắn gì đó sau một tin = đã nhận và xử lý (gián đoạn giữa chừng đã có thông báo
+  //      "gửi lại yêu cầu" lo). Không lưu mốc ra file để tránh đánh dấu "đã xem" rồi bị kill trước khi
+  //      kịp trả lời (sẽ mất tin); nhờ (1) nên cũng không cần.
+  // 2 giờ: đủ gom các tin nhắn lỗi cũ / chưa xử lý trong phiên làm việc
+  const RECENT_MS = 2 * 60 * 60 * 1000;
+  const ERROR_MARKERS = ['lỗi khi chạy ai', 'lỗi xử lý ai', 'lỗi ai', '5-hour limit', 'hết thời gian', 'limit reached'];
+  async function replayMissed(messages) {
+    if (!aiGroupId) return;
+    const group = messages.filter(m => String(m.threadId) === aiGroupId);
+    if (!group.length) return;
+    const botUid = String(api.getOwnId());
+    const textOf = message => {
+      const content = message.data.content;
+      return (typeof content === 'string' ? content : (content?.title || content?.description || '')).trim();
+    };
+    const isBot = message => message.isSelf
+      || String(message.data.uidFrom) === botUid
+      || textOf(message).startsWith(BOT_MARK);
+    // Tin bot báo lỗi hoặc tin thông báo tạm ("đang xử lý...") thì KHÔNG tính là đã xử lý thành công.
+    const isBotErrorOrAck = message => {
+      const text = textOf(message).toLowerCase();
+      return isBot(message) && (
+        ERROR_MARKERS.some(marker => text.includes(marker))
+        || text.includes('đang xử lý')
+        || text.includes('vẫn đang chạy')
+        || text.includes('đã nhận thêm')
+      );
+    };
+    const msgs = group.slice().sort((a, b) => (Number(a.data.ts) || 0) - (Number(b.data.ts) || 0));
+    // Chỉ lấy mốc của tin bot hoàn tất thành công (hoặc người dùng chủ động hủy)
+    const lastSuccessBotTs = msgs.reduce(
+      (max, m) => (isBot(m) && !isBotErrorOrAck(m) ? Math.max(max, Number(m.data.ts) || 0) : max),
+      0
+    );
+    const cutoff = Math.max(lastSuccessBotTs, Date.now() - RECENT_MS);
+    const missed = msgs.filter(m => !isBot(m) && textOf(m)
+      && !aiSeenMsgIds.has(String(m.data.msgId))
+      && (Number(m.data.ts) || 0) > cutoff)
+      .slice(-10); // gom tối đa 10 tin gần nhất chưa xử lý thành công
+    if (missed.length > 0) {
+      console.log(`Gom ${missed.length} tin nhắn chưa xử lý / lỗi cũ trong nhóm AI để chạy lại...`);
+      for (const message of missed) {
+        await handleAiMessage(message, message.data.content);
+      }
+    }
   }
 
   async function ingestMessage(message) {
@@ -503,8 +616,15 @@ async function main() {
       await ingestMessage(message);
     })().catch(error => console.error(`Tin nhắn ${message.data?.msgId}: ${error.message}`));
   });
+  api.listener.on('old_messages', (messages, threadType) => {
+    if (threadType !== ThreadType.Group) return;
+    void replayMissed(messages).catch(error => console.error('Lỗi trả lời tin cũ nhóm AI:', error.message));
+  });
   api.listener.on('connected', () => {
     void updateStatusConnected();
+    // Khi vừa kết nối lại, xin máy chủ đẩy lại các tin nhóm gần đây để bắt tin bị bỏ lỡ lúc gián đoạn.
+    try { api.listener.requestOldMessages(ThreadType.Group, null); }
+    catch (error) { console.error('Không xin được tin cũ nhóm AI:', error.message); }
   });
   api.listener.on('disconnected', (code, reason) => {
     void status('disconnected', `${code}: ${reason}`);

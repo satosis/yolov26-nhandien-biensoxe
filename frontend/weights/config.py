@@ -28,7 +28,7 @@ TEST_WEIGHT_ITEMS = [
             "Cấp chính xác M1 còn hạn kiểm định Quatest",
             "Sẵn 40+ quả tại kho · Hỗ trợ ghép xe cẩu 8T–10T",
         ],
-        "img": "/static/services/crane/img/weights_500kg_truck_bed.jpg",
+        "img": "/upload/services/crane/img/weights_500kg_truck_bed.jpg",
     },
     {
         "id": "qua-can-hop-go",
@@ -45,7 +45,7 @@ TEST_WEIGHT_ITEMS = [
             "Đủ tem và giấy hiệu chuẩn cấp F1, F2 hợp lệ",
             "Thuê từ 3 ngày giảm 20% đơn giá",
         ],
-        "img": "/static/services/crane/img/weights_precision_wooden_boxes.jpg",
+        "img": "/upload/services/crane/img/weights_precision_wooden_boxes.jpg",
     },
     {
         "id": "qua-can-inox",
@@ -62,7 +62,7 @@ TEST_WEIGHT_ITEMS = [
             "Đủ mức khối lượng: 1kg, 2kg, 5kg, 10kg, 20kg",
             "Giao nhận nhanh tại KCN Phú Thọ & Vĩnh Phúc",
         ],
-        "img": "/static/services/crane/img/weights_lab_calibration_set.jpg",
+        "img": "/upload/services/crane/img/weights_lab_calibration_set.jpg",
     },
     {
         "id": "kiem-dinh-tron-goi",
@@ -79,7 +79,7 @@ TEST_WEIGHT_ITEMS = [
             "Có mặt sau 15–30 phút tại Vĩnh Phúc, Phú Thọ",
             "Xuất hóa đơn VAT & biên bản bàn giao đầy đủ",
         ],
-        "img": "/static/services/crane/img/weights_truck_scale_outdoor.jpg",
+        "img": "/upload/services/crane/img/weights_truck_scale_outdoor.jpg",
     },
 ]
 
@@ -102,7 +102,7 @@ def get_test_weights_settings() -> dict:
         "title": f"Bảng giá thuê quả cân chuẩn từ 250k & gói trạm cân 4,5tr — {company_name}",
         "description": f"Bảng giá thuê quả cân chuẩn kiểm định cấp F1, F2, M1 tại Vĩnh Phúc, Phú Thọ — {company_name} (MST: {tax_id}). Quả cân Inox từ 250k/ngày, gang 500kg 400k/quả, trọn gói xe cẩu trạm cân từ 4,5 triệu. Hotline: {phone_display}.",
         "keywords": f"giá thuê quả cân, quả cân chuẩn, quả cân 500kg, quả cân kiểm định cân điện tử, kiểm định trạm cân xe tải, quả cân F1 F2 M1, {company_name}",
-        "og_image": "/static/services/crane/img/weights_truck_scale_outdoor.jpg",
+        "og_image": "/upload/services/crane/img/weights_truck_scale_outdoor.jpg",
     }
 
     return {**profile, "seo_config": seo_config, "weight_items": TEST_WEIGHT_ITEMS}

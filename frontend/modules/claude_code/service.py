@@ -9,6 +9,7 @@ chối vì không có ai duyệt. Chỉ tài khoản Admin có id trong CLAUDE_C
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -33,13 +34,13 @@ RUNNER = Path(__file__).with_name("runner.py")
 DEFAULT_USER_IDS = "1"
 RUN_TIMEOUT_S = 30 * 60
 STARTING_GRACE_S = 60
-MAX_MESSAGE_CHARS = 8000
 RUNS_SHOWN = 30
 ORPHAN_RUNS_KEPT_S = 30 * 86400
 DETAIL_CHARS = 4000
 FINAL_STATES = {"done", "error", "stopped", "timeout", "interrupted"}
 RUN_ID = re.compile(r"^\d{8}-\d{6}-[0-9a-f]{8}$")
 FILENAME_UNSAFE = re.compile(r'[\x00-\x1f<>:"/\\|?*]+')
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 TOOLS = "Read,Glob,Grep,Edit,Write,TodoWrite,Bash"
 # Lệnh tự chạy được, ngoài các lệnh chỉ đọc trong thư mục dự án mà Claude Code tự cho phép; lệnh khác bị từ chối.
@@ -151,9 +152,9 @@ def _write_json(path: Path, data) -> None:
             time.sleep(0.05)
 
 
-def _conversation_key(user) -> str:
+def _conversation_key(user: dict) -> str:
     """Một cuộc trò chuyện cho mỗi tài khoản; đăng nhập máy nào cũng dùng chung."""
-    return str(int(user["id"])) if isinstance(user, dict) else str(int(user))
+    return str(int(user["id"]))
 
 
 def _conversation_path(user) -> Path:
@@ -489,8 +490,6 @@ def send(user: dict, message: str, page_path: str, page_title: str, files=()) ->
     text = (message or "").strip()
     if not text and not files:
         raise ChatError("Nhập việc cần Claude làm.")
-    if len(text) > MAX_MESSAGE_CHARS:
-        raise ChatError(f"Tin nhắn dài quá {MAX_MESSAGE_CHARS} ký tự.")
     cli = claude_cli()
     if not cli:
         raise ChatError("Máy chủ chưa cài Claude Code CLI.", 503)
@@ -533,6 +532,26 @@ def send(user: dict, message: str, page_path: str, page_title: str, files=()) ->
                                                   "error": f"Không khởi động được Claude: {error}"})
     _prune_orphan_runs(run_id)
     return _run_view(run_id, 0)
+
+
+async def fill_companies_from_run(run_id: str) -> None:
+    """Tin nhắn hoặc ảnh/PDF đính kèm có thông tin công ty (MST + tài khoản hoặc email): bổ sung các ô còn trống của
+    công ty đó, như tin gửi trong nhóm Zalo."""
+    from frontend.modules.zalo.company_card import fill_company_from_card
+    from frontend.modules.zalo.invoice_automation import read_image_text, read_pdf_text
+
+    run_dir = RUNS_DIR / run_id
+    texts = [(_read_json(run_dir / "request.json", {}) or {}).get("message") or ""]
+    uploads = run_dir / "uploads"
+    for path in sorted(uploads.iterdir()) if uploads.is_dir() else []:
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
+            texts.append(await asyncio.to_thread(read_pdf_text, path))
+        elif suffix in IMAGE_SUFFIXES:
+            texts.append(await asyncio.to_thread(read_image_text, path))
+    for text in texts:
+        if text.strip():
+            await fill_company_from_card(text)
 
 
 def stop(user: dict, run_id: str) -> None:

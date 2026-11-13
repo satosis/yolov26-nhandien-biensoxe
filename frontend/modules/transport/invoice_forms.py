@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from frontend.formatting.text import strip_marks
-from frontend.modules.invoices.export import is_crane_by_shift_service, parse_vat_percent
+from frontend.modules.invoices.export import is_crane_by_shift_service, parse_vat_percent, same_place
 from frontend.modules.transport.invoice_accounting import parse_accounts
 
 
@@ -91,7 +91,7 @@ def parse_invoice_form(form: dict, *, vehicles: list[dict], buyer: dict,
         destination = str(item.get("destination") or "").strip()
         via_points = [str(point).strip() for point in item.get("via_points") or [] if str(point).strip()]
         cargo = str(item.get("cargo_description") or "").strip()
-        is_line_crane = crane_by_shift or (not origin and not destination and any(m in strip_marks(description) for m in ("theo ca", "ca cau", "tai cho", "tai xuong")))
+        is_line_crane = crane_by_shift or same_place(origin, destination) or (not origin and not destination and any(m in strip_marks(description) for m in ("theo ca", "ca cau", "tai cho", "tai xuong")))
         if not description or (not is_line_crane and (not origin or not destination)):
             raise ValueError(f"Dòng {number} cần đủ nội dung hóa đơn" +
                              ("." if is_line_crane else ", điểm lấy và điểm giao."))

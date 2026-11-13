@@ -136,9 +136,7 @@ async function deleteRole(roleId, roleName) {
   if (result.ok) {
     window.location.href = '/admin/rbac';
   } else {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: {msg: result.message || 'Không thể xóa vai trò. Có thể còn người dùng đang sử dụng.', type: 'error'}
-    }));
+    window.showNotify(result.message, 'error');
   }
 }
 </script>

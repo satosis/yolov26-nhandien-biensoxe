@@ -59,7 +59,7 @@ async def inventory_page(
     user: dict,
 ):
     ctx = get_menu_context(request, user)
-    company = get_active_company(request, ctx, company_id if isinstance(company_id, int) else None)
+    company = get_active_company(request, ctx, company_id)
     cid = company["id"] if company else 52
 
     tab_val = "stock" if (tab or "").strip() == "stock" else "journal"

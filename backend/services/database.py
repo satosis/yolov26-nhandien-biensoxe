@@ -42,8 +42,6 @@ class DatabaseManager:
             finally:
                 self._pool.putconn(conn)
 
-    get_connection = _get_connection
-
     @contextmanager
     def transaction(self):
         """Context manager for explicit transaction blocks."""
@@ -123,7 +121,3 @@ class DatabaseManager:
 
 # Global database manager instance
 db = DatabaseManager()
-
-
-def get_db() -> DatabaseManager:
-    return db

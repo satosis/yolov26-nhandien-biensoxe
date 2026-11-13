@@ -257,12 +257,9 @@ async def extract_input_invoice(request: Request, _: dict):
     details["tk_no_vat"] = "1331"
     details["tk_co_pay"] = suggest_pay_account(it.get("description", "") for it in items)
 
-    try:
-        vid = fuel_expenses.guess_vehicle_id(items, details.get("line_notes"))
-        if vid:
-            details["vehicle_id"] = vid
-    except Exception:
-        pass
+    vid = fuel_expenses.guess_vehicle_id(items, details.get("line_notes"))
+    if vid:
+        details["vehicle_id"] = vid
 
     return JSONResponse(details)
 

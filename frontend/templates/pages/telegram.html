@@ -14,7 +14,7 @@
 
   {% if error %}
   <script>document.addEventListener('DOMContentLoaded', () => {
-    window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:{{ error|tojson }},type:'error'}}));
+    window.showNotify({{ error|tojson }}, 'error');
   });</script>
   {% endif %}
 
@@ -172,31 +172,18 @@
       btn.disabled = true;
       btn.innerHTML = '<i class="bx bx-loader-alt bx-spin"></i>';
     }
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: 'Đang gửi tin nhắn thử tới ' + botName + '...', type: 'info' }
-    }));
-    try {
-      const res = await apiRequest('/admin/telegram/' + encodeURIComponent(botName) + '/test', {
-        method: 'POST'
-      });
-      if (res && res.ok) {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: res.message || ('Đã gửi tin nhắn thử tới ' + botName + ' thành công!'), type: 'success' }
-        }));
-      } else {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: (res && res.message) || 'Không gửi được tin nhắn thử.', type: 'error' }
-        }));
-      }
-    } catch (err) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: 'Lỗi kết nối khi gửi tin nhắn thử.', type: 'error' }
-      }));
-    } finally {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-      }
+    window.showNotify('Đang gửi tin nhắn thử tới ' + botName + '...', 'info');
+    const res = await apiRequest('/admin/telegram/' + encodeURIComponent(botName) + '/test', {
+      method: 'POST'
+    });
+    if (res.ok) {
+      window.showNotify(res.message || ('Đã gửi tin nhắn thử tới ' + botName + ' thành công!'), 'success');
+    } else {
+      window.showNotify(res.message, 'error');
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
     }
   }
 </script>

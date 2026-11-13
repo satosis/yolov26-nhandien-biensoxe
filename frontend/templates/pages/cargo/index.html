@@ -6,33 +6,7 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
 {% endblock %}
 {% block page_back_button %}{% endblock %}
 {% block page_actions %}
-<div class="cargo-page-actions" x-data="{ scanning: false }">
-  <form method="post" action="/admin/vehicles/cargo/scan"
-        enctype="multipart/form-data" class="d-inline"
-        @submit="scanning = true">
-    {% if vehicle_id %}<input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">{% endif %}
-    {% if company_id %}<input type="hidden" name="company_id" value="{{ company_id }}">{% endif %}
-    <label class="btn btn-secondary btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
-      <span x-show="!scanning"><i class="bx bx-camera mr-1"></i> Quét văn bản</span>
-      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
-      <input type="file" name="image" accept="image/jpeg,image/png,image/*" capture="environment"
-             class="d-none" @change="$el.closest('form').submit(); scanning = true">
-    </label>
-  </form>
-
-  <form method="post" action="/admin/vehicles/cargo/scan"
-        enctype="multipart/form-data" class="d-inline"
-        @submit="scanning = true">
-    {% if vehicle_id %}<input type="hidden" name="vehicle_id" value="{{ vehicle_id }}">{% endif %}
-    {% if company_id %}<input type="hidden" name="company_id" value="{{ company_id }}">{% endif %}
-    <label class="btn btn-light btn-sm mb-0 font-weight-bold" style="cursor:pointer;">
-      <span x-show="!scanning"><i class="bx bx-file-blank mr-1"></i> File scan</span>
-      <span x-show="scanning" class="text-primary"><i class="bx bx-loader-alt bx-spin mr-1"></i> Đang xử lý...</span>
-      <input type="file" name="image" accept="image/jpeg,image/png,image/*,application/pdf,.pdf"
-             class="d-none" @change="$el.closest('form').submit(); scanning = true">
-    </label>
-  </form>
-
+<div class="cargo-page-actions">
   <a href="/admin/vehicles/cargo/add?{% if vehicle_id %}vehicle_id={{ vehicle_id }}&amp;{% endif %}{% if company_id %}company_id={{ company_id }}{% endif %}"
      class="btn btn-success btn-sm font-weight-bold">
     <i class="bx bx-plus mr-1"></i> Tạo đơn hàng mới
@@ -81,31 +55,16 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     if (!this.selectedTrips.length || this.bulkDeleting) return;
     if (!confirm('Xóa vĩnh viễn ' + this.selectedEntryCount() + ' chứng từ đã chọn?')) return;
     this.bulkDeleting = true;
-    try {
-      const resp = await fetch(`/admin/vehicles/cargo/bulk-delete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ ids: this.selectedTrips })
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: `Đã xóa thành công ${data.count} chứng từ.`, type: 'success' }
-        }));
-        setTimeout(() => { window.location.reload(); }, 400);
-      } else {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: data.message || 'Không thể xóa các chứng từ đã chọn.', type: 'error' }
-        }));
-        this.bulkDeleting = false;
-      }
-    } catch (err) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: 'Lỗi kết nối khi xóa chứng từ.', type: 'error' }
-      }));
+    const data = await apiRequest(`/admin/vehicles/cargo/bulk-delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: this.selectedTrips })
+    });
+    if (data.ok) {
+      window.showNotify(`Đã xóa thành công ${data.count} chứng từ.`, 'success');
+      setTimeout(() => { window.location.reload(); }, 400);
+    } else {
+      window.showNotify(data.message || 'Không thể xóa các chứng từ đã chọn.', 'error');
       this.bulkDeleting = false;
     }
   },
@@ -113,35 +72,20 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     if (!this.selectedTrips.length || this.bulkMarking) return;
     if (!confirm('Chuyển ' + this.selectedEntryCount() + ' chứng từ đã chọn sang ‘chưa thanh toán’?')) return;
     this.bulkMarking = true;
-    try {
-      const resp = await fetch(`/admin/vehicles/cargo/bulk-mark-unpaid`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ ids: this.selectedTrips })
-      });
-      const data = await resp.json();
-      if (data.ok) {
-        let msg = `Đã chuyển ${data.count} chứng từ sang chưa thanh toán.`;
-        if (data.skipped > 0) {
-          msg += ` Bỏ qua ${data.skipped} chứng từ không ở trạng thái ‘Đã trả’.`;
-        }
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: msg, type: 'success' }
-        }));
-        setTimeout(() => { window.location.reload(); }, 400);
-      } else {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: data.message || 'Không thể chuyển trạng thái các chứng từ đã chọn.', type: 'error' }
-        }));
-        this.bulkMarking = false;
+    const data = await apiRequest(`/admin/vehicles/cargo/bulk-mark-unpaid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: this.selectedTrips })
+    });
+    if (data.ok) {
+      let msg = `Đã chuyển ${data.count} chứng từ sang chưa thanh toán.`;
+      if (data.skipped > 0) {
+        msg += ` Bỏ qua ${data.skipped} chứng từ không ở trạng thái ‘Đã trả’.`;
       }
-    } catch (err) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: 'Lỗi kết nối khi chuyển trạng thái chứng từ.', type: 'error' }
-      }));
+      window.showNotify(msg, 'success');
+      setTimeout(() => { window.location.reload(); }, 400);
+    } else {
+      window.showNotify(data.message || 'Không thể chuyển trạng thái các chứng từ đã chọn.', 'error');
       this.bulkMarking = false;
     }
   },
@@ -149,22 +93,22 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     if (this.loadingBkav) return;
     const messages = document.getElementById('cargo-bkav-sync-messages').dataset;
     if (!this.bkavMonth || this.bkavMonth === 'all' || this.bkavMonth.endsWith('-all')) {
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:messages.month, type:'warning'}}));
+      window.showNotify(messages.month, 'warning');
       return;
     }
     this.loadingBkav = true;
     try {
       const vehicleId = Number(document.getElementById('cargo-filter-vehicle')?.value || 0);
       const companyId = Number(document.getElementById('cargo-filter-company')?.value || 0);
-      const response = await fetch('/admin/vehicles/cargo/invoices/preview', {
+      const data = await apiRequest('/admin/vehicles/cargo/invoices/preview', {
         method: 'POST',
-        credentials: 'same-origin',
-        headers: {'Content-Type':'application/json', 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest'},
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({vehicle_id: vehicleId, company_id: companyId || null, month: this.bkavMonth})
       });
-      if (!response.ok) throw await response.text();
-      const data = await response.json();
-      if (!data.ok) throw data;
+      if (!data.ok) {
+        window.showNotify(data.message || 'Không thể tải danh sách hóa đơn BKAV.', 'error');
+        return;
+      }
       this.bkavInvoices = data.invoices || [];
       this.bkavSelectedGuids = this.bkavInvoices
         .filter(invoice => !invoice.already_imported && !invoice.unavailable_reason)
@@ -175,12 +119,12 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
         ignored: Number(data.ignored || 0)
       };
       if (!this.bkavSyncCounts.found) {
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:messages.none, type:'warning'}}));
+        window.showNotify(messages.none, 'warning');
         return;
       }
       this.bkavSyncModalOpen = true;
       const msg = messages.foundPrefix + this.bkavSyncCounts.found + messages.foundSuffix;
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg, type:'success'}}));
+      window.showNotify(msg, 'success');
     } finally {
       this.loadingBkav = false;
     }
@@ -206,23 +150,24 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     try {
       const vehicleId = Number(document.getElementById('cargo-filter-vehicle')?.value || 0);
       const companyId = Number(document.getElementById('cargo-filter-company')?.value || 0);
-      const response = await fetch('/admin/vehicles/cargo/invoices/import', {
-        method: 'POST', credentials: 'same-origin',
-        headers: {'Content-Type':'application/json', 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest'},
+      const data = await apiRequest('/admin/vehicles/cargo/invoices/import', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
         body: JSON.stringify({
           vehicle_id: vehicleId, company_id: companyId || null, month: this.bkavMonth,
           guids: [...this.bkavSelectedGuids], payment_status: 'debt'
         })
       });
-      if (!response.ok) throw await response.text();
-      const data = await response.json();
-      if (!data.ok) throw data;
+      if (!data.ok) {
+        window.showNotify(data.message || 'Không thể đồng bộ hóa đơn BKAV.', 'error');
+        return;
+      }
       const imported = Number(data.created || 0);
       const already = Number(data.already || 0);
       this.bkavSyncModalOpen = false;
       const msg = messages.importPrefix + imported + messages.importSuffix +
         (already ? messages.alreadyPrefix + already + messages.alreadySuffix : '');
-      window.dispatchEvent(new CustomEvent('showToast', {detail:{msg, type:'success'}}));
+      window.showNotify(msg, 'success');
       await this.refreshCargoHistory(messages);
     } finally {
       this.importingBkav = false;
@@ -263,9 +208,7 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
       else if (currentNav) currentNav.remove();
       else if (nextNav) document.querySelector('.card')?.after(nextNav);
     } catch (error) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail:{msg:messages.refreshError, type:'warning'}
-      }));
+      window.showNotify(messages.refreshError, 'warning');
     }
   },
   async openQrModal(tripId) {
@@ -275,8 +218,7 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     this.qrError = '';
     this.copied = false;
     try {
-      const resp = await fetch(`/admin/vehicles/cargo/${tripId}/qr`);
-      const data = await resp.json();
+      const data = await apiRequest(`/admin/vehicles/cargo/${tripId}/qr`);
       if (data.ok) {
         this.qrUrl = data.qr_url;
         this.qrDetails = data.details || {};
@@ -286,10 +228,8 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
           btn.classList.add('btn-info', 'text-white');
         }
       } else {
-        this.qrError = data.error || 'Không thể lấy mã QR.';
+        this.qrError = data.message || data.error || 'Không thể lấy mã QR.';
       }
-    } catch (err) {
-      this.qrError = 'Lỗi kết nối khi lấy mã QR.';
     } finally {
       this.qrLoading = false;
     }
@@ -300,17 +240,14 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
     this.qrError = '';
     this.copied = false;
     try {
-      const resp = await fetch(`/admin/vehicles/cargo/${this.qrTripId}/qr`, { method: 'POST' });
-      const data = await resp.json();
+      const data = await apiRequest(`/admin/vehicles/cargo/${this.qrTripId}/qr`, { method: 'POST' });
       if (data.ok) {
         this.qrUrl = data.qr_url;
         this.qrDetails = data.details || {};
-        window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã tạo mới mã QR và lưu vào DB thành công.', type:'success'}}));
+        window.showNotify('Đã tạo mới mã QR và lưu vào DB thành công.', 'success');
       } else {
-        this.qrError = data.error || 'Không thể tạo mới mã QR.';
+        this.qrError = data.message || data.error || 'Không thể tạo mới mã QR.';
       }
-    } catch (err) {
-      this.qrError = 'Lỗi kết nối khi tạo mã QR.';
     } finally {
       this.qrLoading = false;
     }
@@ -324,9 +261,9 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
   }
 }" x-init="
   const p = new URLSearchParams(window.location.search);
-  if (p.get('scanned')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', type:'success'}}));
-  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', type:'warning'}}));
-  if (p.get('scan_error')) window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', type:'error'}}));
+  if (p.get('scanned')) window.showNotify('Đã nhập ' + p.get('scanned') + ' chuyến từ bản scan.', 'success');
+  if (p.get('scan_skipped') && p.get('scan_skipped') !== '0') window.showNotify('Bỏ qua ' + p.get('scan_skipped') + ' dòng scan.', 'warning');
+  if (p.get('scan_error')) window.showNotify('Không đọc được ảnh/PDF scan. Thử lại hoặc nhập tay.', 'error');
 ">
   <span id="cargo-bkav-sync-messages" hidden
         data-month="Ch&#7885;n m&#7897;t th&#225;ng c&#7909; th&#7875; &#273;&#7875; tra c&#7913;u BKAV."
@@ -746,15 +683,13 @@ Hóa đơn vận chuyển{% if vehicle %} — <span class="badge badge-pill badg
 </div>
 <script>
 async function openInvoiceBkavImage(guid) {
-  try {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đang tải ảnh hóa đơn từ BKAV...', type: 'info'}}));
-    const response = await fetch('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info', {credentials: 'same-origin'});
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.error || 'Không thể tải ảnh hóa đơn từ BKAV.');
-    window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message || 'Không thể tải ảnh hóa đơn.', type: 'error'}}));
+  window.showNotify('Đang tải ảnh hóa đơn từ BKAV...', 'info');
+  const data = await apiRequest('/admin/vehicles/cargo/invoices/' + encodeURIComponent(guid) + '/bkav-image-info');
+  if (!data.ok) {
+    window.showNotify(data.message || data.error || 'Không thể tải ảnh hóa đơn từ BKAV.', 'error');
+    return;
   }
+  window.dispatchEvent(new CustomEvent('show-image', {detail: {src: data.image_url}}));
 }
 function shareInvoicePdf(button) {
   var url = (button && button.dataset) ? button.dataset.shareUrl : '';
@@ -766,7 +701,7 @@ function shareInvoicePdf(button) {
   }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(url).then(function() {
-      window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đã sao chép đường dẫn PDF', type: 'success'}}));
+      window.showNotify('Đã sao chép đường dẫn PDF', 'success');
     }).catch(function() {
       window.prompt('Đường dẫn PDF', url);
     });

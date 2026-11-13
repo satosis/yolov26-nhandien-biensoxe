@@ -5,55 +5,12 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from difflib import SequenceMatcher
-from functools import lru_cache
 import logging
-import os
-from pathlib import Path
 import re
 import unicodedata
 
 
 logger = logging.getLogger(__name__)
-_MODEL_URL = "https://vocr.vn/data/vietocr/vgg_transformer.pth"
-_MODEL_BYTES = 151815373
-_MODEL_PATH = Path(__file__).resolve().parents[3] / "data" / "models" / "vietocr" / "vgg_transformer.pth"
-
-
-@lru_cache(maxsize=1)
-def _vietocr_predictor():
-    try:
-        if not _MODEL_PATH.is_file() or _MODEL_PATH.stat().st_size != _MODEL_BYTES:
-            import requests
-
-            _MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-            temporary = _MODEL_PATH.with_suffix(".part")
-            with requests.get(_MODEL_URL, stream=True, timeout=(15, 60)) as response:
-                response.raise_for_status()
-                with temporary.open("wb") as output:
-                    for chunk in response.iter_content(chunk_size=1024 * 1024):
-                        if chunk:
-                            output.write(chunk)
-            if temporary.stat().st_size != _MODEL_BYTES:
-                raise ValueError("Kích thước mô hình VietOCR không hợp lệ.")
-            os.replace(temporary, _MODEL_PATH)
-
-        from PIL import Image
-        import torch
-        from vietocr.tool.config import Cfg
-        from vietocr.tool.predictor import Predictor
-
-        if not hasattr(Image, "ANTIALIAS"):
-            Image.ANTIALIAS = Image.Resampling.LANCZOS
-        torch.set_num_threads(min(4, os.cpu_count() or 1))
-        config = Cfg.load_config_from_file(str(Path(__file__).resolve().parents[2] / "assets" / "vietocr_vgg_transformer.yml"))
-        config["weights"] = str(_MODEL_PATH)
-        config["device"] = "cpu"
-        config["cnn"]["pretrained"] = False
-        config["predictor"]["beamsearch"] = False
-        return Predictor(config)
-    except Exception:
-        logger.exception("VietOCR is unavailable for invoice descriptions")
-        return None
 
 
 def _prefer_accented_description(original: str, candidate: str) -> bool:
@@ -100,7 +57,10 @@ _OTHER_LABEL = re.compile(
 def _label_match(line: str, labels: tuple[str, ...]):
     plain = _plain(line)
     for label in sorted(labels, key=len, reverse=True):
-        if label == "so" and not re.match(r"^\s*so\s*(?:\([^)]*\))?\s*[:：-]", plain):
+        if label == "so":
+            match = re.match(r"^\s*so\s*(?:\([^:：-]{1,40}\)?)?\s*[:：-]\s*", plain)
+            if match:
+                return match
             continue
         match = re.search(r"\b" + re.escape(label) + r"\)?" + _ALIAS, plain)
         if match:
@@ -267,17 +227,18 @@ def _receipt_items(lines: list[str]) -> list[dict]:
     return result
 
 
-def _invoice_page_ocr(ocr, decoded) -> list:
-    """Keep native layout, mapping a prepared fallback's boxes back to the page."""
+def _invoice_page_ocr(recognizer, decoded) -> list:
+    """Crop page layout blocks with OpenCV and recognize each crop with AsterOCR."""
+    from backend.util.ocr.aster_engine import detect_document_boxes
     from backend.util.ocr.pipeline import assess_image, prepare_ocr_image
 
     quality = assess_image(decoded)
     logger.debug("Invoice page image quality: %s", quality)
-    result, _ = ocr(decoded)
+    result = detect_document_boxes(decoded, recognizer)
     if result:
         return result
     prepared = prepare_ocr_image(decoded, profile="document")
-    result, _ = ocr(prepared)
+    result = detect_document_boxes(prepared, recognizer)
     if not result:
         return []
 
@@ -304,19 +265,18 @@ def extract_invoice_text(content: bytes, content_type: str) -> str:
             pages = [page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False).tobytes("png") for page in document]
     else:
         pages = [content]
-    from rapidocr_onnxruntime import RapidOCR
     import cv2
     import numpy as np
+    from backend.util.ocr.aster_engine import detect_document_boxes, get_aster_recognizer
     from backend.util.ocr.pipeline import prepare_ocr_image
 
-    ocr = RapidOCR()
+    recognizer = get_aster_recognizer()
     chunks = []
     for image in pages:
         decoded = cv2.imdecode(np.frombuffer(image, dtype=np.uint8), cv2.IMREAD_COLOR)
         if decoded is None:
             raise ValueError("Không đọc được ảnh hóa đơn.")
-        result = _invoice_page_ocr(ocr, decoded)
-        chunks.extend(str(item[1]) for item in result)
+        result = _invoice_page_ocr(recognizer, decoded)
         unit_header = next((item for item in result if re.sub(r"[^a-z]", "", _plain(str(item[1]))) == "dvt"), None)
         unit_center = None
         unit_header_y = None
@@ -331,7 +291,7 @@ def extract_invoice_text(content: bytes, content_type: str) -> str:
             center_y = sum(point[1] for point in box) / len(box)
             left_x = min(point[0] for point in box)
             height = max(point[1] for point in box) - min(point[1] for point in box)
-            row = next((row for row in rows if abs(row[0] - center_y) <= max(8, min(row[2], height) * 0.85)), None)
+            row = next((row for row in rows if abs(row[0] - center_y) <= max(6, min(row[2], height) * 0.48)), None)
             if row is None:
                 row = [center_y, [], height]
                 rows.append(row)
@@ -349,7 +309,11 @@ def extract_invoice_text(content: bytes, content_type: str) -> str:
                     if cell_image.size:
                         enlarged = cv2.resize(cell_image, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
                         enlarged = prepare_ocr_image(enlarged, profile="document")
-                        unit_result, _ = ocr(enlarged)
+                        unit_result = detect_document_boxes(enlarged, recognizer)
+                        if not unit_result:
+                            unit_txt, unit_conf = recognizer.recognize_line(enlarged, is_bgr=True)
+                            if unit_txt:
+                                unit_result = [[[], unit_txt, unit_conf]]
                         unit_map = {"qua": "Quả", "cai": "Cái", "chiec": "Chiếc", "bo": "Bộ",
                                     "hop": "Hộp", "goi": "Gói", "chai": "Chai", "binh": "Bình",
                                     "thung": "Thùng", "lit": "Lít", "kg": "kg", "tan": "Tấn"}
@@ -364,20 +328,17 @@ def extract_invoice_text(content: bytes, content_type: str) -> str:
                         original_description = " ".join(value for _, value in sorted(description_cells))
                         description_left = max(0, int(min(x for x, _ in description_cells) - 4))
                         description_image = decoded[y1:y2, description_left:x1]
-                        predictor = _vietocr_predictor()
-                        if predictor and description_image.size:
+                        if description_image.size:
                             try:
-                                from PIL import Image
-
                                 prepared = prepare_ocr_image(description_image, profile="document")
-                                rgb = cv2.cvtColor(prepared, cv2.COLOR_BGR2RGB)
-                                accented = predictor.predict(Image.fromarray(rgb))
+                                accented, _ = recognizer.recognize_line(prepared, is_bgr=True)
                                 if _prefer_accented_description(original_description, accented):
                                     cells = [(x, value) for x, value in cells if (x, value) not in description_cells]
                                     cells.append((description_left, accented))
                             except Exception:
                                 logger.exception("Could not refine invoice item description")
-                chunks.append(" ".join(value for _, value in sorted(cells)))
+            chunks.append(" ".join(value for _, value in sorted(cells)))
+        chunks.extend(str(item[1]) for item in result)
     return "\n".join(chunks)
 
 

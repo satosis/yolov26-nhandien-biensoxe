@@ -217,11 +217,6 @@ def list_scheduled() -> list[dict]:
                  fields="id,message,scheduled_publish_time,permalink_url")["data"]
 
 
-def get_post(post_id: str) -> dict:
-    _, token = credentials()
-    return graph("GET", post_id, token, fields=POST_FIELDS)
-
-
 def edit_post(post_id: str, message: str) -> None:
     _, token = credentials()
     graph("POST", post_id, token, message=message)

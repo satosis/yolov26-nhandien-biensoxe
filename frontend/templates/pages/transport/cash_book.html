@@ -664,75 +664,57 @@ async function submitVoucher(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang ghi sổ...';
 
-  try {
-    const res = await fetch('/admin/transport/api/cash-bank/entry', {
-      method: 'POST',
-      body: formData,
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn.');
-      window.location.href = '/login';
-      return;
-    }
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseErr) {
-      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : `Máy chủ phản hồi lỗi (${res.status}): ${text.slice(0, 150)}`);
-    }
-    if (data.ok) {
-      alert(data.message || 'Đã ghi sổ thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể ghi sổ'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu vào Sổ quỹ';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu vào Sổ quỹ';
+  const data = await apiRequest('/admin/transport/api/cash-bank/entry', {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (data.ok) {
+    window.showNotify(data.message || 'Đã ghi sổ thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể ghi sổ', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-save mr-1"></i>Lưu vào Sổ quỹ';
 }
 
 async function openEditCashModal(id) {
-  try {
-    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}`);
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    const data = await res.json();
-    if (!data.ok || !data.entry) {
-      alert(data.message || 'Không tìm thấy chứng từ.');
-      return;
-    }
-    const e = data.entry;
-    document.getElementById('editCashId').value = e.id;
-    if (e.voucher_type === 'receipt') {
-      document.getElementById('editVtReceipt').checked = true;
-    } else {
-      document.getElementById('editVtPayment').checked = true;
-    }
-    document.getElementById('editCashVoucherDate').value = e.voucher_date || '';
-    document.getElementById('editCashVoucherNo').value = e.voucher_no || '';
-    const amtEl = document.getElementById('editCashAmount');
-    amtEl.value = e.amount ? new Intl.NumberFormat('vi-VN').format(e.amount) : '';
-    document.getElementById('editCashOffsetAccount').value = e.offset_account || '';
-    document.getElementById('editCashPartnerCode').value = e.partner_code || '';
-    document.getElementById('editCashPartnerName').value = e.partner_name || '';
-    const descEl = document.getElementById('editCashDescription');
-    descEl.value = e.description || '';
-    if (descEl.dataset) {
-      delete descEl.dataset.autoDesc;
-    }
-    document.getElementById('editCashNote').value = e.note || '';
-    $('#editCashVoucherModal').modal('show');
-  } catch (err) {
-    alert('Lỗi tải dữ liệu chứng từ: ' + err.message);
+  const data = await apiRequest(`/admin/transport/api/cash-bank/entry/${id}`);
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (!data.ok || !data.entry) {
+    window.showNotify(data.message || 'Không tìm thấy chứng từ.', 'error');
+    return;
+  }
+  const e = data.entry;
+  document.getElementById('editCashId').value = e.id;
+  if (e.voucher_type === 'receipt') {
+    document.getElementById('editVtReceipt').checked = true;
+  } else {
+    document.getElementById('editVtPayment').checked = true;
+  }
+  document.getElementById('editCashVoucherDate').value = e.voucher_date || '';
+  document.getElementById('editCashVoucherNo').value = e.voucher_no || '';
+  const amtEl = document.getElementById('editCashAmount');
+  amtEl.value = e.amount ? new Intl.NumberFormat('vi-VN').format(e.amount) : '';
+  document.getElementById('editCashOffsetAccount').value = e.offset_account || '';
+  document.getElementById('editCashPartnerCode').value = e.partner_code || '';
+  document.getElementById('editCashPartnerName').value = e.partner_name || '';
+  const descEl = document.getElementById('editCashDescription');
+  descEl.value = e.description || '';
+  if (descEl.dataset) {
+    delete descEl.dataset.autoDesc;
+  }
+  document.getElementById('editCashNote').value = e.note || '';
+  $('#editCashVoucherModal').modal('show');
 }
 
 async function submitEditCashVoucher(e) {
@@ -745,36 +727,23 @@ async function submitEditCashVoucher(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang lưu...';
 
-  try {
-    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}/update`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseErr) {
-      throw new Error(res.ok ? 'Dữ liệu phản hồi không đúng định dạng.' : `Máy chủ phản hồi lỗi (${res.status}): ${text.slice(0, 150)}`);
-    }
-    if (data.ok) {
-      alert(data.message || 'Cập nhật thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể cập nhật'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu thay đổi';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu thay đổi';
+  const data = await apiRequest(`/admin/transport/api/cash-bank/entry/${id}/update`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (data.ok) {
+    window.showNotify(data.message || 'Cập nhật thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể cập nhật', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu thay đổi';
 }
 
 async function deleteCashEntry(id, voucherNo) {
@@ -782,25 +751,20 @@ async function deleteCashEntry(id, voucherNo) {
   if (!confirm(`Bạn có chắc chắn muốn xóa chứng từ ${name} khỏi sổ quỹ tiền mặt không?`)) {
     return;
   }
-  try {
-    const res = await fetch(`/admin/transport/api/cash-bank/entry/${id}/delete`, {
-      method: 'POST',
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    const data = await res.json();
-    if (data.ok) {
-      alert(data.message || 'Đã xóa chứng từ thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi: ' + (data.message || 'Không thể xóa'));
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
+  const data = await apiRequest(`/admin/transport/api/cash-bank/entry/${id}/delete`, {
+    method: 'POST',
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (data.ok) {
+    window.showNotify(data.message || 'Đã xóa chứng từ thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể xóa', 'error');
 }
 
 function setOpeningToZero() {
@@ -816,30 +780,23 @@ async function submitImportCashExcel(e) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span>Đang nạp file Excel...';
 
-  try {
-    const res = await fetch('/admin/transport/cash-book/import-excel', {
-      method: 'POST',
-      body: formData,
-    });
-    if (res.status === 401 || res.redirected) {
-      alert('Phiên làm việc đã hết hạn. Đang chuyển về trang đăng nhập.');
-      window.location.href = '/login';
-      return;
-    }
-    const data = await res.json();
-    if (data.ok) {
-      alert(data.message || 'Nạp dữ liệu từ file Excel thành công!');
-      window.location.reload();
-    } else {
-      alert('Lỗi nạp Excel: ' + (data.message || 'Không thể nạp dữ liệu'));
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ quỹ';
-    }
-  } catch (err) {
-    alert('Lỗi kết nối máy chủ: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ quỹ';
+  const data = await apiRequest('/admin/transport/cash-book/import-excel', {
+    method: 'POST',
+    body: formData,
+  });
+  if (data.status === 401 || data.login_url) {
+    window.showNotify(data.message || 'Phiên làm việc đã hết hạn.', 'error');
+    window.location.href = data.login_url || '/login';
+    return;
   }
+  if (data.ok) {
+    window.showNotify(data.message || 'Nạp dữ liệu từ file Excel thành công!', 'success');
+    setTimeout(() => window.location.reload(), 500);
+    return;
+  }
+  window.showNotify(data.message || 'Không thể nạp dữ liệu', 'error');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bx bx-cloud-upload mr-1"></i>Nạp dữ liệu vào Sổ quỹ';
 }
 
 </script>
@@ -961,25 +918,13 @@ async function cashOpenInvRefresh(prefix) {
     ? '/admin/transport/api/cash-bank/open-invoices?' + params.toString()
     : '/admin/transport/api/cash-bank/open-payables?' + params.toString();
 
-  try {
-    const res = await fetch(url);
-    if (seq !== cashOpenInvSeq[prefix]) return;
-    if (res.status === 401 || !res.ok) {
-      box.style.display = 'none';
-      return;
-    }
-    const data = await res.json();
-    if (seq !== cashOpenInvSeq[prefix]) return;
-    if (!data.ok) {
-      box.style.display = 'none';
-      return;
-    }
-    cashOpenInvRender(prefix, box, data, kind);
-  } catch (err) {
-    if (seq === cashOpenInvSeq[prefix]) {
-      box.style.display = 'none';
-    }
+  const data = await apiRequest(url);
+  if (seq !== cashOpenInvSeq[prefix]) return;
+  if (!data.ok) {
+    box.style.display = 'none';
+    return;
   }
+  cashOpenInvRender(prefix, box, data, kind);
 }
 
 function cashOpenInvRender(prefix, box, data, kind) {
@@ -1121,11 +1066,9 @@ document.addEventListener('DOMContentLoaded', function() {
     addNameEl.addEventListener('input', function() { cashOpenInvDebounce('add'); });
     addNameEl.addEventListener('change', function() { cashOpenInvDebounce('add'); });
   }
-  if (typeof $ !== 'undefined') {
-    $('#addVoucherModal').on('shown.bs.modal', function() {
-      cashOpenInvDebounce('add', 0);
-    });
-  }
+  $('#addVoucherModal').on('shown.bs.modal', function() {
+    cashOpenInvDebounce('add', 0);
+  });
 
   const editForm = document.getElementById('editCashVoucherForm');
   if (editForm) {
@@ -1149,11 +1092,9 @@ document.addEventListener('DOMContentLoaded', function() {
     editNameEl.addEventListener('input', function() { cashOpenInvDebounce('edit'); });
     editNameEl.addEventListener('change', function() { cashOpenInvDebounce('edit'); });
   }
-  if (typeof $ !== 'undefined') {
-    $('#editCashVoucherModal').on('shown.bs.modal', function() {
-      cashOpenInvDebounce('edit', 0);
-    });
-  }
+  $('#editCashVoucherModal').on('shown.bs.modal', function() {
+    cashOpenInvDebounce('edit', 0);
+  });
 });
 </script>
 {% endblock %}

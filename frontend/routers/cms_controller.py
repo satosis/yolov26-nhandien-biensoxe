@@ -25,7 +25,7 @@ def get_news_by_slug(slug: str) -> dict | None:
     item = queries.get_news_by_slug_select_news(slug)
     if item:
         published = item.get("publish_date")
-        item["publish_date_str"] = published.strftime("%d/%m/%Y") if hasattr(published, "strftime") else str(published or "")
+        item["publish_date_str"] = published.strftime("%d/%m/%Y") if published else ""
     return item
 
 
@@ -33,7 +33,7 @@ def get_news_by_id(news_id: int) -> dict | None:
     item = queries.get_news_by_id_select_news(news_id)
     if item:
         published = item.get("publish_date")
-        item["publish_date_str"] = published.strftime("%d/%m/%Y") if hasattr(published, "strftime") else str(published or "")
+        item["publish_date_str"] = published.strftime("%d/%m/%Y") if published else ""
     return item
 
 

@@ -5,13 +5,13 @@
 {% block content %}
 <div class="container-fluid px-0">
   {% if saved %}
-  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Đã lưu khóa API.', type: 'success'}})));</script>
+  <script>window.addEventListener('DOMContentLoaded', () => window.showNotify('Đã lưu khóa API.', 'success'));</script>
   {% elif error == 'invalid' %}
-  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Key và value không hợp lệ hoặc bị trùng.', type: 'error'}})));</script>
+  <script>window.addEventListener('DOMContentLoaded', () => window.showNotify('Key và value không hợp lệ hoặc bị trùng.', 'error'));</script>
   {% elif error == 'conflict' %}
-  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Key đã được sử dụng ở phần cấu hình khác.', type: 'error'}})));</script>
+  <script>window.addEventListener('DOMContentLoaded', () => window.showNotify('Key đã được sử dụng ở phần cấu hình khác.', 'error'));</script>
   {% elif error == 'save_failed' %}
-  <script>window.addEventListener('DOMContentLoaded', () => window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'Không lưu được khóa API.', type: 'error'}})));</script>
+  <script>window.addEventListener('DOMContentLoaded', () => window.showNotify('Không lưu được khóa API.', 'error'));</script>
   {% endif %}
 
   <form method="post" action="/admin/api-keys/entries" class="card">

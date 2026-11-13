@@ -194,9 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var link = $(this).attr('data-link');
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link).then(function() {
-        if (window.showNotify) {
-          window.showNotify('Đã sao chép.', 'success');
-        }
+        window.showNotify('Đã sao chép.', 'success');
       });
     }
   });

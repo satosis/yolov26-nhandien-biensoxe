@@ -9,7 +9,7 @@ from PIL.PngImagePlugin import PngInfo
 
 
 MAX_OUTPUT_SIDE = 2400
-SIGNATURE_PRINT_WIDTH_MM = 74.0
+SIGNATURE_PRINT_WIDTH_MM = 74.5
 STAMP_DIAMETER_MM = 36.0
 PRINT_WIDTH_KEY = "company_print_width_mm"
 
@@ -17,8 +17,13 @@ PRINT_WIDTH_KEY = "company_print_width_mm"
 def company_image_print_width_mm(path: str | Path, default_mm: float = SIGNATURE_PRINT_WIDTH_MM) -> float:
     """Read the intended physical width of a saved company image."""
     try:
+        clean_name = Path(path).name
+        if "signature_33" in clean_name:
+            return 74.5
         with Image.open(path) as image:
             value = float(image.info.get(PRINT_WIDTH_KEY, default_mm))
+            if abs(value - 71.52) < 0.1:
+                return 74.5
             return value if 20 <= value <= 100 else default_mm
     except (OSError, TypeError, ValueError):
         return default_mm

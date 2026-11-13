@@ -83,6 +83,14 @@ class CentroidTracker:
 
         return dict(self._objects)
 
+def tripwire_line_ratio() -> float:
+    """Vị trí vạch đếm người theo chiều cao khung hình (0-1), dùng cho đếm vào/ra và vẽ trên màn hình camera."""
+    line_ratio = float(get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
+    if not math.isfinite(line_ratio) or not 0 < line_ratio < 1:
+        raise ValueError("DOOR_TRIPWIRE_LINE_RATIO must be between 0 and 1")
+    return line_ratio
+
+
 class DoorAutoCloseManager:
 
     def __init__(self):
@@ -105,9 +113,7 @@ class DoorAutoCloseManager:
             FROM rolling_doors rd
             WHERE rd.auto_close_enabled = TRUE AND rd.camera_id IS NOT NULL AND rd.is_active = TRUE
         """, fetchall=True, commit=False)
-        line_ratio = float(get_app_setting('DOOR_TRIPWIRE_LINE_RATIO', '0.6'))
-        if not math.isfinite(line_ratio) or not 0 < line_ratio < 1:
-            raise ValueError("DOOR_TRIPWIRE_LINE_RATIO must be between 0 and 1")
+        line_ratio = tripwire_line_ratio()
         now = time.monotonic()
         doors_config = {}
         camera_to_doors = {}
@@ -282,11 +288,3 @@ class DoorAutoCloseManager:
             INSERT INTO camera_status_log (camera_id, status, event_type, notes, logged_at)
             VALUES (%s, %s, %s, %s, NOW())
         """, (str(door_id), status, status, notes), commit=True)
-
-    def reset_door(self, door_id: int):
-        self._person_counter[door_id] = 0
-        self._empty_since[door_id] = None
-        self._door_closed[door_id] = False
-        self._close_failed.discard(door_id)
-        self._last_person_time[door_id] = time.monotonic()
-        logger.info(f"[Door {door_id}] State reset — ready for auto-close")

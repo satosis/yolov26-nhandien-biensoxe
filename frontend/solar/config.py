@@ -23,7 +23,7 @@ SOLAR_ITEMS = [
         "unit": "tấm 550W",
         "stock": 120,
         "icon": "solar_power",
-        "img": "/static/services/solar/img/solar_hero.jpg",
+        "img": "/upload/services/solar/img/solar_hero.jpg",
         "desc": "Tấm pin đơn tinh thể hiệu suất > 21,5%, công nghệ Half-cell N-Type/PERC cho mái xưởng & hộ gia đình (~2.800đ/Wp).",
         "specs": [
             "Đơn giá lẻ 1.550.000đ/tấm 550W (từ 1 pallet 36 tấm: 1.450.000đ/tấm)",
@@ -40,7 +40,7 @@ SOLAR_ITEMS = [
         "unit": "bộ 5kW",
         "stock": 10,
         "icon": "electrical_services",
-        "img": "/static/services/solar/img/solar_hero.jpg",
+        "img": "/upload/services/solar/img/solar_hero.jpg",
         "desc": "Inverter hòa lưới 5kW từ 9.500.000đ/bộ · Biến tần Hybrid 5kW có lưu trữ dự phòng mất điện: 14.500.000đ/bộ.",
         "specs": [
             "Hòa lưới bám tải 5kW: 9.500.000đ · Dòng 10kW–50kW nhà xưởng sẵn kho",
@@ -57,7 +57,7 @@ SOLAR_ITEMS = [
         "unit": "module 5kWh",
         "stock": 8,
         "icon": "battery_charging_full",
-        "img": "/static/services/solar/img/solar_hero.jpg",
+        "img": "/upload/services/solar/img/solar_hero.jpg",
         "desc": "Pin lưu trữ Lithium sắt phốt phát 51.2V–100Ah (5,12kWh) an toàn chống cháy, tuổi thọ > 6.000 chu kỳ nạp xả.",
         "specs": [
             "Niêm yết 20.500.000đ/module 5kWh (bản 10kWh từ 38.000.000đ)",
@@ -74,7 +74,7 @@ SOLAR_ITEMS = [
         "unit": "bộ đồng bộ",
         "stock": 20,
         "icon": "cable",
-        "img": "/static/services/solar/img/solar_hero.jpg",
+        "img": "/upload/services/solar/img/solar_hero.jpg",
         "desc": "Tủ điện đóng cắt 2 String tích hợp chống sét lan truyền DC/AC, CB DC/AC, 30m cáp Solar 4mm² & đầu nối MC4.",
         "specs": [
             "Trọn bộ tủ điện + chống sét + dây solar cơ bản: 3.200.000đ/bộ",
@@ -94,7 +94,7 @@ PAGE = {
     "cta": "GỌI ĐẶT THIẾT BỊ",
     "hero_caption": "Thiết Bị Điện Mặt Trời — Giá Niêm Yết Kho",
     "hero_icon": "solar_power",
-    "hero_image": "/static/services/solar/img/solar_hero.jpg",
+    "hero_image": "/upload/services/solar/img/solar_hero.jpg",
     "catalog_kicker": "Bảng Giá Niêm Yết Trực Tiếp",
     "catalog_title": "Chọn Thiết Bị Điện Mặt Trời Theo Đơn Giá",
     "price_title": "Bảng Giá Thiết Bị Điện Mặt Trời Niêm Yết",
@@ -131,6 +131,6 @@ def get_solar_settings() -> dict:
             "giá tấm pin năng lượng mặt trời, thiết bị điện mặt trời, biến tần hybrid 5kw, pin lưu trữ lifepo4, "
             f"thiết bị điện mặt trời Phú Thọ, thiết bị điện mặt trời Vĩnh Phúc, {company_name}"
         ),
-        "og_image": "/static/services/solar/img/solar_hero.jpg",
+        "og_image": "/upload/services/solar/img/solar_hero.jpg",
     }
     return {**info, "seo_config": seo_config, "catalog_items": SOLAR_ITEMS}

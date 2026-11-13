@@ -885,25 +885,6 @@
 {% block scripts %}
 <script src="/static/admin-assets/js/admin-inputs.js?v=20261104-1"></script>
 <script>
-function showNotify(msg, type = 'success') {
-  if (window.toastr) {
-    if (type === 'error') toastr.error(msg);
-    else if (type === 'warning') toastr.warning(msg);
-    else toastr.success(msg);
-  }
-  window.dispatchEvent(new CustomEvent('showToast', {
-    detail: { msg: msg, type: type }
-  }));
-}
-
-{% if message or error %}
-showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-const catalogUrl = new URL(window.location.href);
-catalogUrl.searchParams.delete('message');
-catalogUrl.searchParams.delete('error');
-window.history.replaceState(null, '', catalogUrl.pathname + catalogUrl.search + catalogUrl.hash);
-{% endif %}
-
 async function loadCatalogCompaniesAjax(targetUrl, pushState = true) {
   const tableArea = document.getElementById('catalog-table-area');
   if (!tableArea) return;
@@ -1043,12 +1024,13 @@ async function refreshCatalogCompany(button, companyId) {
   button.disabled = true;
   button.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...';
   try {
-    const response = await fetch(`/admin/vehicles/api/invoice-companies/${companyId}/refresh`, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    const result = await apiRequest(`/admin/vehicles/api/invoice-companies/${companyId}/refresh`, {
+      method: 'POST'
     });
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.message || 'Không cập nhật được đơn vị.');
+    if (!result.ok) {
+      showNotify(result.message || 'Không cập nhật được đơn vị.', 'error');
+      return;
+    }
 
     const company = result.company;
     const message = (company && company.director_user_created)
@@ -1056,9 +1038,6 @@ async function refreshCatalogCompany(button, companyId) {
       : 'Đã cập nhật thông tin đơn vị và đồng bộ giám đốc từ MST.';
     showNotify(message, 'success');
     reloadCatalogTableAjax();
-  } catch (error) {
-    console.error('Không cập nhật được MST:', error);
-    showNotify(error.message || 'Không cập nhật được đơn vị.', 'error');
   } finally {
     button.innerHTML = originalHtml;
     button.disabled = false;
@@ -1077,28 +1056,22 @@ async function deleteCatalogCompany(event, companyId, companyName) {
     btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang xóa...';
   }
 
-  try {
-    const formData = new FormData();
-    formData.append('back', window.location.href);
-    const response = await fetch(`/admin/transport/catalog/companies/${companyId}/delete`, {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      throw new Error(data.message || 'Không thể xóa đơn vị.');
-    }
-    showNotify(data.message || 'Đã xóa đơn vị.', 'success');
-    reloadCatalogTableAjax();
-  } catch (err) {
-    console.error('Lỗi khi xóa đơn vị:', err);
-    showNotify(err.message || 'Lỗi khi xóa đơn vị.', 'error');
+  const formData = new FormData();
+  formData.append('back', window.location.href);
+  const data = await apiRequest(`/admin/transport/catalog/companies/${companyId}/delete`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!data.ok) {
+    showNotify(data.message || 'Không thể xóa đơn vị.', 'error');
     if (btn) {
       btn.innerHTML = originalHtml;
       btn.disabled = false;
     }
+    return;
   }
+  showNotify(data.message || 'Đã xóa đơn vị.', 'success');
+  reloadCatalogTableAjax();
 }
 
 function toggleDebtFilter() {
@@ -1194,12 +1167,11 @@ async function confirmBulkDeleteCompanies() {
   btns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang xóa...'; });
 
   try {
-    const res = await fetch('/admin/transport/catalog/companies/bulk-delete', {
+    const data = await apiRequest('/admin/transport/catalog/companies/bulk-delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: selected })
     });
-    const data = await res.json();
     if (data.ok) {
       showNotify(data.message || 'Đã xóa các đơn vị thành công.', 'success');
       clearAllCatalogSelections();
@@ -1207,8 +1179,6 @@ async function confirmBulkDeleteCompanies() {
     } else {
       showNotify(data.message || 'Lỗi khi xóa đơn vị.', 'error');
     }
-  } catch (err) {
-    showNotify('Lỗi mạng hoặc máy chủ không phản hồi: ' + err.message, 'error');
   } finally {
     btns.forEach(b => {
       b.disabled = false;
@@ -1236,12 +1206,11 @@ async function confirmBulkRefreshTax() {
   btns.forEach(b => { b.disabled = true; b.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...'; });
 
   try {
-    const res = await fetch('/admin/transport/catalog/companies/bulk-refresh', {
+    const data = await apiRequest('/admin/transport/catalog/companies/bulk-refresh', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids: selected })
     });
-    const data = await res.json();
     if (data.ok) {
       showNotify(data.message || 'Đã cập nhật các đơn vị thành công.', 'success');
       clearAllCatalogSelections();
@@ -1249,8 +1218,6 @@ async function confirmBulkRefreshTax() {
     } else {
       showNotify(data.message || 'Lỗi khi cập nhật từ MST.', 'error');
     }
-  } catch (err) {
-    showNotify('Lỗi mạng hoặc máy chủ không phản hồi: ' + err.message, 'error');
   } finally {
     btns.forEach(b => {
       b.disabled = false;
@@ -1307,26 +1274,20 @@ async function submitPayDebtAjax(event, form, companyName, totalDebt) {
     submitBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>';
   }
 
-  try {
-    const response = await fetch(form.action, {
-      method: 'POST',
-      body: new FormData(form),
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) {
-      throw new Error(data.message || 'Lỗi khi trừ nợ đơn vị.');
-    }
-    showNotify(data.message || 'Đã trừ nợ thành công.', 'success');
-    reloadCatalogTableAjax();
-  } catch (err) {
-    console.error('Lỗi thanh toán nợ:', err);
-    showNotify(err.message || 'Lỗi khi trừ nợ đơn vị.', 'error');
+  const data = await apiRequest(form.action, {
+    method: 'POST',
+    body: new FormData(form)
+  });
+  if (!data.ok) {
+    showNotify(data.message || 'Lỗi khi trừ nợ đơn vị.', 'error');
     if (submitBtn) {
       submitBtn.innerHTML = originalHtml;
       submitBtn.disabled = false;
     }
+    return false;
   }
+  showNotify(data.message || 'Đã trừ nợ thành công.', 'success');
+  reloadCatalogTableAjax();
   return false;
 }
 
@@ -1343,26 +1304,20 @@ async function submitCatalogItemAjax(event, form, confirmMsg) {
     submitBtn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>';
   }
 
-  try {
-    const res = await fetch(form.action, {
-      method: 'POST',
-      body: new FormData(form),
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || 'Lỗi xử lý danh mục.');
-    }
-    showNotify(data.message || 'Thành công.', 'success');
-    loadCatalogItemsAjax(window.location.href, false);
-  } catch (err) {
-    console.error('Lỗi danh mục items:', err);
-    showNotify(err.message || 'Lỗi xử lý danh mục.', 'error');
+  const data = await apiRequest(form.action, {
+    method: 'POST',
+    body: new FormData(form)
+  });
+  if (!data.ok) {
+    showNotify(data.message || 'Lỗi xử lý danh mục.', 'error');
     if (submitBtn) {
       submitBtn.innerHTML = originalHtml;
       submitBtn.disabled = false;
     }
+    return false;
   }
+  showNotify(data.message || 'Thành công.', 'success');
+  loadCatalogItemsAjax(window.location.href, false);
   return false;
 }
 
@@ -1378,27 +1333,24 @@ async function handlePartnerRoleChange(checkbox, roleKey) {
   if (contractBtn) contractBtn.classList.toggle('d-none', !isCustomer);
   if (bbvcBtn) bbvcBtn.classList.toggle('d-none', !isCustomer);
 
-  try {
-    const formData = new FormData();
-    formData.append('is_customer', isCustomer ? 'true' : 'false');
-    formData.append('is_vendor', isVendor ? 'true' : 'false');
+  const formData = new FormData();
+  formData.append('is_customer', isCustomer ? 'true' : 'false');
+  formData.append('is_vendor', isVendor ? 'true' : 'false');
 
-    const res = await fetch(`/admin/transport/catalog/companies/${companyId}/toggle-role`, {
-      method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi cập nhật vai trò');
-    showNotify(data.message || 'Đã cập nhật vai trò đối tác.', 'success');
-  } catch (err) {
-    showNotify(err.message, 'error');
+  const data = await apiRequest(`/admin/transport/catalog/companies/${companyId}/toggle-role`, {
+    method: 'POST',
+    body: formData
+  });
+  if (!data.ok) {
+    showNotify(data.message || 'Lỗi cập nhật vai trò', 'error');
     // Revert checkbox on error
     checkbox.checked = !checkbox.checked;
     const finalCustomer = tr.querySelector('.chk-role-kh')?.checked ?? false;
     if (contractBtn) contractBtn.classList.toggle('d-none', !finalCustomer);
     if (bbvcBtn) bbvcBtn.classList.toggle('d-none', !finalCustomer);
+    return;
   }
+  showNotify(data.message || 'Đã cập nhật vai trò đối tác.', 'success');
 }
 
 function onPartnerFilterChange() {
@@ -1438,20 +1390,18 @@ async function submitEditOpeningDebt(e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang lưu...';
 
-  const formData = new FormData(form);
   try {
-    const res = await fetch(`/admin/transport/catalog/companies/${companyId}/update-opening-debts`, {
+    const data = await apiRequest(`/admin/transport/catalog/companies/${companyId}/update-opening-debts`, {
       method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      body: new FormData(form)
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi cập nhật số dư đầu kỳ');
+    if (!data.ok) {
+      showNotify(data.message || 'Lỗi cập nhật số dư đầu kỳ', 'error');
+      return;
+    }
     showNotify(data.message || 'Đã cập nhật số dư đầu kỳ thành công.', 'success');
     $('#modalEditOpeningDebt').modal('hide');
     setTimeout(() => window.location.reload(), 500);
-  } catch (err) {
-    showNotify(err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="bx bx-check mr-1"></i>Lưu số dư';
@@ -1473,31 +1423,16 @@ async function subledgerExecutePost(btn, url, options) {
   try {
     const opts = options || { method: 'POST' };
     if (!opts.method) opts.method = 'POST';
-    const res = await fetch(url, opts);
-    let data = null;
-    try {
-      data = await res.json();
-    } catch (_) {
-      data = {};
-    }
-    if (res.ok && data && data.ok) {
-      if (typeof showNotify === 'function') {
-        showNotify(data.message || 'Đã cập nhật sổ công nợ.', 'success');
-      }
+    const data = await apiRequest(url, opts);
+    if (data.ok) {
+      showNotify(data.message || 'Đã cập nhật sổ công nợ.', 'success');
       window.subledgerDirty = true;
       const ctx = window.subledgerCtx;
       if (ctx && ctx.partnerId) {
         openPartnerSubledgerModal(ctx.partnerId, ctx.account, ctx.partnerName);
       }
     } else {
-      const errMsg = (data && data.message) ? data.message : 'Không thực hiện được thao tác.';
-      if (typeof showNotify === 'function') {
-        showNotify(errMsg, 'error');
-      }
-    }
-  } catch (err) {
-    if (typeof showNotify === 'function') {
-      showNotify(err.message || 'Lỗi kết nối máy chủ.', 'error');
+      showNotify(data.message || 'Không thực hiện được thao tác.', 'error');
     }
   } finally {
     if (btn) btn.disabled = false;
@@ -1666,120 +1601,118 @@ async function openPartnerSubledgerModal(partnerId, account, partnerName) {
   formCodeEl.textContent = account === '131' ? 'Mẫu S32-DNN' : 'Mẫu S31-DNN';
   btnStandalone.href = `/admin/transport/catalog/companies/${partnerId}/subledger?account=${account}`;
 
-  try {
-    const res = await fetch(`/admin/transport/catalog/companies/${partnerId}/subledger-data?account=${account}&year=2026`);
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Lỗi tải sổ chi tiết.');
+  const data = await apiRequest(`/admin/transport/catalog/companies/${partnerId}/subledger-data?account=${account}&year=2026`);
+  if (!data.ok) {
+    spinner.innerHTML = `<div class="text-danger py-4"><i class="bx bx-error-circle mr-1 font-size-18"></i>${data.message || 'Lỗi tải sổ chi tiết.'}</div>`;
+    return;
+  }
 
-    document.getElementById('subledgerOwnerName').textContent = data.owner_name;
-    document.getElementById('subledgerOwnerTax').textContent = data.owner_tax;
-    document.getElementById('subledgerPartnerName').textContent = data.partner_name;
-    document.getElementById('subledgerPartnerTax').textContent = data.partner_tax || '—';
-    document.getElementById('subledgerPartnerAddress').textContent = data.partner_address || '';
+  document.getElementById('subledgerOwnerName').textContent = data.owner_name;
+  document.getElementById('subledgerOwnerTax').textContent = data.owner_tax;
+  document.getElementById('subledgerPartnerName').textContent = data.partner_name;
+  document.getElementById('subledgerPartnerTax').textContent = data.partner_tax || '—';
+  document.getElementById('subledgerPartnerAddress').textContent = data.partner_address || '';
 
-    document.getElementById('subledgerSumOpenDr').textContent = data.open_dr_fmt;
-    document.getElementById('subledgerSumOpenCr').textContent = data.open_cr_fmt;
-    document.getElementById('subledgerSumPsDr').textContent = data.tot_ps_dr_fmt;
-    document.getElementById('subledgerSumPsCr').textContent = data.tot_ps_cr_fmt;
-    document.getElementById('subledgerSumCloseDr').textContent = data.close_dr_fmt;
-    document.getElementById('subledgerSumCloseCr').textContent = data.close_cr_fmt;
+  document.getElementById('subledgerSumOpenDr').textContent = data.open_dr_fmt;
+  document.getElementById('subledgerSumOpenCr').textContent = data.open_cr_fmt;
+  document.getElementById('subledgerSumPsDr').textContent = data.tot_ps_dr_fmt;
+  document.getElementById('subledgerSumPsCr').textContent = data.tot_ps_cr_fmt;
+  document.getElementById('subledgerSumCloseDr').textContent = data.close_dr_fmt;
+  document.getElementById('subledgerSumCloseCr').textContent = data.close_cr_fmt;
 
-    document.getElementById('subledgerFootPsDr').textContent = data.tot_ps_dr_fmt;
-    document.getElementById('subledgerFootPsCr').textContent = data.tot_ps_cr_fmt;
-    document.getElementById('subledgerFootCloseDr').textContent = data.close_dr_fmt;
-    document.getElementById('subledgerFootCloseCr').textContent = data.close_cr_fmt;
+  document.getElementById('subledgerFootPsDr').textContent = data.tot_ps_dr_fmt;
+  document.getElementById('subledgerFootPsCr').textContent = data.tot_ps_cr_fmt;
+  document.getElementById('subledgerFootCloseDr').textContent = data.close_dr_fmt;
+  document.getElementById('subledgerFootCloseCr').textContent = data.close_cr_fmt;
 
-    let rowsHtml = '';
-    // Row 0: Opening balance
-    rowsHtml += `
-      <tr style="background-color:#fefce8; font-weight:600;">
-        <td class="text-center">—</td>
-        <td class="text-center">01/01/${data.year}</td>
-        <td colspan="2" class="text-center font-italic text-muted">—</td>
-        <td class="font-weight-bold text-dark">Số dư đầu kỳ</td>
-        <td class="text-center text-muted">—</td>
-        <td class="text-right text-muted">—</td>
-        <td class="text-right text-muted">—</td>
-        <td class="text-right text-danger font-weight-bold">${data.open_dr_fmt}</td>
-        <td class="text-right text-success font-weight-bold">${data.open_cr_fmt}</td>
-        <td class="text-center text-muted">—</td>
-        <td class="text-center text-muted">—</td>
-      </tr>
-    `;
+  let rowsHtml = '';
+  // Row 0: Opening balance
+  rowsHtml += `
+    <tr style="background-color:#fefce8; font-weight:600;">
+      <td class="text-center">—</td>
+      <td class="text-center">01/01/${data.year}</td>
+      <td colspan="2" class="text-center font-italic text-muted">—</td>
+      <td class="font-weight-bold text-dark">Số dư đầu kỳ</td>
+      <td class="text-center text-muted">—</td>
+      <td class="text-right text-muted">—</td>
+      <td class="text-right text-muted">—</td>
+      <td class="text-right text-danger font-weight-bold">${data.open_dr_fmt}</td>
+      <td class="text-right text-success font-weight-bold">${data.open_cr_fmt}</td>
+      <td class="text-center text-muted">—</td>
+      <td class="text-center text-muted">—</td>
+    </tr>
+  `;
 
-    if (data.entries && data.entries.length > 0) {
-      data.entries.forEach((e, idx) => {
-        const linkHtml = e.doc_link
-          ? `<a href="${e.doc_link}" target="_blank" class="badge badge-light border text-primary p-1" title="Xem chứng từ"><i class="bx bx-link-external mr-1"></i>Xem</a>`
-          : '<span class="text-muted font-size-11">—</span>';
+  if (data.entries && data.entries.length > 0) {
+    data.entries.forEach((e, idx) => {
+      const linkHtml = e.doc_link
+        ? `<a href="${e.doc_link}" target="_blank" class="badge badge-light border text-primary p-1" title="Xem chứng từ"><i class="bx bx-link-external mr-1"></i>Xem</a>`
+        : '<span class="text-muted font-size-11">—</span>';
 
-        const kind = e.row_kind || '';
-        const srcId = e.source_id || '';
-        const invGuid = e.invoice_guid || '';
-        const editLink = e.edit_link || '';
-        const vNo = subledgerEscapeAttr(e.voucher_no || '');
-        const dateIso = subledgerEscapeAttr(e.date_iso || '');
-        const descText = subledgerEscapeAttr(e.description || '');
-        const rawAmount = subledgerEscapeAttr((String(e.amount_raw || '0')).split('.')[0]);
+      const kind = e.row_kind || '';
+      const srcId = e.source_id || '';
+      const invGuid = e.invoice_guid || '';
+      const editLink = e.edit_link || '';
+      const vNo = subledgerEscapeAttr(e.voucher_no || '');
+      const dateIso = subledgerEscapeAttr(e.date_iso || '');
+      const descText = subledgerEscapeAttr(e.description || '');
+      const rawAmount = subledgerEscapeAttr((String(e.amount_raw || '0')).split('.')[0]);
 
-        let actionHtml = '';
-        if (kind === 'input_invoice') {
-          actionHtml = `
-            <div class="d-flex align-items-center" style="gap:4px;">
-              <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
-                <i class="bx bx-edit-alt"></i>
-              </button>
-            </div>
-          `;
-        } else if (kind === 'debt_offset' || kind === 'other_voucher') {
-          actionHtml = '<span class="text-muted font-size-11">—</span>';
-        } else {
-          actionHtml = `
-            <div class="d-flex align-items-center" style="gap:4px;">
-              <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" data-date="${dateIso}" data-desc="${descText}" data-amount="${rawAmount}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
-                <i class="bx bx-edit-alt"></i>
-              </button>
-              <button type="button" class="btn btn-sm btn-danger" data-action="delete" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" title="Xóa">
-                <i class="bx bx-trash"></i>
-              </button>
-            </div>
-          `;
-        }
-
-        rowsHtml += `
-          <tr>
-            <td class="text-center align-middle">${idx + 1}</td>
-            <td class="text-center align-middle">${e.date_str}</td>
-            <td class="text-center align-middle font-weight-semibold text-primary">${e.voucher_no}</td>
-            <td class="text-center align-middle text-muted">${e.voucher_date_str}</td>
-            <td class="align-middle">
-              ${e.description}
-              ${e.serial ? `<span class="badge badge-light border text-muted ml-1 font-size-11">${e.serial}</span>` : ''}
-            </td>
-            <td class="text-center align-middle font-weight-semibold">${e.offset_account}</td>
-            <td class="text-right align-middle ${e.ps_dr > 0 ? 'text-danger font-weight-bold' : 'text-muted'}">${e.ps_dr_fmt}</td>
-            <td class="text-right align-middle ${e.ps_cr > 0 ? 'text-success font-weight-bold' : 'text-muted'}">${e.ps_cr_fmt}</td>
-            <td class="text-right align-middle text-danger font-weight-semibold">${e.bal_dr_fmt}</td>
-            <td class="text-right align-middle text-success font-weight-semibold">${e.bal_cr_fmt}</td>
-            <td class="text-center align-middle">${linkHtml}</td>
-            <td class="text-left align-middle">${actionHtml}</td>
-          </tr>
+      let actionHtml = '';
+      if (kind === 'input_invoice') {
+        actionHtml = `
+          <div class="d-flex align-items-center" style="gap:4px;">
+            <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
+              <i class="bx bx-edit-alt"></i>
+            </button>
+          </div>
         `;
-      });
-    } else {
+      } else if (kind === 'debt_offset' || kind === 'other_voucher') {
+        actionHtml = '<span class="text-muted font-size-11">—</span>';
+      } else {
+        actionHtml = `
+          <div class="d-flex align-items-center" style="gap:4px;">
+            <button type="button" class="btn btn-sm btn-light border" data-action="edit" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" data-date="${dateIso}" data-desc="${descText}" data-amount="${rawAmount}" data-link="${subledgerEscapeAttr(editLink)}" title="Sửa">
+              <i class="bx bx-edit-alt"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" data-action="delete" data-kind="${kind}" data-id="${srcId}" data-guid="${invGuid}" data-voucher="${vNo}" title="Xóa">
+              <i class="bx bx-trash"></i>
+            </button>
+          </div>
+        `;
+      }
+
       rowsHtml += `
         <tr>
-          <td colspan="12" class="text-center py-4 text-muted">Chưa có phát sinh giao dịch trong kỳ.</td>
+          <td class="text-center align-middle">${idx + 1}</td>
+          <td class="text-center align-middle">${e.date_str}</td>
+          <td class="text-center align-middle font-weight-semibold text-primary">${e.voucher_no}</td>
+          <td class="text-center align-middle text-muted">${e.voucher_date_str}</td>
+          <td class="align-middle">
+            ${e.description}
+            ${e.serial ? `<span class="badge badge-light border text-muted ml-1 font-size-11">${e.serial}</span>` : ''}
+          </td>
+          <td class="text-center align-middle font-weight-semibold">${e.offset_account}</td>
+          <td class="text-right align-middle ${e.ps_dr > 0 ? 'text-danger font-weight-bold' : 'text-muted'}">${e.ps_dr_fmt}</td>
+          <td class="text-right align-middle ${e.ps_cr > 0 ? 'text-success font-weight-bold' : 'text-muted'}">${e.ps_cr_fmt}</td>
+          <td class="text-right align-middle text-danger font-weight-semibold">${e.bal_dr_fmt}</td>
+          <td class="text-right align-middle text-success font-weight-semibold">${e.bal_cr_fmt}</td>
+          <td class="text-center align-middle">${linkHtml}</td>
+          <td class="text-left align-middle">${actionHtml}</td>
         </tr>
       `;
-    }
-
-    tbody.innerHTML = rowsHtml;
-    spinner.classList.add('d-none');
-    content.classList.remove('d-none');
-  } catch (err) {
-    spinner.innerHTML = `<div class="text-danger py-4"><i class="bx bx-error-circle mr-1 font-size-18"></i>${err.message}</div>`;
+    });
+  } else {
+    rowsHtml += `
+      <tr>
+        <td colspan="12" class="text-center py-4 text-muted">Chưa có phát sinh giao dịch trong kỳ.</td>
+      </tr>
+    `;
   }
+
+  tbody.innerHTML = rowsHtml;
+  spinner.classList.add('d-none');
+  content.classList.remove('d-none');
 }
 </script>
 {% endblock %}

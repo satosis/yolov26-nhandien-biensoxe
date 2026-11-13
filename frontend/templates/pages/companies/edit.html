@@ -238,12 +238,6 @@
 {% block scripts %}
 <script src="/static/admin-assets/js/company-form.js?v=20261104-1"></script>
 <script>
-{% if message or error %}
-window.dispatchEvent(new CustomEvent('showToast', {
-  detail: {msg: {{ (error or message)|tojson }}, type: {{ ('error' if error else 'success')|tojson }}}
-}));
-{% endif %}
-
 function clearLookupMessage() {
   document.getElementById('lookup-message').textContent = '';
 }
@@ -310,15 +304,16 @@ async function deleteCompanyAsset(type, companyId) {
   }
 
   try {
-    const resp = await fetch(`/admin/transport/catalog/companies/${companyId}/remove-${type}`, {
+    const result = await apiRequest(`/admin/transport/catalog/companies/${companyId}/remove-${type}`, {
       method: 'POST',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest'
-      }
     });
-    const result = await resp.json();
-    if (!resp.ok || !result.success) {
-      throw new Error(result.error || `Không thể xóa ảnh ${labelText}.`);
+    if (!result.ok || result.success === false) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+      window.showNotify(result.message || `Không thể xóa ảnh ${labelText}.`, 'error');
+      return;
     }
 
     if (card) {
@@ -344,17 +339,13 @@ async function deleteCompanyAsset(type, companyId) {
     const labelSpan = document.querySelector('#btn-label-' + type + ' span');
     if (labelSpan) labelSpan.textContent = 'Chọn ảnh';
 
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: `Đã xóa ảnh ${labelText} và dọn dẹp nơi lưu trữ thành công.`, type: 'success' }
-    }));
+    window.showNotify(`Đã xóa ảnh ${labelText} và dọn dẹp nơi lưu trữ thành công.`, 'success');
   } catch (err) {
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = origHtml;
     }
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: err.message || `Lỗi khi xóa ảnh ${labelText}.`, type: 'error' }
-    }));
+    window.showNotify(err.message || `Lỗi khi xóa ảnh ${labelText}.`, 'error');
   }
 }
 

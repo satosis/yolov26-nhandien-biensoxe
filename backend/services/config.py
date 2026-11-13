@@ -5,15 +5,10 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-_default_plate_model = os.path.join(BASE_DIR, "backend/models/best.pt")
-if not os.path.exists(_default_plate_model):
-    _default_plate_model = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door_int8.onnx")
-
 PLATE_MODEL_PATH = os.environ.get(
     "PLATE_MODEL_PATH",
-    _default_plate_model,
+    os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door_int8.onnx"),
 )
-RKNN_MODEL_PATH = os.path.join(BASE_DIR, "backend/models/yolo26_plate_people_door.rknn")
 FACE_MODEL_DIR = os.path.join(BASE_DIR, "backend/models/insightface")
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data"))
 KNOWN_FACES_DIR = os.environ.get("KNOWN_FACES_DIR", os.path.join(DATA_DIR, "faces"))
@@ -69,20 +64,13 @@ def setup_logging(log_filename: str = "app.log", level: int = None):
         stream_handler.setLevel(level)
         root_logger.addHandler(stream_handler)
 
-FRAME_BUFFER_SIZE = 5
-VOTE_MIN_CONF = 0.70
 FACE_RECOG_EVERY_N = 10
 FACE_RECOG_THRESHOLD = 0.40
 STRANGER_MATCH_THRESHOLD = 0.35
-FACE_SIM_LOWER = 0.30
-FACE_SIM_UPPER = 0.75
 PLATE_DETECT_EVERY_N = 3
-FAKE_PLATE_THRESHOLD = 0.65
 SMART_RECORD_PRE_SEC = 5
-SMART_RECORD_POST_SEC = 10
 SMART_RECORD_TAIL_SEC = 10
 SMART_RECORD_MAX_SEC = 300
-SMART_RECORD_RETENTION_DAYS = 15
 DATA_RETENTION_DAYS = 30
 
 GRAB_WIDTH = 1280
@@ -97,7 +85,6 @@ MOTION_THRESHOLD = 1500
 MOTION_BLUR_KSIZE = 5
 MOTION_DILATE_ITER = 2
 
-DENOISE_SPATIAL_KSIZE = 0
 STREAM_JPEG_QUALITY_LIVE = 88
 
 

@@ -10,8 +10,6 @@ from frontend.auth.rbac import get_current_user
 import frontend.handlers.administrative_divisions as administrative_divisions
 import frontend.routers.detection.pages as detection_pages
 import frontend.handlers.detection_stream as detection_stream
-import frontend.handlers.detection_video_api as detection_video_api
-import frontend.handlers.detection_webrtc as detection_webrtc
 import frontend.handlers.detection_ocr_api as detection_ocr_api
 import frontend.handlers.cameras as cameras
 import frontend.handlers.vehicles as vehicles
@@ -68,11 +66,9 @@ import frontend.handlers.landing as landing
 import frontend.handlers.legal as legal
 import frontend.modules.invoices.share_link as invoices_share_link
 import frontend.catalog as catalog
-import frontend.container.config as container_config
 import frontend.crane.controller as crane
 import frontend.photo.controller as photo
 import frontend.scale.controller as scale
-import frontend.solar.config as solar_config
 import frontend.warehouse.controller as warehouse
 import frontend.weights.controller as weights
 import frontend.handlers.kyc as kyc
@@ -96,15 +92,6 @@ ROUTES = [
     ("GET", "/admin/detection/", detection_pages.detection_page, HIDDEN),
     # frontend/handlers/detection_stream.py
     ("GET", "/admin/detection/stream/{camera_id}", detection_stream.stream_camera),
-    # frontend/handlers/detection_video_api.py
-    ("POST", "/admin/detection/api/videos", detection_video_api.analyze_video, {"status_code": 202}),
-    ("GET", "/admin/detection/api/videos/current", detection_video_api.current_video_analysis, HIDDEN),
-    ("GET", "/admin/detection/api/videos/latest", detection_video_api.current_video_analysis),
-    ("GET", "/admin/detection/api/videos/{job_id}", detection_video_api.video_analysis_status),
-    ("POST", "/admin/detection/api/videos/{job_id}/cancel", detection_video_api.cancel_video_analysis),
-    ("GET", "/admin/detection/api/videos/{job_id}/assets/{filename}", detection_video_api.video_analysis_crop),
-    # frontend/handlers/detection_webrtc.py
-    ("POST", "/admin/detection/go2rtc-proxy/{camera_id}", detection_webrtc.go2rtc_webrtc_proxy),
     # frontend/handlers/detection_ocr_api.py
     ("POST", "/admin/detection/api/detect", detection_ocr_api.detect_image),
     ("POST", "/admin/detection/api/reset-tracker", detection_ocr_api.reset_tracker),
@@ -411,6 +398,8 @@ ROUTES = [
     # frontend/handlers/transport_contracts.py
     ("GET", "/admin/transport/contracts", transport_contracts.contracts_page),
     ("GET", "/admin/transport/contracts/export", transport_contracts.export_contract),
+    ("GET", "/admin/transport/contracts/zalo-groups", transport_contracts.contract_zalo_groups),
+    ("POST", "/admin/transport/contracts/send-zalo", transport_contracts.send_contract_zalo),
     # frontend/handlers/transport_catalog.py
     ("GET", "/admin/catalog", transport_catalog.cargo_catalog_page),
     ("POST", "/admin/catalog/items", transport_catalog.create_cargo_catalog_item),
@@ -566,6 +555,9 @@ ROUTES = [
     ("POST", "/admin/enterprise/sales/import", enterprise.enterprise_sales_import_api),
     ("POST", "/admin/enterprise/sales/api/{sale_id}/payments", enterprise.enterprise_sales_payment_api),
     ("GET", "/admin/enterprise/sales/{sale_id}/pdf", enterprise.enterprise_sales_invoice_pdf),
+    ("POST", "/admin/enterprise/sales/api/presence/heartbeat", enterprise.enterprise_sales_presence_heartbeat_api),
+    ("POST", "/admin/enterprise/sales/api/presence/release", enterprise.enterprise_sales_presence_release_api),
+    ("GET", "/admin/enterprise/sales/api/presence/active", enterprise.enterprise_sales_presence_active_api),
     # frontend/handlers/enterprise_tax_checklist.py
     ("GET", "/admin/enterprise/tax-checklist/", enterprise_tax_checklist.tax_checklist_page),
     ("GET", "/admin/enterprise/tax-checklist", enterprise_tax_checklist.tax_checklist_page, HIDDEN),
@@ -763,6 +755,7 @@ ROUTES = [
     # Cầu nối Zalo gọi vào bằng khóa bí mật, không có phiên đăng nhập nên không nằm dưới /admin: frontend/handlers/zalo.py
     ("GET", "/api/zalo_bridge/companies", zalo.list_companies_for_zalo_bridge),
     ("POST", "/api/zalo_bridge/ingest", zalo.ingest_message),
+    ("POST", "/api/zalo_bridge/company-card", zalo.company_card),
     # frontend/handlers/chat.py
     ("POST", "/api/chat/send", chat.customer_send_message, JSON),
     ("GET", "/api/chat/messages", chat.customer_get_messages, JSON),
@@ -791,26 +784,26 @@ ROUTES = [
     ("GET", "/so-doi-tac/{token}", enterprise_partner_trade.public_partner_ledger, HTML),
     ("GET", "/so-doi-tac/{token}/chi-tiet/{entry_id}", enterprise_partner_trade.public_partner_entry_detail, HTML),
     # Dịch vụ xe cẩu (Đại Lộ Xanh)
-    ("GET", "/xecau", catalog.redirect_route("/xe-cau"), HTML),
+    ("GET", "/xecau", catalog.redirect_xe_cau, HTML),
     ("GET", "/xe-cau", crane.landing_crane_service, HTML),
-    ("GET", "/thue-xe-cau/{area}", catalog.area_route("thue-xe-cau"), HTML),
+    ("GET", "/thue-xe-cau/{area}", catalog.area_thue_xe_cau, HTML),
     # Dịch vụ quả cân chuẩn (Đại Lộ Xanh)
-    ("GET", "/quacan", catalog.redirect_route("/qua-can"), HTML),
+    ("GET", "/quacan", catalog.redirect_qua_can, HTML),
     ("GET", "/qua-can", weights.landing_test_weights_service, HTML),
-    ("GET", "/van-chuyen-qua-can/{area}", catalog.area_route("van-chuyen-qua-can"), HTML),
+    ("GET", "/van-chuyen-qua-can/{area}", catalog.area_van_chuyen_qua_can, HTML),
     # Dịch vụ cẩu lắp đặt thiết bị (Đại Lộ Xanh, trang khu vực dùng chung)
-    ("GET", "/cau-lap-dat-thiet-bi/{area}", catalog.area_route("cau-lap-dat-thiet-bi"), HTML),
+    ("GET", "/cau-lap-dat-thiet-bi/{area}", catalog.area_cau_lap_dat_thiet_bi, HTML),
     # Dịch vụ cho thuê container (Đại Lộ Xanh)
-    ("GET", "/container", catalog.redirect_route("/thue-container"), HTML),
-    ("GET", "/thue-container", catalog.landing_route("thue-container", container_config.get_container_settings, container_config.PAGE), HTML),
-    ("GET", "/thue-container/{area}", catalog.area_route("thue-container"), HTML),
+    ("GET", "/container", catalog.redirect_thue_container, HTML),
+    ("GET", "/thue-container", catalog.landing_thue_container, HTML),
+    ("GET", "/thue-container/{area}", catalog.area_thue_container, HTML),
     # Dịch vụ điện mặt trời (Đại Lộ Xanh)
-    ("GET", "/solar", catalog.redirect_route("/dien-mat-troi"), HTML),
-    ("GET", "/dien-mat-troi", catalog.landing_route("dien-mat-troi", solar_config.get_solar_settings, solar_config.PAGE), HTML),
-    ("GET", "/dien-mat-troi/{area}", catalog.area_route("dien-mat-troi"), HTML),
+    ("GET", "/solar", catalog.redirect_dien_mat_troi, HTML),
+    ("GET", "/dien-mat-troi", catalog.landing_dien_mat_troi, HTML),
+    ("GET", "/dien-mat-troi/{area}", catalog.area_dien_mat_troi, HTML),
     # Dịch vụ cho thuê máy ảnh và photobooth (Đại Lộ Xanh)
     ("GET", "/thue-may-anh", photo.landing_photo_service, HTML),
-    ("GET", "/thue-may-anh/{area}", catalog.area_route("thue-may-anh"), HTML),
+    ("GET", "/thue-may-anh/{area}", catalog.area_thue_may_anh, HTML),
     # frontend/handlers/kyc.py
     ("POST", "/kyc/clean-cache", kyc.clean_cache),
     ("GET", "/kyc", kyc.kyc_page),

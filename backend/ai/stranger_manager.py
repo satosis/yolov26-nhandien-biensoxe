@@ -244,7 +244,7 @@ class StrangerManager:
             (cam_id, 0.0, snap_path, site_id, normed_emb.tobytes(), direction),
             commit=True, return_id=True
         )
-        if isinstance(new_id, bool) or not isinstance(new_id, int) or new_id <= 0:
+        if not new_id or new_id <= 0:
             logger.error("Stranger record insert returned no valid ID")
             raise RuntimeError("Stranger record insert did not return a valid ID")
 

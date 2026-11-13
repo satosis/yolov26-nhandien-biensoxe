@@ -56,7 +56,7 @@
 </style>
 <script>
 function initCompanyBankSelect(select) {
-  if (typeof TomSelect !== 'undefined' && !select.tomselect) new TomSelect(select, {create: false, placeholder: 'Chọn hoặc tìm ngân hàng'});
+  if (!select.tomselect) new TomSelect(select, {create: false, placeholder: 'Chọn hoặc tìm ngân hàng'});
 }
 function setCompanyBankSelect(select, value) {
   if (!select) return;

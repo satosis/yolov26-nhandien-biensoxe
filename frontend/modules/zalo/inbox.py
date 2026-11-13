@@ -60,14 +60,11 @@ def _read_item(path: Path) -> dict:
         cid = None
         cname = ""
         if gname:
-            try:
-                from frontend.modules.invoices.companies import find_company_by_name
-                matched = find_company_by_name(gname)
-                if matched:
-                    cid = matched["id"]
-                    cname = matched["name"]
-            except Exception:
-                pass
+            from frontend.modules.invoices.companies import find_company_by_name
+            matched = find_company_by_name(gname)
+            if matched:
+                cid = matched["id"]
+                cname = matched["name"]
         item["company_id"] = cid
         item["company_name"] = cname
     return item
@@ -95,35 +92,26 @@ def save_message(event: dict, file_bytes: bytes | None = None, *, with_created: 
     company_name = event.get("company_name")
     group_name = str(event.get("group_name") or "")
     if not company_id and group_name:
-        try:
-            from frontend.modules.invoices.companies import find_company_by_name
-            matched = find_company_by_name(group_name)
-            if matched:
-                company_id = matched["id"]
-                company_name = matched["name"]
-        except Exception:
-            pass
+        from frontend.modules.invoices.companies import find_company_by_name
+        matched = find_company_by_name(group_name)
+        if matched:
+            company_id = matched["id"]
+            company_name = matched["name"]
 
     text = str(event.get("text") or "").strip()
     if not company_id and text:
-        try:
-            from frontend.modules.zalo.invoice_automation import extract_matching_company
-            matched_tax = extract_matching_company(text)
-            if matched_tax:
-                company_id = matched_tax["id"]
-                company_name = matched_tax["name"]
-        except Exception:
-            pass
+        from frontend.modules.zalo.invoice_automation import extract_matching_company
+        matched_tax = extract_matching_company(text)
+        if matched_tax:
+            company_id = matched_tax["id"]
+            company_name = matched_tax["name"]
 
     if not company_id:
-        try:
-            from frontend.modules.zalo.invoice_automation import get_active_session
-            active_s = get_active_session(str(event.get("group_id") or ""))
-            if active_s and active_s.get("company_id"):
-                company_id = active_s["company_id"]
-                company_name = active_s.get("company_name", "")
-        except Exception:
-            pass
+        from frontend.modules.zalo.invoice_automation import get_active_session
+        active_s = get_active_session(str(event.get("group_id") or ""))
+        if active_s and active_s.get("company_id"):
+            company_id = active_s["company_id"]
+            company_name = active_s.get("company_name", "")
 
     # Phải match tên nhóm 100% hoặc có MST công ty khớp trong DB
     if not company_id:

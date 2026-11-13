@@ -370,15 +370,7 @@
       body: formData
     })
     .then(data => {
-      if (data.ok && data.api_status === 'success') {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: {msg: data.message || 'Đã gửi lệnh điều khiển cửa.', type: 'success'}
-        }));
-      } else {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: {msg: data.message || 'Không thể điều khiển cửa.', type: 'error'}
-        }));
-      }
+      window.showNotify(data.message || (data.ok ? 'Đã gửi lệnh điều khiển cửa.' : 'Không thể điều khiển cửa.'), data.ok ? 'success' : 'error');
     })
     .finally(() => {
       btn.innerText = originalText;
@@ -410,7 +402,7 @@
         list.replaceChildren();
 
         if (!data.ok) {
-          list.textContent = data.message || 'Không thể quét thiết bị.';
+          list.textContent = data.message;
           return;
         }
 
@@ -489,9 +481,7 @@
     const pass = document.getElementById('hunonic-password').value;
 
     if (!phone || !pass) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: {msg: 'Vui lòng nhập SĐT và Mật khẩu Hunonic.', type: 'warning'}
-      }));
+      window.showNotify('Vui lòng nhập SĐT và Mật khẩu Hunonic.', 'warning');
       return;
     }
 
@@ -525,9 +515,7 @@
           ));
         });
       } else {
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: {msg: data.message || 'Không thể lấy danh sách thiết bị.', type: 'error'}
-        }));
+        window.showNotify(data.message || 'Không thể lấy danh sách thiết bị.', 'error');
       }
     })
     .finally(() => {

@@ -31,7 +31,7 @@
     ta.style.opacity = '0';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); } catch (_) {}
+    document.execCommand('copy');
     document.body.removeChild(ta);
     return Promise.resolve();
   }

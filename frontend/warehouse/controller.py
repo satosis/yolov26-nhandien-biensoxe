@@ -12,8 +12,6 @@ async def landing_warehouse(request: Request):
     projects = get_projects()
     for p in projects:
         p['load'] = p.get('load_capacity')
-        if p.get('created_at'):
-            p['created_at'] = p['created_at'].isoformat() if hasattr(p['created_at'], 'isoformat') else str(p['created_at'])
 
     return templates.TemplateResponse(
         "warehouse/trung_ha.html",

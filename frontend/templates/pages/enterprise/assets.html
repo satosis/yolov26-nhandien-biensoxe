@@ -211,30 +211,16 @@
       status: document.getElementById('assetStatusFilter').value,
       page: String(page)
     });
-    try {
-      const response = await fetch(apiUrl + '?' + params.toString(), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể tải danh sách tài sản.');
-      assets = data.assets || [];
-      currentPage = Number(data.page) || 1;
-      totalPages = Number(data.total_pages) || 1;
-      totalAssets = Number(data.total) || 0;
-      render();
-    } catch (error) {
-      showNotice(error.message, true);
+    const data = await apiRequest(apiUrl + '?' + params.toString());
+    if (!data.ok) {
+      window.showNotify(data.message || 'Không thể tải danh sách tài sản.', 'error');
+      return;
     }
-  }
-
-  function showNotice(message, isError) {
-    if (!message) return;
-    if (window.toastr) {
-      if (isError) toastr.error(message);
-      else toastr.success(message);
-    } else {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: message, type: isError ? 'error' : 'success' }
-      }));
-    }
+    assets = data.assets || [];
+    currentPage = Number(data.page) || 1;
+    totalPages = Number(data.total_pages) || 1;
+    totalAssets = Number(data.total) || 0;
+    render();
   }
 
   function clearForm() {
@@ -259,15 +245,11 @@
   }
 
   async function send(url, method, body) {
-    const response = await fetch(url, {
+    return apiRequest(url, {
       method: method,
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
-      credentials: 'same-origin'
     });
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể thực hiện thao tác.');
-    return data;
   }
 
   document.getElementById('addAssetButton').addEventListener('click', function () {
@@ -296,11 +278,13 @@
     if (deleteButton) {
       const asset = assets.find(function (item) { return String(item.id) === deleteButton.dataset.id; });
       if (!asset || !window.confirm('Xóa tài sản “' + asset.name + '”?')) return;
-      try {
-        const result = await send(apiUrl + '/' + asset.id + '/delete', 'POST');
-        await loadAssets(currentPage);
-        showNotice(result.message, false);
-      } catch (error) { showNotice(error.message, true); }
+      const result = await send(apiUrl + '/' + asset.id + '/delete', 'POST');
+      if (!result.ok) {
+        window.showNotify(result.message || 'Không thể thực hiện thao tác.', 'error');
+        return;
+      }
+      await loadAssets(currentPage);
+      window.showNotify(result.message, 'success');
     }
   });
   form.addEventListener('submit', async function (event) {
@@ -321,11 +305,13 @@
     button.disabled = true;
     try {
       const result = await send(id ? apiUrl + '/' + id + '/update' : apiUrl, 'POST', payload);
+      if (!result.ok) {
+        window.showNotify(result.message || 'Không thể thực hiện thao tác.', 'error');
+        return;
+      }
       await loadAssets(id ? currentPage : 1);
       modal.modal('hide');
-      showNotice(result.message, false);
-    } catch (error) {
-      showNotice(error.message, true);
+      window.showNotify(result.message, 'success');
     } finally {
       button.disabled = false;
     }

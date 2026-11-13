@@ -239,14 +239,6 @@
 
 <script src="/static/admin-assets/js/company-form.js?v=20261104-1"></script>
 <script>
-{% if error or message %}
-showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-const entUrl = new URL(window.location.href);
-entUrl.searchParams.delete('message');
-entUrl.searchParams.delete('error');
-window.history.replaceState(null, '', entUrl.pathname + entUrl.search + entUrl.hash);
-{% endif %}
-
 function clearLookupMessage() {
   const el = document.getElementById('lookup-message');
   if (el) { el.textContent = ''; el.className = 'd-block mt-1 text-muted'; }
@@ -260,9 +252,12 @@ async function lookupTaxCode() {
   message.textContent = 'Đang tra cứu...';
   btn.disabled = true;
   try {
-    const resp = await fetch('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
-    const result = await resp.json();
-    if (!resp.ok || !result.ok) throw new Error(result.message || 'Không tra cứu được.');
+    const result = await apiRequest('/admin/vehicles/api/invoice-companies/lookup?tax_code=' + encodeURIComponent(taxCode));
+    if (!result.ok) {
+      message.className = 'd-block mt-1 text-danger small';
+      message.textContent = result.message || 'Không tra cứu được mã số thuế.';
+      return;
+    }
     document.getElementById('edit-name').value = result.name || '';
     const addr = (result.address || '').trim();
     document.getElementById('edit-address').value = addr && !addr.toLowerCase().endsWith('việt nam') ? addr + ', Việt Nam' : addr;
@@ -278,9 +273,6 @@ async function lookupTaxCode() {
 
     message.className = 'd-block mt-1 text-success small';
     message.textContent = 'Đã tra cứu MST và cập nhật thông tin.';
-  } catch (err) {
-    message.className = 'd-block mt-1 text-danger small';
-    message.textContent = err.message || 'Không tra cứu được mã số thuế.';
   } finally {
     btn.disabled = false;
   }
@@ -319,12 +311,17 @@ async function deleteCompanyAsset(type, companyId) {
   }
 
   try {
-    const resp = await fetch(`/admin/transport/catalog/companies/${companyId}/remove-${type}`, {
+    const result = await apiRequest(`/admin/transport/catalog/companies/${companyId}/remove-${type}`, {
       method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
     });
-    const result = await resp.json();
-    if (!resp.ok || !result.success) throw new Error(result.error || `Không thể xóa ảnh ${labelText}.`);
+    if (!result.ok || result.success === false) {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+      showNotify(result.message || `Không thể xóa ảnh ${labelText}.`, 'error');
+      return;
+    }
 
     if (card) {
       card.dataset.hasSaved = '0';

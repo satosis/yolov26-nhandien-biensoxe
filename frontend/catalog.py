@@ -230,28 +230,49 @@ async def render_area_service(request: Request, service: str, area: str) -> HTML
     return templates.TemplateResponse("crane/area.html", context)
 
 
-def redirect_route(target_url: str):
-    """Tạo route chuyển hướng 301 trực tiếp tới `target_url` (không cần file handler riêng)."""
-    async def _redirect():
-        return RedirectResponse(url=target_url, status_code=301)
-
-    _redirect.__name__ = "redirect_" + (target_url.strip("/").replace("-", "_") or "root")
-    return _redirect
+async def redirect_xe_cau():
+    return RedirectResponse(url="/xe-cau", status_code=301)
 
 
-def landing_route(service: str, settings_getter, page: dict):
-    """Tạo route cho trang landing dịch vụ dạng danh mục dùng chung."""
-    async def _landing(request: Request):
-        return render_landing(request, service, settings_getter(), page)
-
-    _landing.__name__ = "landing_" + service.replace("-", "_")
-    return _landing
+async def redirect_qua_can():
+    return RedirectResponse(url="/qua-can", status_code=301)
 
 
-def area_route(service: str):
-    """Tạo route trang SEO khu vực `/<dịch-vụ>/{area}` dùng chung cho mọi dịch vụ."""
-    async def _area(request: Request, area: str) -> HTMLResponse:
-        return await render_area_service(request, service, area)
+async def redirect_thue_container():
+    return RedirectResponse(url="/thue-container", status_code=301)
 
-    _area.__name__ = "area_" + service.replace("-", "_")
-    return _area
+
+async def redirect_dien_mat_troi():
+    return RedirectResponse(url="/dien-mat-troi", status_code=301)
+
+
+async def landing_thue_container(request: Request):
+    return render_landing(request, "thue-container", container_config.get_container_settings(), container_config.PAGE)
+
+
+async def landing_dien_mat_troi(request: Request):
+    return render_landing(request, "dien-mat-troi", solar_config.get_solar_settings(), solar_config.PAGE)
+
+
+async def area_thue_xe_cau(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "thue-xe-cau", area)
+
+
+async def area_van_chuyen_qua_can(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "van-chuyen-qua-can", area)
+
+
+async def area_cau_lap_dat_thiet_bi(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "cau-lap-dat-thiet-bi", area)
+
+
+async def area_thue_container(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "thue-container", area)
+
+
+async def area_dien_mat_troi(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "dien-mat-troi", area)
+
+
+async def area_thue_may_anh(request: Request, area: str) -> HTMLResponse:
+    return await render_area_service(request, "thue-may-anh", area)

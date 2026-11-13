@@ -4,6 +4,7 @@ scripts/check_all.py — Chạy toàn bộ kiểm tra cho dự án:
 1. node --test trong scripts/zalo_bridge
 2. Biên dịch toàn bộ Jinja2 templates trong frontend/templates
 3. node --check cho các file JavaScript tự viết
+4. (chỉ khi có --ui, cần ứng dụng đang chạy) scripts/ui_check.py: mở từng trang bằng Chrome thật, báo lỗi JS, request lỗi, ảnh hỏng
 In bảng TÊN | OK/LỖI | thời gian, exit 1 nếu có lỗi.
 """
 
@@ -132,6 +133,20 @@ def main() -> int:
             elapsed = time.time() - t0
             print_row(item_label, "LỖI", elapsed)
             results.append((item_label, "LỖI", elapsed, str(exc)))
+
+    # 4. Giao diện bằng Chrome thật: chỉ chạy khi có --ui
+    if "--ui" in sys.argv:
+        t0 = time.time()
+        item_name = "Kiểm tra giao diện bằng Chrome (scripts/ui_check.py)"
+        proc = subprocess.run(
+            [sys.executable, "scripts/ui_check.py", "--quiet", "--workers", "6"],
+            cwd=str(ROOT_DIR), capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=900, env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        elapsed = time.time() - t0
+        status = "OK" if proc.returncode == 0 else "LỖI"
+        print_row(item_name, status, elapsed)
+        results.append((item_name, status, elapsed, "" if proc.returncode == 0 else proc.stdout.strip() or proc.stderr.strip()))
 
     # In tổng kết
     total_time = time.time() - start_total

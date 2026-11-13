@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!projectsData.length) {
             const dataEl = document.getElementById('projects-data');
             if (dataEl) {
-                try { projectsData = JSON.parse(dataEl.textContent); } catch (e) {}
+                projectsData = JSON.parse(dataEl.textContent);
             }
         }
 
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 height: '10.85 m',
                 bays: 'Cửa container',
                 load: '3.0 Tấn/m²',
-                image: '/static/brain/tsl/hero_factory.png',
+                image: '/upload/brain/tsl/hero_factory.png',
                 description: 'Nhà xưởng xây sẵn tiêu chuẩn quốc tế, trạm biến áp 5000 KVA, PCCC tự động đã nghiệm thu, sẵn sàng bàn giao ngay.',
                 detail_url: '/nhaxuong'
             },
@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 height: '9.5 m',
                 bays: 'Tiêu chuẩn KCN',
                 load: '3.0 Tấn/m²',
-                image: '/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg',
+                image: '/upload/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg',
                 description: 'Hạ tầng đồng bộ, xử lý nước thải đạt chuẩn, trạm biến áp 110KV, pháp lý hoàn chỉnh với thời hạn đất còn hơn 45 năm.',
                 detail_url: '/nha-xuong-co-tiet'
             }
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 height: '10.85 m',
                 bays: '重型货柜装卸门',
                 load: '3.0 吨/m²',
-                image: '/static/brain/tsl/hero_factory.png',
+                image: '/upload/brain/tsl/hero_factory.png',
                 description: '国际标准现成厂房，配备 5000 KVA 专用变电站、公安部认证自动消防系统，随时整租或分租交付入驻。',
                 detail_url: '/nhaxuong'
             },
@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 height: '9.5 m',
                 bays: '工业区标准闸口',
                 load: '3.0 吨/m²',
-                image: '/static/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg',
+                image: '/upload/brain/tsl/z7785901889175_7c9d549d0be200ce538456d0451a61cd.jpg',
                 description: '基础设施完备，合规污水处理站、110KV 电网与5000 KVA 配电，工业土地剩余使用年限45年以上。',
                 detail_url: '/nha-xuong-co-tiet'
             }
@@ -276,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             projectsSlider.innerHTML = activeList.map((project, index) => {
                 const isActive = index === activeIndex ? 'active' : '';
-                const localImage = project.image || '/static/brain/tsl/hero_factory.png';
+                const localImage = project.image || '/upload/brain/tsl/hero_factory.png';
                 const detailUrl = project.detail_url || '/nhaxuong';
 
                 return `

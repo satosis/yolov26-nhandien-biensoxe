@@ -6,8 +6,8 @@ import frontend.routers.administrative_divisions_controller as controller
 
 async def administrative_divisions_page(
     request: Request,
-    province: str = Query('', max_length=2),
-    q: str = Query('', max_length=100),
+    province: str = Query(''),
+    q: str = Query(''),
     page: int = Query(1, ge=1),
     synced: str = Query(''),
     user: dict = Depends(require_menu('administrative_divisions')),

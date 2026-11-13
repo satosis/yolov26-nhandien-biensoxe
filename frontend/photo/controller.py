@@ -6,10 +6,10 @@ from . import config
 GROUP_ORDER = ("Máy ảnh", "Ống kính", "Đèn & Gimbal", "Photobooth")
 
 DEFAULT_GROUP_IMAGE = {
-    "Máy ảnh": "/static/services/photo/img/gear_cameras_lenses.jpg",
-    "Ống kính": "/static/services/photo/img/gear_lenses_closeup.jpg",
-    "Đèn & Gimbal": "/static/services/photo/img/gear_lighting_tripod.jpg",
-    "Photobooth": "/static/services/photo/img/photobooth_setup.jpg",
+    "Máy ảnh": "/upload/services/photo/img/gear_cameras_lenses.jpg",
+    "Ống kính": "/upload/services/photo/img/gear_lenses_closeup.jpg",
+    "Đèn & Gimbal": "/upload/services/photo/img/gear_lighting_tripod.jpg",
+    "Photobooth": "/upload/services/photo/img/photobooth_setup.jpg",
 }
 
 
@@ -66,7 +66,7 @@ def _enrich_photo_catalog(raw_items: list[dict]) -> tuple[list[dict], list[dict]
         brand = _infer_brand(item.get("grade") or "", name, group)
         price = int(item.get("price") or 0)
         is_pkg, unit = _infer_unit(name, group)
-        img = item.get("img") or DEFAULT_GROUP_IMAGE.get(group, "/static/services/photo/img/gear_cameras_lenses.jpg")
+        img = item.get("img") or DEFAULT_GROUP_IMAGE.get(group, "/upload/services/photo/img/gear_cameras_lenses.jpg")
         stock = int(item.get("stock") or 0)
 
         day2_unit = int(round((price * 0.80) / 1000.0) * 1000) if (price and not is_pkg) else 0

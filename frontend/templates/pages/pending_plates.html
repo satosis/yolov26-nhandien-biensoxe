@@ -36,9 +36,7 @@ Biển số chờ duyệt
         return;
       }
       this.busy = false;
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: result.message || 'Không thể xóa biển số đã chọn.', type: 'error' }
-      }));
+      window.showNotify(result.message, 'error');
     }
   }">
 
@@ -210,16 +208,16 @@ document.getElementById('pendingPlateEditForm').addEventListener('submit', async
   const button = this.querySelector('[type="submit"]');
   button.disabled = true;
   try {
-    const response = await fetch('/admin/pending_plates/' + encodeURIComponent(editingPendingPlateId), {
-      method: 'PUT', credentials: 'same-origin',
+    const data = await apiRequest('/admin/pending_plates/' + encodeURIComponent(editingPendingPlateId), {
+      method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({plate: document.getElementById('pendingPlateValue').value})
     });
-    const data = await response.json();
-    if (!response.ok || data.ok === false) throw new Error(data.message || 'Không thể sửa biển số.');
+    if (!data.ok) {
+      window.showNotify(data.message || 'Không thể sửa biển số.', 'error');
+      return;
+    }
     window.location.reload();
-  } catch (error) {
-    window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
   } finally {
     button.disabled = false;
   }

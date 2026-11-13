@@ -13,7 +13,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from backend.services import config as cfg
 from backend.services.database import db
-from frontend.formatting import format_number
+from frontend.formatting.filters import format_number
 from frontend.modules.enterprise.sales_service import fold_text
 
 SECTIONS = {

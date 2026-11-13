@@ -500,14 +500,6 @@
 </datalist>
 
 <script>
-{% if error or message %}
-showNotify({{ (error or message)|tojson }}, {{ ('error' if error else 'success')|tojson }});
-const staffUrl = new URL(window.location.href);
-staffUrl.searchParams.delete('message');
-staffUrl.searchParams.delete('error');
-window.history.replaceState(null, '', staffUrl.pathname + staffUrl.search + staffUrl.hash);
-{% endif %}
-
 let _staffLoading = false;
 async function loadStaffAjax(targetUrl, pushState = true) {
   const tableArea = document.getElementById('staff-table-area');
@@ -595,45 +587,42 @@ function openAddStaffModal() {
 }
 
 async function openEditStaffModal(userId) {
-  try {
-    const res = await fetch(`/admin/staff/${userId}/json`);
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.message || 'Không thể tải thông tin.');
-
-    const s = data.staff;
-    const form = document.getElementById('edit-staff-form');
-    form.action = `/admin/staff/${userId}/edit`;
-
-    document.getElementById('edit-full-name').value = s.full_name || '';
-    document.getElementById('edit-gender').value = s.gender || 'nam';
-    document.getElementById('edit-dob').value = s.date_of_birth || '';
-    document.getElementById('edit-id-number').value = s.id_number || '';
-    document.getElementById('edit-phone').value = s.phone || '';
-    document.getElementById('edit-email').value = s.email || '';
-    document.getElementById('edit-username').value = s.username || '';
-
-    document.getElementById('edit-job-title').value = s.job_title || '';
-    document.getElementById('edit-department').value = s.department || '';
-
-    // Checkboxes for companies
-    const assignedCids = (s.company_ids || []).map(Number);
-    document.querySelectorAll('.edit-company-cb').forEach(cb => {
-      cb.checked = assignedCids.includes(Number(cb.value));
-    });
-
-    document.getElementById('edit-base-salary').value = formatNumber(s.base_salary);
-    document.getElementById('edit-insurance-salary').value = formatNumber(s.insurance_salary);
-    document.getElementById('edit-resp-allowance').value = formatNumber(s.responsibility_allowance);
-    document.getElementById('edit-meal-allowance').value = formatNumber(s.meal_allowance);
-    document.getElementById('edit-phone-allowance').value = formatNumber(s.phone_allowance);
-    document.getElementById('edit-bank-account').value = s.bank_account || '';
-    document.getElementById('edit-bank-name').value = s.bank_name || '';
-    document.getElementById('edit-note').value = s.note || '';
-
-    $('#editStaffModal').modal('show');
-  } catch (err) {
-    showNotify('Lỗi: ' + err.message, 'error');
+  const data = await apiRequest(`/admin/staff/${userId}/json`);
+  if (!data.ok) {
+    showNotify(data.message || 'Không thể tải thông tin.', 'error');
+    return;
   }
+
+  const s = data.staff;
+  const form = document.getElementById('edit-staff-form');
+  form.action = `/admin/staff/${userId}/edit`;
+
+  document.getElementById('edit-full-name').value = s.full_name || '';
+  document.getElementById('edit-gender').value = s.gender || 'nam';
+  document.getElementById('edit-dob').value = s.date_of_birth || '';
+  document.getElementById('edit-id-number').value = s.id_number || '';
+  document.getElementById('edit-phone').value = s.phone || '';
+  document.getElementById('edit-email').value = s.email || '';
+  document.getElementById('edit-username').value = s.username || '';
+
+  document.getElementById('edit-job-title').value = s.job_title || '';
+  document.getElementById('edit-department').value = s.department || '';
+
+  const assignedCids = (s.company_ids || []).map(Number);
+  document.querySelectorAll('.edit-company-cb').forEach(cb => {
+    cb.checked = assignedCids.includes(Number(cb.value));
+  });
+
+  document.getElementById('edit-base-salary').value = formatNumber(s.base_salary);
+  document.getElementById('edit-insurance-salary').value = formatNumber(s.insurance_salary);
+  document.getElementById('edit-resp-allowance').value = formatNumber(s.responsibility_allowance);
+  document.getElementById('edit-meal-allowance').value = formatNumber(s.meal_allowance);
+  document.getElementById('edit-phone-allowance').value = formatNumber(s.phone_allowance);
+  document.getElementById('edit-bank-account').value = s.bank_account || '';
+  document.getElementById('edit-bank-name').value = s.bank_name || '';
+  document.getElementById('edit-note').value = s.note || '';
+
+  $('#editStaffModal').modal('show');
 }
 
 async function submitStaffForm(event, form) {
@@ -646,22 +635,17 @@ async function submitStaffForm(event, form) {
   }
 
   try {
-    const formData = new FormData(form);
-    const res = await fetch(form.action, {
+    const data = await apiRequest(form.action, {
       method: 'POST',
-      body: formData,
-      headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      body: new FormData(form),
     });
-    const data = await res.json();
-    if (res.ok && data.ok) {
+    if (data.ok) {
       $('.modal').modal('hide');
       showNotify(data.message || 'Đã lưu hồ sơ nhân sự thành công.', 'success');
       reloadStaffTable();
     } else {
       showNotify(data.message || 'Có lỗi xảy ra khi lưu.', 'error');
     }
-  } catch (err) {
-    showNotify('Lỗi kết nối: ' + err.message, 'error');
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -681,20 +665,14 @@ function openDeleteStaffModal(userId, staffName) {
     confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Đang xóa...';
 
     try {
-      const res = await fetch(`/admin/staff/${userId}/delete`, {
-        method: 'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
+      const data = await apiRequest(`/admin/staff/${userId}/delete`, { method: 'POST' });
+      if (data.ok) {
         $('#deleteStaffModal').modal('hide');
         showNotify(data.message || 'Đã xóa nhân sự.', 'success');
         reloadStaffTable();
       } else {
         showNotify(data.message || 'Không thể xóa nhân sự.', 'error');
       }
-    } catch (err) {
-      showNotify('Lỗi kết nối: ' + err.message, 'error');
     } finally {
       confirmBtn.disabled = false;
       confirmBtn.innerHTML = 'Xóa nhân sự';
@@ -715,191 +693,165 @@ async function openStaffRecordsModal(userId, staffName) {
 }
 
 async function loadStaffRecords(userId) {
-  try {
-    const res = await fetch(`/admin/staff/${userId}/records`, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  const data = await apiRequest(`/admin/staff/${userId}/records`);
+  if (!data.ok) {
+    showNotify(data.message || 'Không tải được hồ sơ.', 'error');
+    return;
+  }
+
+  // 1. Render contracts
+  const cTbody = document.getElementById('contractsTbody');
+  cTbody.innerHTML = '';
+  if (data.contracts && data.contracts.length > 0) {
+    data.contracts.forEach((c, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+        <td><strong>${c.contract_number || 'Chưa có số'}</strong></td>
+        <td><span class="badge badge-light border">${c.contract_type}</span></td>
+        <td class="small">${c.start_date || '--'} &rarr; ${c.end_date || 'KTH'}</td>
+        <td class="text-right ">${c.salary_rate_fmt || '0 đ'}</td>
+        <td class="small text-muted">${c.note || '--'}</td>
+        <td class="text-right">
+          <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                  data-bulk-action="delete" data-bulk-url="/admin/staff/contracts/${c.id}/delete" data-bulk-method="POST" onclick="deleteContract(${c.id})"><i class="bx bx-trash"></i></button>
+        </td>
+      `;
+      cTbody.appendChild(tr);
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error('Không tải được hồ sơ.');
+  } else {
+    cTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có hợp đồng lao động nào.</td></tr>';
+  }
 
-    // 1. Render contracts
-    const cTbody = document.getElementById('contractsTbody');
-    cTbody.innerHTML = '';
-    if (data.contracts && data.contracts.length > 0) {
-      data.contracts.forEach((c, idx) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
-          <td><strong>${c.contract_number || 'Chưa có số'}</strong></td>
-          <td><span class="badge badge-light border">${c.contract_type}</span></td>
-          <td class="small">${c.start_date || '--'} &rarr; ${c.end_date || 'KTH'}</td>
-          <td class="text-right ">${c.salary_rate_fmt || '0 đ'}</td>
-          <td class="small text-muted">${c.note || '--'}</td>
-          <td class="text-right">
-            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
-                    data-bulk-action="delete" data-bulk-url="/admin/staff/contracts/${c.id}/delete" data-bulk-method="POST" onclick="deleteContract(${c.id})"><i class="bx bx-trash"></i></button>
-          </td>
-        `;
-        cTbody.appendChild(tr);
-      });
-    } else {
-      cTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có hợp đồng lao động nào.</td></tr>';
-    }
+  // 2. Render licenses
+  const lTbody = document.getElementById('licensesTbody');
+  lTbody.innerHTML = '';
+  if (data.licenses && data.licenses.length > 0) {
+    data.licenses.forEach((l, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+        <td><strong>${l.license_type}</strong></td>
+        <td class="">${l.license_number || '--'}</td>
+        <td class="small">${l.issued_date || '--'}</td>
+        <td class="small font-weight-bold">${l.expiry_date || 'Không thời hạn'}</td>
+        <td class="small text-muted">${l.issued_by || '--'}</td>
+        <td class="text-right">
+          <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                  data-bulk-action="delete" data-bulk-url="/admin/staff/licenses/${l.id}/delete" data-bulk-method="POST" onclick="deleteLicense(${l.id})"><i class="bx bx-trash"></i></button>
+        </td>
+      `;
+      lTbody.appendChild(tr);
+    });
+  } else {
+    lTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có bằng lái hoặc chứng chỉ nào.</td></tr>';
+  }
 
-    // 2. Render licenses
-    const lTbody = document.getElementById('licensesTbody');
-    lTbody.innerHTML = '';
-    if (data.licenses && data.licenses.length > 0) {
-      data.licenses.forEach((l, idx) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
-          <td><strong>${l.license_type}</strong></td>
-          <td class="">${l.license_number || '--'}</td>
-          <td class="small">${l.issued_date || '--'}</td>
-          <td class="small font-weight-bold">${l.expiry_date || 'Không thời hạn'}</td>
-          <td class="small text-muted">${l.issued_by || '--'}</td>
-          <td class="text-right">
-            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
-                    data-bulk-action="delete" data-bulk-url="/admin/staff/licenses/${l.id}/delete" data-bulk-method="POST" onclick="deleteLicense(${l.id})"><i class="bx bx-trash"></i></button>
-          </td>
-        `;
-        lTbody.appendChild(tr);
-      });
-    } else {
-      lTbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Chưa có bằng lái hoặc chứng chỉ nào.</td></tr>';
-    }
-
-    // 3. Render work history
-    const wTbody = document.getElementById('workHistoryTbody');
-    wTbody.innerHTML = '';
-    if (data.work_history && data.work_history.length > 0) {
-      data.work_history.forEach((w, idx) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
-          <td class="small font-weight-bold">${w.event_date || '--'}</td>
-          <td><span class="badge badge-light border">${w.event_type}</span></td>
-          <td class="small">${w.old_value || '--'}</td>
-          <td class="small font-weight-bold text-dark">${w.new_value || '--'}</td>
-          <td class="small ">${w.decision_number || '--'}</td>
-          <td class="small text-muted">${w.note || '--'}</td>
-          <td class="text-right">
-            <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
-                    data-bulk-action="delete" data-bulk-url="/admin/staff/work-history/${w.id}/delete" data-bulk-method="POST" onclick="deleteWorkHistory(${w.id})"><i class="bx bx-trash"></i></button>
-          </td>
-        `;
-        wTbody.appendChild(tr);
-      });
-    } else {
-      wTbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">Chưa có lịch sử công tác nào.</td></tr>';
-    }
-
-  } catch (err) {
-    showNotify('Lỗi tải hồ sơ: ' + err.message, 'error');
+  // 3. Render work history
+  const wTbody = document.getElementById('workHistoryTbody');
+  wTbody.innerHTML = '';
+  if (data.work_history && data.work_history.length > 0) {
+    data.work_history.forEach((w, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center text-muted font-weight-medium">${idx + 1}</td>
+        <td class="small font-weight-bold">${w.event_date || '--'}</td>
+        <td><span class="badge badge-light border">${w.event_type}</span></td>
+        <td class="small">${w.old_value || '--'}</td>
+        <td class="small font-weight-bold text-dark">${w.new_value || '--'}</td>
+        <td class="small ">${w.decision_number || '--'}</td>
+        <td class="small text-muted">${w.note || '--'}</td>
+        <td class="text-right">
+          <button type="button" class="btn btn-sm btn-light border text-danger py-0 px-2"
+                  data-bulk-action="delete" data-bulk-url="/admin/staff/work-history/${w.id}/delete" data-bulk-method="POST" onclick="deleteWorkHistory(${w.id})"><i class="bx bx-trash"></i></button>
+        </td>
+      `;
+      wTbody.appendChild(tr);
+    });
+  } else {
+    wTbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">Chưa có lịch sử công tác nào.</td></tr>';
   }
 }
 
 async function submitContractForm(event, form) {
   event.preventDefault();
   if (!_currentRecordsUserId) return false;
-  const formData = new FormData(form);
-  try {
-    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/contracts/create`, {
-      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      form.reset();
-      showNotify('Đã lưu hợp đồng.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    } else {
-      showNotify(data.message || 'Lỗi lưu hợp đồng.', 'error');
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/${_currentRecordsUserId}/contracts/create`, {
+    method: 'POST', body: new FormData(form),
+  });
+  if (data.ok) {
+    form.reset();
+    showNotify('Đã lưu hợp đồng.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Lỗi lưu hợp đồng.', 'error');
+  }
   return false;
 }
 
 async function deleteContract(contractId) {
   if (!confirm('Xác nhận xóa hợp đồng này?')) return;
-  try {
-    const res = await fetch(`/admin/staff/contracts/${contractId}/delete`, {
-      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify('Đã xóa hợp đồng.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/contracts/${contractId}/delete`, { method: 'POST' });
+  if (data.ok) {
+    showNotify('Đã xóa hợp đồng.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Không thể xóa hợp đồng.', 'error');
+  }
 }
 
 async function submitLicenseForm(event, form) {
   event.preventDefault();
   if (!_currentRecordsUserId) return false;
-  const formData = new FormData(form);
-  try {
-    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/licenses/create`, {
-      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      form.reset();
-      showNotify('Đã lưu bằng lái/chứng chỉ.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    } else {
-      showNotify(data.message || 'Lỗi lưu bằng lái.', 'error');
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/${_currentRecordsUserId}/licenses/create`, {
+    method: 'POST', body: new FormData(form),
+  });
+  if (data.ok) {
+    form.reset();
+    showNotify('Đã lưu bằng lái/chứng chỉ.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Lỗi lưu bằng lái.', 'error');
+  }
   return false;
 }
 
 async function deleteLicense(licenseId) {
   if (!confirm('Xác nhận xóa bằng lái/chứng chỉ này?')) return;
-  try {
-    const res = await fetch(`/admin/staff/licenses/${licenseId}/delete`, {
-      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify('Đã xóa bằng lái.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/licenses/${licenseId}/delete`, { method: 'POST' });
+  if (data.ok) {
+    showNotify('Đã xóa bằng lái.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Không thể xóa bằng lái.', 'error');
+  }
 }
 
 async function submitWorkHistoryForm(event, form) {
   event.preventDefault();
   if (!_currentRecordsUserId) return false;
-  const formData = new FormData(form);
-  try {
-    const res = await fetch(`/admin/staff/${_currentRecordsUserId}/work-history/create`, {
-      method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      form.reset();
-      showNotify('Đã lưu quá trình công tác.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    } else {
-      showNotify(data.message || 'Lỗi lưu lịch sử.', 'error');
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/${_currentRecordsUserId}/work-history/create`, {
+    method: 'POST', body: new FormData(form),
+  });
+  if (data.ok) {
+    form.reset();
+    showNotify('Đã lưu quá trình công tác.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Lỗi lưu lịch sử.', 'error');
+  }
   return false;
 }
 
 async function deleteWorkHistory(histId) {
   if (!confirm('Xác nhận xóa lịch sử này?')) return;
-  try {
-    const res = await fetch(`/admin/staff/work-history/${histId}/delete`, {
-      method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      showNotify('Đã xóa bản ghi công tác.', 'success');
-      loadStaffRecords(_currentRecordsUserId);
-    }
-  } catch (err) { showNotify('Lỗi kết nối: ' + err.message, 'error'); }
+  const data = await apiRequest(`/admin/staff/work-history/${histId}/delete`, { method: 'POST' });
+  if (data.ok) {
+    showNotify('Đã xóa bản ghi công tác.', 'success');
+    loadStaffRecords(_currentRecordsUserId);
+  } else {
+    showNotify(data.message || 'Không thể xóa bản ghi công tác.', 'error');
+  }
 }
 </script>
 

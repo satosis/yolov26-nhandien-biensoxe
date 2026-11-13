@@ -48,12 +48,137 @@
     return shapeKey(s).replace(/^ø/, '');
   }
 
+  // Khối lượng lý thuyết của một dòng hàng bán suy ra từ tên hàng, ví dụ "Hộp 40x80x3ly = 15c", "I400 = 1c",
+  // "8ly 2mx6m = 3T". Trả về {pieces, pieceUnit, perPiece, total} hoặc null khi tên hàng không nhận ra được.
+  var specData = {box: [], shape: []};
+  var STEEL_DENSITY = 7.85;
+  var PIECE_UNIT = {'c': 'Cây', 'cây': 'Cây', 't': 'Tấm', 'tấm': 'Tấm', 'bó': 'Bó'};
+  var NUM = '\\d+(?:[.,]\\d+)?';
+
+  function toNum(s) {
+    return parseFloat(String(s).replace(',', '.'));
+  }
+
+  function round1(n) {
+    return Math.round(n * 10) / 10;
+  }
+
+  function plateDims(rest) {
+    // "2mx6m", "1m5x3m", "1m5x1m8", "2150x3m", "1500 3m": hai kích thước (m), chỉ lấy khi đủ hai.
+    var tokens = rest.replace(/[x×*]/gi, ' ').split(/\s+/).filter(Boolean);
+    var dims = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i], m;
+      if ((m = t.match(/^(\d+)m(\d+)m$/i))) dims.push(toNum(m[1]), toNum(m[2]));
+      else if ((m = t.match(/^(\d+)m(\d+)$/i))) dims.push(toNum(m[1] + '.' + m[2]));
+      else if ((m = t.match(new RegExp('^(' + NUM + ')m$', 'i')))) dims.push(toNum(m[1]));
+      else if (/^\d{3,4}$/.test(t)) dims.push(toNum(t) / 1000);
+      else return null;
+    }
+    return dims.length === 2 ? dims : null;
+  }
+
+  function estimateFromName(text) {
+    var eq = text.indexOf('=');
+    var head = (eq >= 0 ? text.slice(0, eq) : text).trim();
+    var tail = eq >= 0 ? text.slice(eq + 1) : '';
+    var count = null, pieceUnit = '';
+    var cm = tail.match(new RegExp('^\\s*(' + NUM + ')\\s*(c|cây|t|tấm|bó)(?![\\p{L}\\d])', 'iu'));
+    if (cm) {
+      count = toNum(cm[1]);
+      pieceUnit = PIECE_UNIT[cm[2].toLowerCase()];
+    }
+    // Một bó gồm nhiều cây, bảng bazem chỉ có trọng lượng từng cây.
+    if (head.indexOf('+') >= 0 || pieceUnit === 'Bó') return null;
+
+    // Tấm: "8ly 2mx6m = 3T", "20ly 1500 3m 1T", "18ly 1m5x3m"
+    var plate = head.match(new RegExp('^(' + NUM + ')\\s*ly\\b(.*)$', 'i'));
+    if (plate) {
+      var rest = plate[2];
+      if (count === null) {
+        var tm = rest.match(/\s(\d+)\s*(?:t|tấm)\s*$/iu);
+        if (tm) {
+          count = toNum(tm[1]);
+          rest = rest.slice(0, tm.index);
+        } else {
+          count = 1;
+        }
+        pieceUnit = 'Tấm';
+      }
+      var dims = plateDims(rest);
+      if (!dims || !(count > 0)) return null;
+      var perPlate = round1(toNum(plate[1]) * dims[0] * dims[1] * STEEL_DENSITY);
+      return {pieces: count, pieceUnit: pieceUnit, perPiece: perPlate, total: round1(count * perPlate)};
+    }
+
+    if (!(count > 0)) return null;
+    var perPiece = null;
+
+    // Trọng lượng ghi sẵn trong tên: "(28kg)", "(bz 109,5kg/1c)", "U10 (33)"
+    var note = text.match(new RegExp('\\(\\s*(?:bz|bazem)?\\s*(' + NUM + ')\\s*kg\\s*(?:/\\s*1?\\s*(?:c|cây))?\\s*\\)', 'i'));
+    if (note) {
+      perPiece = toNum(note[1]);
+    } else {
+      var bare = head.match(new RegExp('^[a-zøφ]+\\s*' + NUM + '(?:x' + NUM + ')*\\s*\\(\\s*(' + NUM + ')\\s*\\)\\s*$', 'i'));
+      if (bare) perPiece = toNum(bare[1]);
+    }
+
+    // Thép hộp "Hộp 40x80x3ly" và ống tròn "Ống 60x3ly" theo bảng bazem
+    if (perPiece === null) {
+      var box = head.match(new RegExp('(?:^|[^\\d.,x×*])(' + NUM + ')\\s*[x×*]\\s*(' + NUM + ')\\s*[x×*]\\s*(' + NUM + ')\\s*(?:ly)?\\s*$', 'i'));
+      var tube = head.match(new RegExp('(?:^|\\s)ống\\s*(' + NUM + ')\\s*[x×*]\\s*(' + NUM + ')\\s*(?:ly)?\\s*$', 'iu'));
+      var key = null, thick = null;
+      if (box) {
+        key = sizeKey(box[1] + 'x' + box[2]);
+        thick = toNum(box[3]);
+      } else if (tube) {
+        key = normSize('ống ' + tube[1]);
+        thick = toNum(tube[2]);
+      }
+      if (key !== null) {
+        for (var i = 0; i < specData.box.length; i++) {
+          var row = specData.box[i];
+          if ((box ? sizeKey(row.name) : normSize(row.name)) === key && Math.abs(row.thickness - thick) < 1e-6) {
+            perPiece = row.weight;
+            break;
+          }
+        }
+        if (perPiece === null) return null;
+      }
+    }
+
+    // Thép hình I, H, U, V, Ø theo bảng bazem (cây 6m)
+    if (perPiece === null) {
+      var lengthM = head.match(new RegExp('\\b(' + NUM + ')\\s*m\\b', 'i'));
+      if (lengthM && toNum(lengthM[1]) !== 6) return null;
+      var shapeHead = head.replace(/\([^)]*\)/g, ' ').replace(/\b\d+\s*m\b/gi, ' ').replace(/(^|\s)(?:uc|đv|dv|vic)(?=\s|$)/giu, ' ').replace(/\s+/g, ' ').trim();
+      if (!new RegExp('^[a-zøφ]+\\s*' + NUM + '(?:x' + NUM + ')*$', 'iu').test(shapeHead)) return null;
+      var shapeQ = shapeKey(shapeHead);
+      for (var j = 0; j < specData.shape.length; j++) {
+        if (shapeKey(specData.shape[j].name) === shapeQ) {
+          var kg = (specData.shape[j].weight_text || '').match(new RegExp('(' + NUM + ')\\s*kg', 'i'));
+          if (kg) perPiece = toNum(kg[1]);
+          break;
+        }
+      }
+    }
+
+    if (perPiece === null || !(perPiece > 0)) return null;
+    return {pieces: count, pieceUnit: pieceUnit, perPiece: perPiece, total: round1(count * perPiece)};
+  }
+
+  window.goodsSpecEstimate = function (text) {
+    text = String(text || '').trim();
+    return text ? estimateFromName(text) : null;
+  };
+
   window.initGoodsSpecLookup = function (data, opts) {
     data = data || {};
     opts = opts || {};
     var boxData = data.box || [];
     var shapeData = data.shape || [];
     var isFloating = !!opts.floating;
+    specData = {box: boxData, shape: shapeData};
 
     var lookupSizeEl = document.getElementById('lookupSize');
     var lookupThicknessEl = document.getElementById('lookupThickness');

@@ -932,14 +932,11 @@ function invoiceSyncState() {
         if (this.syncCompanyId) {
           formData.append('target_company_id', this.syncCompanyId);
         }
-        const resp = await fetch('/admin/transport/input-invoices/gmail/sync', { method: 'POST', body: formData });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ hóa đơn.');
+        const data = await apiRequest('/admin/transport/input-invoices/gmail/sync', { method: 'POST', body: formData });
+        if (!data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ hóa đơn.');
         this.syncResult = data;
         this.syncProgress = 'Đồng bộ hoàn tất!';
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: `Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, type: 'success' }
-        }));
+        window.showNotify(`Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, 'success');
         if (data.new_saved > 0 || data.existing > 0) {
           setTimeout(() => {
             const cid = this.syncCompanyId || (this.matchedCompany ? this.matchedCompany.id : '');
@@ -972,14 +969,11 @@ function invoiceSyncState() {
         if (this.syncCompanyId) {
           formData.append('target_company_id', this.syncCompanyId);
         }
-        const resp = await fetch('/admin/transport/input-invoices/imap/sync', { method: 'POST', body: formData });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ qua IMAP.');
+        const data = await apiRequest('/admin/transport/input-invoices/imap/sync', { method: 'POST', body: formData });
+        if (!data.ok) throw new Error(data.message || 'Lỗi khi đồng bộ qua IMAP.');
         this.syncResult = data;
         this.syncProgress = 'Đồng bộ hoàn tất!';
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: { msg: `Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, type: 'success' }
-        }));
+        window.showNotify(`Đã đồng bộ xong! Thêm mới: ${data.new_saved}, Đã có: ${data.existing}`, 'success');
         if (data.new_saved > 0 || data.existing > 0) {
           setTimeout(() => {
             const cid = this.syncCompanyId || (this.matchedCompany ? this.matchedCompany.id : '');
@@ -996,10 +990,10 @@ function invoiceSyncState() {
 
     async disconnectGmail() {
       if (!confirm('Bạn có chắc muốn ngắt kết nối tài khoản Gmail này?')) return;
-      await fetch('/admin/transport/input-invoices/gmail/disconnect', { method: 'POST' });
+      await apiRequest('/admin/transport/input-invoices/gmail/disconnect', { method: 'POST' });
       this.connected = false;
       this.connectedEmail = '';
-      window.dispatchEvent(new CustomEvent('showToast', { detail: { msg: 'Đã ngắt kết nối Gmail.', type: 'info' } }));
+      window.showNotify('Đã ngắt kết nối Gmail.', 'info');
     },
 
     // SaveInvoice State
@@ -1067,8 +1061,7 @@ function invoiceSyncState() {
 
     async loadSaveInvoiceAccounts() {
       try {
-        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/status');
-        const data = await resp.json();
+        const data = await apiRequest('/admin/transport/input-invoices/saveinvoice/status');
         if (data.ok) {
           this.sivAccounts = data.accounts || [];
           this.sivTargetTaxCode = data.target_tax_code || this.sivTargetTaxCode;
@@ -1100,7 +1093,7 @@ function invoiceSyncState() {
       this.sivSelectedIds = [];
       this.sivSelectAll = false;
       try {
-        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/preview', {
+        const data = await apiRequest('/admin/transport/input-invoices/saveinvoice/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1109,8 +1102,7 @@ function invoiceSyncState() {
             limit: Number(this.sivLimit) || 50,
           }),
         });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.error || 'Không tải được danh sách hóa đơn từ SaveInvoice.');
+        if (!data.ok) throw new Error(data.error || data.message || 'Không tải được danh sách hóa đơn từ SaveInvoice.');
         this.sivInvoices = data.invoices || [];
         this.sivSelectedIds = this.sivInvoices.filter(i => !i.exists).map(i => i.id);
         this.sivSelectAll = this.sivSelectedIds.length > 0 && this.sivSelectedIds.length === this.sivInvoices.filter(i => !i.exists).length;
@@ -1162,7 +1154,7 @@ function invoiceSyncState() {
       this.sivError = '';
       this.sivImportProgress = `Đang đồng bộ ${this.sivSelectedIds.length} hóa đơn từ SaveInvoice...`;
       try {
-        const resp = await fetch('/admin/transport/input-invoices/saveinvoice/import', {
+        const data = await apiRequest('/admin/transport/input-invoices/saveinvoice/import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1170,15 +1162,9 @@ function invoiceSyncState() {
             account_id: this.sivSelectedAccount,
           }),
         });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.error || 'Lỗi khi nhập hóa đơn vào CSDL.');
+        if (!data.ok) throw new Error(data.error || data.message || 'Lỗi khi nhập hóa đơn vào CSDL.');
         this.sivImportResult = data;
-        window.dispatchEvent(new CustomEvent('showToast', {
-          detail: {
-            msg: `Đã đồng bộ thành công ${data.imported} hóa đơn mới vào hệ thống!`,
-            type: 'success',
-          }
-        }));
+        window.showNotify(`Đã đồng bộ thành công ${data.imported} hóa đơn mới vào hệ thống!`, 'success');
       } catch (err) {
         this.sivError = err.message || 'Lỗi khi đồng bộ hóa đơn.';
       } finally {
@@ -1194,13 +1180,13 @@ function invoiceSyncState() {
 
 (function() {
   {% if saved %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu hóa đơn đầu vào.',type:'success'}}));
+  window.showNotify('Đã lưu hóa đơn đầu vào.', 'success');
   {% elif deleted %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã xóa hóa đơn đầu vào.',type:'success'}}));
+  window.showNotify('Đã xóa hóa đơn đầu vào.', 'success');
   {% elif error %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:{{ error|tojson }},type:'error'}}));
+  window.showNotify({{ error|tojson }}, 'error');
   {% elif gmail_connected %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã kết nối tài khoản Gmail thành công! Đang tự động quét hóa đơn...',type:'success'}}));
+  window.showNotify('Đã kết nối tài khoản Gmail thành công! Đang tự động quét hóa đơn...', 'success');
   setTimeout(() => {
     const el = document.querySelector('.input-invoice-page');
     if (el && window.Alpine) {
@@ -1212,7 +1198,7 @@ function invoiceSyncState() {
     }
   }, 400);
   {% elif gmail_error %}
-  window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Lỗi kết nối Gmail: ' + {{ gmail_error|tojson }},type:'error'}}));
+  window.showNotify('Lỗi kết nối Gmail: ' + {{ gmail_error|tojson }}, 'error');
   {% endif %}
   const invoiceUrl = new URL(window.location.href);
   let changed = false;
@@ -1232,14 +1218,12 @@ function invoiceSyncState() {
   const FORM_KEY = 'inputInvoiceFormScroll';
   const FRESH_MS = 10 * 60 * 1000;
   const remember = key => {
-    try { sessionStorage.setItem(key, JSON.stringify({ y: Math.round(window.scrollY), t: Date.now() })); } catch (e) {}
+    sessionStorage.setItem(key, JSON.stringify({ y: Math.round(window.scrollY), t: Date.now() }));
   };
   const recall = key => {
-    try {
-      const data = JSON.parse(sessionStorage.getItem(key) || 'null');
-      sessionStorage.removeItem(key);
-      return data && Date.now() - data.t < FRESH_MS ? data.y : null;
-    } catch (e) { return null; }
+    const data = JSON.parse(sessionStorage.getItem(key) || 'null');
+    sessionStorage.removeItem(key);
+    return data && Date.now() - data.t < FRESH_MS ? data.y : null;
   };
   const restore = y => {
     if (y === null) return;
@@ -1272,34 +1256,30 @@ async function repairSaveInvoiceItems(btn) {
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang cập nhật...';
-  try {
-    const res = await fetch('/admin/transport/input-invoices/saveinvoice/repair-items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || data.error || 'Có lỗi xảy ra khi cập nhật.');
-    }
-    const checked = data.checked ?? 0;
-    const updated = data.updated ?? 0;
-    let msg = `Đã cập nhật ${updated}/${checked} hoá đơn.`;
-    if (data.not_found && data.not_found.length > 0) {
-      msg += '\nKhông tìm thấy trên SaveInvoice: ' + data.not_found.join(', ');
-    }
-    if (data.mismatch && data.mismatch.length > 0) {
-      msg += '\nKhông khớp tiền, giữ nguyên: ' + data.mismatch.join(', ');
-    }
-    if (data.error) {
-      msg += '\nLỗi: ' + data.error;
-    }
-    alert(msg);
-    location.reload();
-  } catch (err) {
-    alert(err.message || 'Lỗi khi cập nhật hàng hoá từ SaveInvoice.');
+  const data = await apiRequest('/admin/transport/input-invoices/saveinvoice/repair-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!data.ok) {
+    window.showNotify(data.message || data.error || 'Có lỗi xảy ra khi cập nhật.', 'error');
     btn.disabled = false;
     btn.innerHTML = originalHtml;
+    return;
   }
+  const checked = data.checked ?? 0;
+  const updated = data.updated ?? 0;
+  const parts = [`Đã cập nhật ${updated}/${checked} hoá đơn.`];
+  if (data.not_found && data.not_found.length > 0) {
+    parts.push('Không tìm thấy trên SaveInvoice: ' + data.not_found.join(', '));
+  }
+  if (data.mismatch && data.mismatch.length > 0) {
+    parts.push('Không khớp tiền, giữ nguyên: ' + data.mismatch.join(', '));
+  }
+  if (data.error) {
+    parts.push('Lỗi: ' + data.error);
+  }
+  window.showNotify(parts.join(' '), 'success');
+  setTimeout(() => location.reload(), 800);
 }
 
 async function bookElectricityInvoices(btn) {
@@ -1309,25 +1289,21 @@ async function bookElectricityInvoices(btn) {
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<i class="bx bx-loader-alt bx-spin mr-1"></i>Đang hạch toán...';
-  try {
-    const res = await fetch('/admin/transport/input-invoices/book-electricity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    const data = await res.json();
-    if (!res.ok || !data.ok) {
-      throw new Error(data.message || 'Không hạch toán được.');
-    }
-    const doneParts = [];
-    if (data.updated > 0) doneParts.push('Đã hạch toán ' + data.updated + ' hóa đơn tiền điện vào TK 642.');
-    if (data.renamed > 0) doneParts.push('Đã sửa diễn giải ' + data.renamed + ' phiếu chi tiền điện.');
-    alert(doneParts.length ? doneParts.join(' ') : 'Không có hóa đơn tiền điện cần hạch toán.');
-    location.reload();
-  } catch (err) {
-    alert(err.message || 'Không hạch toán được.');
+  const data = await apiRequest('/admin/transport/input-invoices/book-electricity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!data.ok) {
+    window.showNotify(data.message || 'Không hạch toán được.', 'error');
     btn.disabled = false;
     btn.innerHTML = originalHtml;
+    return;
   }
+  const doneParts = [];
+  if (data.updated > 0) doneParts.push('Đã hạch toán ' + data.updated + ' hóa đơn tiền điện vào TK 642.');
+  if (data.renamed > 0) doneParts.push('Đã sửa diễn giải ' + data.renamed + ' phiếu chi tiền điện.');
+  window.showNotify(doneParts.length ? doneParts.join(' ') : 'Không có hóa đơn tiền điện cần hạch toán.', 'success');
+  setTimeout(() => location.reload(), 800);
 }
 </script>
 {% if show_form %}
@@ -1372,47 +1348,43 @@ async function bookElectricityInvoices(btn) {
     const typed = sellerAddOpened.replace(/[\s.\-]/g, '');
     sellerAddOpened = null;
     const ts = sellerSelect.tomselect;
-    try {
-      const resp = await fetch('/admin/transport/input-invoices/add', {credentials: 'same-origin'});
-      if (!resp.ok) return;
-      const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
-      let found = null;
-      doc.querySelectorAll('#seller-company option').forEach(opt => {
-        if (!opt.value || opt.value === '0' || ts.options[opt.value]) return;
-        const item = {value: opt.value, text: opt.textContent.trim(), tax: opt.dataset.tax || '', address: opt.dataset.address || ''};
-        ts.addOption(item);
-        if (typed && item.tax.replace(/[\s.\-]/g, '') === typed) found = item.value;
-      });
-      if (found) ts.setValue(found);
-      else ts.refreshOptions(false);
-    } catch (err) {}
+    const resp = await fetch('/admin/transport/input-invoices/add', {credentials: 'same-origin'});
+    if (!resp.ok) return;
+    const doc = new DOMParser().parseFromString(await resp.text(), 'text/html');
+    let found = null;
+    doc.querySelectorAll('#seller-company option').forEach(opt => {
+      if (!opt.value || opt.value === '0' || ts.options[opt.value]) return;
+      const item = {value: opt.value, text: opt.textContent.trim(), tax: opt.dataset.tax || '', address: opt.dataset.address || ''};
+      ts.addOption(item);
+      if (typed && item.tax.replace(/[\s.\-]/g, '') === typed) found = item.value;
+    });
+    if (found) ts.setValue(found);
+    else ts.refreshOptions(false);
   };
-  if (typeof TomSelect !== 'undefined') {
-    new TomSelect(sellerSelect, {
-      create: false,
-      maxItems: 1,
-      placeholder: 'Tìm theo tên hoặc mã số thuế...',
-      searchField: ['text', 'tax'],
-      render: {
-        option: function(data, escape) {
-          const taxHtml = data.tax ? '<span class="text-muted small ml-2">(MST: ' + escape(data.tax) + ')</span>' : '';
-          return '<div><span class="font-weight-medium">' + escape(data.text) + '</span>' + taxHtml + '</div>';
-        },
-        item: function(data, escape) {
-          return '<div>' + escape(data.text) + '</div>';
-        },
-        no_results: function(data) {
-          return '<div class="no-results"><a href="' + sellerAddUrl(data.input) + '" target="_blank" rel="noopener" class="font-weight-bold">+ Thêm đơn vị mới</a></div>';
-        }
+  new TomSelect(sellerSelect, {
+    create: false,
+    maxItems: 1,
+    placeholder: 'Tìm theo tên hoặc mã số thuế...',
+    searchField: ['text', 'tax'],
+    render: {
+      option: function(data, escape) {
+        const taxHtml = data.tax ? '<span class="text-muted small ml-2">(MST: ' + escape(data.tax) + ')</span>' : '';
+        return '<div><span class="font-weight-medium">' + escape(data.text) + '</span>' + taxHtml + '</div>';
       },
-      onChange: syncSeller
-    });
-    sellerSelect.tomselect.dropdown_content.addEventListener('click', event => {
-      const link = event.target.closest('.no-results a');
-      if (link) sellerAddOpened = new URL(link.href).searchParams.get('tax_code') || '';
-    });
-    window.addEventListener('focus', refreshSellerOptions);
-  }
+      item: function(data, escape) {
+        return '<div>' + escape(data.text) + '</div>';
+      },
+      no_results: function(data) {
+        return '<div class="no-results"><a href="' + sellerAddUrl(data.input) + '" target="_blank" rel="noopener" class="font-weight-bold">+ Thêm đơn vị mới</a></div>';
+      }
+    },
+    onChange: syncSeller
+  });
+  sellerSelect.tomselect.dropdown_content.addEventListener('click', event => {
+    const link = event.target.closest('.no-results a');
+    if (link) sellerAddOpened = new URL(link.href).searchParams.get('tax_code') || '';
+  });
+  window.addEventListener('focus', refreshSellerOptions);
   syncSeller();
   const tbody = document.getElementById('purchase-lines');
   const formatter = new Intl.NumberFormat('vi-VN', {maximumFractionDigits: 0});
@@ -1617,90 +1589,88 @@ async function bookElectricityInvoices(btn) {
     }
     status.textContent = 'Đang đọc hóa đơn...';
     status.className = 'small text-muted mt-1';
-    try {
-      const payload = new FormData();
-      payload.append('source_file', file);
-      const response = await fetch('/admin/transport/input-invoices/extract', {method:'POST', body:payload});
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không đọc được hóa đơn.');
-      const fill = (id, value) => {if (value !== undefined && value !== null && value !== '') document.getElementById(id).value = value;};
-      fill('invoice-date', data.invoice_date);
-      fill('invoice-serial', data.serial);
-      fill('invoice-number', data.invoice_number);
-      fill('payment-method', data.payment_method);
-      fill('buyer-name', data.buyer?.name);
-      fill('buyer-tax', data.buyer?.tax_code);
-      fill('buyer-address', data.buyer?.address);
-      fill('vat-percent', data.vat_percent);
-      if (data.vehicle_id) {
-        const vehicleSelect = document.getElementById('invoice-vehicle');
-        if (vehicleSelect && vehicleSelect.querySelector(`option[value="${data.vehicle_id}"]`)) {
-          if (vehicleSelect.tomselect) vehicleSelect.tomselect.setValue(String(data.vehicle_id));
-          else vehicleSelect.value = String(data.vehicle_id);
-        }
-      }
-      if (document.getElementById('purchase-invoice-form').dataset.edit !== '1') {
-        if (!data.invoice_date) document.getElementById('invoice-date').value = '';
-        if (!data.vat_percent) document.getElementById('vat-percent').value = '';
-        if (!data.payment_method) document.getElementById('payment-method').value = '';
-      }
-      const seller = data.seller || {};
-      if (seller.company_id) {
-        if (sellerSelect.tomselect) sellerSelect.tomselect.setValue(String(seller.company_id));
-        else sellerSelect.value = String(seller.company_id);
-        syncSeller();
-        if (seller.tax_code) fill('seller-tax', seller.tax_code);
-        if (seller.address) fill('seller-address', seller.address);
-      } else if (seller.name || seller.tax_code) {
-        const label = seller.name || 'Đơn vị từ hóa đơn vừa tải';
-        if (sellerSelect.tomselect) {
-          sellerSelect.tomselect.addOption({value:'0', text:label, tax:seller.tax_code || '', address:seller.address || ''});
-          sellerSelect.tomselect.setValue('0');
-        } else {
-          let option = sellerSelect.querySelector('option[value="0"]');
-          if (!option) {option = document.createElement('option'); option.value = '0'; sellerSelect.add(option);}
-          option.textContent = label;
-          option.dataset.tax = seller.tax_code || '';
-          option.dataset.address = seller.address || '';
-          sellerSelect.value = '0';
-        }
-        syncSeller();
-        fill('seller-name', seller.name);
-        fill('seller-tax', seller.tax_code);
-        fill('seller-address', seller.address);
-      }
-      if (data.items?.length) {
-        while (tbody.rows.length > 1) tbody.lastElementChild.remove();
-        data.items.forEach((item, index) => {
-          const row = index ? tbody.rows[0].cloneNode(true) : tbody.rows[0];
-          delete row.dataset.amount0; delete row.dataset.qty0; delete row.dataset.price0;
-          row.querySelector('[name="description"]').value = item.description || '';
-          row.querySelector('[name="unit"]').value = item.unit || '';
-          row.querySelector('[name="quantity"]').value = item.quantity || '';
-          row.querySelector('[name="unit_price"]').value = item.unit_price || '';
-          if (index) tbody.appendChild(row);
-        });
-      }
-      if (data.tk_no_cost) {
-        fill('tk-no-cost', data.tk_no_cost);
-        if (typeof onCustomCostInput === 'function') onCustomCostInput(data.tk_no_cost);
-      }
-      if (data.tk_no_vat) {
-        fill('tk-no-vat', data.tk_no_vat);
-        if (typeof onCustomVatInput === 'function') onCustomVatInput(data.tk_no_vat);
-      }
-      if (data.tk_co_pay) {
-        fill('tk-co-pay', data.tk_co_pay);
-        if (typeof onCustomPayInput === 'function') onCustomPayInput(data.tk_co_pay);
-      }
-      recalc();
-      const count = [data.invoice_date, data.invoice_number, seller.name, data.buyer?.name, data.items?.length].filter(Boolean).length;
-      status.textContent = count ? 'Đã điền thông tin đọc được từ tệp.' : 'Không nhận diện được trường hóa đơn.';
-      status.className = count ? 'small text-success mt-1' : 'small text-warning mt-1';
-    } catch (error) {
-      status.textContent = error.message || 'Không đọc được hóa đơn. Vui lòng nhập thủ công.';
+    const payload = new FormData();
+    payload.append('source_file', file);
+    const data = await apiRequest('/admin/transport/input-invoices/extract', {method:'POST', body:payload});
+    if (!data.ok) {
+      status.textContent = data.message || data.error || 'Không đọc được hóa đơn. Vui lòng nhập thủ công.';
       status.className = 'small text-danger mt-1';
+      return;
     }
+    const fill = (id, value) => {if (value !== undefined && value !== null && value !== '') document.getElementById(id).value = value;};
+    fill('invoice-date', data.invoice_date);
+    fill('invoice-serial', data.serial);
+    fill('invoice-number', data.invoice_number);
+    fill('payment-method', data.payment_method);
+    fill('buyer-name', data.buyer?.name);
+    fill('buyer-tax', data.buyer?.tax_code);
+    fill('buyer-address', data.buyer?.address);
+    fill('vat-percent', data.vat_percent);
+    if (data.vehicle_id) {
+      const vehicleSelect = document.getElementById('invoice-vehicle');
+      if (vehicleSelect && vehicleSelect.querySelector(`option[value="${data.vehicle_id}"]`)) {
+        if (vehicleSelect.tomselect) vehicleSelect.tomselect.setValue(String(data.vehicle_id));
+        else vehicleSelect.value = String(data.vehicle_id);
+      }
+    }
+    if (document.getElementById('purchase-invoice-form').dataset.edit !== '1') {
+      if (!data.invoice_date) document.getElementById('invoice-date').value = '';
+      if (!data.vat_percent) document.getElementById('vat-percent').value = '';
+      if (!data.payment_method) document.getElementById('payment-method').value = '';
+    }
+    const seller = data.seller || {};
+    if (seller.company_id) {
+      if (sellerSelect.tomselect) sellerSelect.tomselect.setValue(String(seller.company_id));
+      else sellerSelect.value = String(seller.company_id);
+      syncSeller();
+      if (seller.tax_code) fill('seller-tax', seller.tax_code);
+      if (seller.address) fill('seller-address', seller.address);
+    } else if (seller.name || seller.tax_code) {
+      const label = seller.name || 'Đơn vị từ hóa đơn vừa tải';
+      if (sellerSelect.tomselect) {
+        sellerSelect.tomselect.addOption({value:'0', text:label, tax:seller.tax_code || '', address:seller.address || ''});
+        sellerSelect.tomselect.setValue('0');
+      } else {
+        let option = sellerSelect.querySelector('option[value="0"]');
+        if (!option) {option = document.createElement('option'); option.value = '0'; sellerSelect.add(option);}
+        option.textContent = label;
+        option.dataset.tax = seller.tax_code || '';
+        option.dataset.address = seller.address || '';
+        sellerSelect.value = '0';
+      }
+      syncSeller();
+      fill('seller-name', seller.name);
+      fill('seller-tax', seller.tax_code);
+      fill('seller-address', seller.address);
+    }
+    if (data.items?.length) {
+      while (tbody.rows.length > 1) tbody.lastElementChild.remove();
+      data.items.forEach((item, index) => {
+        const row = index ? tbody.rows[0].cloneNode(true) : tbody.rows[0];
+        delete row.dataset.amount0; delete row.dataset.qty0; delete row.dataset.price0;
+        row.querySelector('[name="description"]').value = item.description || '';
+        row.querySelector('[name="unit"]').value = item.unit || '';
+        row.querySelector('[name="quantity"]').value = item.quantity || '';
+        row.querySelector('[name="unit_price"]').value = item.unit_price || '';
+        if (index) tbody.appendChild(row);
+      });
+    }
+    if (data.tk_no_cost) {
+      fill('tk-no-cost', data.tk_no_cost);
+      onCustomCostInput(data.tk_no_cost);
+    }
+    if (data.tk_no_vat) {
+      fill('tk-no-vat', data.tk_no_vat);
+      onCustomVatInput(data.tk_no_vat);
+    }
+    if (data.tk_co_pay) {
+      fill('tk-co-pay', data.tk_co_pay);
+      onCustomPayInput(data.tk_co_pay);
+    }
+    recalc();
+    const count = [data.invoice_date, data.invoice_number, seller.name, data.buyer?.name, data.items?.length].filter(Boolean).length;
+    status.textContent = count ? 'Đã điền thông tin đọc được từ tệp.' : 'Không nhận diện được trường hóa đơn.';
+    status.className = count ? 'small text-success mt-1' : 'small text-warning mt-1';
   });
   recalc();
 })();

@@ -94,17 +94,15 @@
 {% endblock %}
 {% block scripts %}
 <script>
-  if (typeof TomSelect !== 'undefined') {
-    new TomSelect('#division-province', {
-      create: false,
-      maxItems: 1,
-      searchField: ['text'],
-      placeholder: 'Tìm tên tỉnh, thành phố...',
-      render: {
-        no_results: () => '<div class="no-results">Không tìm thấy tỉnh, thành phố</div>'
-      }
-    });
-  }
+  new TomSelect('#division-province', {
+    create: false,
+    maxItems: 1,
+    searchField: ['text'],
+    placeholder: 'Tìm tên tỉnh, thành phố...',
+    render: {
+      no_results: () => '<div class="no-results">Không tìm thấy tỉnh, thành phố</div>'
+    }
+  });
 </script>
 {% if synced %}
 <script>
@@ -114,9 +112,7 @@
     failed: ['Không thể đồng bộ từ Cục Thống kê. Dữ liệu cũ được giữ nguyên.', 'error']
   };
   const divisionSyncMessage = divisionSyncMessages[{{ synced|tojson }}];
-  if (divisionSyncMessage) window.dispatchEvent(new CustomEvent('showToast', {
-    detail: {msg: divisionSyncMessage[0], type: divisionSyncMessage[1]}
-  }));
+  if (divisionSyncMessage) window.showNotify(divisionSyncMessage[0], divisionSyncMessage[1]);
   history.replaceState(null, '', location.pathname);
 </script>
 {% endif %}

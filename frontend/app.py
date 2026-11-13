@@ -33,7 +33,6 @@ from frontend.context.company_context import company_context
 
 from frontend.routes import register_routes
 from frontend.modules.zalo.controller import resume_invoice_sessions
-from frontend.routers.detection.video_api import close_video_jobs
 from frontend.catalog import migrate_product_catalog
 
 STATIC_CACHE_EXTENSIONS = (
@@ -137,6 +136,5 @@ app.mount("/upload", StaticFiles(directory=UPLOAD_DIR), name="upload")
 register_routes(app)
 app.add_event_handler("startup", resume_invoice_sessions)
 app.add_event_handler("startup", migrate_product_catalog)
-app.add_event_handler("shutdown", close_video_jobs)
 
 

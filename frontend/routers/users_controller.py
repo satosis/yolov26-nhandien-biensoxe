@@ -78,7 +78,7 @@ async def users_page(request: Request, page: int, error: Optional[str], user: di
     ctx["roles"] = queries.select_roles()
     ctx["error_msg"] = error
 
-    from frontend.modules.invoices import list_companies
+    from frontend.modules.invoices.companies import list_companies
     companies = list_companies()
     ctx["all_companies"] = companies
     ctx["companies_map"] = {c["id"]: c for c in companies}
@@ -93,7 +93,7 @@ async def add_user_page(request: Request, error: Optional[str], user: dict):
     ctx = get_menu_context(request, user)
     ctx["current_menu"] = "users"
     ctx["roles"] = queries.select_roles() or []
-    from frontend.modules.invoices import list_companies
+    from frontend.modules.invoices.companies import list_companies
     companies = list_companies()
     ctx["all_companies"] = companies
     ctx["companies_map"] = {c["id"]: c for c in companies}
@@ -165,7 +165,7 @@ async def edit_user_page(user_id: int, request: Request, error: Optional[str], u
 
     ctx["target_user"] = target_user
     ctx["roles"] = queries.select_roles() or []
-    from frontend.modules.invoices import list_companies
+    from frontend.modules.invoices.companies import list_companies
     companies = list_companies()
     ctx["all_companies"] = companies
     ctx["companies_map"] = {c["id"]: c for c in companies}

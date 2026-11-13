@@ -337,10 +337,7 @@ def delete_photo(photo_id: int) -> bool:
     in_use = db.query("SELECT 1 FROM public.fb_post_drafts WHERE photos @> %s::jsonb LIMIT 1",
                       (json.dumps([row["filename"]]),), fetch=True)
     if not in_use:
-        try:
-            (PHOTO_DIR / row["filename"]).unlink(missing_ok=True)
-        except Exception:
-            pass
+        (PHOTO_DIR / row["filename"]).unlink(missing_ok=True)
     return True
 
 

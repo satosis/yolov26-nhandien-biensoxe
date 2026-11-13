@@ -23,9 +23,6 @@ AVATAR_TYPES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 AVATAR_DIR = Path(cfg.BASE_DIR) / "upload" / "avatars"
 
 
-MAX_AVATAR_BYTES = 5 * 1024 * 1024
-
-
 async def save_avatar(upload: UploadFile | None) -> str:
     """Lưu ảnh đại diện vào upload/avatars; trả đường dẫn công khai, hoặc chuỗi rỗng khi không chọn ảnh."""
     filename = (upload.filename or "").strip() if upload else ""
@@ -37,8 +34,6 @@ async def save_avatar(upload: UploadFile | None) -> str:
     data = await upload.read()
     if not data:
         return ""
-    if len(data) > MAX_AVATAR_BYTES:
-        raise ValueError("Ảnh đại diện tối đa 5MB.")
     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
     name = f"{uuid.uuid4().hex}{suffix}"
     (AVATAR_DIR / name).write_bytes(data)

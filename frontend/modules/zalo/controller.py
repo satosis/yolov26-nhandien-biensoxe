@@ -62,13 +62,10 @@ async def _process_salary_message(item_id: str, *, retry: bool = False, company_
         set_salary_advance_status(item_id, {"state": "processing", "error": ""})
         target_company_id = company_id or item.get("company_id")
         if not target_company_id and item.get("group_name"):
-            try:
-                from frontend.modules.invoices.companies import find_company_by_name
-                matched = find_company_by_name(item["group_name"])
-                if matched:
-                    target_company_id = matched["id"]
-            except Exception:
-                pass
+            from frontend.modules.invoices.companies import find_company_by_name
+            matched = find_company_by_name(item["group_name"])
+            if matched:
+                target_company_id = matched["id"]
         try:
             member, payment = await asyncio.to_thread(create_advance_from_message, item, target_company_id)
         except ValueError as exc:
@@ -135,8 +132,8 @@ async def create_trip_draft(request: Request, user: dict, _: dict):
     if not expected or not hmac.compare_digest(nonce, expected):
         raise HTTPException(status_code=403, detail="Yêu cầu không hợp lệ")
     ids = form.getlist("message_ids")
-    if len(ids) != len(set(ids)) or not 1 <= len(ids) <= 20:
-        return RedirectResponse("/admin/zalo_inbox?draft_error=Chọn từ 1 đến 20 tin nhắn.", status_code=303)
+    if not ids:
+        return RedirectResponse("/admin/zalo_inbox?draft_error=Chọn ít nhất 1 tin nhắn.", status_code=303)
     messages = [get_message(item_id) for item_id in ids]
     if any(item is None for item in messages):
         raise HTTPException(status_code=404, detail="Không tìm thấy một tin nhắn đã chọn.")
@@ -211,6 +208,20 @@ async def ingest_message(event: str, file: UploadFile | None, x_zalo_bridge_secr
         from frontend.modules.zalo.invoice_automation import process_invoice_message_ingest
         await process_invoice_message_ingest(item)
     return {"ok": True, "id": item["id"]}
+
+
+async def company_card(payload: dict, x_zalo_bridge_secret: str):
+    if not hmac.compare_digest(x_zalo_bridge_secret, bridge_secret()):
+        raise HTTPException(status_code=401)
+    from frontend.modules.zalo.inbox import INBOX_DIR
+    uploads = (INBOX_DIR / "ai_uploads").resolve()
+    path = Path(str(payload.get("path") or "")).resolve()
+    if path.parent != uploads or not path.is_file():
+        raise HTTPException(status_code=422, detail="Tệp không nằm trong thư mục ảnh nhóm AI")
+    from frontend.modules.zalo.invoice_automation import read_image_text
+    from frontend.modules.zalo.company_card import fill_company_from_card
+    text = await asyncio.to_thread(read_image_text, path)
+    return {"ok": True, "filled": await fill_company_from_card(text)}
 
 
 async def apply_saved_draft(draft_id: str, request: Request, user: dict, _: dict):

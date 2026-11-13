@@ -887,7 +887,7 @@
 {% block scripts %}
 {% if saved %}
 <script>
-window.dispatchEvent(new CustomEvent('showToast', {detail:{msg:'Đã lưu dữ liệu thành công.', type:'success'}}));
+window.showNotify('Đã lưu dữ liệu thành công.', 'success');
 const url = new URL(window.location.href);
 url.searchParams.delete('saved');
 window.history.replaceState(null, '', url.pathname + url.search + url.hash);
@@ -1017,27 +1017,18 @@ async function saveTimesheetMatrix() {
     });
   });
 
-  try {
-    const res = await fetch('/admin/transport/payroll/timesheet/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        month: '{{ month }}',
-        updates: updates
-      })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { msg: data.message || 'Đã lưu bảng chấm công thành công.', type: 'success' }
-      }));
-    } else {
-      alert(data.message || 'Lỗi khi lưu bảng chấm công.');
-    }
-  } catch (err) {
-    console.error(err);
-    alert('Lỗi kết nối khi lưu bảng chấm công.');
-  }
+  const data = await apiRequest('/admin/transport/payroll/timesheet/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      month: '{{ month }}',
+      updates: updates
+    })
+  });
+  window.showNotify(
+    data.message || (data.ok ? 'Đã lưu bảng chấm công thành công.' : 'Lỗi khi lưu bảng chấm công.'),
+    data.ok ? 'success' : 'error'
+  );
 }
 </script>
 {% endblock %}

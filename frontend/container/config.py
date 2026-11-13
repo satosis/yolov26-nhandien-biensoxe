@@ -22,7 +22,7 @@ CONTAINER_ITEMS = [
         "unit": "tháng",
         "stock": 8,
         "icon": "apartment",
-        "img": "/static/services/container/img/container_hero.jpg",
+        "img": "/upload/services/container/img/container_hero.jpg",
         "desc": "Văn phòng di động 20ft (6m × 2,4m) lắp sẵn điều hòa 12.000BTU, đèn LED, cửa kính lùa cách nhiệt dùng ngay.",
         "specs": [
             "Thuê từ 3 tháng giảm còn 2.300.000đ/tháng",
@@ -39,7 +39,7 @@ CONTAINER_ITEMS = [
         "unit": "tháng",
         "stock": 5,
         "icon": "domain",
-        "img": "/static/services/container/img/container_hero.jpg",
+        "img": "/upload/services/container/img/container_hero.jpg",
         "desc": "Văn phòng rộng 40ft (12m × 2,4m) cho 8–12 nhân sự, trang bị 2 điều hòa, hệ điện âm tường & vách xốp cách nhiệt.",
         "specs": [
             "Thuê từ 3 tháng giảm còn 3.900.000đ/tháng",
@@ -56,7 +56,7 @@ CONTAINER_ITEMS = [
         "unit": "tháng",
         "stock": 12,
         "icon": "inventory_2",
-        "img": "/static/services/crane/img/crane_hero_yard.jpg",
+        "img": "/upload/services/crane/img/crane_hero_yard.jpg",
         "desc": "Kho thép nguyên bản kín mưa nắng 100%, khóa bảo vệ chắc chắn cho vật tư & thiết bị công trường.",
         "specs": [
             "Container kho 20ft (33m³): 1.500.000đ/tháng",
@@ -73,7 +73,7 @@ CONTAINER_ITEMS = [
         "unit": "chuyến",
         "stock": 4,
         "icon": "local_shipping",
-        "img": "/static/services/crane/img/crane_truck_88c_unic.jpg",
+        "img": "/upload/services/crane/img/crane_truck_88c_unic.jpg",
         "desc": "Vận chuyển, cẩu hạ đặt container tận nơi và thu hồi bằng xe cẩu tự hành chính chủ 8–10 tấn.",
         "specs": [
             "Container 20ft nội vùng Phú Thọ – Vĩnh Phúc: từ 1.800.000đ/lượt",
@@ -93,7 +93,7 @@ PAGE = {
     "cta": "GỌI THUÊ CONTAINER",
     "hero_caption": "Cho Thuê Container Văn Phòng & Kho — Giá Niêm Yết",
     "hero_icon": "",
-    "hero_image": "/static/services/container/img/container_hero.jpg",
+    "hero_image": "/upload/services/container/img/container_hero.jpg",
     "catalog_kicker": "Bảng Giá Niêm Yết Trực Tiếp",
     "catalog_title": "Chọn Loại Container Theo Nhu Cầu & Đơn Giá",
     "price_title": "Bảng Giá Cho Thuê Container Niêm Yết",
@@ -130,6 +130,6 @@ def get_container_settings() -> dict:
             "giá thuê container, cho thuê container văn phòng, thuê container kho, container Phú Thọ, "
             f"container Vĩnh Phúc, cẩu hạ container, {company_name}"
         ),
-        "og_image": "/static/services/container/img/container_hero.jpg",
+        "og_image": "/upload/services/container/img/container_hero.jpg",
     }
     return {**info, "seo_config": seo_config, "catalog_items": CONTAINER_ITEMS}

@@ -135,13 +135,10 @@ def create_advance_from_message(item: dict, company_id: int | None = None) -> tu
         raise ValueError("Tin nhắn không phải yêu cầu tạm ứng lương.")
     cid = company_id or item.get("company_id")
     if not cid and item.get("group_name"):
-        try:
-            from frontend.modules.invoices.companies import find_company_by_name
-            matched = find_company_by_name(item["group_name"])
-            if matched:
-                cid = matched["id"]
-        except Exception:
-            pass
+        from frontend.modules.invoices.companies import find_company_by_name
+        matched = find_company_by_name(item["group_name"])
+        if matched:
+            cid = matched["id"]
     if not cid:
         raise ValueError("Nhóm Zalo không khớp 100% với tên công ty nào trong hệ thống để xác định nhân sự tạm ứng.")
     members = staff_members(cid)

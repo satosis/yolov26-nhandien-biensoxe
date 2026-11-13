@@ -19,6 +19,20 @@ from backend.services import config as cfg
 
 logger = logging.getLogger(__name__)
 
+# Một mức chất lượng cho mọi ảnh nhận diện lưu ra hoặc trả về giao diện (crop biển số, ảnh chụp).
+JPEG_QUALITY = 95
+
+
+def encode_jpeg(image) -> bytes:
+    ok, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+    if not ok:
+        raise ValueError("Không nén được ảnh JPEG.")
+    return encoded.tobytes()
+
+
+def jpeg_data_uri(image) -> str:
+    return "data:image/jpeg;base64," + base64.b64encode(encode_jpeg(image)).decode("ascii")
+
 
 def _snapshot_token(value: str, label: str, *, default: str | None = None) -> str:
     if not isinstance(value, str):
@@ -43,7 +57,7 @@ def _ensure_snapshot_directory() -> None:
 
 
 def _write_snapshot(path: str, image, kind: str, failure_message: str) -> None:
-    written = cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, 96])
+    written = cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
     if not written:
         logger.error("%s snapshot write returned False", kind)
         raise OSError(failure_message)

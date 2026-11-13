@@ -8,16 +8,6 @@
 {% endblock %}
 
 {% block content %}
-{% if error_msg %}
-<script>
-  window.addEventListener('DOMContentLoaded', function() {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: {{ error_msg|tojson }}, type: 'error' }
-    }));
-  });
-</script>
-{% endif %}
-
 <div class="row">
   <div class="col-12 col-xl-9 col-lg-10">
     <div class="card shadow-sm border-0" style="border-radius:10px;">
@@ -140,13 +130,11 @@
 <script src="/static/admin-assets/js/user-form.js?v=20261104-1"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  if (typeof TomSelect !== 'undefined') {
-    new TomSelect('#add-user-company-select', {
-      plugins: ['remove_button'],
-      placeholder: '— Chọn một hoặc nhiều công ty —',
-      maxItems: null
-    });
-  }
+  new TomSelect('#add-user-company-select', {
+    plugins: ['remove_button'],
+    placeholder: '— Chọn một hoặc nhiều công ty —',
+    maxItems: null
+  });
 
   const nameInput = document.getElementById('user-fullname-input');
   const genderSelect = document.getElementById('user-gender-select');

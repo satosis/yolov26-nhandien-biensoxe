@@ -786,6 +786,14 @@
           <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
         </div>
         <div class="modal-body">
+          <!-- Cảnh báo có người nhập cùng nội dung -->
+          <div id="personalDebtConflictAlert" class="alert alert-danger py-2 px-3 mb-2 align-items-center shadow-sm" style="display:none; font-size:13px; border-left: 4px solid #dc3545; background-color: #fff5f5; color: #721c24; border-radius:4px;">
+            <i class="fas fa-exclamation-triangle mr-2 text-danger"></i>
+            <div style="flex:1;">
+              <strong class="d-block text-danger font-weight-bold" style="font-size:13.5px;">CẢNH BÁO ĐANG CÓ NGƯỜI NHẬP CÙNG NỘI DUNG:</strong>
+              <span id="personalDebtConflictMessage"></span>
+            </div>
+          </div>
           <div class="form-group mb-2">
             <label class="small font-weight-bold">Khách hàng <span class="text-danger">*</span></label>
             <select name="customer_id" id="personalTransactionCustomer" class="form-control form-control-sm" required>
@@ -843,6 +851,14 @@
           <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
         </div>
         <div class="modal-body">
+          <!-- Cảnh báo có người nhập cùng nội dung -->
+          <div id="personalPaymentConflictAlert" class="alert alert-danger py-2 px-3 mb-2 align-items-center shadow-sm" style="display:none; font-size:13px; border-left: 4px solid #dc3545; background-color: #fff5f5; color: #721c24; border-radius:4px;">
+            <i class="fas fa-exclamation-triangle mr-2 text-danger"></i>
+            <div style="flex:1;">
+              <strong class="d-block text-danger font-weight-bold" style="font-size:13.5px;">CẢNH BÁO ĐANG CÓ NGƯỜI NHẬP CÙNG NỘI DUNG:</strong>
+              <span id="personalPaymentConflictMessage"></span>
+            </div>
+          </div>
           <div class="form-group mb-2">
             <label class="small font-weight-bold">Khách hàng <span class="text-danger">*</span></label>
             <select name="customer_id" id="personalPaymentCustomer" class="form-control form-control-sm" required onchange="onPersonalPaymentCustomerChange(this)">
@@ -1247,23 +1263,20 @@ document.getElementById('editCompanyDebtLogForm').addEventListener('submit', asy
   event.preventDefault();
   const button = this.querySelector('[type="submit"]');
   button.disabled = true;
-  try {
-    const response = await fetch('/admin/enterprise/debts/' + document.getElementById('editCompanyDebtLogId').value, {
-      method: 'PUT', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        amount: document.getElementById('editCompanyDebtLogAmount').value,
-        recorded_date: document.getElementById('editCompanyDebtLogDate').value,
-        reference_doc: document.getElementById('editCompanyDebtLogReference').value,
-        note: document.getElementById('editCompanyDebtLogNote').value
-      })
-    });
-    const data = await response.json();
-    if (!response.ok || !data.ok) throw new Error(data.message || 'Không thể sửa giao dịch.');
+  const data = await apiRequest('/admin/enterprise/debts/' + document.getElementById('editCompanyDebtLogId').value, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      amount: document.getElementById('editCompanyDebtLogAmount').value,
+      recorded_date: document.getElementById('editCompanyDebtLogDate').value,
+      reference_doc: document.getElementById('editCompanyDebtLogReference').value,
+      note: document.getElementById('editCompanyDebtLogNote').value
+    })
+  });
+  if (data.ok) {
     window.location.reload();
-  } catch (error) {
-    if (window.toastr) toastr.error(error.message);
-    else window.dispatchEvent(new CustomEvent('showToast', {detail: {msg: error.message, type: 'error'}}));
-  } finally {
+  } else {
+    window.showNotify(data.message || 'Không thể sửa giao dịch.', 'error');
     button.disabled = false;
   }
 });
@@ -1318,11 +1331,10 @@ function openLedgerModal(companyId, companyName) {
 }
 
 function loadLedgerData(companyId) {
-  fetch('/admin/enterprise/debts/' + companyId + '/logs')
-    .then(res => res.json())
+  apiRequest('/admin/enterprise/debts/' + companyId + '/logs')
     .then(data => {
       if (!data.ok) {
-        $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-danger">' + (data.message || 'Lỗi tải dữ liệu') + '</td></tr>');
+        $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-danger">' + personalEscape(data.message || 'Lỗi tải dữ liệu') + '</td></tr>');
         return;
       }
       $('#ledgerCurrentDebt').text(data.current_debt_fmt);
@@ -1361,9 +1373,6 @@ function loadLedgerData(companyId) {
         `;
       });
       $('#ledgerTableBody').html(html);
-    })
-    .catch(err => {
-      $('#ledgerTableBody').html('<tr><td colspan="8" class="text-center py-4 text-danger">Lỗi kết nối máy chủ: ' + err + '</td></tr>');
     });
 }
 
@@ -1371,24 +1380,16 @@ function deleteLogFromLedger(logId) {
   if (!confirm('Bạn có chắc chắn muốn xóa bản ghi công nợ này?')) {
     return;
   }
-  fetch('/admin/enterprise/debts/' + logId + '/delete', {
-    method: 'POST',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-  })
-  .then(res => res.json())
-  .then(data => {
+  apiRequest('/admin/enterprise/debts/' + logId + '/delete', {
+    method: 'POST'
+  }).then(data => {
     if (data.ok) {
       if (activeLedgerCompanyId) {
         loadLedgerData(activeLedgerCompanyId);
       }
     } else {
-      if (window.toastr) toastr.error(data.message || 'Lỗi khi xóa bản ghi.');
-      else alert(data.message || 'Lỗi khi xóa bản ghi.');
+      window.showNotify(data.message || 'Lỗi khi xóa bản ghi.', 'error');
     }
-  })
-  .catch(err => {
-    if (window.toastr) toastr.error('Lỗi: ' + err);
-    else alert('Lỗi: ' + err);
   });
 }
 
@@ -1411,19 +1412,13 @@ let personalCustomerPage = 1;
 
 const DEBTS_VIEW_KEY = 'enterprise_debts_view_v1';
 function readDebtsViewState() {
-  try {
-    const raw = sessionStorage.getItem(DEBTS_VIEW_KEY);
-    return raw ? (JSON.parse(raw) || {}) : {};
-  } catch (e) {
-    return {};
-  }
+  const raw = sessionStorage.getItem(DEBTS_VIEW_KEY);
+  return raw ? (JSON.parse(raw) || {}) : {};
 }
 function saveDebtsViewState(patch) {
-  try {
-    const current = readDebtsViewState();
-    const updated = Object.assign({}, current, patch);
-    sessionStorage.setItem(DEBTS_VIEW_KEY, JSON.stringify(updated));
-  } catch (e) {}
+  const current = readDebtsViewState();
+  const updated = Object.assign({}, current, patch);
+  sessionStorage.setItem(DEBTS_VIEW_KEY, JSON.stringify(updated));
 }
 
 const savedDebtsInit = readDebtsViewState();
@@ -1490,32 +1485,12 @@ function personalDate(value) {
 }
 
 function showPersonalDebtNotice(message, kind = 'success') {
-  if (!message) return;
-  if (window.toastr) {
-    if (kind === 'error') toastr.error(message);
-    else if (kind === 'warning') toastr.warning(message);
-    else if (kind === 'info') toastr.info(message);
-    else toastr.success(message);
-  } else {
-    window.dispatchEvent(new CustomEvent('showToast', {
-      detail: { msg: message, type: kind === 'error' ? 'error' : 'success' }
-    }));
-  }
+  window.showNotify(message, kind);
 }
 
 async function personalDebtFetch(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    headers: {'X-Requested-With': 'XMLHttpRequest', ...(options.headers || {})}
-  });
-  const text = await response.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch (_) {
-    throw new Error(text || `Lỗi máy chủ (${response.status})`);
-  }
-  if (!response.ok || !data.ok) throw new Error(data.message || text || 'Không thể hoàn thành thao tác.');
+  const data = await apiRequest(url, options);
+  if (!data.ok) throw new Error(data.message || 'Không thể hoàn thành thao tác.');
   return data;
 }
 
@@ -1720,12 +1695,10 @@ function toggleDueFilter(paneType, forceState = null) {
     else btnReset.classList.add('d-none');
   }
 
-  if (window.showNotify) {
-    if (nextState) {
-      window.showNotify(`Đang hiển thị ${visibleCount} đối tượng đến hạn đòi (≥7 ngày)`, 'info');
-    } else {
-      window.showNotify('Đã hiển thị lại toàn bộ danh sách', 'info');
-    }
+  if (nextState) {
+    window.showNotify(`Đang hiển thị ${visibleCount} đối tượng đến hạn đòi (≥7 ngày)`, 'info');
+  } else {
+    window.showNotify('Đã hiển thị lại toàn bộ danh sách', 'info');
   }
 }
 
@@ -1880,6 +1853,104 @@ function editPersonalCustomer(customerId) {
   $('#personalCustomerModal').modal('show');
 }
 
+let debtPresenceSessionId = null;
+let debtPresenceTimer = null;
+let currentDebtConflictMessage = '';
+
+function getDebtPresenceSessionId() {
+  if (!debtPresenceSessionId) {
+    debtPresenceSessionId = 'sess_debt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+  }
+  return debtPresenceSessionId;
+}
+
+async function sendDebtPresenceHeartbeat() {
+  const isTransOpen = $('#personalTransactionModal').hasClass('show') || $('#personalTransactionModal').is(':visible');
+  const isPayOpen = $('#personalPaymentModal').hasClass('show') || $('#personalPaymentModal').is(':visible');
+  if (!isTransOpen && !isPayOpen) return;
+
+  const formId = isTransOpen ? 'personalTransactionForm' : 'personalPaymentForm';
+  const alertId = isTransOpen ? 'personalDebtConflictAlert' : 'personalPaymentConflictAlert';
+  const msgId = isTransOpen ? 'personalDebtConflictMessage' : 'personalPaymentConflictMessage';
+  const form = document.getElementById(formId);
+  if (!form) return;
+
+  const custSel = form.querySelector('[name="customer_id"]');
+  const custId = custSel ? custSel.value : '';
+  let custName = '';
+  if (custSel && custSel.selectedIndex >= 0) {
+    const opt = custSel.options[custSel.selectedIndex];
+    if (opt && opt.value) custName = opt.textContent.trim();
+  }
+  const invNum = (form.querySelector('[name="invoice_number"]')?.value || '').trim();
+  const resId = form.dataset.logId || '';
+
+  try {
+    const resp = await fetch('/admin/enterprise/sales/api/presence/heartbeat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: getDebtPresenceSessionId(),
+        scope: 'debts',
+        resource_id: resId,
+        customer_id: custId,
+        customer_name: custName,
+        invoice_number: invNum,
+      }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const alertBox = document.getElementById(alertId);
+    const msgBox = document.getElementById(msgId);
+    if (data.conflict && data.message) {
+      currentDebtConflictMessage = data.message;
+      if (msgBox) msgBox.textContent = data.message;
+      if (alertBox) alertBox.style.display = 'flex';
+    } else {
+      currentDebtConflictMessage = '';
+      if (alertBox) alertBox.style.display = 'none';
+    }
+  } catch (e) {}
+}
+
+function startDebtPresenceHeartbeat() {
+  getDebtPresenceSessionId();
+  stopDebtPresenceHeartbeat();
+  sendDebtPresenceHeartbeat();
+  debtPresenceTimer = setInterval(sendDebtPresenceHeartbeat, 3000);
+}
+
+function stopDebtPresenceHeartbeat() {
+  if (debtPresenceTimer) {
+    clearInterval(debtPresenceTimer);
+    debtPresenceTimer = null;
+  }
+  currentDebtConflictMessage = '';
+  const a1 = document.getElementById('personalDebtConflictAlert');
+  if (a1) a1.style.display = 'none';
+  const a2 = document.getElementById('personalPaymentConflictAlert');
+  if (a2) a2.style.display = 'none';
+}
+
+function releaseDebtPresenceSession() {
+  if (!debtPresenceSessionId) return;
+  const sid = debtPresenceSessionId;
+  debtPresenceSessionId = null;
+  stopDebtPresenceHeartbeat();
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/admin/enterprise/sales/api/presence/release', new Blob([JSON.stringify({ session_id: sid })], { type: 'application/json' }));
+    } else {
+      fetch('/admin/enterprise/sales/api/presence/release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid }),
+        keepalive: true,
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
 function openPersonalTransactionModal(customerId = '') {
   const form = document.getElementById('personalTransactionForm');
   form.reset();
@@ -1894,6 +1965,7 @@ function openPersonalTransactionModal(customerId = '') {
   form.querySelector('[name="transaction_date"]').value = new Date().toISOString().slice(0, 10);
   renderPersonalCustomerOptions(customerId);
   $('#personalTransactionModal').modal('show');
+  startDebtPresenceHeartbeat();
 }
 
 function editPersonalDebtLog(button) {
@@ -1918,6 +1990,7 @@ function editPersonalDebtLog(button) {
   form.querySelector('.modal-title').textContent = 'Sửa giao dịch công nợ';
   form.querySelector('[type="submit"]').textContent = 'Lưu thay đổi';
   $('#personalTransactionModal').modal('show');
+  startDebtPresenceHeartbeat();
 }
 
 function openPersonalPaymentModal(customerId = '') {
@@ -1927,6 +2000,7 @@ function openPersonalPaymentModal(customerId = '') {
   renderPersonalPaymentCustomerOptions(customerId);
   updatePersonalPaymentCustomerDebt(customerId);
   $('#personalPaymentModal').modal('show');
+  startDebtPresenceHeartbeat();
   setTimeout(() => {
     const input = document.getElementById('personalPaymentAmountInput');
     if (input) input.focus();
@@ -2068,6 +2142,11 @@ document.getElementById('personalCustomerForm').addEventListener('submit', async
 
 document.getElementById('personalTransactionForm').addEventListener('submit', async event => {
   event.preventDefault();
+  if (currentDebtConflictMessage) {
+    if (!window.confirm(currentDebtConflictMessage + "\n\nBạn có chắc chắn muốn tiếp tục lưu không?")) {
+      return;
+    }
+  }
   const form = event.currentTarget;
   try {
     const logId = form.dataset.logId;
@@ -2076,6 +2155,7 @@ document.getElementById('personalTransactionForm').addEventListener('submit', as
       : {method: 'POST', body: new FormData(form)};
     const data = await personalDebtFetch(logId ? `/admin/enterprise/debts/individuals/transactions/${logId}` : form.action, options);
     $('#personalTransactionModal').modal('hide');
+    releaseDebtPresenceSession();
     delete form.dataset.logId;
     form.querySelector('[name="customer_id"]').disabled = false;
     showPersonalDebtNotice(data.message);
@@ -2092,6 +2172,11 @@ document.getElementById('personalPaymentForm').addEventListener('submit', async 
   event.preventDefault();
   const form = event.currentTarget;
   const button = document.getElementById('personalPaymentSubmitBtn');
+  if (currentDebtConflictMessage) {
+    if (!window.confirm(currentDebtConflictMessage + "\n\nBạn có chắc chắn muốn tiếp tục lưu không?")) {
+      return;
+    }
+  }
   if (button) button.disabled = true;
   try {
     const formData = new FormData(form);
@@ -2101,6 +2186,7 @@ document.getElementById('personalPaymentForm').addEventListener('submit', async 
       body: formData
     });
     $('#personalPaymentModal').modal('hide');
+    releaseDebtPresenceSession();
     showPersonalDebtNotice(data.message || 'Đã ghi nhận số tiền đã trả.');
     await loadPersonalDebtCustomers({keepPosition: true});
     const custId = formData.get('customer_id');
@@ -2113,6 +2199,15 @@ document.getElementById('personalPaymentForm').addEventListener('submit', async 
     if (button) button.disabled = false;
   }
 });
+
+$('#personalTransactionModal').on('hidden.bs.modal', releaseDebtPresenceSession);
+$('#personalPaymentModal').on('hidden.bs.modal', releaseDebtPresenceSession);
+window.addEventListener('beforeunload', releaseDebtPresenceSession);
+
+const transCustSel = document.getElementById('personalTransactionCustomer');
+if (transCustSel) transCustSel.addEventListener('change', sendDebtPresenceHeartbeat);
+const payCustSel = document.getElementById('personalPaymentCustomer');
+if (payCustSel) payCustSel.addEventListener('change', sendDebtPresenceHeartbeat);
 
 document.getElementById('personalLedgerBody').addEventListener('click', event => {
   const button = event.target.closest('[data-edit-personal-log]');
